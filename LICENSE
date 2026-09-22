@@ -1,0 +1,53 @@
+0xDeck — Non-Commercial License
+
+Copyright (c) 2026 0xAnre
+
+Permission is granted to obtain, use, copy, modify, and distribute this
+software and its documentation for non-commercial purposes only, subject to
+the conditions below.
+
+1. Permitted use (non-commercial)
+
+   You may use, copy, modify, and share this software without charge for:
+
+   - Personal projects and private research
+   - Education, learning, and experimentation
+   - Non-profit or hobby use
+   - Internal evaluation that does not produce a commercial product or service
+
+2. Commercial use requires permission
+
+   Commercial use is not allowed without prior written permission from the
+   copyright holder. Commercial use includes, without limitation:
+
+   - Selling or licensing the software or derivatives
+   - Using it in a product or service offered for payment
+   - Using it in a business, trading desk, fund, or client-facing workflow
+     where the software is part of revenue-generating operations
+   - Offering hosted, managed, or SaaS versions built on this software
+
+   For commercial licensing, contact the repository owner.
+
+3. Distribution
+
+   If you distribute copies or modified versions, you must:
+
+   - Include this license and the copyright notice
+   - State clearly that the software is licensed for non-commercial use only
+   - Not remove notices for third-party components (see README Credits)
+
+4. Third-party software
+
+   This project includes third-party open-source components under their own
+   licenses (for example, react-grid-layout, licensed under MIT). Those
+   components remain governed by their original licenses.
+
+5. No warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.

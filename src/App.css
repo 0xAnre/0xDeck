@@ -1,0 +1,107 @@
+/* react-grid-layout — keep minimal overrides only */
+
+.react-grid-item {
+  transition: none !important;
+}
+
+.react-grid-item.resizing,
+.react-grid-item.react-draggable-dragging {
+  z-index: 100 !important;
+}
+
+.react-grid-item.react-grid-placeholder {
+  opacity: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.react-resizable-handle {
+  opacity: 0 !important;
+  background-image: none !important;
+  padding: 0 !important;
+  transform: none !important;
+  z-index: 50;
+  pointer-events: auto !important;
+}
+
+.react-resizable-handle:hover {
+  opacity: 0 !important;
+}
+
+.react-resizable-handle::after {
+  display: none !important;
+}
+
+.react-resizable-handle-w {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  height: auto !important;
+  margin-top: 0 !important;
+  cursor: ew-resize;
+}
+
+.react-resizable-handle-e {
+  right: 0;
+  left: auto;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  height: auto !important;
+  margin-top: 0 !important;
+  cursor: ew-resize;
+}
+
+.react-resizable-handle-n {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  width: auto !important;
+  margin-left: 0 !important;
+  cursor: ns-resize;
+}
+
+.react-resizable-handle-s {
+  bottom: 0;
+  top: auto;
+  left: 0;
+  right: 0;
+  height: 12px;
+  width: auto !important;
+  margin-left: 0 !important;
+  cursor: ns-resize;
+}
+
+.react-resizable-handle-se,
+.react-resizable-handle-sw,
+.react-resizable-handle-ne,
+.react-resizable-handle-nw {
+  width: 12px;
+  height: 12px;
+}
+
+.react-resizable-handle-se {
+  cursor: se-resize;
+}
+
+.react-resizable-handle-sw {
+  cursor: sw-resize;
+}
+
+.react-resizable-handle-ne {
+  cursor: ne-resize;
+}
+
+.react-resizable-handle-nw {
+  cursor: nw-resize;
+}
+
+.panel-body {
+  scrollbar-width: none;
+}
+
+.panel-body::-webkit-scrollbar {
+  display: none;
+}
