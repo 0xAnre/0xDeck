@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import duckdb
@@ -158,74 +157,88 @@ def _schema_column_type(schema: list[dict[str, str]], column_name: str) -> str:
     return "VARCHAR"
 
 
-def _timestamp_cutoff(max_ts: int | float, range_key: str) -> int | float:
-    delta_ms = TIME_RANGE_MS[range_key]
-    if max_ts > 1e15:
-        return max_ts - delta_ms * 1000
-    if max_ts > 1e12:
-        return max_ts - delta_ms
-    if max_ts > 1e9:
-        return max_ts - delta_ms // 1000
-    return max_ts - delta_ms
+TIME_RANGE_INTERVAL: dict[str, str] = {
+    "15m": "15 minutes",
+    "1h": "1 hour",
+    "6h": "6 hours",
+    "24h": "24 hours",
+    "7d": "7 days",
+}
 
 
-def _parse_timestamp_bound(value: object) -> datetime | float:
-    if isinstance(value, bool):
-        raise TypeError("bool is not a timestamp")
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, date):
-        return datetime.combine(value, datetime.min.time())
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            raise ValueError("empty timestamp")
+def _column_base_type(schema: list[dict[str, str]], column_name: str) -> str:
+    return _schema_column_type(schema, column_name).split("(")[0].upper()
+
+
+def _is_epoch_like_number(value: float) -> bool:
+    return value > 1e9
+
+
+def _resolve_time_value_kind(
+    con: duckdb.DuckDBPyConnection,
+    target: DatasetTarget,
+    time_column: str,
+    schema: list[dict[str, str]],
+) -> str:
+    base = _column_base_type(schema, time_column)
+    if base in NUMERIC_TYPES:
+        return "numeric"
+    if base in {"TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "DATE"}:
+        return "timestamp"
+    max_val = _fetch_max_timestamp(con, target, time_column)
+    if isinstance(max_val, str):
         try:
-            return float(text)
+            numeric = float(max_val.strip())
         except ValueError:
-            pass
-        for fmt in (
-            "%Y-%m-%d %H:%M:%S.%f",
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%dT%H:%M:%S.%f",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%d",
-        ):
-            try:
-                return datetime.strptime(text, fmt)
-            except ValueError:
-                continue
-        normalized = text.replace("Z", "+00:00")
-        try:
-            return datetime.fromisoformat(normalized)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported timestamp string: {text!r}") from exc
-    raise ValueError(f"Unsupported timestamp value: {value!r}")
+            return "datetime_text"
+        if _is_epoch_like_number(numeric):
+            return "epoch_text"
+    return "datetime_text"
 
 
-def _format_datetime_cutoff(cutoff: datetime, column_type: str, sample_value: object) -> object:
-    base_type = column_type.split("(")[0].upper()
-    if base_type in {"TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "DATE"}:
-        return cutoff
-    if isinstance(sample_value, str):
-        if "." in sample_value:
-            return cutoff.strftime("%Y-%m-%d %H:%M:%S.%f")
-        if len(sample_value) >= 19:
-            return cutoff.strftime("%Y-%m-%d %H:%M:%S")
-        if len(sample_value) == 10:
-            return cutoff.strftime("%Y-%m-%d")
-    return cutoff.strftime("%Y-%m-%d %H:%M:%S")
+def _numeric_cutoff_expression(max_column: str, range_key: str) -> str:
+    delta_ms = TIME_RANGE_MS[range_key]
+    return f"""CASE
+        WHEN {max_column} > 1e15 THEN {max_column} - {delta_ms * 1000}::DOUBLE
+        WHEN {max_column} > 1e12 THEN {max_column} - {delta_ms}::DOUBLE
+        WHEN {max_column} > 1e9 THEN {max_column} - {delta_ms // 1000}::DOUBLE
+        ELSE {max_column} - {delta_ms}::DOUBLE
+    END"""
 
 
-def _compute_time_cutoff(max_ts: object, range_key: str, column_type: str) -> object:
-    bound = _parse_timestamp_bound(max_ts)
-    if isinstance(bound, float):
-        return _timestamp_cutoff(bound, range_key)
-    delta = timedelta(milliseconds=TIME_RANGE_MS[range_key])
-    cutoff_dt = bound - delta
-    return _format_datetime_cutoff(cutoff_dt, column_type, max_ts)
+def _time_sort_expression(time_column: str, kind: str) -> str:
+    col = _quote_identifier(time_column)
+    if kind == "datetime_text":
+        return f"try_cast({col} AS TIMESTAMP)"
+    if kind == "epoch_text":
+        return f"try_cast({col} AS DOUBLE)"
+    return col
+
+
+def _time_range_predicate_sql(time_column: str, kind: str, range_key: str) -> str:
+    col = _quote_identifier(time_column)
+    interval = TIME_RANGE_INTERVAL[range_key]
+    if kind == "numeric":
+        return f"""{col} >= (
+            SELECT {_numeric_cutoff_expression("max_val", range_key)}
+            FROM (SELECT MAX({col})::DOUBLE AS max_val FROM read_parquet(?)) AS bounds
+        )"""
+    if kind == "epoch_text":
+        value_expr = f"try_cast({col} AS DOUBLE)"
+        return f"""{value_expr} >= (
+            SELECT {_numeric_cutoff_expression("max_val", range_key)}
+            FROM (SELECT MAX({value_expr}) AS max_val FROM read_parquet(?)) AS bounds
+        )"""
+    if kind == "timestamp":
+        return f"""{col} >= (
+            SELECT MAX({col}) - INTERVAL '{interval}'
+            FROM read_parquet(?)
+        )"""
+    ts_expr = f"try_cast({col} AS TIMESTAMP)"
+    return f"""{ts_expr} >= (
+        SELECT MAX({ts_expr}) - INTERVAL '{interval}'
+        FROM read_parquet(?)
+    )"""
 
 
 def _fetch_max_timestamp(con: duckdb.DuckDBPyConnection, target: DatasetTarget, time_column: str) -> object | None:
@@ -241,53 +254,30 @@ def _fetch_max_timestamp(con: duckdb.DuckDBPyConnection, target: DatasetTarget, 
     return row[0] if row else None
 
 
-def _time_range_cutoff(
-    con: duckdb.DuckDBPyConnection,
-    target: DatasetTarget,
-    time_column: str,
-    schema: list[dict[str, str]],
-    range_key: str,
-) -> object | None:
-    if range_key == "all":
-        return None
-    max_ts = _fetch_max_timestamp(con, target, time_column)
-    if max_ts is None:
-        return None
-    column_type = _schema_column_type(schema, time_column)
-    return _compute_time_cutoff(max_ts, range_key, column_type)
-
-
 def dataset_preview(target: DatasetTarget, limit: int = 50, range_key: str = "all") -> dict[str, object]:
     schema = dataset_schema(target)
     order_column = _guess_time_column(schema)
     range_key = normalize_time_range(range_key)
 
     con = duckdb.connect()
-    cutoff = _time_range_cutoff(con, target, order_column, schema, range_key) if order_column else None
-    if order_column and cutoff is not None:
+    kind = _resolve_time_value_kind(con, target, order_column, schema) if order_column else None
+    sort_expr = _time_sort_expression(order_column, kind) if order_column and kind else None
+    if order_column and range_key != "all" and kind:
+        predicate = _time_range_predicate_sql(order_column, kind, range_key)
         relation = con.execute(
             f"""
                 SELECT * FROM read_parquet(?)
-                WHERE {_quote_identifier(order_column)} >= ?
-                ORDER BY {_quote_identifier(order_column)} DESC
+                WHERE {predicate}
+                ORDER BY {sort_expr} DESC
                 LIMIT ?
                 """,
-            [target.source, cutoff, limit],
-        )
-    elif order_column and range_key != "all":
-        relation = con.execute(
-            f"""
-                SELECT * FROM read_parquet(?)
-                ORDER BY {_quote_identifier(order_column)} DESC
-                LIMIT ?
-                """,
-            [target.source, limit],
+            [target.source, target.source, limit],
         )
     elif order_column:
         relation = con.execute(
             f"""
             SELECT * FROM read_parquet(?)
-            ORDER BY {_quote_identifier(order_column)} DESC
+            ORDER BY {sort_expr} DESC
             LIMIT ?
             """,
             [target.source, limit],
@@ -318,34 +308,25 @@ def dataset_series(
 
     range_key = normalize_time_range(range_key)
     con = duckdb.connect()
-    cutoff = _time_range_cutoff(con, target, x_column, schema_rows, range_key)
-    if cutoff is not None:
-        query = f"""
-                SELECT {_quote_identifier(x_column)} AS x, {_quote_identifier(y_column)} AS y
-                FROM read_parquet(?)
-                WHERE {_quote_identifier(x_column)} >= ?
-                ORDER BY 1 ASC
-                LIMIT ?
-            """
-        rows = con.execute(query, [target.source, cutoff, limit]).fetchall()
-        con.close()
-        return [{"x": row[0], "y": row[1]} for row in rows]
-
+    kind = _resolve_time_value_kind(con, target, x_column, schema_rows)
+    x_sort = _time_sort_expression(x_column, kind)
     if range_key != "all":
+        predicate = _time_range_predicate_sql(x_column, kind, range_key)
         query = f"""
                 SELECT {_quote_identifier(x_column)} AS x, {_quote_identifier(y_column)} AS y
                 FROM read_parquet(?)
-                ORDER BY 1 ASC
+                WHERE {predicate}
+                ORDER BY {x_sort} ASC
                 LIMIT ?
             """
-        rows = con.execute(query, [target.source, limit]).fetchall()
+        rows = con.execute(query, [target.source, target.source, limit]).fetchall()
         con.close()
         return [{"x": row[0], "y": row[1]} for row in rows]
 
     query = f"""
         SELECT {_quote_identifier(x_column)} AS x, {_quote_identifier(y_column)} AS y
         FROM read_parquet(?)
-        ORDER BY 1 DESC
+        ORDER BY {x_sort} DESC
         LIMIT ?
     """
     rows = con.execute(query, [target.source, limit]).fetchall()
@@ -384,11 +365,13 @@ def dataset_kpi(
 
     where_sql = ""
     params: list[object] = [target.source]
+    time_sort = None
     if time_column and range_key != "all":
-        cutoff = _time_range_cutoff(con, target, time_column, schema, range_key)
-        if cutoff is not None:
-            where_sql = f" WHERE {_quote_identifier(time_column)} >= ?"
-            params.append(cutoff)
+        kind = _resolve_time_value_kind(con, target, time_column, schema)
+        time_sort = _time_sort_expression(time_column, kind)
+        predicate = _time_range_predicate_sql(time_column, kind, range_key)
+        where_sql = f" WHERE {predicate}"
+        params = [target.source, target.source]
 
     filtered = f"SELECT * FROM read_parquet(?){where_sql}"
     row_count = con.execute(f"SELECT COUNT(*)::BIGINT FROM ({filtered}) src", params).fetchone()[0]
@@ -412,10 +395,10 @@ def dataset_kpi(
         value = row_count
     elif agg == "last":
         if time_column:
-            time_col = _quote_identifier(time_column)
+            time_col = time_sort or _quote_identifier(time_column)
             row = con.execute(
                 f"""
-                SELECT {metric_col}, {time_col}
+                SELECT {metric_col}, {_quote_identifier(time_column)}
                 FROM ({filtered}) src
                 ORDER BY {time_col} DESC
                 LIMIT 1
@@ -432,7 +415,7 @@ def dataset_kpi(
         if not time_column:
             con.close()
             raise ValueError("Change aggregation requires a timestamp column")
-        time_col = _quote_identifier(time_column)
+        time_col = time_sort or _quote_identifier(time_column)
         row = con.execute(
             f"""
             WITH src AS ({filtered}),
@@ -443,7 +426,7 @@ def dataset_kpi(
                 LIMIT 1
             ),
             last_row AS (
-                SELECT {metric_col} AS metric_value, {time_col} AS ts
+                SELECT {metric_col} AS metric_value, {_quote_identifier(time_column)} AS ts
                 FROM src
                 ORDER BY {time_col} DESC
                 LIMIT 1
