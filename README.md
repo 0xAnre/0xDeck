@@ -68,7 +68,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+Open [http://localhost:57341](http://localhost:57341).
 
 ### 2. Backend (Parquet data)
 
@@ -78,7 +78,7 @@ python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python scripts/generate_sample.py   # optional — writes data/sample/market_ticks.parquet
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 57342
 ```
 
 ### 3. Connect data in the UI

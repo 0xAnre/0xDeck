@@ -19,13 +19,13 @@ Sample file is written to `../data/sample/market_ticks.parquet`.
 ```bash
 cd backend
 source .venv/bin/activate
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 57342
 ```
 
 ## Set the data folder
 
 1. Start backend (`uvicorn` above)
-2. Start frontend (`npm run dev`)
+2. Start frontend (`npm run dev` at http://localhost:57341)
 3. Open **Data source** → set Parquet folder to the absolute path of your data root
 4. Save folder
 

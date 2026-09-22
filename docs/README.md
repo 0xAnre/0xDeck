@@ -18,8 +18,8 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 
 **Load your data**
 
-1. Start backend → `uvicorn app.main:app --reload --port 8000`
-2. Start frontend → `npm run dev`
+1. Start backend → `uvicorn app.main:app --reload --port 57342`
+2. Start frontend → `npm run dev` (http://localhost:57341)
 3. **Data source** → absolute path to your Parquet folder → Save
 4. Registry refreshes automatically
 

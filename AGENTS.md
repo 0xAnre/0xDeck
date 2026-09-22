@@ -57,7 +57,7 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 4. **Exhaustive switches** — `PanelKind` cases use `never` in the default branch
 5. **Imports at top of file** — no inline imports
 6. **`minW`/`minH` in `panels.ts`** = minimum and default open size
-7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (5173), backend `uvicorn` (8000)
+7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (57341), backend `uvicorn` (57342)
 8. **Do not commit** unless the user explicitly asks
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
@@ -147,7 +147,7 @@ npm run build
 
 # backend (separate terminal)
 cd backend && source .venv/bin/activate
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 57342
 ```
 
 ## Extended docs
