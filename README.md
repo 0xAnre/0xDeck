@@ -4,6 +4,8 @@ A market research workspace canvas for building **reusable** custom trading and 
 
 Start from a blank canvas. Add built-in panels. Create your own widgets — register once, add many instances, port from other projects.
 
+![0xDeck workspace preview](docs/0xdeck-preview.png)
+
 ## Why this exists
 
 Most market tools force a fixed workflow. 0xDeck gives you a surface you can reshape around your own research process.
