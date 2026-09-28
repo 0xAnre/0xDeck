@@ -100,7 +100,7 @@ The happy path is two files:
 import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 export function MyWidgetPanel({ panelId, headerSettings }: WidgetInstanceProps) {
-  useParquetWidgetSettings({ headerSettings, panelId, title: 'My Widget', /* … */ })
+  useParquetWidgetSettings({ headerSettings, panelId, /* … */ })
   // …
 }
 ```
