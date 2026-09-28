@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
 from . import config, datasets
+from .ws import is_valid_channel, ws_manager
 
 app = FastAPI(title="0xDeck API", version="0.1.0")
 
@@ -28,6 +28,23 @@ def require_folder() -> Path:
     if folder is None:
         raise HTTPException(status_code=400, detail="Parquet folder is not configured")
     return folder
+
+
+@app.websocket("/api/ws/{channel}")
+async def websocket_channel(websocket: WebSocket, channel: str) -> None:
+    if not is_valid_channel(channel):
+        await websocket.close(code=1008, reason="Invalid channel")
+        return
+
+    await ws_manager.connect(channel, websocket)
+    try:
+        while True:
+            text = await websocket.receive_text()
+            await ws_manager.handle_client_text(channel, websocket, text)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        ws_manager.disconnect(channel, websocket)
 
 
 @app.get("/api/health")

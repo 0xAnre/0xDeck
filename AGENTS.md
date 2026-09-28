@@ -13,7 +13,7 @@ A **market research workspace canvas** with a **reusable widget model** — not 
 
 **Included:** draggable/resizable widget grid, layout persistence, 5 shadcn color themes, shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, live data widgets (table, chart, KPI, dashboard, reports preview, notes, market times).
 
-**Not included:** live WebSocket feeds, exchange APIs, auth.
+**Not included:** live widget feeds (WebSocket **foundation** only — see `src/widgets/stream/`, `/api/ws/{channel}`), exchange APIs, auth.
 
 Stack: Vite, React 19, TypeScript, Tailwind v4, shadcn/ui (Radix Mira), `react-grid-layout` v2, FastAPI, DuckDB.
 
@@ -22,6 +22,7 @@ Stack: Vite, React 19, TypeScript, Tailwind v4, shadcn/ui (Radix Mira), `react-g
 ```
 App.tsx                    → header, theme/widget menus, grid shell; renders registry component
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
+widgets/stream/            → WebSocket message contract + client (not used by widgets yet)
 panels.ts                  → instance ids (chart-abc123), layout helpers; catalog derived from registry
 ParquetDataContext.tsx     → dataset catalog + useWidgetParquetData hook
 api/client.ts              → /api/datasets, preview, series, kpi

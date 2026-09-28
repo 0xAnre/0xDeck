@@ -127,6 +127,10 @@ Registry metadata does **not** run queries in this stage — existing hooks stil
 
 Parquet-backed panels use `WidgetDataStateView` (`src/widgets/components/WidgetDataStateView.tsx`) for every non-`ready` status (`loading`, `offline`, `no-folder`, `empty`, `error`). Pass an optional `loadingFallback` to keep a widget-specific skeleton; otherwise a simple shared loading placeholder is shown. **Ready** chart/table/KPI/dashboard/reports content stays in each panel component. Notes and Market Times do not use this boundary — they have no backend dataset.
 
+### WebSocket stream foundation
+
+Registry `data` kinds `stream` and `query-and-stream` carry a `channel` string for future live feeds. Shared transport lives in `src/widgets/stream/` (`WidgetStreamClient`, message types). The client connects to same-origin `/api/ws/{channel}` (Vite proxies WebSocket to the backend on port 57342). **No built-in widget opens a stream yet** — REST hooks and Parquet panels are unchanged until a later stage wires `WidgetStreamClient` from widget code.
+
 ---
 
 ## Wire Parquet / live data

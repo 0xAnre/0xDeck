@@ -52,6 +52,30 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/datasets/{name}/preview` | Row preview (`limit`, `range`) |
 | GET | `/api/datasets/{name}/series` | Chart series (`limit`, `range`) |
 | GET | `/api/datasets/{name}/kpi` | KPI aggregation (`metric`, `agg`, `range`) |
+| WS | `/api/ws/{channel}` | WebSocket transport (infrastructure only; no data publisher yet) |
+
+### WebSocket (`/api/ws/{channel}`)
+
+Infrastructure for future live widgets. Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). No producer calls `publish()` in this release — connections stay idle after `connected` until a later stage.
+
+**Server → client** (every message includes `type`, `channel`, `timestamp` UTC ISO):
+
+| `type` | Extra fields |
+|--------|----------------|
+| `connected` | — |
+| `event` | `payload` (any JSON) |
+| `pong` | — |
+| `error` | `message` |
+
+**Client → server:**
+
+| `type` | Purpose |
+|--------|---------|
+| `ping` | Server replies with `pong` |
+
+Invalid JSON or unsupported client messages receive an `error` message. Implementation: `app/ws.py` (`WebSocketChannelManager`, `publish(channel, payload)` for future use).
+
+Frontend dev: Vite (`57341`) proxies `/api` WebSocket upgrades to this backend (`57342`).
 
 ### Query parameters
 
