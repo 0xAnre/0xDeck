@@ -40,10 +40,10 @@ The draggable canvas grid is built on **react-grid-layout** — drag, resize, ov
 
 Widgets are **templates + instances**:
 
-- Register once in `src/panels.ts` → appears in the **Widgets** menu
+- Register once in `src/widgets/registry/definitions.tsx` → appears in the **Widgets** menu (`panels.ts` handles instances and layout)
 - Each add creates a unique instance (`chart-a1b2c3`) with its own layout slot and settings
 - Shell (title, header dropdowns, close, drag) is shared — you only build the **body**
-- Port widget logic from another project: drop libs under `src/lib/`, add a `*Panel.tsx`, wire three files
+- Port widget logic from another project: libs under `src/lib/`, body in `*Panel.tsx`, one registry entry
 
 See [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) for the full path.
 

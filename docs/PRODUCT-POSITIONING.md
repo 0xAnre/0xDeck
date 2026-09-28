@@ -57,7 +57,7 @@ Support it with:
 
 - Built-in widgets for common workflows
 - **Reusable widget model** — template + instances + portable bodies
-- Easy custom widget creation (3-file flow)
+- Easy custom widget creation (registry entry + panel component)
 - Local Parquet data layer
 - Persistent draggable canvas layout
 - shadcn themes and UI components
@@ -101,7 +101,7 @@ Most market tools force a fixed workflow.
 
 ### Reusable widget model
 
-- **Template** in `src/panels.ts` — defines kind, title, default size
+- **Template** in `src/widgets/registry/definitions.tsx` — id, title, layout, header settings (`panels.ts` derives catalog and instances)
 - **Instance** per add — unique id, own settings, own grid slot
 - **Body only** — shared Card shell in `App.tsx`; widget code lives in `*Panel.tsx`
 - **Portable** — bring libs + panel from another repo (e.g. Market Times from a prior terminal project)

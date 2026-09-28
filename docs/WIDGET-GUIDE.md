@@ -91,6 +91,7 @@ The happy path is two files:
 - `minW` × `minH` — minimum size **and** default open size
 - lg grid: 36 columns, `rowHeight` 11px → height ≈ `h × 11px`
 - `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` for metadata only (hooks unchanged in v1)
+- Future live data: `stream` (`channel`) and `query-and-stream` (`queries` + `channel`) — types only until a later stage; no widget uses them yet
 - `widgetHasHeaderControls(definition)` in the registry drives header chrome — no separate configurable set
 
 ### 2. Create panel component

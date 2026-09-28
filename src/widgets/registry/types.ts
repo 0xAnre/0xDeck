@@ -12,8 +12,12 @@ export type WidgetDataQuerySource = 'preview' | 'series' | 'schema' | 'kpi'
 export type WidgetDataMetadata =
   | { kind: 'none' }
   | { kind: 'rest'; queries: readonly WidgetDataQuerySource[] }
-  | { kind: 'stream' }
-  | { kind: 'query-and-stream' }
+  | { kind: 'stream'; channel: string }
+  | {
+      kind: 'query-and-stream'
+      queries: readonly WidgetDataQuerySource[]
+      channel: string
+    }
 
 export type WidgetStateScope = 'instance' | 'workspace'
 

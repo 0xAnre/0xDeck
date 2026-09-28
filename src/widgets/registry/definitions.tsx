@@ -38,7 +38,7 @@ export const WIDGET_REGISTRY = [
       aggregation: true,
     },
     stateScope: 'instance',
-    data: { kind: 'rest', queries: ['kpi'] },
+    data: { kind: 'rest', queries: ['schema', 'kpi'] },
   },
   {
     id: 'notes',
@@ -124,7 +124,7 @@ export const WIDGET_REGISTRY = [
       aggregation: false,
     },
     stateScope: 'instance',
-    data: { kind: 'rest', queries: ['preview', 'schema'] },
+    data: { kind: 'rest', queries: ['preview'] },
   },
 ] as const satisfies readonly WidgetDefinition[]
 

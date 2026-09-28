@@ -31,8 +31,8 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 
 **Create a reusable widget**
 
-- Register template → `widgets/registry/definitions.tsx` + panel component ([WIDGET-GUIDE](./WIDGET-GUIDE.md))
-- Port from another project → libs in `src/lib/`, body in `*Panel.tsx`, same 3-file wire-up
+- Register template → `widgets/registry/definitions.tsx` + panel component ([WIDGET-GUIDE](./WIDGET-GUIDE.md)); `panels.ts` derives catalog and instance helpers
+- Port from another project → libs in `src/lib/`, body in `*Panel.tsx`, one registry entry
 - New theme → `index.css` + `themeStorage.ts` ([THEME-GUIDE](./THEME-GUIDE.md))
 - New API endpoint → `backend/app/` ([backend README](../backend/README.md))
 
