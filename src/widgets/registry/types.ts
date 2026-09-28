@@ -1,13 +1,12 @@
 import type { ComponentType } from 'react'
 import type { LayoutItem } from 'react-grid-layout'
+import type { WidgetDataQuerySource } from '@/widgets/data/types'
 import type { WidgetSettingsFields } from '@/widgetSettings/types'
 
 export type WidgetGrid = Pick<
   LayoutItem,
   'x' | 'y' | 'w' | 'h' | 'minW' | 'minH' | 'maxW' | 'maxH'
 >
-
-export type WidgetDataQuerySource = 'preview' | 'series' | 'schema' | 'kpi'
 
 export type WidgetDataMetadata =
   | { kind: 'none' }

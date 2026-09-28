@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchDatasetKpi, fetchDatasetSchema, pickDataset } from '@/api/client'
-import type { DatasetKpi, DatasetSummary } from '@/api/types'
+import type { DatasetSummary } from '@/api/types'
 import { EMPTY_COLUMNS, EMPTY_DATASETS } from '@/api/types'
 import {
   DATASET_CHANGED_EVENT,
@@ -23,20 +23,20 @@ import {
   saveWidgetTimeRange,
   type TimeRange,
 } from '@/timeRangeStorage'
+import {
+  isWidgetDataReady,
+  type WidgetDataState,
+  type WidgetQueryResult,
+} from '@/widgets/data/types'
 
-export type KpiCardState =
-  | { status: 'loading' }
-  | { status: 'offline' }
-  | { status: 'no-folder' }
-  | { status: 'empty' }
-  | { status: 'error'; message: string }
-  | {
-      status: 'ready'
-      dataset: DatasetSummary
-      datasets: DatasetSummary[]
-      columns: string[]
-      kpi: DatasetKpi
-    }
+type KpiCardReady = {
+  dataset: DatasetSummary
+  datasets: DatasetSummary[]
+  columns: string[]
+  kpi: WidgetQueryResult<'kpi'>
+}
+
+export type KpiCardState = WidgetDataState<KpiCardReady>
 
 function pickWidgetDataset(
   datasets: DatasetSummary[],
@@ -215,5 +215,5 @@ export function useKpiCardData(widgetId: string, preferredName = 'trades') {
 export function isKpiCardReady(
   state: KpiCardState,
 ): state is Extract<KpiCardState, { status: 'ready' }> {
-  return state.status === 'ready'
+  return isWidgetDataReady(state)
 }

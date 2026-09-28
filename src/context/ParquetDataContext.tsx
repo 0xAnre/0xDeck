@@ -14,8 +14,13 @@ import {
   fetchHealth,
   pickDataset,
 } from '@/api/client'
-import type { DatasetPreview, DatasetSeries, DatasetSummary } from '@/api/types'
+import type { DatasetSummary } from '@/api/types'
 import { EMPTY_DATASETS } from '@/api/types'
+import {
+  isWidgetDataReady,
+  type WidgetDataState,
+  type WidgetQueryResult,
+} from '@/widgets/data/types'
 import {
   DATASET_CHANGED_EVENT,
   WIDGET_DATA_CHANGED_EVENT,
@@ -29,27 +34,20 @@ import {
   type TimeRange,
 } from '@/timeRangeStorage'
 
-export type ParquetDataState =
-  | { status: 'loading' }
-  | { status: 'offline' }
-  | { status: 'no-folder' }
-  | { status: 'empty' }
-  | { status: 'error'; message: string }
-  | {
-      status: 'ready'
-      dataset: DatasetSummary
-      datasets: DatasetSummary[]
-      preview: DatasetPreview
-      series: DatasetSeries
-    }
+type ParquetDataReady = {
+  dataset: DatasetSummary
+  datasets: DatasetSummary[]
+  preview: WidgetQueryResult<'preview'>
+  series: WidgetQueryResult<'series'>
+}
 
-type ParquetCatalogState =
-  | { status: 'loading' }
-  | { status: 'offline' }
-  | { status: 'no-folder' }
-  | { status: 'empty' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; datasets: DatasetSummary[] }
+export type ParquetDataState = WidgetDataState<ParquetDataReady>
+
+type ParquetCatalogReady = {
+  datasets: DatasetSummary[]
+}
+
+export type ParquetCatalogState = WidgetDataState<ParquetCatalogReady>
 
 type ParquetDataContextValue = {
   catalog: ParquetCatalogState
@@ -278,5 +276,5 @@ export function useWidgetParquetData(
 export function isParquetReady(
   state: ParquetDataState,
 ): state is Extract<ParquetDataState, { status: 'ready' }> {
-  return state.status === 'ready'
+  return isWidgetDataReady(state)
 }

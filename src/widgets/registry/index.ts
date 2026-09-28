@@ -4,12 +4,12 @@ import type { WidgetDefinition } from '@/widgets/registry/types'
 export { WIDGET_REGISTRY, type WidgetId } from '@/widgets/registry/definitions'
 export type {
   WidgetDataMetadata,
-  WidgetDataQuerySource,
   WidgetDefinition,
   WidgetGrid,
   WidgetInstanceProps,
   WidgetStateScope,
 } from '@/widgets/registry/types'
+export type { WidgetDataQuerySource } from '@/widgets/data/types'
 
 export function getWidgetDefinition(id: string): WidgetDefinition | undefined {
   return WIDGET_REGISTRY.find((widget) => widget.id === id)

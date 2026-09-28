@@ -113,6 +113,18 @@ export function MyWidgetPanel({ panelId, headerSettings }: WidgetInstanceProps) 
 
 ---
 
+## Data contract
+
+Shared types live in `src/widgets/data/types.ts`:
+
+- **Query names** — `WidgetDataQuerySource` (`preview`, `series`, `schema`, `kpi`) appear in each widget’s registry `data` metadata (`definitions.tsx`).
+- **Result types** — `WidgetQueryResultMap` links each query name to the matching type in `src/api/types.ts`; use `WidgetQueryResult<'preview'>` (and so on) in ready payloads.
+- **Hook state** — `ParquetDataState`, `ParquetCatalogState`, and `KpiCardState` are `WidgetDataState<TReady>` with the same ready fields as before (`dataset`, `preview`, `series`, `kpi`, …). Use `isWidgetDataReady()` or the existing `isParquetReady()` / `isKpiCardReady()` guards.
+
+Registry metadata does **not** run queries in this stage — existing hooks still fetch via `api/client.ts`.
+
+---
+
 ## Wire Parquet / live data
 
 ### Settings pattern
