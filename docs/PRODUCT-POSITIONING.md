@@ -25,7 +25,7 @@ Start from a blank canvas, add built-in widgets, or create your own reusable pan
 
 **Reusable widget** means three things in this project:
 
-1. **Template** — one catalog entry in `panels.ts` (`chart`, `market-times`, …)
+1. **Template** — one `WidgetDefinition` in `src/widgets/registry/definitions.tsx` (`chart`, `market-times`, …)
 2. **Instances** — each add from the Widgets menu creates a unique id (`chart-a1b2c3`) with its own config and layout slot
 3. **Portable** — widget body + libs can be brought from another project; shell and grid stay in `App.tsx`
 

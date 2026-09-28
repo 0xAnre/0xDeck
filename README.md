@@ -26,7 +26,7 @@ Most market tools force a fixed workflow. 0xDeck gives you a surface you can res
 | **Canvas** | Blank draggable workspace; resize, overlap, stack, and persist panels |
 | **Backend** | FastAPI + DuckDB — flat `.parquet` files and nested **streams** (`trades`, `prediction_price`, …) |
 | **Widgets** | Data Table, Chart, KPI Card, Dashboard, Reports (preview), Notes, Market Times |
-| **Reusable widgets** | Register a template once in `panels.ts`; add many instances; each keeps its own config |
+| **Reusable widgets** | Register a template once in `src/widgets/registry/definitions.tsx`; add many instances; each keeps its own config |
 | **Custom widgets** | Add your own panels through `WIDGET_REGISTRY` (`src/widgets/registry/`) |
 | **Data binding** | Per-widget dataset, columns, time range (`15m`–`7d`), KPI metric + aggregation |
 | **Themes** | 5 shadcn presets — Neutral, Stone, Mauve, Taupe, Olive |
