@@ -19,7 +19,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { PanelContent } from './PanelContent'
 import { PanelHeaderControls } from './PanelHeaderControls'
 import { BREAKPOINTS, COLS, ROW_HEIGHT, breakpointFromWidth } from './breakpoints'
 import {
@@ -30,7 +29,11 @@ import {
   saveWorkspace,
   type WorkspaceState,
 } from './layoutStorage'
-import { panelDisplayTitle, resolvePanelInstance, isConfigurablePanelKind } from './panels'
+import { panelDisplayTitle, resolvePanelInstance } from './panels'
+import {
+  getWidgetDefinitionForInstance,
+  widgetHasHeaderControls,
+} from '@/widgets/registry'
 import { ParquetDataProvider } from './context/ParquetDataContext'
 import { WidgetSettingsProvider } from './context/WidgetSettingsContext'
 import { DataSourceDialog } from './DataSourceDialog'
@@ -203,7 +206,13 @@ function App() {
             onResizeStart={handleResizeStart}
             onResizeStop={handleResizeStop}
           >
-            {visiblePanels.map((panel) => (
+            {visiblePanels.map((panel) => {
+              const definition = getWidgetDefinitionForInstance(panel.id)
+              if (!definition) return null
+
+              const WidgetBody = definition.component
+
+              return (
               <Card
                 key={panel.id}
                 size="sm"
@@ -214,7 +223,7 @@ function App() {
                   <CardTitle className="pointer-events-auto min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
                     {panelDisplayTitle(panel, visiblePanels)}
                   </CardTitle>
-                  {isConfigurablePanelKind(panel.kind) && (
+                  {widgetHasHeaderControls(definition) && (
                     <PanelHeaderControls panelId={panel.id} />
                   )}
                   <CardAction className="pointer-events-auto !col-start-auto !row-span-1 !row-start-auto ml-auto shrink-0">
@@ -231,10 +240,14 @@ function App() {
                   </CardAction>
                 </CardHeader>
                 <CardContent className="panel-body min-h-0 flex-1 overflow-auto px-2 pb-2 pt-0">
-                  <PanelContent panelId={panel.id} kind={panel.kind} />
+                  <WidgetBody
+                    panelId={panel.id}
+                    headerSettings={definition.headerSettings}
+                  />
                 </CardContent>
               </Card>
-            ))}
+              )
+            })}
           </ResponsiveGridLayout>
         )}
 

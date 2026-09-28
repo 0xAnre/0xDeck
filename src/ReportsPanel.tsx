@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import { formatCellValue } from '@/lib/formatCellValue'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
+import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 type ReportStatus = 'ready' | 'running' | 'failed'
 
@@ -157,17 +158,13 @@ function statusBadge(status: ReportStatus) {
   }
 }
 
-type ReportsPanelProps = {
-  panelId: string
-}
-
-export function ReportsPanel({ panelId }: ReportsPanelProps) {
+export function ReportsPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const [selectedId, setSelectedId] = useState(savedReports[0]?.id ?? '')
   const { state, datasets, selectedName, selectDataset, timeRange, setTimeRange, catalogStatus } =
     useWidgetParquetData(panelId, 'trades')
 
   useParquetWidgetSettings({
-    kind: 'reports',
+    headerSettings,
     panelId,
     title: 'Reports',
     datasets,

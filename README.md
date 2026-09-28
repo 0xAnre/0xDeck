@@ -27,7 +27,7 @@ Most market tools force a fixed workflow. 0xDeck gives you a surface you can res
 | **Backend** | FastAPI + DuckDB — flat `.parquet` files and nested **streams** (`trades`, `prediction_price`, …) |
 | **Widgets** | Data Table, Chart, KPI Card, Dashboard, Reports (preview), Notes, Market Times |
 | **Reusable widgets** | Register a template once in `panels.ts`; add many instances; each keeps its own config |
-| **Custom widgets** | Add your own panels through the widget catalog and `PanelContent` router |
+| **Custom widgets** | Add your own panels through `WIDGET_REGISTRY` (`src/widgets/registry/`) |
 | **Data binding** | Per-widget dataset, columns, time range (`15m`–`7d`), KPI metric + aggregation |
 | **Themes** | 5 shadcn presets — Neutral, Stone, Mauve, Taupe, Olive |
 | **Persistence** | Workspace layout + widget config in `localStorage` (`0xdeck-*` keys) |
@@ -51,9 +51,9 @@ See [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) for the full path.
 
 Widget creation is intentionally small:
 
-1. Add a template in `src/panels.ts`
-2. Create a panel component, e.g. `src/MyWidgetPanel.tsx`
-3. Route it in `src/PanelContent.tsx`
+1. Add a `WidgetDefinition` in `src/widgets/registry/definitions.tsx`
+2. Create a panel component, e.g. `src/MyWidgetPanel.tsx` (implements `WidgetInstanceProps`)
+3. Widget picker and grid shell pick up the registry entry automatically
 
 Use [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) as the main path for custom panels.
 

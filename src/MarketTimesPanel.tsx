@@ -5,7 +5,6 @@ import {
   getNextMarketTimesWakeMs,
   MARKET_SESSIONS,
 } from '@/lib/marketSessions'
-
 export function MarketTimesPanel() {
   const [now, setNow] = useState(() => new Date())
 

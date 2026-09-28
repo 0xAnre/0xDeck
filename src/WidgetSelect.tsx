@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { PANEL_CATALOG } from './panels'
+import { WIDGET_REGISTRY } from '@/widgets/registry'
 
 type WidgetSelectProps = {
   panelCount: number
@@ -23,10 +23,10 @@ export function WidgetSelect({ panelCount, onAdd }: WidgetSelectProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
-        {PANEL_CATALOG.map((panel) => (
-          <DropdownMenuItem key={panel.id} onSelect={() => onAdd(panel.id)}>
+        {WIDGET_REGISTRY.map((widget) => (
+          <DropdownMenuItem key={widget.id} onSelect={() => onAdd(widget.id)}>
             <PlusIcon data-icon="inline-start" />
-            {panel.title}
+            {widget.title}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

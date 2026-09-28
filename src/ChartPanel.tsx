@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { formatSeriesLabel, formatSeriesTick } from '@/lib/parquetView'
+import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 const mockChartData = [
   { x: '11:30', y: 67680 },
@@ -30,16 +31,12 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-type ChartPanelProps = {
-  panelId: string
-}
-
-export function ChartPanel({ panelId }: ChartPanelProps) {
+export function ChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const { state, datasets, selectedName, selectDataset, timeRange, setTimeRange, catalogStatus } =
     useWidgetParquetData(panelId, 'prediction_price')
 
   useParquetWidgetSettings({
-    kind: 'chart',
+    headerSettings,
     panelId,
     title: 'Chart',
     datasets,

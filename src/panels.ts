@@ -1,36 +1,22 @@
 import type { LayoutItem } from 'react-grid-layout'
+import {
+  WIDGET_REGISTRY,
+  getWidgetDefinitionForInstance,
+  type WidgetId,
+} from '@/widgets/registry'
+import type { WidgetGrid } from '@/widgets/registry/types'
 
-type PanelGrid = Pick<
-  LayoutItem,
-  'x' | 'y' | 'w' | 'h' | 'minW' | 'minH' | 'maxW' | 'maxH'
->
+export type { WidgetId }
+/** @deprecated Use WidgetId */
+export type PanelKind = WidgetId
 
-export type PanelKind =
-  | 'chart'
-  | 'dashboard'
-  | 'data-table'
-  | 'kpi-card'
-  | 'market-times'
-  | 'notes'
-  | 'reports'
-
-export const CONFIGURABLE_PANEL_KINDS = new Set<PanelKind>([
-  'chart',
-  'dashboard',
-  'data-table',
-  'kpi-card',
-  'reports',
-])
-
-export function isConfigurablePanelKind(kind: PanelKind) {
-  return CONFIGURABLE_PANEL_KINDS.has(kind)
-}
+export type PanelGrid = WidgetGrid
 
 export type PanelDef = {
-  id: string
+  id: WidgetId
   title: string
   hint: string
-  kind: PanelKind
+  kind: WidgetId
   grid: PanelGrid
 }
 
@@ -38,63 +24,19 @@ export type PanelInstance = {
   id: string
   title: string
   hint: string
-  kind: PanelKind
+  kind: WidgetId
   grid: PanelGrid
 }
 
-export const PANEL_CATALOG: PanelDef[] = [
-  {
-    id: 'dashboard',
-    title: 'Dashboard',
-    hint: 'KPI · chart · table',
-    kind: 'dashboard',
-    grid: { x: 0, y: 0, w: 24, h: 16, minW: 12, minH: 12 },
-  },
-  {
-    id: 'kpi-card',
-    title: 'KPI Card',
-    hint: 'Metric preview',
-    kind: 'kpi-card',
-    grid: { x: 0, y: 0, w: 6, h: 4, minW: 4, minH: 3 },
-  },
-  {
-    id: 'notes',
-    title: 'Notes',
-    hint: 'Markdown · local save',
-    kind: 'notes',
-    grid: { x: 0, y: 4, w: 12, h: 12, minW: 8, minH: 8 },
-  },
-  {
-    id: 'market-times',
-    title: 'Market Times',
-    hint: 'Exchange sessions · open/close',
-    kind: 'market-times',
-    grid: { x: 0, y: 0, w: 10, h: 12, minW: 8, minH: 10 },
-  },
-  {
-    id: 'chart',
-    title: 'Chart',
-    hint: 'Line series',
-    kind: 'chart',
-    grid: { x: 12, y: 0, w: 12, h: 10, minW: 9, minH: 7 },
-  },
-  {
-    id: 'reports',
-    title: 'Reports',
-    hint: 'Saved queries · export',
-    kind: 'reports',
-    grid: { x: 0, y: 0, w: 18, h: 14, minW: 10, minH: 10 },
-  },
-  {
-    id: 'data-table',
-    title: 'Data Table',
-    hint: 'Dataset preview',
-    kind: 'data-table',
-    grid: { x: 6, y: 0, w: 18, h: 12, minW: 9, minH: 7 },
-  },
-]
+export const PANEL_CATALOG: PanelDef[] = WIDGET_REGISTRY.map((widget) => ({
+  id: widget.id,
+  title: widget.title,
+  hint: widget.description,
+  kind: widget.id,
+  grid: widget.grid,
+}))
 
-export const DEFAULT_ACTIVE_PANELS = ['kpi-card', 'notes', 'chart', 'data-table']
+export const DEFAULT_ACTIVE_PANELS: string[] = ['kpi-card', 'notes', 'chart', 'data-table']
 
 export function getPanelTemplate(templateId: string): PanelDef | undefined {
   return PANEL_CATALOG.find((panel) => panel.id === templateId)
@@ -106,10 +48,17 @@ export function getPanelById(id: string): PanelDef | undefined {
 }
 
 function panelTemplateForInstance(instanceId: string): PanelDef | undefined {
-  const exact = getPanelTemplate(instanceId)
-  if (exact) return exact
+  const definition = getWidgetDefinitionForInstance(instanceId)
+  if (!definition) return undefined
 
-  return PANEL_CATALOG.find((panel) => instanceId.startsWith(`${panel.id}-`))
+  const widgetId = definition.id as WidgetId
+  return {
+    id: widgetId,
+    title: definition.title,
+    hint: definition.description,
+    kind: widgetId,
+    grid: definition.grid,
+  }
 }
 
 export function isPanelInstanceId(instanceId: string): boolean {

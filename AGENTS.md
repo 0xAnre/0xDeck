@@ -20,9 +20,9 @@ Stack: Vite, React 19, TypeScript, Tailwind v4, shadcn/ui (Radix Mira), `react-g
 ## Architecture (read this first)
 
 ```
-App.tsx                    → header, theme/widget menus, grid shell (shadcn Card panels)
-panels.ts                  → widget catalog (templates) + instance ids (chart-abc123)
-PanelContent.tsx           → widget bodies
+App.tsx                    → header, theme/widget menus, grid shell; renders registry component
+widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
+panels.ts                  → instance ids (chart-abc123), layout helpers; catalog derived from registry
 ParquetDataContext.tsx     → dataset catalog + useWidgetParquetData hook
 api/client.ts              → /api/datasets, preview, series, kpi
 backend/app/               → FastAPI + DuckDB Parquet queries
@@ -35,13 +35,13 @@ PanelHeaderControls.tsx    → header dropdowns (dataset, columns, range, metric
 
 Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on last interaction. Only **lg** layout is persisted.
 
-**Widget instances:** `PANEL_CATALOG` defines templates; each open panel gets a unique id (`chart-a1b2c3`). Widgets menu **adds** instances; panel **X** closes. Each instance has its own dataset, time range, and KPI config in localStorage. **Reusable widget** = register template once, add many instances, port bodies from other projects ([WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md)).
+**Widget instances:** `WIDGET_REGISTRY` defines templates; each open panel gets a unique id (`chart-a1b2c3`). Widgets menu **adds** instances; panel **X** closes. Each instance has its own dataset, time range, and KPI config in localStorage. **Reusable widget** = one registry entry, add many instances, port bodies from other projects ([WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md)).
 
 ## Common user tasks
 
 | User goal | Where to work | Doc |
 |-----------|---------------|-----|
-| Add a widget | `panels.ts`, `PanelContent.tsx` | [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) |
+| Add a widget | `widgets/registry/definitions.tsx` | [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) |
 | Wire Parquet / API data | `api/client.ts`, hooks, panel components | [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) |
 | Add KPI aggregation | `backend/app/datasets.py`, `KpiCardPanel.tsx` | [backend/README.md](backend/README.md) |
 | Add a color theme | `index.css`, `themeStorage.ts` | [docs/THEME-GUIDE.md](docs/THEME-GUIDE.md) |
@@ -53,10 +53,10 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 
 1. **Minimize scope** — match existing patterns; no unrelated refactors
 2. **No hardcoded colors in widgets** — shadcn semantic tokens (`text-up`, `text-bid`, `bg-card`, …)
-3. **Shell vs body** — panel chrome in `App.tsx` (Card); content in panel components via `PanelContent.tsx`
-4. **Exhaustive switches** — `PanelKind` cases use `never` in the default branch
+3. **Shell vs body** — panel chrome in `App.tsx` (Card); widget body from registry `component`
+4. **Registry-first widgets** — add one `WidgetDefinition` entry; no manual kind union or router switch
 5. **Imports at top of file** — no inline imports
-6. **`minW`/`minH` in `panels.ts`** = minimum and default open size
+6. **`minW`/`minH` in registry `grid`** = minimum and default open size
 7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (57341), backend `uvicorn` (57342)
 8. **Do not commit** unless the user explicitly asks
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components

@@ -16,6 +16,7 @@ import { loadWorkspaceDataConfig, saveWorkspaceDataConfig } from '@/datasetStora
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { EMPTY_COLUMNS } from '@/api/types'
+import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 const tableHeadClass = 'h-7 px-2 text-xs font-medium text-muted-foreground'
 const tableCellClass = 'px-2 py-1.5 tabular-nums'
@@ -76,11 +77,7 @@ function LoadingTable() {
   )
 }
 
-type DataTablePanelProps = {
-  panelId: string
-}
-
-export function DataTablePanel({ panelId }: DataTablePanelProps) {
+export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const { state, datasets, selectedName, selectDataset, timeRange, setTimeRange, catalogStatus } =
     useWidgetParquetData(panelId, 'trades')
   const [selectedColumns, setSelectedColumns] = useState<string[]>(() => loadWorkspaceDataConfig().columns)
@@ -126,7 +123,7 @@ export function DataTablePanel({ panelId }: DataTablePanelProps) {
   )
 
   useParquetWidgetSettings({
-    kind: 'data-table',
+    headerSettings,
     panelId,
     title: 'Data Table',
     datasets,

@@ -3,15 +3,13 @@ import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistra
 import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { TimeRange } from '@/timeRangeStorage'
-import type { PanelKind } from '@/panels'
-import { WIDGET_SETTINGS_FIELDS_BY_KIND } from '@/widgetSettings/presets'
 import {
   type WidgetSettingsFields,
   type WidgetSettingsRegistration,
 } from '@/widgetSettings/types'
 
 type UseParquetWidgetSettingsArgs = {
-  kind: PanelKind
+  headerSettings: WidgetSettingsFields
   panelId: string
   title: string
   fields?: Partial<WidgetSettingsFields>
@@ -31,7 +29,7 @@ type UseParquetWidgetSettingsArgs = {
 }
 
 export function useParquetWidgetSettings({
-  kind,
+  headerSettings,
   panelId,
   title,
   fields,
@@ -51,10 +49,17 @@ export function useParquetWidgetSettings({
 }: UseParquetWidgetSettingsArgs) {
   const mergedFields = useMemo<WidgetSettingsFields>(
     () => ({
-      ...WIDGET_SETTINGS_FIELDS_BY_KIND[kind],
+      ...headerSettings,
       ...fields,
     }),
-    [fields?.aggregation, fields?.columns, fields?.dataset, fields?.metric, fields?.timeRange, kind],
+    [
+      fields?.aggregation,
+      fields?.columns,
+      fields?.dataset,
+      fields?.metric,
+      fields?.timeRange,
+      headerSettings,
+    ],
   )
 
   const registration = useMemo<WidgetSettingsRegistration>(

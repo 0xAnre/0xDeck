@@ -32,6 +32,7 @@ import {
 } from '@/lib/parquetView'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
+import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 const mockMetrics = [
   { label: 'Last price', value: '67,840.20', change: '+2.4%', up: true },
@@ -69,16 +70,12 @@ const chartConfig = {
 const tableHeadClass = 'h-7 px-2 text-xs font-medium text-muted-foreground'
 const tableCellClass = 'px-2 py-1.5 tabular-nums'
 
-type DashboardPanelProps = {
-  panelId: string
-}
-
-export function DashboardPanel({ panelId }: DashboardPanelProps) {
+export function DashboardPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const { state, datasets, selectedName, selectDataset, timeRange, setTimeRange, catalogStatus } =
     useWidgetParquetData(panelId, 'trades')
 
   useParquetWidgetSettings({
-    kind: 'dashboard',
+    headerSettings,
     panelId,
     title: 'Dashboard',
     datasets,

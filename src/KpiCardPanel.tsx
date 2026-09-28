@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { formatKpiCaption, formatKpiContext, formatKpiValue } from '@/lib/formatKpi'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
 import { isKpiCardReady, useKpiCardData } from '@/hooks/useKpiCardData'
+import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 const mockKpi = {
   value: '67,840.20',
@@ -10,11 +11,7 @@ const mockKpi = {
   context: '2026-07-04 12:04:11',
 }
 
-type KpiCardPanelProps = {
-  panelId: string
-}
-
-export function KpiCardPanel({ panelId }: KpiCardPanelProps) {
+export function KpiCardPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const {
     state,
     datasets,
@@ -31,7 +28,7 @@ export function KpiCardPanel({ panelId }: KpiCardPanelProps) {
   } = useKpiCardData(panelId, 'trades')
 
   useParquetWidgetSettings({
-    kind: 'kpi-card',
+    headerSettings,
     panelId,
     title: 'KPI Card',
     datasets,

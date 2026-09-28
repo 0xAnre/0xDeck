@@ -110,9 +110,8 @@ Most market tools force a fixed workflow.
 
 The docs should make widget creation feel simple:
 
-- Add a widget definition in `src/panels.ts`
-- Add a panel component
-- Route it in `src/PanelContent.tsx`
+- Add a `WidgetDefinition` in `src/widgets/registry/definitions.tsx`
+- Add a panel component (`WidgetInstanceProps`)
 - Use built-in data hooks if needed
 
 Link to `docs/WIDGET-GUIDE.md` from this section.
@@ -125,11 +124,10 @@ Planned reinforcement:
 
 - Make `docs/WIDGET-GUIDE.md` the central guide
 - Add a clear "Create your own widget" path
-- Emphasize the 3-file widget flow:
-  - `src/panels.ts`
-  - `src/PanelContent.tsx`
+- Emphasize the registry + panel flow:
+  - `src/widgets/registry/definitions.tsx`
   - `src/*Panel.tsx`
-- Consider a future `src/widgets/` structure
+- Expand `src/widgets/` in later standard stages (folder layout, scaffold)
 - Add starter widget templates
 - Add widget gallery / examples
 - Add research workflow examples
@@ -138,7 +136,7 @@ Planned reinforcement:
 
 Data widget settings are the dropdowns in the widget header (`PanelHeaderControls`).
 
-`CONFIGURABLE_PANEL_KINDS` (`chart`, `dashboard`, `data-table`, `kpi-card`, `reports`) show the fields registered by `useParquetWidgetSettings`. Notes and Market Times do not.
+`headerSettings` on each `WidgetDefinition` drives which fields `PanelHeaderControls` shows (via `useParquetWidgetSettings`). Notes and Market Times leave all flags false.
 
 ### Settings in the header
 
@@ -148,7 +146,7 @@ Data widget settings are the dropdowns in the widget header (`PanelHeaderControl
 - Metric — `HeaderSelect` (KPI)
 - Aggregation — `HeaderSelect` (KPI)
 
-Not every widget shows every control. The set comes from `WIDGET_SETTINGS_FIELDS_BY_KIND`.
+Not every widget shows every control. The set comes from the registry entry's `headerSettings`.
 
 ### UX rules
 
