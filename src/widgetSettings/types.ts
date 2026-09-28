@@ -12,7 +12,6 @@ export type WidgetSettingsFields = {
 
 export type WidgetSettingsRegistration = {
   panelId: string
-  title: string
   disabled: boolean
   fields: WidgetSettingsFields
   datasets: DatasetSummary[]

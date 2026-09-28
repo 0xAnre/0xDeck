@@ -20,8 +20,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { formatCellValue } from '@/lib/formatCellValue'
+import { Skeleton } from '@/components/ui/skeleton'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
+import { WidgetDataStateView } from '@/widgets/components/WidgetDataStateView'
 import type { WidgetInstanceProps } from '@/widgets/registry/types'
 
 type ReportStatus = 'ready' | 'running' | 'failed'
@@ -166,7 +168,6 @@ export function ReportsPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   useParquetWidgetSettings({
     headerSettings,
     panelId,
-    title: 'Reports',
     datasets,
     selectedName,
     onDatasetChange: selectDataset,
@@ -179,7 +180,6 @@ export function ReportsPanel({ panelId, headerSettings }: WidgetInstanceProps) {
     savedReports.find((report) => report.id === selectedId) ?? savedReports[0]
 
   const liveDataset = isParquetReady(state) ? state.dataset : null
-  const livePreview = isParquetReady(state) ? state.preview : null
 
   return (
     <Tabs defaultValue="library" className="flex h-full min-h-0 flex-col gap-2">
@@ -259,73 +259,50 @@ export function ReportsPanel({ panelId, headerSettings }: WidgetInstanceProps) {
               </div>
             </CardHeader>
             <CardContent className="px-2 pb-2">
-              {livePreview ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      {livePreview.columns.map((column) => (
-                        <TableHead key={column} className={tableHeadClass}>
-                          {column}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {livePreview.rows.slice(0, 6).map((row, rowIndex) => (
-                      <TableRow key={`${livePreview.name}-${rowIndex}`} className="hover:bg-transparent">
-                        {row.map((cell, cellIndex) => (
-                          <TableCell
-                            key={`${rowIndex}-${cellIndex}`}
-                            className={cn(tableCellClass, cellIndex > 0 && 'text-right')}
-                          >
-                            {formatCellValue(cell, {
-                              column: livePreview.columns[cellIndex] ?? '',
-                            })}
-                          </TableCell>
+              {isParquetReady(state) ? (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        {state.preview.columns.map((column) => (
+                          <TableHead key={column} className={tableHeadClass}>
+                            {column}
+                          </TableHead>
                         ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {state.preview.rows.slice(0, 6).map((row, rowIndex) => (
+                        <TableRow key={`${state.preview.name}-${rowIndex}`} className="hover:bg-transparent">
+                          {row.map((cell, cellIndex) => (
+                            <TableCell
+                              key={`${rowIndex}-${cellIndex}`}
+                              className={cn(tableCellClass, cellIndex > 0 && 'text-right')}
+                            >
+                              {formatCellValue(cell, {
+                                column: state.preview.columns[cellIndex] ?? '',
+                              })}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Dataset preview · {state.preview.name} · Run/export still mock
+                  </p>
+                </>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className={tableHeadClass}>Metric</TableHead>
-                      <TableHead className={cn(tableHeadClass, 'text-right')}>Value</TableHead>
-                      <TableHead className={cn(tableHeadClass, 'text-right')}>Change</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedReport.previewRows.map((row) => (
-                      <TableRow key={row.label} className="hover:bg-transparent">
-                        <TableCell className={cn(tableCellClass, 'text-muted-foreground')}>
-                          {row.label}
-                        </TableCell>
-                        <TableCell className={cn(tableCellClass, 'text-right font-medium')}>
-                          {row.value}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            tableCellClass,
-                            'text-right',
-                            row.up === true && 'text-up',
-                            row.up === false && 'text-down',
-                            row.up === undefined && 'text-muted-foreground',
-                          )}
-                        >
-                          {row.change ?? '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <WidgetDataStateView
+                  state={state}
+                  loadingFallback={
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-7 w-full" />
+                      <Skeleton className="min-h-20 w-full" />
+                    </div>
+                  }
+                />
               )}
-              <p className="mt-2 text-xs text-muted-foreground">
-                {livePreview
-                  ? `Dataset preview · ${livePreview.name} · Run/export still mock`
-                  : 'Mock preview · connect Parquet folder for dataset preview'}
-              </p>
             </CardContent>
           </Card>
         )}

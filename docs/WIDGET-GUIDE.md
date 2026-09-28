@@ -123,6 +123,10 @@ Shared types live in `src/widgets/data/types.ts`:
 
 Registry metadata does **not** run queries in this stage — existing hooks still fetch via `api/client.ts`.
 
+### Data widget UI states
+
+Parquet-backed panels use `WidgetDataStateView` (`src/widgets/components/WidgetDataStateView.tsx`) for every non-`ready` status (`loading`, `offline`, `no-folder`, `empty`, `error`). Pass an optional `loadingFallback` to keep a widget-specific skeleton; otherwise a simple shared loading placeholder is shown. **Ready** chart/table/KPI/dashboard/reports content stays in each panel component. Notes and Market Times do not use this boundary — they have no backend dataset.
+
 ---
 
 ## Wire Parquet / live data

@@ -11,8 +11,6 @@ import {
 type UseParquetWidgetSettingsArgs = {
   headerSettings: WidgetSettingsFields
   panelId: string
-  title: string
-  fields?: Partial<WidgetSettingsFields>
   datasets: DatasetSummary[]
   selectedName: string | null
   onDatasetChange: (name: string) => void
@@ -31,8 +29,6 @@ type UseParquetWidgetSettingsArgs = {
 export function useParquetWidgetSettings({
   headerSettings,
   panelId,
-  title,
-  fields,
   datasets,
   selectedName,
   onDatasetChange,
@@ -47,27 +43,11 @@ export function useParquetWidgetSettings({
   aggregation,
   onAggregationChange,
 }: UseParquetWidgetSettingsArgs) {
-  const mergedFields = useMemo<WidgetSettingsFields>(
-    () => ({
-      ...headerSettings,
-      ...fields,
-    }),
-    [
-      fields?.aggregation,
-      fields?.columns,
-      fields?.dataset,
-      fields?.metric,
-      fields?.timeRange,
-      headerSettings,
-    ],
-  )
-
   const registration = useMemo<WidgetSettingsRegistration>(
     () => ({
       panelId,
-      title,
       disabled,
-      fields: mergedFields,
+      fields: headerSettings,
       datasets,
       selectedDataset: selectedName,
       onDatasetChange,
@@ -86,7 +66,7 @@ export function useParquetWidgetSettings({
       availableColumns,
       datasets,
       disabled,
-      mergedFields,
+      headerSettings,
       metricColumn,
       onAggregationChange,
       onColumnsChange,
@@ -97,7 +77,6 @@ export function useParquetWidgetSettings({
       selectedColumns,
       selectedName,
       timeRange,
-      title,
     ],
   )
 

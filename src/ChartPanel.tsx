@@ -9,20 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { formatSeriesLabel, formatSeriesTick } from '@/lib/parquetView'
+import { WidgetDataStateView } from '@/widgets/components/WidgetDataStateView'
 import type { WidgetInstanceProps } from '@/widgets/registry/types'
-
-const mockChartData = [
-  { x: '11:30', y: 67680 },
-  { x: '11:35', y: 67710 },
-  { x: '11:40', y: 67650 },
-  { x: '11:45', y: 67740 },
-  { x: '11:50', y: 67720 },
-  { x: '11:55', y: 67800 },
-  { x: '12:00', y: 67760 },
-  { x: '12:05', y: 67840 },
-  { x: '12:10', y: 67810 },
-  { x: '12:15', y: 67890 },
-]
 
 const chartConfig = {
   y: {
@@ -38,7 +26,6 @@ export function ChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   useParquetWidgetSettings({
     headerSettings,
     panelId,
-    title: 'Chart',
     datasets,
     selectedName,
     onDatasetChange: selectDataset,
@@ -47,19 +34,21 @@ export function ChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
     disabled: catalogStatus !== 'ready',
   })
 
-  if (state.status === 'loading') {
-    return <Skeleton className="min-h-32 flex-1" />
+  if (!isParquetReady(state)) {
+    return (
+      <WidgetDataStateView
+        state={state}
+        loadingFallback={<Skeleton className="min-h-32 flex-1" />}
+      />
+    )
   }
 
-  const live = isParquetReady(state)
-  const chartData = live
-    ? state.series.points.map((point: { x: string | number; y: string | number }) => ({
-        x: point.x,
-        y: typeof point.y === 'number' ? point.y : Number(point.y),
-      }))
-    : mockChartData
+  const chartData = state.series.points.map((point: { x: string | number; y: string | number }) => ({
+    x: point.x,
+    y: typeof point.y === 'number' ? point.y : Number(point.y),
+  }))
 
-  const yLabel = live ? state.series.y_column : 'price'
+  const yLabel = state.series.y_column
 
   return (
     <div className="flex h-full min-h-0 flex-col">

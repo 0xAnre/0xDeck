@@ -32,33 +32,8 @@ import {
 } from '@/lib/parquetView'
 import { isParquetReady, useWidgetParquetData } from '@/hooks/useParquetData'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
+import { WidgetDataStateView } from '@/widgets/components/WidgetDataStateView'
 import type { WidgetInstanceProps } from '@/widgets/registry/types'
-
-const mockMetrics = [
-  { label: 'Last price', value: '67,840.20', change: '+2.4%', up: true },
-  { label: '24h volume', value: '1.24B', change: '+8.1%', up: true },
-  { label: '24h high', value: '68,120.00', change: '+0.4%', up: true },
-  { label: 'Funding', value: '0.01%', change: '-0.02%', up: false },
-] as const
-
-const mockChartData = [
-  { x: '11:30', y: 67680 },
-  { x: '11:35', y: 67710 },
-  { x: '11:40', y: 67650 },
-  { x: '11:45', y: 67740 },
-  { x: '11:50', y: 67720 },
-  { x: '11:55', y: 67800 },
-  { x: '12:00', y: 67760 },
-  { x: '12:05', y: 67840 },
-  { x: '12:10', y: 67810 },
-  { x: '12:15', y: 67890 },
-]
-
-const mockRows = [
-  { key: 'BTC/USDT', symbol: 'BTC/USDT', price: '67,840.20', change: '+2.4%', up: true },
-  { key: 'ETH/USDT', symbol: 'ETH/USDT', price: '3,521.44', change: '+1.1%', up: true },
-  { key: 'SOL/USDT', symbol: 'SOL/USDT', price: '148.22', change: '-0.8%', up: false },
-] as const
 
 const chartConfig = {
   y: {
@@ -77,7 +52,6 @@ export function DashboardPanel({ panelId, headerSettings }: WidgetInstanceProps)
   useParquetWidgetSettings({
     headerSettings,
     panelId,
-    title: 'Dashboard',
     datasets,
     selectedName,
     onDatasetChange: selectDataset,
@@ -86,29 +60,29 @@ export function DashboardPanel({ panelId, headerSettings }: WidgetInstanceProps)
     disabled: catalogStatus !== 'ready',
   })
 
-  if (state.status === 'loading') {
+  if (!isParquetReady(state)) {
     return (
-      <div className="flex h-full flex-col gap-3">
-        <Skeleton className="h-14 w-full" />
-        <Skeleton className="min-h-28 flex-1" />
-        <Skeleton className="h-24 w-full" />
-      </div>
+      <WidgetDataStateView
+        state={state}
+        loadingFallback={
+          <div className="flex h-full flex-col gap-3">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="min-h-28 flex-1" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        }
+      />
     )
   }
 
-  const live = isParquetReady(state)
-  const metrics = live ? buildDashboardMetrics(state.preview) : [...mockMetrics]
-  const chartData = live
-    ? state.series.points.map((point) => ({
-        x: point.x,
-        y: typeof point.y === 'number' ? point.y : Number(point.y),
-      }))
-    : mockChartData
-  const recentRows = live ? buildSymbolRows(state.preview) : [...mockRows]
-  const chartTitle = live ? state.series.y_column : 'Price'
-  const chartDescription = live
-    ? `${state.dataset.name} · ${state.series.x_column}`
-    : 'BTC/USDT · mock'
+  const metrics = buildDashboardMetrics(state.preview)
+  const chartData = state.series.points.map((point) => ({
+    x: point.x,
+    y: typeof point.y === 'number' ? point.y : Number(point.y),
+  }))
+  const recentRows = buildSymbolRows(state.preview)
+  const chartTitle = state.series.y_column
+  const chartDescription = `${state.dataset.name} · ${state.series.x_column}`
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -178,9 +152,7 @@ export function DashboardPanel({ panelId, headerSettings }: WidgetInstanceProps)
       <Card size="sm" className="shrink-0 gap-0 py-0 ring-border/60">
         <CardHeader className="gap-0 px-2 pb-1 pt-2">
           <CardTitle className="text-xs">Recent symbols</CardTitle>
-          <CardDescription>
-            {live ? `Preview from ${state.dataset.name}` : 'Mock preview'}
-          </CardDescription>
+          <CardDescription>Preview from {state.dataset.name}</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-2">
           <Table>
