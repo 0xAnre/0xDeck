@@ -81,7 +81,6 @@ function readThemeColors() {
   return {
     background: 'transparent',
     text: resolveCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
-    grid: resolveCssColor(style.getPropertyValue('--border'), '#3f3f46'),
     ema: EMA_COLOR_VARS.map((token, index) =>
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
@@ -234,8 +233,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           attributionLogo: false,
         },
         grid: {
-          vertLines: { color: colors.grid },
-          horzLines: { color: colors.grid },
+          vertLines: { visible: false },
+          horzLines: { visible: false },
         },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },

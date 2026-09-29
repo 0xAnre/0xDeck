@@ -5,7 +5,9 @@ import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import {
   createInfiniteHistoryState,
   loadOlderBtcPerpHistoryCore,
+  resetInfiniteHistoryState,
 } from './btcPerpetualInfiniteHistoryCore.ts'
+import type { BinanceKlinesResponse } from './types.ts'
 import type { MarketCandle } from './types.ts'
 
 function candle(time: number): MarketCandle {
@@ -112,7 +114,6 @@ describe('loadOlderBtcPerpHistoryCore', () => {
       chart: fakeChart(),
       fetchHistory: async () => {
         state.generation = 2
-        state.loading = false
         return { symbol: 'BTCUSDT', interval: '1m', candles: [candle(before - 120)] }
       },
       applyMergedHistory: () => {
@@ -123,7 +124,50 @@ describe('loadOlderBtcPerpHistoryCore', () => {
 
     assert.equal(candlesRef.current.length, 1)
     assert.equal(candlesRef.current[0].time, 1_700_000_200)
-    assert.equal(state.loading, false)
+  })
+
+  it('stale response does not mutate new generation lock or flags', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const before = 1_700_000_400
+    const candlesRef = { current: [candle(before)] }
+    let resolveFetch: (value: BinanceKlinesResponse) => void = () => {}
+    const fetchDeferred = new Promise<BinanceKlinesResponse>((resolve) => {
+      resolveFetch = resolve
+    })
+
+    const staleRequest = loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async () => fetchDeferred,
+      applyMergedHistory: () => {
+        throw new Error('should not apply')
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+    })
+
+    resetInfiniteHistoryState(state, 2)
+    state.requestedBefore.add(before)
+    state.loading = true
+
+    resolveFetch({
+      symbol: 'BTCUSDT',
+      interval: '1m',
+      candles: [candle(before - 60)],
+    })
+    await staleRequest
+
+    assert.equal(state.generation, 2)
+    assert.equal(state.requestedBefore.has(before), true)
+    assert.equal(state.loading, true)
+    assert.equal(state.exhausted, false)
+    assert.equal(candlesRef.current.length, 1)
+    assert.equal(candlesRef.current[0].time, before)
   })
 
   it('releases before lock on interval mismatch', async () => {

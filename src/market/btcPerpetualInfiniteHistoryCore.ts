@@ -91,7 +91,6 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
   try {
     const response = await fetchHistory(interval, before, signal)
     if (state.generation !== generation) {
-      state.requestedBefore.delete(before)
       return
     }
     if (response.interval !== interval) {
