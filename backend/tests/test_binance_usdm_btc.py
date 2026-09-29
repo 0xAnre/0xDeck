@@ -23,6 +23,17 @@ from app.market.binance_usdm_btc import (
     daily_context_window_ms,
     fetch_klines_daily_context_sync,
     fetch_klines_history_before_sync,
+    fetch_klines_monthly_context_sync,
+    fetch_klines_quarterly_context_sync,
+    fetch_klines_yearly_context_sync,
+    HISTORY_BATCH_BARS,
+    interval_duration_ms,
+    monthly_context_window_ms,
+    quarterly_context_window_ms,
+    validate_monthly_context_interval,
+    validate_quarterly_context_interval,
+    validate_yearly_context_interval,
+    yearly_context_window_ms,
     fetch_klines_paginated_sync,
     fetch_klines_weekly_context_sync,
     history_before_window_ms,
@@ -564,21 +575,23 @@ class BinanceDailyContextTests(unittest.TestCase):
 
 
 class BinanceHistoryBeforeTests(unittest.TestCase):
-    def test_history_before_window_is_previous_utc_day(self) -> None:
+    def test_history_before_window_uses_interval_batch(self) -> None:
         before_seconds = int(datetime(2024, 1, 2, 15, 30, tzinfo=timezone.utc).timestamp())
-        start_ms, end_ms = history_before_window_ms(before_seconds)
-        day_two_start = utc_day_start_ms(before_seconds * 1000)
-        day_one_start = day_two_start - 86_400_000
-        self.assertEqual(start_ms, day_one_start)
-        self.assertEqual(end_ms, day_two_start - 1)
+        before_ms = before_seconds * 1000
+        start_ms, end_ms = history_before_window_ms(before_seconds, "1w")
+        self.assertEqual(end_ms, before_ms - 1)
+        self.assertEqual(
+            start_ms,
+            before_ms - HISTORY_BATCH_BARS * interval_duration_ms("1w"),
+        )
 
     @patch("app.market.binance_usdm_btc.httpx.get")
     def test_history_before_excludes_candles_at_or_after_before(self, mock_get: MagicMock) -> None:
         before_seconds = int(datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc).timestamp())
-        day_one_start = utc_day_start_ms(before_seconds * 1000) - 86_400_000
+        start_ms, _ = history_before_window_ms(before_seconds, "1m")
         rows = [
-            _kline_row(day_one_start),
-            _kline_row(day_one_start + ONE_MINUTE_MS),
+            _kline_row(start_ms),
+            _kline_row(start_ms + ONE_MINUTE_MS),
             _kline_row(before_seconds * 1000),
         ]
         mock_get.return_value = _mock_klines_response(rows)
@@ -592,23 +605,19 @@ class BinanceHistoryBeforeTests(unittest.TestCase):
         self.assertEqual(len(times), len(set(times)))
 
     @patch("app.market.binance_usdm_btc.httpx.get")
-    def test_history_before_paginates_1m_day(self, mock_get: MagicMock) -> None:
+    def test_history_before_paginates_1m_batch(self, mock_get: MagicMock) -> None:
         before_seconds = int(datetime(2024, 1, 3, 12, 0, tzinfo=timezone.utc).timestamp())
-        start_ms, end_ms = history_before_window_ms(before_seconds)
-        page_one = [_kline_row(start_ms + i * ONE_MINUTE_MS) for i in range(1000)]
-        page_two_start = page_one[-1][0] + ONE_MINUTE_MS
-        remaining = int((end_ms - page_two_start) / ONE_MINUTE_MS) + 1
-        page_two = [_kline_row(page_two_start + i * ONE_MINUTE_MS) for i in range(remaining)]
-        mock_get.side_effect = [
-            _mock_klines_response(page_one),
-            _mock_klines_response(page_two),
-        ]
+        start_ms, end_ms = history_before_window_ms(before_seconds, "1m")
+        bar_count = int((end_ms - start_ms) / ONE_MINUTE_MS) + 1
+        page_one = [_kline_row(start_ms + i * ONE_MINUTE_MS) for i in range(bar_count)]
+        mock_get.return_value = _mock_klines_response(page_one)
 
         candles = fetch_klines_history_before_sync("1m", before_seconds, now_ms=FIXED_NOW_MS)
 
-        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(candles[0]["time"], start_ms // 1000)
         self.assertLess(candles[-1]["time"], before_seconds)
+        self.assertEqual(len(candles), bar_count)
 
     def test_history_before_rejects_invalid_before(self) -> None:
         client = TestClient(app)
@@ -784,6 +793,64 @@ class BinanceDailyContextEndpointTests(unittest.TestCase):
         self.assertEqual(body["symbol"], "BTCUSDT")
         self.assertEqual(body["interval"], "1m")
         self.assertEqual(len(body["candles"]), 1)
+
+
+class BinanceLongHorizonContextTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    def test_monthly_context_rejects_1m_interval(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_monthly_context_interval("1m")
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_quarterly_context_rejects_1w_interval(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_quarterly_context_interval("1w")
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_yearly_context_rejects_4h_interval(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_yearly_context_interval("4h")
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_monthly_context_window_crosses_year_boundary(self) -> None:
+        now_ms = int(datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        start_ms, end_ms = monthly_context_window_ms(now_ms)
+        dec_start = int(datetime(2024, 12, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(start_ms, dec_start)
+        self.assertEqual(end_ms, now_ms)
+
+    def test_quarterly_context_window_q4_to_q1(self) -> None:
+        now_ms = int(datetime(2025, 2, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        start_ms, _ = quarterly_context_window_ms(now_ms)
+        q4_start = int(datetime(2024, 10, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(start_ms, q4_start)
+
+    def test_yearly_context_window_previous_calendar_year(self) -> None:
+        now_ms = int(datetime(2024, 6, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        start_ms, _ = yearly_context_window_ms(now_ms)
+        prev_year = int(datetime(2023, 1, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(start_ms, prev_year)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_monthly_context_uses_effective_window(self, mock_paginated: MagicMock) -> None:
+        mock_paginated.return_value = []
+        now_ms = FIXED_NOW_MS
+        calendar_start, _ = monthly_context_window_ms(now_ms)
+        start_ms, end_ms = context_fetch_window_ms(calendar_start, now_ms, "4h")
+        fetch_klines_monthly_context_sync("4h", now_ms=now_ms)
+        mock_paginated.assert_called_once_with(
+            "4h",
+            start_ms,
+            end_ms,
+            now_ms=now_ms,
+            http_get=None,
+        )
+
+    def test_interval_1w_is_supported(self) -> None:
+        self.assertEqual(validate_interval("1w"), "1w")
+        self.assertEqual(channel_for_interval("1w"), "binance.usdm.btcusdt.kline.1w")
 
 
 class BinanceUsdmBtcGenericWsTests(unittest.TestCase):

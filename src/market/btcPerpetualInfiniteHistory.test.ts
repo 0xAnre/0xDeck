@@ -48,6 +48,18 @@ function fakeBundle(): ChartSeriesBundle {
       byKey: {} as ChartSeriesBundle['weeklyVwap']['byKey'],
       ordered: [line, line, line, line, line, line] as ChartSeriesBundle['weeklyVwap']['ordered'],
     },
+    monthlyVwap: {
+      byKey: {} as ChartSeriesBundle['monthlyVwap']['byKey'],
+      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['monthlyVwap']['ordered'],
+    },
+    quarterlyVwap: {
+      byKey: {} as ChartSeriesBundle['quarterlyVwap']['byKey'],
+      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['quarterlyVwap']['ordered'],
+    },
+    yearlyVwap: {
+      byKey: {} as ChartSeriesBundle['yearlyVwap']['byKey'],
+      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['yearlyVwap']['ordered'],
+    },
   }
 }
 

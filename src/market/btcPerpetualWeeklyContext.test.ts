@@ -88,6 +88,7 @@ describe('shouldShowWeeklyVwapSeries', () => {
         indicatorSelected: true,
         loadedInterval: '1m',
         activeInterval: '1m',
+        loadedLevel: 'weekly',
       }),
       true,
     )
@@ -163,7 +164,7 @@ describe('shouldFinalizeWeeklyContextRequest', () => {
 
 describe('canRetryWeeklyContextLoad', () => {
   it('allows retry when weekly context was not marked loaded', () => {
-    assert.equal(canRetryWeeklyContextLoad(null), true)
-    assert.equal(canRetryWeeklyContextLoad('1m'), false)
+    assert.equal(canRetryWeeklyContextLoad(null, '1m'), true)
+    assert.equal(canRetryWeeklyContextLoad('1m', '1m'), false)
   })
 })

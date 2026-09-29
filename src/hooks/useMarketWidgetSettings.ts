@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
-import { MARKET_INDICATOR_OPTIONS, type MarketIndicatorId } from '@/market/indicators'
+import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
 import type { CandleInterval } from '@/market/types'
 import {
   type WidgetSettingsFields,
@@ -43,7 +43,9 @@ export function useMarketWidgetSettings({
       marketInterval,
       onMarketIntervalChange,
       marketIndicators: headerSettings.indicators ? marketIndicators : undefined,
-      marketIndicatorOptions: headerSettings.indicators ? MARKET_INDICATOR_OPTIONS : undefined,
+      marketIndicatorOptions: headerSettings.indicators
+        ? buildMarketIndicatorOptions(marketInterval)
+        : undefined,
       onMarketIndicatorsChange: headerSettings.indicators ? onMarketIndicatorsChange : undefined,
     }),
     [

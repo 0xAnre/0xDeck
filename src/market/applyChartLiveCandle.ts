@@ -3,13 +3,21 @@ import {
   applyDailyVwapLiveFromCandles,
   type DailyVwapLineSeriesBundle,
 } from '@/market/dailyVwapChartSeries'
+import { applyMonthlyVwapLiveFromCandles } from '@/market/monthlyVwapChartSeries'
+import { applyQuarterlyVwapLiveFromCandles } from '@/market/quarterlyVwapChartSeries'
 import {
   applyWeeklyVwapLiveFromCandles,
   type WeeklyVwapLineSeriesBundle,
 } from '@/market/weeklyVwapChartSeries'
+import { applyYearlyVwapLiveFromCandles } from '@/market/yearlyVwapChartSeries'
+import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
+import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
-import type { MarketCandle } from '@/market/types'
+import type { MonthlyVwapLineSeriesBundle } from '@/market/monthlyVwapChartSeries'
+import type { QuarterlyVwapLineSeriesBundle } from '@/market/quarterlyVwapChartSeries'
+import type { YearlyVwapLineSeriesBundle } from '@/market/yearlyVwapChartSeries'
+import type { CandleInterval, MarketCandle } from '@/market/types'
 
 function toCandlestickPoint(candle: MarketCandle) {
   return {
@@ -26,6 +34,29 @@ export type ChartSeriesBundle = {
   emas: ISeriesApi<'Line'>[]
   dailyVwap: DailyVwapLineSeriesBundle
   weeklyVwap: WeeklyVwapLineSeriesBundle
+  monthlyVwap: MonthlyVwapLineSeriesBundle
+  quarterlyVwap: QuarterlyVwapLineSeriesBundle
+  yearlyVwap: YearlyVwapLineSeriesBundle
+}
+
+export type LiveVwapUpdateContext = {
+  interval: CandleInterval
+  activeIndicators: readonly MarketIndicatorId[]
+  loadedLevel: VwapContextLevel | null
+  loadedInterval: CandleInterval | null
+}
+
+function shouldUpdateVwap(
+  indicatorId: MarketIndicatorId,
+  ctx: LiveVwapUpdateContext,
+): boolean {
+  return shouldShowVwapIndicatorSeries({
+    indicatorId,
+    indicatorSelected: ctx.activeIndicators.includes(indicatorId),
+    interval: ctx.interval,
+    loadedLevel: ctx.loadedLevel,
+    loadedInterval: ctx.loadedInterval,
+  })
 }
 
 /** Update in-memory candles and chart series (no full setData). */
@@ -33,6 +64,7 @@ export function applyChartLiveCandle(
   candles: MarketCandle[],
   candle: MarketCandle,
   bundle: ChartSeriesBundle,
+  vwapContext?: LiveVwapUpdateContext,
 ): void {
   const applyResult = applyLiveCandle(candles, candle)
   if (applyResult === 'ignore') return
@@ -49,6 +81,28 @@ export function applyChartLiveCandle(
     })
   })
 
-  applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)
-  applyWeeklyVwapLiveFromCandles(candles, bundle.weeklyVwap)
+  if (!vwapContext) {
+    applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)
+    applyWeeklyVwapLiveFromCandles(candles, bundle.weeklyVwap)
+    applyMonthlyVwapLiveFromCandles(candles, bundle.monthlyVwap)
+    applyQuarterlyVwapLiveFromCandles(candles, bundle.quarterlyVwap)
+    applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
+    return
+  }
+
+  if (shouldUpdateVwap('daily-vwap', vwapContext)) {
+    applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)
+  }
+  if (shouldUpdateVwap('weekly-vwap', vwapContext)) {
+    applyWeeklyVwapLiveFromCandles(candles, bundle.weeklyVwap)
+  }
+  if (shouldUpdateVwap('monthly-vwap', vwapContext)) {
+    applyMonthlyVwapLiveFromCandles(candles, bundle.monthlyVwap)
+  }
+  if (shouldUpdateVwap('quarterly-vwap', vwapContext)) {
+    applyQuarterlyVwapLiveFromCandles(candles, bundle.quarterlyVwap)
+  }
+  if (shouldUpdateVwap('yearly-vwap', vwapContext)) {
+    applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
+  }
 }

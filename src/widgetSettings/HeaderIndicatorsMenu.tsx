@@ -12,6 +12,7 @@ import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 type IndicatorOption = {
   value: MarketIndicatorId
   label: string
+  disabled?: boolean
 }
 
 type HeaderIndicatorsMenuProps = {
@@ -32,8 +33,12 @@ export function HeaderIndicatorsMenu({
   const activeSet = new Set(activeIndicators)
   const isDisabled = disabled || options.length === 0
 
-  const toggleIndicator = (indicatorId: MarketIndicatorId, checked: boolean) => {
-    if (!onActiveIndicatorsChange || disabled) return
+  const toggleIndicator = (
+    indicatorId: MarketIndicatorId,
+    checked: boolean,
+    optionDisabled: boolean,
+  ) => {
+    if (!onActiveIndicatorsChange || disabled || optionDisabled) return
     if (checked) {
       if (activeSet.has(indicatorId)) return
       onActiveIndicatorsChange([...activeIndicators, indicatorId])
@@ -68,7 +73,10 @@ export function HeaderIndicatorsMenu({
           <DropdownMenuCheckboxItem
             key={option.value}
             checked={activeSet.has(option.value)}
-            onCheckedChange={(checked) => toggleIndicator(option.value, checked === true)}
+            disabled={option.disabled === true}
+            onCheckedChange={(checked) =>
+              toggleIndicator(option.value, checked === true, option.disabled === true)
+            }
             onSelect={(event) => event.preventDefault()}
           >
             <span className="truncate">{option.label}</span>

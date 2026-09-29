@@ -22,7 +22,7 @@ BINANCE_USDM_WS_BASE = "wss://fstream.binance.com"
 SYMBOL = "BTCUSDT"
 SYMBOL_LOWER = "btcusdt"
 
-SUPPORTED_INTERVALS = frozenset({"1m", "5m", "30m", "4h", "1d"})
+SUPPORTED_INTERVALS = frozenset({"1m", "5m", "30m", "4h", "1d", "1w"})
 DEFAULT_INTERVAL = "1m"
 DEFAULT_LIMIT = 500
 MIN_LIMIT = 1
@@ -36,11 +36,18 @@ INTERVAL_DURATION_MS: dict[str, int] = {
     "30m": 30 * 60_000,
     "4h": 4 * 60 * 60_000,
     "1d": 24 * 60 * 60_000,
+    "1w": 7 * 24 * 60 * 60_000,
 }
+
+HISTORY_BATCH_BARS = 500
+
+MONTHLY_CONTEXT_INTERVALS = frozenset({"4h", "1d"})
+QUARTERLY_CONTEXT_INTERVALS = frozenset({"4h", "1d"})
+YEARLY_CONTEXT_INTERVALS = frozenset({"1d", "1w"})
 
 CHANNEL_PREFIX = "binance.usdm.btcusdt.kline."
 CHANNEL_PATTERN = re.compile(
-    r"^binance\.usdm\.btcusdt\.kline\.(1m|5m|30m|4h|1d)$",
+    r"^binance\.usdm\.btcusdt\.kline\.(1m|5m|30m|4h|1d|1w)$",
 )
 
 BASE_RECONNECT_DELAY_S = 1.0
@@ -209,15 +216,110 @@ def context_fetch_window_ms(
     return start_ms, now_ms
 
 
-def history_before_window_ms(before_epoch_seconds: int) -> tuple[int, int]:
-    """One full UTC day immediately before the UTC day that contains `before`."""
+def utc_month_start_ms(epoch_ms: int) -> int:
+    dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+    month_start = datetime(dt.year, dt.month, 1, tzinfo=timezone.utc)
+    return int(month_start.timestamp() * 1000)
+
+
+def previous_month_start_ms(epoch_ms: int) -> int:
+    current_month_start = utc_month_start_ms(epoch_ms)
+    dt = datetime.fromtimestamp(current_month_start / 1000, tz=timezone.utc)
+    if dt.month == 1:
+        previous = datetime(dt.year - 1, 12, 1, tzinfo=timezone.utc)
+    else:
+        previous = datetime(dt.year, dt.month - 1, 1, tzinfo=timezone.utc)
+    return int(previous.timestamp() * 1000)
+
+
+def monthly_context_window_ms(now_ms: int) -> tuple[int, int]:
+    start_ms = previous_month_start_ms(now_ms)
+    return start_ms, now_ms
+
+
+def utc_quarter_start_ms(epoch_ms: int) -> int:
+    dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+    quarter_month = ((dt.month - 1) // 3) * 3 + 1
+    quarter_start = datetime(dt.year, quarter_month, 1, tzinfo=timezone.utc)
+    return int(quarter_start.timestamp() * 1000)
+
+
+def previous_quarter_start_ms(epoch_ms: int) -> int:
+    current_quarter_start = utc_quarter_start_ms(epoch_ms)
+    dt = datetime.fromtimestamp(current_quarter_start / 1000, tz=timezone.utc)
+    if dt.month == 1:
+        previous = datetime(dt.year - 1, 10, 1, tzinfo=timezone.utc)
+    else:
+        previous = datetime(dt.year, dt.month - 3, 1, tzinfo=timezone.utc)
+    return int(previous.timestamp() * 1000)
+
+
+def quarterly_context_window_ms(now_ms: int) -> tuple[int, int]:
+    start_ms = previous_quarter_start_ms(now_ms)
+    return start_ms, now_ms
+
+
+def utc_year_start_ms(epoch_ms: int) -> int:
+    dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+    year_start = datetime(dt.year, 1, 1, tzinfo=timezone.utc)
+    return int(year_start.timestamp() * 1000)
+
+
+def previous_year_start_ms(epoch_ms: int) -> int:
+    dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+    previous = datetime(dt.year - 1, 1, 1, tzinfo=timezone.utc)
+    return int(previous.timestamp() * 1000)
+
+
+def yearly_context_window_ms(now_ms: int) -> tuple[int, int]:
+    start_ms = previous_year_start_ms(now_ms)
+    return start_ms, now_ms
+
+
+def validate_monthly_context_interval(interval: str) -> str:
+    if interval not in MONTHLY_CONTEXT_INTERVALS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Monthly VWAP context does not support interval '{interval}'. "
+                f"Allowed: {', '.join(sorted(MONTHLY_CONTEXT_INTERVALS))}"
+            ),
+        )
+    return interval
+
+
+def validate_quarterly_context_interval(interval: str) -> str:
+    if interval not in QUARTERLY_CONTEXT_INTERVALS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Quarterly VWAP context does not support interval '{interval}'. "
+                f"Allowed: {', '.join(sorted(QUARTERLY_CONTEXT_INTERVALS))}"
+            ),
+        )
+    return interval
+
+
+def validate_yearly_context_interval(interval: str) -> str:
+    if interval not in YEARLY_CONTEXT_INTERVALS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Yearly VWAP context does not support interval '{interval}'. "
+                f"Allowed: {', '.join(sorted(YEARLY_CONTEXT_INTERVALS))}"
+            ),
+        )
+    return interval
+
+
+def history_before_window_ms(before_epoch_seconds: int, interval: str) -> tuple[int, int]:
+    """`HISTORY_BATCH_BARS` ending immediately before `before` (exclusive)."""
     if before_epoch_seconds <= 0:
         raise ValueError("Invalid before timestamp")
 
     before_ms = before_epoch_seconds * 1000
-    before_day_start_ms = utc_day_start_ms(before_ms)
-    end_ms = before_day_start_ms - 1
-    start_ms = before_day_start_ms - 86_400_000
+    end_ms = before_ms - 1
+    start_ms = before_ms - HISTORY_BATCH_BARS * interval_duration_ms(interval)
     return start_ms, end_ms
 
 
@@ -237,7 +339,7 @@ def fetch_klines_history_before_sync(
     http_get: Callable[..., httpx.Response] | None = None,
 ) -> list[NormalizedCandle]:
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
-    start_ms, end_ms = history_before_window_ms(before_epoch_seconds)
+    start_ms, end_ms = history_before_window_ms(before_epoch_seconds, interval)
     if start_ms > end_ms:
         return []
 
@@ -401,6 +503,60 @@ def fetch_klines_weekly_context_sync(
 ) -> list[NormalizedCandle]:
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     calendar_start_ms, _ = weekly_context_window_ms(reference_ms)
+    start_ms, end_ms = context_fetch_window_ms(calendar_start_ms, reference_ms, interval)
+    return fetch_klines_paginated_sync(
+        interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+
+
+def fetch_klines_monthly_context_sync(
+    interval: str,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[NormalizedCandle]:
+    validate_monthly_context_interval(interval)
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    calendar_start_ms, _ = monthly_context_window_ms(reference_ms)
+    start_ms, end_ms = context_fetch_window_ms(calendar_start_ms, reference_ms, interval)
+    return fetch_klines_paginated_sync(
+        interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+
+
+def fetch_klines_quarterly_context_sync(
+    interval: str,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[NormalizedCandle]:
+    validate_quarterly_context_interval(interval)
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    calendar_start_ms, _ = quarterly_context_window_ms(reference_ms)
+    start_ms, end_ms = context_fetch_window_ms(calendar_start_ms, reference_ms, interval)
+    return fetch_klines_paginated_sync(
+        interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+
+
+def fetch_klines_yearly_context_sync(
+    interval: str,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[NormalizedCandle]:
+    validate_yearly_context_interval(interval)
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    calendar_start_ms, _ = yearly_context_window_ms(reference_ms)
     start_ms, end_ms = context_fetch_window_ms(calendar_start_ms, reference_ms, interval)
     return fetch_klines_paginated_sync(
         interval,

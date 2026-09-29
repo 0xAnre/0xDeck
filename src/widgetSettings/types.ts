@@ -33,7 +33,11 @@ export type WidgetSettingsRegistration = {
   marketInterval?: CandleInterval
   onMarketIntervalChange?: (interval: CandleInterval) => void
   marketIndicators?: MarketIndicatorId[]
-  marketIndicatorOptions?: { value: MarketIndicatorId; label: string }[]
+  marketIndicatorOptions?: {
+    value: MarketIndicatorId
+    label: string
+    disabled?: boolean
+  }[]
   onMarketIndicatorsChange?: (indicators: MarketIndicatorId[]) => void
 }
 

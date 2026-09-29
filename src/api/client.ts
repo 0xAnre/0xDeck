@@ -138,6 +138,39 @@ export async function fetchBinanceBtcusdtKlinesWeeklyContext(
   )
 }
 
+export async function fetchBinanceBtcusdtKlinesMonthlyContext(
+  interval: CandleInterval,
+  signal?: AbortSignal,
+): Promise<BinanceKlinesResponse> {
+  const params = new URLSearchParams({ interval })
+  return request<BinanceKlinesResponse>(
+    `/market/binance/usdm/btcusdt/klines/monthly-context?${params}`,
+    { signal },
+  )
+}
+
+export async function fetchBinanceBtcusdtKlinesQuarterlyContext(
+  interval: CandleInterval,
+  signal?: AbortSignal,
+): Promise<BinanceKlinesResponse> {
+  const params = new URLSearchParams({ interval })
+  return request<BinanceKlinesResponse>(
+    `/market/binance/usdm/btcusdt/klines/quarterly-context?${params}`,
+    { signal },
+  )
+}
+
+export async function fetchBinanceBtcusdtKlinesYearlyContext(
+  interval: CandleInterval,
+  signal?: AbortSignal,
+): Promise<BinanceKlinesResponse> {
+  const params = new URLSearchParams({ interval })
+  return request<BinanceKlinesResponse>(
+    `/market/binance/usdm/btcusdt/klines/yearly-context?${params}`,
+    { signal },
+  )
+}
+
 export async function fetchBinanceBtcusdtKlinesHistory(
   interval: CandleInterval,
   beforeEpochSeconds: number,
