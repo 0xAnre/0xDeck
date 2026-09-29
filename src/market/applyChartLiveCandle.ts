@@ -1,4 +1,8 @@
 import type { ISeriesApi, UTCTimestamp } from 'lightweight-charts'
+import {
+  applyDailyVwapLiveFromCandles,
+  type DailyVwapLineSeriesBundle,
+} from '@/market/dailyVwapChartSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
 import type { MarketCandle } from '@/market/types'
@@ -13,9 +17,10 @@ function toCandlestickPoint(candle: MarketCandle) {
   }
 }
 
-type ChartSeriesBundle = {
+export type ChartSeriesBundle = {
   candle: ISeriesApi<'Candlestick'>
   emas: ISeriesApi<'Line'>[]
+  dailyVwap: DailyVwapLineSeriesBundle
 }
 
 /** Update in-memory candles and chart series (no full setData). */
@@ -38,4 +43,6 @@ export function applyChartLiveCandle(
       value: last.value,
     })
   })
+
+  applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)
 }

@@ -1,4 +1,4 @@
-export const MARKET_INDICATOR_IDS = ['triple-ema'] as const
+export const MARKET_INDICATOR_IDS = ['triple-ema', 'daily-vwap'] as const
 
 export type MarketIndicatorId = (typeof MARKET_INDICATOR_IDS)[number]
 
@@ -10,6 +10,7 @@ export function isMarketIndicatorId(value: string): value is MarketIndicatorId {
 
 export const MARKET_INDICATOR_LABELS: Record<MarketIndicatorId, string> = {
   'triple-ema': '3 EMA',
+  'daily-vwap': 'Daily VWAP',
 }
 
 export const DEFAULT_MARKET_INDICATORS: MarketIndicatorId[] = ['triple-ema']

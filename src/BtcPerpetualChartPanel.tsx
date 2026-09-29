@@ -5,13 +5,19 @@ import {
   createChart,
   LineSeries,
   type IChartApi,
-  type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts'
 import { fetchBinanceBtcusdtKlinesDailyContext } from '@/api/client'
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
-import { applyChartLiveCandle } from '@/market/applyChartLiveCandle'
+import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
+import { computeDailyVwap } from '@/market/dailyVwap'
+import {
+  clearDailyVwapLineSeriesData,
+  createDailyVwapLineSeries,
+  setDailyVwapLineSeriesData,
+  setDailyVwapLineSeriesVisible,
+} from '@/market/dailyVwapChartSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import type { MarketIndicatorId } from '@/market/indicators'
 import {
@@ -96,11 +102,6 @@ function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
   }
 }
 
-type ChartSeriesBundle = {
-  candle: ISeriesApi<'Candlestick'>
-  emas: ISeriesApi<'Line'>[]
-}
-
 export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const [interval, setInterval] = useState<CandleInterval>(() =>
     loadWidgetMarketInterval(panelId),
@@ -152,6 +153,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   })
 
   const tripleEmaVisible = activeIndicators.includes('triple-ema')
+  const dailyVwapVisible = activeIndicators.includes('daily-vwap')
 
   useEffect(() => {
     activeIndicatorsRef.current = activeIndicators
@@ -164,6 +166,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       series.applyOptions({ visible: tripleEmaVisible })
     })
   }, [tripleEmaVisible])
+
+  useEffect(() => {
+    const bundle = seriesRef.current
+    if (!bundle) return
+    setDailyVwapLineSeriesVisible(bundle.dailyVwap, dailyVwapVisible)
+  }, [dailyVwapVisible])
 
   useEffect(() => {
     const container = containerRef.current
@@ -227,8 +235,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }),
       )
 
+      const dailyVwapVisibleOnCreate = activeIndicatorsRef.current.includes('daily-vwap')
+      const dailyVwapSeries = createDailyVwapLineSeries(chart!, dailyVwapVisibleOnCreate)
+
       chartRef.current = chart
-      seriesRef.current = { candle: candleSeries, emas: emaSeries }
+      seriesRef.current = { candle: candleSeries, emas: emaSeries, dailyVwap: dailyVwapSeries }
       return chart
     }
 
@@ -274,6 +285,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (bundle) {
       bundle.candle.setData([])
       bundle.emas.forEach((series) => series.setData([]))
+      clearDailyVwapLineSeriesData(bundle.dailyVwap)
     }
 
     const controller = new AbortController()
@@ -331,6 +343,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           })),
         )
       })
+      setDailyVwapLineSeriesData(bundleNow.dailyVwap, computeDailyVwap(candles))
       chart.timeScale().fitContent()
       return true
     }
