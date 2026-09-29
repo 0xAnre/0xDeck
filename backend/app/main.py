@@ -6,6 +6,14 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from . import config, datasets
+from .market.binance_usdm_btc import (
+    DEFAULT_INTERVAL,
+    DEFAULT_LIMIT,
+    binance_kline_relay,
+    clamp_limit,
+    fetch_klines_sync,
+    validate_interval,
+)
 from .ws import is_valid_channel, ws_manager
 
 app = FastAPI(title="0xDeck API", version="0.1.0")
@@ -39,6 +47,8 @@ async def websocket_channel(websocket: WebSocket, channel: str) -> None:
     if not await ws_manager.connect(channel, websocket):
         return
 
+    await binance_kline_relay.on_client_connected(channel)
+
     try:
         while True:
             text = await websocket.receive_text()
@@ -47,6 +57,22 @@ async def websocket_channel(websocket: WebSocket, channel: str) -> None:
         pass
     finally:
         ws_manager.disconnect(channel, websocket)
+        await binance_kline_relay.on_client_disconnected(channel)
+
+
+@app.get("/api/market/binance/usdm/btcusdt/klines")
+def get_binance_usdm_btcusdt_klines(
+    interval: str = DEFAULT_INTERVAL,
+    limit: int = DEFAULT_LIMIT,
+) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    safe_limit = clamp_limit(limit)
+    candles = fetch_klines_sync(safe_interval, safe_limit)
+    return {
+        "symbol": "BTCUSDT",
+        "interval": safe_interval,
+        "candles": candles,
+    }
 
 
 @app.get("/api/health")
