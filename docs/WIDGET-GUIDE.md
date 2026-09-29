@@ -1,8 +1,8 @@
 # Widget Guide
 
-How to add or customize widgets in 0xDeck. Shell, grid, and themes: [THEME-GUIDE.md](./THEME-GUIDE.md). Backend API: [../backend/README.md](../backend/README.md).
+How to add or customize widgets in 0xDeck. **Normative rules:** [WIDGET-STANDARD.md](./WIDGET-STANDARD.md). **Starter copy-paste:** [../templates/widget/README.md](../templates/widget/README.md). Shell, grid, and themes: [THEME-GUIDE.md](./THEME-GUIDE.md). Backend API: [../backend/README.md](../backend/README.md).
 
-0xDeck is widget-native: start with built-in panels, then add your own **reusable** market research widgets.
+0xDeck is widget-native: start from [templates/widget/](../templates/widget/) or built-in panels, then add your own **reusable** market research widgets.
 
 **Scope:** Widget **body** only — table, chart, KPI content. The shell (title bar, header dropdowns, close, resize) lives in `App.tsx` as a shadcn `Card` and is shared by all widgets.
 
@@ -62,10 +62,10 @@ Data widgets show compact dropdowns in the panel header (`PanelHeaderControls`).
 
 ## Add a new widget
 
-The happy path is two files:
+Follow [WIDGET-STANDARD.md](./WIDGET-STANDARD.md), then:
 
-1. `src/widgets/registry/definitions.tsx` — one `WidgetDefinition` entry
-2. `src/MyWidgetPanel.tsx` — body component implementing `WidgetInstanceProps`
+1. Copy [templates/widget/WidgetPanel.tsx](../templates/widget/WidgetPanel.tsx) into `src/` (or author your own body).
+2. Add one `WidgetDefinition` in `src/widgets/registry/definitions.tsx`.
 
 ### 1. Register in `definitions.tsx`
 

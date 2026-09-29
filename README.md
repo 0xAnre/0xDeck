@@ -55,7 +55,7 @@ Widget creation is intentionally small:
 2. Create a panel component, e.g. `src/MyWidgetPanel.tsx` (implements `WidgetInstanceProps`)
 3. Widget picker and grid shell pick up the registry entry automatically
 
-Use [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) as the main path for custom panels.
+Use [docs/WIDGET-STANDARD.md](docs/WIDGET-STANDARD.md) for rules, [templates/widget/README.md](templates/widget/README.md) to start from a copy-paste body, and [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) for wiring details.
 
 ## Quick start
 

@@ -7,7 +7,9 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | Guide | What it covers |
 |-------|----------------|
 | [../README.md](../README.md) | Product overview, quick start, custom widget path |
-| [WIDGET-GUIDE.md](./WIDGET-GUIDE.md) | Reusable widget model, add widgets, wire Parquet data |
+| [WIDGET-STANDARD.md](./WIDGET-STANDARD.md) | Normative widget rules (registry, data, states, DoD) |
+| [WIDGET-GUIDE.md](./WIDGET-GUIDE.md) | How-to: add widgets, wire Parquet data |
+| [../templates/widget/README.md](../templates/widget/README.md) | Copy-paste starter panel + registry snippet |
 | [THEME-GUIDE.md](./THEME-GUIDE.md) | Color themes, shadcn tokens, shell rules |
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |
 | [NEXT-STEPS.md](./NEXT-STEPS.md) | Roadmap — done vs remaining |
