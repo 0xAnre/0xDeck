@@ -237,6 +237,7 @@ def fetch_klines_paginated_sync(
     safe_limit = clamp_limit(page_limit)
     by_time: dict[int, NormalizedCandle] = {}
     cursor = start_time_ms
+    range_complete = False
 
     for _ in range(max_pages):
         params = {
@@ -249,6 +250,7 @@ def fetch_klines_paginated_sync(
         rows = _fetch_binance_klines_rows(params, http_get=http_get)
 
         if len(rows) == 0:
+            range_complete = True
             break
 
         last_open_ms = _normalize_rows_in_range(
@@ -263,12 +265,21 @@ def fetch_klines_paginated_sync(
             raise HTTPException(status_code=502, detail="Binance market data response was invalid")
 
         if len(rows) < safe_limit:
+            range_complete = True
             break
 
         next_cursor = last_open_ms + 1
         if next_cursor <= cursor:
             raise HTTPException(status_code=502, detail="Binance market data response was invalid")
+
+        if last_open_ms >= end_time_ms or next_cursor > end_time_ms:
+            range_complete = True
+            break
+
         cursor = next_cursor
+
+    if not range_complete:
+        raise HTTPException(status_code=502, detail="Binance market data response was invalid")
 
     return [by_time[key] for key in sorted(by_time)]
 

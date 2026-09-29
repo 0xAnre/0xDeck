@@ -465,6 +465,73 @@ class BinanceDailyContextTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 502)
 
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_max_pages_exhausted_before_range_complete_raises(self, mock_get: MagicMock) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + 10 * ONE_MINUTE_MS
+        page_one = [_kline_row(start_ms), _kline_row(start_ms + ONE_MINUTE_MS)]
+        page_two = [_kline_row(start_ms + 2 * ONE_MINUTE_MS), _kline_row(start_ms + 3 * ONE_MINUTE_MS)]
+        mock_get.side_effect = [
+            _mock_klines_response(page_one),
+            _mock_klines_response(page_two),
+        ]
+
+        with self.assertRaises(HTTPException) as ctx:
+            fetch_klines_paginated_sync(
+                "1m",
+                start_ms,
+                end_ms,
+                now_ms=FIXED_NOW_MS,
+                page_limit=2,
+                max_pages=2,
+            )
+
+        self.assertEqual(ctx.exception.status_code, 502)
+        self.assertEqual(mock_get.call_count, 2)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_full_last_page_at_end_time_ms_completes_without_extra_request(
+        self, mock_get: MagicMock
+    ) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + ONE_MINUTE_MS
+        page = [_kline_row(start_ms), _kline_row(end_ms)]
+        mock_get.return_value = _mock_klines_response(page)
+
+        candles = fetch_klines_paginated_sync(
+            "1m",
+            start_ms,
+            end_ms,
+            now_ms=FIXED_NOW_MS,
+            page_limit=2,
+        )
+
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(len(candles), 2)
+        self.assertEqual(candles[-1]["time"], end_ms // 1000)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_next_cursor_past_end_time_ms_completes_without_extra_request(
+        self, mock_get: MagicMock
+    ) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + ONE_MINUTE_MS
+        mock_get.side_effect = [
+            _mock_klines_response([_kline_row(start_ms)]),
+            _mock_klines_response([_kline_row(end_ms)]),
+        ]
+
+        candles = fetch_klines_paginated_sync(
+            "1m",
+            start_ms,
+            end_ms,
+            now_ms=FIXED_NOW_MS,
+            page_limit=1,
+        )
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(len(candles), 2)
+
 
 class BinanceDailyContextEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
