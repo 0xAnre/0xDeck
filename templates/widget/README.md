@@ -40,6 +40,7 @@ import { MyWidgetPanel } from '@/MyWidgetPanel'
 ## When you need data
 
 - **REST** — set `data: { kind: 'rest', queries: ['preview'] }` (or `series`, `schema`, `kpi`); wire hooks per [WIDGET-GUIDE.md](../../docs/WIDGET-GUIDE.md); use `WidgetDataStateView` for non-ready states.
-- **Stream (future)** — `data: { kind: 'stream', channel: 'your.channel' }` and `WidgetStreamClient` in [src/widgets/stream/](../../src/widgets/stream/); no live widget uses this yet.
+- **Stream** — `data: { kind: 'stream', channel: 'your.channel' }` and `WidgetStreamClient` in [src/widgets/stream/](../../src/widgets/stream/).
+- **REST + live** — `data: { kind: 'query-and-stream', queries: [...], channel | channels }` (see **BTC Perpetual** for a full history + stream example).
 
 This template does not include REST or WebSocket code.

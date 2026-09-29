@@ -11,8 +11,13 @@ import {
 import { fetchBinanceBtcusdtKlines } from '@/api/client'
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
+import { applyChartLiveCandle } from '@/market/applyChartLiveCandle'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
-import { applyLiveCandle, parseMarketCandlePayload } from '@/market/parseMarketCandle'
+import {
+  bufferStreamCandle,
+  mergeHistoryWithStreamBuffer,
+} from '@/market/mergeCandleHistoryBuffer'
+import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 import { klineChannelForInterval } from '@/market/types'
 import {
@@ -208,6 +213,60 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     abortRef.current = controller
 
     const channel = klineChannelForInterval(interval)
+    const streamBuffer = new Map<number, MarketCandle>()
+    let historyReady = false
+
+    const teardownStream = () => {
+      streamRef.current?.disconnect()
+      streamRef.current = null
+      streamBuffer.clear()
+    }
+
+    const client = new WidgetStreamClient({
+      channel,
+      onStateChange: (state) => {
+        if (generation !== loadGenerationRef.current) return
+        setStreamState(state)
+      },
+      onMessage: (message) => {
+        if (generation !== loadGenerationRef.current) return
+        if (message.type !== 'event') return
+
+        const candle = parseMarketCandlePayload((message as ServerEventMessage).payload)
+        if (!candle) return
+        if (candle.interval !== activeIntervalRef.current) return
+
+        if (!historyReady) {
+          bufferStreamCandle(streamBuffer, candle)
+          return
+        }
+
+        const bundleLive = seriesRef.current
+        if (!bundleLive) return
+        applyChartLiveCandle(candlesRef.current, candle, bundleLive)
+      },
+    })
+    streamRef.current = client
+    client.connect()
+
+    const applyInitialSeries = (candles: MarketCandle[]) => {
+      const bundleNow = seriesRef.current
+      const chart = chartRef.current
+      if (!bundleNow || !chart) return false
+
+      bundleNow.candle.setData(candles.map(toCandlestickPoint))
+      EMA_PERIODS.forEach((period, index) => {
+        const line = computeEmaLine(candles, period)
+        bundleNow.emas[index].setData(
+          line.map((point) => ({
+            time: point.time as UTCTimestamp,
+            value: point.value,
+          })),
+        )
+      })
+      chart.timeScale().fitContent()
+      return true
+    }
 
     void (async () => {
       try {
@@ -215,13 +274,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (generation !== loadGenerationRef.current) return
         if (response.interval !== interval) return
 
-        const candles = response.candles.filter((c) => c.interval === interval)
-        if (candles.length === 0) {
+        const history = response.candles.filter((c) => c.interval === interval)
+        const merged = mergeHistoryWithStreamBuffer(history, streamBuffer)
+        streamBuffer.clear()
+
+        if (merged.length === 0) {
+          teardownStream()
           setDataState({ status: 'empty' })
           return
         }
-
-        candlesRef.current = [...candles]
 
         for (let attempt = 0; attempt < 120; attempt += 1) {
           if (generation !== loadGenerationRef.current) return
@@ -229,9 +290,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           await new Promise((resolve) => setTimeout(resolve, 16))
         }
 
-        const bundleNow = seriesRef.current
-        const chart = chartRef.current
-        if (!bundleNow || !chart) {
+        if (generation !== loadGenerationRef.current) return
+
+        candlesRef.current = [...merged]
+        if (!applyInitialSeries(merged)) {
+          teardownStream()
           setDataState({
             status: 'error',
             message: 'Chart could not be initialized',
@@ -239,60 +302,23 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           return
         }
 
-        bundleNow.candle.setData(candles.map(toCandlestickPoint))
-        EMA_PERIODS.forEach((period, index) => {
-          const line = computeEmaLine(candles, period)
-          bundleNow.emas[index].setData(
-            line.map((point) => ({
-              time: point.time as UTCTimestamp,
-              value: point.value,
-            })),
-          )
-        })
-        chart.timeScale().fitContent()
+        if (streamBuffer.size > 0) {
+          const tail = [...streamBuffer.values()].sort((a, b) => a.time - b.time)
+          streamBuffer.clear()
+          const bundleTail = seriesRef.current
+          if (bundleTail) {
+            for (const candle of tail) {
+              applyChartLiveCandle(candlesRef.current, candle, bundleTail)
+            }
+          }
+        }
 
+        historyReady = true
         setChartReady(true)
-
-        const client = new WidgetStreamClient({
-          channel,
-          onStateChange: (state) => {
-            if (generation !== loadGenerationRef.current) return
-            setStreamState(state)
-          },
-          onMessage: (message) => {
-            if (generation !== loadGenerationRef.current) return
-            if (message.type !== 'event') return
-
-            const candle = parseMarketCandlePayload(
-              (message as ServerEventMessage).payload,
-            )
-            if (!candle) return
-            if (candle.interval !== activeIntervalRef.current) return
-
-            const bundleLive = seriesRef.current
-            if (!bundleLive) return
-
-            const applyResult = applyLiveCandle(candlesRef.current, candle)
-            if (applyResult === 'ignore') return
-
-            bundleLive.candle.update(toCandlestickPoint(candle))
-
-            EMA_PERIODS.forEach((period, index) => {
-              const line = computeEmaLine(candlesRef.current, period)
-              if (line.length === 0) return
-              const last = line[line.length - 1]
-              bundleLive.emas[index].update({
-                time: last.time as UTCTimestamp,
-                value: last.value,
-              })
-            })
-          },
-        })
-        streamRef.current = client
-        client.connect()
       } catch (error) {
         if (controller.signal.aborted) return
         if (generation !== loadGenerationRef.current) return
+        teardownStream()
         if (error instanceof TypeError) {
           setDataState({ status: 'offline' })
           return
@@ -305,6 +331,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
     return () => {
       controller.abort()
+      historyReady = false
+      streamBuffer.clear()
       streamRef.current?.disconnect()
       streamRef.current = null
     }
