@@ -50,6 +50,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `columns` | Column multi-select (table) |
 | `metric` | KPI metric column |
 | `aggregation` | KPI aggregation |
+| `interval` | Candle interval (`1m` … `1d`) for live market widgets |
 
 ---
 
@@ -60,7 +61,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `none` | No backend/stream queries declared |
 | `rest` | REST queries only; `queries: readonly WidgetDataQuerySource[]` |
 | `stream` | Live channel only; **`channel: string`** required |
-| `query-and-stream` | REST `queries` + **`channel`** |
+| `query-and-stream` | REST `queries` + **`channel`** or **`channels`** |
 
 **REST query sources** (metadata labels; hooks fetch today via `api/client.ts`):
 
@@ -68,8 +69,9 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 - `series` — chart series
 - `schema` — column schema
 - `kpi` — KPI endpoint
+- `candles` — Binance BTC perpetual klines (`/api/market/binance/usdm/btcusdt/klines`)
 
-**Stream:** `channel` must match `/api/ws/{channel}` (see `src/widgets/stream/`). **No built-in widget opens a live stream yet** — metadata and transport are foundation only.
+**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). The **BTC Perpetual** widget uses `channels` with one relay channel per supported interval; the active channel follows the header interval picker.
 
 ---
 
@@ -86,7 +88,7 @@ Non-data widgets (`data.kind: 'none'`) do not require `WidgetDataStateView`.
 
 ## Persistence
 
-- Instance settings use existing storage keyed by **`panelId`** (`0xdeck-widget-datasets`, `0xdeck-widget-time-ranges`, etc.).
+- Instance settings use existing storage keyed by **`panelId`** (`0xdeck-widget-datasets`, `0xdeck-widget-time-ranges`, `0xdeck-widget-market-intervals`, etc.).
 - **New** workspace keys must use the **`0xdeck-`** prefix.
 - **Changing a template `id`** breaks saved layouts and stored settings that reference old instance prefixes — treat `id` as stable.
 

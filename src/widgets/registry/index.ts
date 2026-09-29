@@ -29,7 +29,8 @@ export function widgetHasHeaderControls(definition: WidgetDefinition): boolean {
     fields.timeRange ||
     fields.columns ||
     fields.metric ||
-    fields.aggregation
+    fields.aggregation ||
+    fields.interval
   )
 }
 

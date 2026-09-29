@@ -1,5 +1,6 @@
 import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
+import type { CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
 
 export type WidgetSettingsFields = {
@@ -8,6 +9,7 @@ export type WidgetSettingsFields = {
   columns: boolean
   metric: boolean
   aggregation: boolean
+  interval: boolean
 }
 
 export type WidgetSettingsRegistration = {
@@ -26,6 +28,8 @@ export type WidgetSettingsRegistration = {
   onMetricChange?: (column: string) => void
   aggregation?: KpiAggregation
   onAggregationChange?: (aggregation: KpiAggregation) => void
+  marketInterval?: CandleInterval
+  onMarketIntervalChange?: (interval: CandleInterval) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {
@@ -34,4 +38,5 @@ export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {
   columns: false,
   metric: false,
   aggregation: false,
+  interval: false,
 }

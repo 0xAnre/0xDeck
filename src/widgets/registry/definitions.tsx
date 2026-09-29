@@ -1,4 +1,6 @@
+import { BtcPerpetualChartPanel } from '@/BtcPerpetualChartPanel'
 import { ChartPanel } from '@/ChartPanel'
+import { BTC_USDM_KLINE_CHANNELS } from '@/market/types'
 import { DashboardPanel } from '@/DashboardPanel'
 import { DataTablePanel } from '@/DataTablePanel'
 import { KpiCardPanel } from '@/KpiCardPanel'
@@ -20,6 +22,7 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: false,
       aggregation: false,
+      interval: false,
     },
     stateScope: 'instance',
     data: { kind: 'rest', queries: ['preview', 'series'] },
@@ -36,6 +39,7 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: true,
       aggregation: true,
+      interval: false,
     },
     stateScope: 'instance',
     data: { kind: 'rest', queries: ['schema', 'kpi'] },
@@ -55,6 +59,7 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: false,
       aggregation: false,
+      interval: false,
     },
     stateScope: 'workspace',
     data: { kind: 'none' },
@@ -74,6 +79,7 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: false,
       aggregation: false,
+      interval: false,
     },
     stateScope: 'instance',
     data: { kind: 'none' },
@@ -90,9 +96,31 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: false,
       aggregation: false,
+      interval: false,
     },
     stateScope: 'instance',
     data: { kind: 'rest', queries: ['series'] },
+  },
+  {
+    id: 'btc-perpetual-chart',
+    title: 'BTC Perpetual',
+    description: 'BTCUSDT perpetual · candles · EMA',
+    component: BtcPerpetualChartPanel,
+    grid: { x: 0, y: 0, w: 18, h: 14, minW: 12, minH: 10 },
+    headerSettings: {
+      dataset: false,
+      timeRange: false,
+      columns: false,
+      metric: false,
+      aggregation: false,
+      interval: true,
+    },
+    stateScope: 'instance',
+    data: {
+      kind: 'query-and-stream',
+      queries: ['candles'],
+      channels: Object.values(BTC_USDM_KLINE_CHANNELS),
+    },
   },
   {
     id: 'reports',
@@ -106,6 +134,7 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: false,
       aggregation: false,
+      interval: false,
     },
     stateScope: 'instance',
     data: { kind: 'rest', queries: ['preview'] },
@@ -122,6 +151,7 @@ export const WIDGET_REGISTRY = [
       columns: true,
       metric: false,
       aggregation: false,
+      interval: false,
     },
     stateScope: 'instance',
     data: { kind: 'rest', queries: ['preview'] },

@@ -4,14 +4,16 @@ import type {
   DatasetSchema,
   DatasetSeries,
 } from '@/api/types'
+import type { BinanceKlinesResponse } from '@/market/types'
 
-export type WidgetDataQuerySource = 'preview' | 'series' | 'schema' | 'kpi'
+export type WidgetDataQuerySource = 'preview' | 'series' | 'schema' | 'kpi' | 'candles'
 
 export type WidgetQueryResultMap = {
   preview: DatasetPreview
   series: DatasetSeries
   schema: DatasetSchema
   kpi: DatasetKpi
+  candles: BinanceKlinesResponse
 }
 
 export type WidgetQueryResult<TSource extends WidgetDataQuerySource> =

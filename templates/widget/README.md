@@ -30,6 +30,7 @@ import { MyWidgetPanel } from '@/MyWidgetPanel'
     columns: false,
     metric: false,
     aggregation: false,
+    interval: false,
   },
   stateScope: 'instance',
   data: { kind: 'none' },

@@ -1,5 +1,7 @@
 import { useWidgetSettings } from '@/context/WidgetSettingsContext'
 import { KPI_AGG_OPTIONS, type KpiAggregation } from '@/kpiStorage'
+import { MARKET_INTERVAL_OPTIONS } from '@/marketIntervalStorage'
+import type { CandleInterval } from '@/market/types'
 import { TIME_RANGE_OPTIONS, type TimeRange } from '@/timeRangeStorage'
 import { HeaderColumnsSelect } from '@/widgetSettings/HeaderColumnsSelect'
 import { HeaderSelect } from '@/widgetSettings/HeaderSelect'
@@ -96,6 +98,24 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
           }))}
           onValueChange={(value) =>
             settings.onAggregationChange?.(value as KpiAggregation)
+          }
+        />
+      )}
+
+      {settings.fields.interval && (
+        <HeaderSelect
+          id={`${panelId}-interval`}
+          aria-label="Interval"
+          value={settings.marketInterval}
+          placeholder="Interval"
+          disabled={settings.disabled}
+          className="w-[3.25rem]"
+          options={MARKET_INTERVAL_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+          onValueChange={(value) =>
+            settings.onMarketIntervalChange?.(value as CandleInterval)
           }
         />
       )}

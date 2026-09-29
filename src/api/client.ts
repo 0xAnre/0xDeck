@@ -9,7 +9,10 @@ import type {
   DatasetSummary,
   KpiAggregation,
 } from './types'
+import type { BinanceKlinesResponse, CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
+
+const DEFAULT_BINANCE_KLINES_LIMIT = 500
 
 const API_BASE = '/api'
 
@@ -96,6 +99,21 @@ export async function fetchDatasetKpi(
     range,
   })
   return request<DatasetKpi>(`/datasets/${encodeURIComponent(name)}/kpi?${params}`)
+}
+
+export async function fetchBinanceBtcusdtKlines(
+  interval: CandleInterval,
+  limit = DEFAULT_BINANCE_KLINES_LIMIT,
+  signal?: AbortSignal,
+): Promise<BinanceKlinesResponse> {
+  const params = new URLSearchParams({
+    interval,
+    limit: String(limit),
+  })
+  return request<BinanceKlinesResponse>(
+    `/market/binance/usdm/btcusdt/klines?${params}`,
+    { signal },
+  )
 }
 
 export function pickDataset(

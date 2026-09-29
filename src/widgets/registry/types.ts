@@ -17,6 +17,11 @@ export type WidgetDataMetadata =
       queries: readonly WidgetDataQuerySource[]
       channel: string
     }
+  | {
+      kind: 'query-and-stream'
+      queries: readonly WidgetDataQuerySource[]
+      channels: readonly string[]
+    }
 
 export type WidgetStateScope = 'instance' | 'workspace'
 
