@@ -4,6 +4,8 @@ import type { DailyVwapPoint } from './dailyVwap.ts'
 import {
   DAILY_VWAP_CHART_LINE_STYLE,
   DAILY_VWAP_CHART_SERIES_KEYS,
+  DAILY_VWAP_CHART_SERIES_STYLES,
+  DAILY_VWAP_PREVIOUS_VWAP_LINE_STYLE,
   dailyVwapPointToLinePoint,
   dailyVwapPointsToLineData,
 } from './dailyVwapLineData.ts'
@@ -39,14 +41,24 @@ describe('dailyVwapPointsToLineData', () => {
   })
 })
 
-describe('DAILY_VWAP_CHART_LINE_STYLE', () => {
-  it('applies thin gray to all six chart series keys', () => {
+describe('DAILY_VWAP_CHART_SERIES_STYLES', () => {
+  it('uses full gray for five series and 50% opacity for previousVwap only', () => {
     assert.deepEqual(DAILY_VWAP_CHART_LINE_STYLE, { color: '#9e9e9e', lineWidth: 1 })
+    assert.deepEqual(DAILY_VWAP_PREVIOUS_VWAP_LINE_STYLE, {
+      color: 'rgba(158, 158, 158, 0.5)',
+      lineWidth: 1,
+    })
+
     for (const key of DAILY_VWAP_CHART_SERIES_KEYS) {
-      const spec = { key, ...DAILY_VWAP_CHART_LINE_STYLE }
-      assert.equal(spec.color, '#9e9e9e')
-      assert.equal(spec.lineWidth, 1)
+      const style = DAILY_VWAP_CHART_SERIES_STYLES[key]
+      assert.equal(style.lineWidth, 1)
+      if (key === 'previousVwap') {
+        assert.equal(style.color, 'rgba(158, 158, 158, 0.5)')
+      } else {
+        assert.equal(style.color, '#9e9e9e')
+      }
     }
+
     for (const key of OUTER_BAND_KEYS) {
       assert.equal((DAILY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)
     }

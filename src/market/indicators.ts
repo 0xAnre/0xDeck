@@ -13,7 +13,7 @@ export const MARKET_INDICATOR_LABELS: Record<MarketIndicatorId, string> = {
   'daily-vwap': 'Daily VWAP',
 }
 
-export const DEFAULT_MARKET_INDICATORS: MarketIndicatorId[] = ['triple-ema']
+export const DEFAULT_MARKET_INDICATORS: MarketIndicatorId[] = []
 
 export const MARKET_INDICATOR_OPTIONS = MARKET_INDICATOR_IDS.map((id) => ({
   value: id,

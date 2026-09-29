@@ -28,9 +28,31 @@ export const DAILY_VWAP_CHART_SERIES_KEYS: readonly DailyVwapChartSeriesKey[] = 
   'vwap',
 ]
 
-export const DAILY_VWAP_CHART_LINE_STYLE = {
+export type DailyVwapChartLineStyle = {
+  color: string
+  lineWidth: 1
+}
+
+export const DAILY_VWAP_CHART_LINE_STYLE: DailyVwapChartLineStyle = {
   color: '#9e9e9e',
-  lineWidth: 1 as const,
+  lineWidth: 1,
+}
+
+export const DAILY_VWAP_PREVIOUS_VWAP_LINE_STYLE: DailyVwapChartLineStyle = {
+  color: 'rgba(158, 158, 158, 0.5)',
+  lineWidth: 1,
+}
+
+export const DAILY_VWAP_CHART_SERIES_STYLES: Record<
+  DailyVwapChartSeriesKey,
+  DailyVwapChartLineStyle
+> = {
+  previousLower1: DAILY_VWAP_CHART_LINE_STYLE,
+  previousUpper1: DAILY_VWAP_CHART_LINE_STYLE,
+  previousVwap: DAILY_VWAP_PREVIOUS_VWAP_LINE_STYLE,
+  lower1: DAILY_VWAP_CHART_LINE_STYLE,
+  upper1: DAILY_VWAP_CHART_LINE_STYLE,
+  vwap: DAILY_VWAP_CHART_LINE_STYLE,
 }
 
 export type DailyVwapLinePoint =
