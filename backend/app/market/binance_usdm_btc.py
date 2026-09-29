@@ -6,7 +6,7 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, TypedDict
 
 import httpx
@@ -154,6 +154,22 @@ def utc_day_start_ms(epoch_ms: int) -> int:
 def daily_context_window_ms(now_ms: int) -> tuple[int, int]:
     current_day_start = utc_day_start_ms(now_ms)
     start_ms = current_day_start - 86_400_000
+    end_ms = now_ms
+    return start_ms, end_ms
+
+
+MS_PER_UTC_WEEK = 7 * 86_400_000
+
+
+def utc_week_start_ms(epoch_ms: int) -> int:
+    dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+    monday = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc) - timedelta(days=dt.weekday())
+    return int(monday.timestamp() * 1000)
+
+
+def weekly_context_window_ms(now_ms: int) -> tuple[int, int]:
+    current_week_start = utc_week_start_ms(now_ms)
+    start_ms = current_week_start - MS_PER_UTC_WEEK
     end_ms = now_ms
     return start_ms, end_ms
 
@@ -333,6 +349,22 @@ def fetch_klines_daily_context_sync(
 ) -> list[NormalizedCandle]:
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     start_ms, end_ms = daily_context_window_ms(reference_ms)
+    return fetch_klines_paginated_sync(
+        interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+
+
+def fetch_klines_weekly_context_sync(
+    interval: str,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[NormalizedCandle]:
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    start_ms, end_ms = weekly_context_window_ms(reference_ms)
     return fetch_klines_paginated_sync(
         interval,
         start_ms,

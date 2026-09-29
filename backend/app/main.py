@@ -13,6 +13,7 @@ from .market.binance_usdm_btc import (
     clamp_limit,
     fetch_klines_daily_context_sync,
     fetch_klines_history_before_sync,
+    fetch_klines_weekly_context_sync,
     fetch_klines_sync,
     validate_before_epoch_seconds,
     validate_interval,
@@ -84,6 +85,19 @@ def get_binance_usdm_btcusdt_klines_daily_context(
 ) -> dict[str, object]:
     safe_interval = validate_interval(interval)
     candles = fetch_klines_daily_context_sync(safe_interval)
+    return {
+        "symbol": "BTCUSDT",
+        "interval": safe_interval,
+        "candles": candles,
+    }
+
+
+@app.get("/api/market/binance/usdm/btcusdt/klines/weekly-context")
+def get_binance_usdm_btcusdt_klines_weekly_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    candles = fetch_klines_weekly_context_sync(safe_interval)
     return {
         "symbol": "BTCUSDT",
         "interval": safe_interval,

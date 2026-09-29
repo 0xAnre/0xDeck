@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import unittest
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -20,12 +21,15 @@ from app.market.binance_usdm_btc import (
     fetch_klines_daily_context_sync,
     fetch_klines_history_before_sync,
     fetch_klines_paginated_sync,
+    fetch_klines_weekly_context_sync,
     history_before_window_ms,
     normalize_rest_kline_row,
     normalize_ws_kline,
     parse_binance_ws_payload,
     utc_day_start_ms,
+    utc_week_start_ms,
     validate_interval,
+    weekly_context_window_ms,
 )
 from app.ws import WebSocketChannelManager
 
@@ -607,6 +611,121 @@ class BinanceHistoryBeforeTests(unittest.TestCase):
             fetch_klines_history_before_sync("1m", before_seconds, now_ms=FIXED_NOW_MS)
 
         self.assertEqual(ctx.exception.status_code, 502)
+
+
+class BinanceWeeklyContextTests(unittest.TestCase):
+    def test_wednesday_week_start_is_monday_utc_midnight(self) -> None:
+        wed_ms = int(datetime(2024, 1, 3, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        mon_ms = int(datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(utc_week_start_ms(wed_ms), mon_ms)
+
+    def test_sunday_remains_in_same_utc_week(self) -> None:
+        sun_ms = int(datetime(2024, 1, 7, 23, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        mon_ms = int(datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(utc_week_start_ms(sun_ms), mon_ms)
+
+    def test_monday_midnight_starts_new_utc_week(self) -> None:
+        mon_ms = int(datetime(2024, 1, 8, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        prior_mon_ms = int(datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(utc_week_start_ms(mon_ms), mon_ms)
+        self.assertNotEqual(utc_week_start_ms(mon_ms), prior_mon_ms)
+
+    def test_year_boundary_week_grouping(self) -> None:
+        wed_new_year_ms = int(datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        mon_dec_30_ms = int(datetime(2024, 12, 30, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        mon_jan_6_ms = int(datetime(2025, 1, 6, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(utc_week_start_ms(wed_new_year_ms), mon_dec_30_ms)
+        self.assertEqual(utc_week_start_ms(mon_jan_6_ms), mon_jan_6_ms)
+
+    def test_weekly_context_window_starts_previous_monday_through_now(self) -> None:
+        now_ms = int(datetime(2024, 1, 10, 15, 30, tzinfo=timezone.utc).timestamp() * 1000)
+        start_ms, end_ms = weekly_context_window_ms(now_ms)
+        current_week_start = utc_week_start_ms(now_ms)
+        previous_monday_ms = current_week_start - 7 * 86_400_000
+        self.assertEqual(end_ms, now_ms)
+        self.assertEqual(start_ms, previous_monday_ms)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_weekly_context_uses_single_reference_ms(self, mock_paginated: MagicMock) -> None:
+        mock_paginated.return_value = []
+        now_ms = FIXED_NOW_MS
+        start_ms, end_ms = weekly_context_window_ms(now_ms)
+
+        fetch_klines_weekly_context_sync("1m", now_ms=now_ms)
+
+        mock_paginated.assert_called_once_with(
+            "1m",
+            start_ms,
+            end_ms,
+            now_ms=now_ms,
+            http_get=None,
+        )
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_weekly_context_pagination_failure_raises(self, mock_paginated: MagicMock) -> None:
+        mock_paginated.side_effect = HTTPException(
+            status_code=502,
+            detail="Binance market data response was invalid",
+        )
+
+        with self.assertRaises(HTTPException) as ctx:
+            fetch_klines_weekly_context_sync("1m", now_ms=FIXED_NOW_MS)
+
+        self.assertEqual(ctx.exception.status_code, 502)
+
+    def test_1m_weekly_window_fits_within_default_max_pages(self) -> None:
+        worst_case_now_ms = int(
+            datetime(2024, 1, 7, 23, 59, tzinfo=timezone.utc).timestamp() * 1000
+        )
+        start_ms, end_ms = weekly_context_window_ms(worst_case_now_ms)
+        span_ms = end_ms - start_ms
+        max_one_minute_candles = span_ms // ONE_MINUTE_MS + 1
+        pages_needed = math.ceil(max_one_minute_candles / 1000)
+        self.assertLessEqual(pages_needed, 32)
+        self.assertLessEqual(max_one_minute_candles, 32 * 1000)
+
+
+class BinanceWeeklyContextEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    @patch("app.main.fetch_klines_weekly_context_sync")
+    def test_weekly_context_endpoint_shape(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(SAMPLE_REST_ROW, "1m", now_ms=FIXED_NOW_MS),
+        ]
+
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/weekly-context",
+            params={"interval": "1m"},
+        )
+
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        self.assertEqual(body["symbol"], "BTCUSDT")
+        self.assertEqual(body["interval"], "1m")
+        self.assertEqual(len(body["candles"]), 1)
+
+    def test_weekly_context_rejects_invalid_interval(self) -> None:
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/weekly-context",
+            params={"interval": "2h"},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    @patch("app.main.fetch_klines_weekly_context_sync")
+    def test_weekly_context_pagination_failure_returns_502(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.side_effect = HTTPException(
+            status_code=502,
+            detail="Binance market data response was invalid",
+        )
+
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/weekly-context",
+            params={"interval": "1m"},
+        )
+
+        self.assertEqual(result.status_code, 502)
 
 
 class BinanceDailyContextEndpointTests(unittest.TestCase):
