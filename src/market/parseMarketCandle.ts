@@ -1,5 +1,5 @@
-import type { CandleInterval, MarketCandle } from '@/market/types'
-import { CANDLE_INTERVALS } from '@/market/types'
+import type { CandleInterval, MarketCandle } from './types.ts'
+import { CANDLE_INTERVALS } from './types.ts'
 
 const VALID_INTERVALS = new Set<string>(CANDLE_INTERVALS)
 
@@ -16,6 +16,12 @@ function readNumber(value: unknown): number | null {
   return null
 }
 
+function readNonNegativeNumber(value: unknown): number | null {
+  const parsed = readNumber(value)
+  if (parsed === null || parsed < 0) return null
+  return parsed
+}
+
 export function parseMarketCandlePayload(payload: unknown): MarketCandle | null {
   if (!payload || typeof payload !== 'object') return null
 
@@ -28,13 +34,15 @@ export function parseMarketCandlePayload(payload: unknown): MarketCandle | null 
   const high = readNumber(record.high)
   const low = readNumber(record.low)
   const close = readNumber(record.close)
+  const volume = readNonNegativeNumber(record.volume)
 
   if (
     time === null ||
     open === null ||
     high === null ||
     low === null ||
-    close === null
+    close === null ||
+    volume === null
   ) {
     return null
   }
@@ -49,6 +57,7 @@ export function parseMarketCandlePayload(payload: unknown): MarketCandle | null 
     high,
     low,
     close,
+    volume,
     closed: record.closed,
   }
 }

@@ -45,6 +45,7 @@ SAMPLE_WS_KLINE = {
     "h": "62100.2",
     "l": "61900.3",
     "c": "62050.4",
+    "v": "100.0",
     "x": False,
 }
 
@@ -69,6 +70,7 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         open_candle = normalize_rest_kline_row(SAMPLE_REST_ROW, "1m", now_ms=1_710_000_030_000)
         self.assertEqual(open_candle["time"], 1_710_000_000)
         self.assertEqual(open_candle["open"], 62000.1)
+        self.assertEqual(open_candle["volume"], 100.0)
         self.assertEqual(open_candle["closed"], False)
 
         closed_candle = normalize_rest_kline_row(SAMPLE_REST_ROW, "1m", now_ms=1_710_000_060_000)
@@ -79,7 +81,26 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         self.assertEqual(candle["symbol"], "BTCUSDT")
         self.assertEqual(candle["interval"], "1m")
         self.assertEqual(candle["time"], 1_710_000_000)
+        self.assertEqual(candle["volume"], 100.0)
         self.assertFalse(candle["closed"])
+
+    def test_normalize_rest_row_rejects_invalid_volume(self) -> None:
+        bad_row = list(SAMPLE_REST_ROW)
+        bad_row[5] = "-1"
+        with self.assertRaises(ValueError):
+            normalize_rest_kline_row(bad_row, "1m")
+
+    def test_normalize_ws_kline_rejects_missing_volume(self) -> None:
+        kline = dict(SAMPLE_WS_KLINE)
+        del kline["v"]
+        with self.assertRaises(KeyError):
+            normalize_ws_kline(kline)
+
+    def test_parse_ws_payload_rejects_invalid_volume(self) -> None:
+        kline = dict(SAMPLE_WS_KLINE)
+        kline["v"] = "-5"
+        payload = json.dumps({"e": "kline", "k": kline})
+        self.assertIsNone(parse_binance_ws_payload(payload))
 
     def test_parse_ws_payload(self) -> None:
         payload = json.dumps({"e": "kline", "k": SAMPLE_WS_KLINE})
@@ -110,6 +131,7 @@ class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
         self.assertEqual(body["interval"], "1m")
         self.assertEqual(len(body["candles"]), 1)
         self.assertEqual(body["candles"][0]["open"], 62000.1)
+        self.assertEqual(body["candles"][0]["volume"], 100.0)
 
     def test_rest_endpoint_rejects_invalid_interval(self) -> None:
         result = self.client.get(

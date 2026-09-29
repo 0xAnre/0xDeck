@@ -43,7 +43,18 @@ class NormalizedCandle(TypedDict):
     high: float
     low: float
     close: float
+    volume: float
     closed: bool
+
+
+def _parse_volume(value: Any) -> float:
+    try:
+        volume = float(value)
+    except (TypeError, ValueError):
+        raise ValueError("Invalid volume") from None
+    if volume < 0 or volume != volume:
+        raise ValueError("Invalid volume")
+    return volume
 
 
 def channel_for_interval(interval: str) -> str:
@@ -90,6 +101,7 @@ def normalize_rest_kline_row(row: list[Any], interval: str, now_ms: int | None =
         "high": float(row[2]),
         "low": float(row[3]),
         "close": float(row[4]),
+        "volume": _parse_volume(row[5]),
         "closed": reference_ms >= close_time_ms,
     }
 
@@ -107,6 +119,7 @@ def normalize_ws_kline(kline: dict[str, Any]) -> NormalizedCandle:
         "high": float(kline["h"]),
         "low": float(kline["l"]),
         "close": float(kline["c"]),
+        "volume": _parse_volume(kline["v"]),
         "closed": bool(kline["x"]),
     }
 
@@ -124,7 +137,10 @@ def parse_binance_ws_payload(raw: str) -> NormalizedCandle | None:
     if not isinstance(kline, dict):
         return None
 
-    return normalize_ws_kline(kline)
+    try:
+        return normalize_ws_kline(kline)
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def fetch_klines_sync(interval: str, limit: int) -> list[NormalizedCandle]:
