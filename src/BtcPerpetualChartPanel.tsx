@@ -13,6 +13,7 @@ import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
 import { applyChartLiveCandle } from '@/market/applyChartLiveCandle'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
+import type { MarketIndicatorId } from '@/market/indicators'
 import {
   bufferStreamCandle,
   mergeHistoryWithStreamBuffer,
@@ -20,6 +21,10 @@ import {
 import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 import { klineChannelForInterval } from '@/market/types'
+import {
+  loadWidgetMarketIndicators,
+  saveWidgetMarketIndicators,
+} from '@/marketIndicatorStorage'
 import {
   loadWidgetMarketInterval,
   saveWidgetMarketInterval,
@@ -100,6 +105,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [interval, setInterval] = useState<CandleInterval>(() =>
     loadWidgetMarketInterval(panelId),
   )
+  const [activeIndicators, setActiveIndicators] = useState<MarketIndicatorId[]>(() =>
+    loadWidgetMarketIndicators(panelId),
+  )
   const [dataState, setDataState] = useState<WidgetDataNotReadyState>({ status: 'loading' })
   const [chartReady, setChartReady] = useState(false)
   const [streamState, setStreamState] = useState<WidgetStreamConnectionState>('idle')
@@ -112,6 +120,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const abortRef = useRef<AbortController | null>(null)
   const streamRef = useRef<WidgetStreamClient | null>(null)
   const activeIntervalRef = useRef<CandleInterval>(interval)
+  const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
+
+  const handleMarketIndicatorsChange = useCallback(
+    (next: MarketIndicatorId[]) => {
+      saveWidgetMarketIndicators(panelId, next)
+      setActiveIndicators(next)
+    },
+    [panelId],
+  )
 
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
@@ -129,8 +146,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     panelId,
     marketInterval: interval,
     onMarketIntervalChange: handleIntervalChange,
+    marketIndicators: activeIndicators,
+    onMarketIndicatorsChange: handleMarketIndicatorsChange,
     disabled: !chartReady && dataState.status === 'loading',
   })
+
+  const tripleEmaVisible = activeIndicators.includes('triple-ema')
+
+  useEffect(() => {
+    activeIndicatorsRef.current = activeIndicators
+  }, [activeIndicators])
+
+  useEffect(() => {
+    const bundle = seriesRef.current
+    if (!bundle) return
+    bundle.emas.forEach((series) => {
+      series.applyOptions({ visible: tripleEmaVisible })
+    })
+  }, [tripleEmaVisible])
 
   useEffect(() => {
     const container = containerRef.current
@@ -183,12 +216,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         wickDownColor: colors.down,
       })
 
+      const emaVisible = activeIndicatorsRef.current.includes('triple-ema')
       const emaSeries = EMA_PERIODS.map((_, index) =>
         chart!.addSeries(LineSeries, {
           color: colors.ema[index] ?? colors.ema[0],
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          visible: emaVisible,
         }),
       )
 

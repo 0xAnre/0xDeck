@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
+import { MARKET_INDICATOR_OPTIONS, type MarketIndicatorId } from '@/market/indicators'
 import type { CandleInterval } from '@/market/types'
 import {
   type WidgetSettingsFields,
@@ -13,6 +14,8 @@ type UseMarketWidgetSettingsArgs = {
   panelId: string
   marketInterval: CandleInterval
   onMarketIntervalChange: (interval: CandleInterval) => void
+  marketIndicators: MarketIndicatorId[]
+  onMarketIndicatorsChange: (indicators: MarketIndicatorId[]) => void
   disabled: boolean
 }
 
@@ -23,6 +26,8 @@ export function useMarketWidgetSettings({
   panelId,
   marketInterval,
   onMarketIntervalChange,
+  marketIndicators,
+  onMarketIndicatorsChange,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -37,11 +42,16 @@ export function useMarketWidgetSettings({
       onTimeRangeChange: noop as (range: TimeRange) => void,
       marketInterval,
       onMarketIntervalChange,
+      marketIndicators: headerSettings.indicators ? marketIndicators : undefined,
+      marketIndicatorOptions: headerSettings.indicators ? MARKET_INDICATOR_OPTIONS : undefined,
+      onMarketIndicatorsChange: headerSettings.indicators ? onMarketIndicatorsChange : undefined,
     }),
     [
       disabled,
       headerSettings,
+      marketIndicators,
       marketInterval,
+      onMarketIndicatorsChange,
       onMarketIntervalChange,
       panelId,
     ],

@@ -4,6 +4,7 @@ import { MARKET_INTERVAL_OPTIONS } from '@/marketIntervalStorage'
 import type { CandleInterval } from '@/market/types'
 import { TIME_RANGE_OPTIONS, type TimeRange } from '@/timeRangeStorage'
 import { HeaderColumnsSelect } from '@/widgetSettings/HeaderColumnsSelect'
+import { HeaderIndicatorsMenu } from '@/widgetSettings/HeaderIndicatorsMenu'
 import { HeaderSelect } from '@/widgetSettings/HeaderSelect'
 
 function datasetLabel(name: string) {
@@ -119,6 +120,19 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
           }
         />
       )}
+
+      {settings.fields.indicators &&
+        settings.marketIndicatorOptions &&
+        settings.marketIndicators &&
+        settings.onMarketIndicatorsChange && (
+          <HeaderIndicatorsMenu
+            id={`${panelId}-indicators`}
+            disabled={settings.disabled}
+            options={settings.marketIndicatorOptions}
+            activeIndicators={settings.marketIndicators}
+            onActiveIndicatorsChange={settings.onMarketIndicatorsChange}
+          />
+        )}
     </div>
   )
 }
