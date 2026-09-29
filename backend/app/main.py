@@ -11,6 +11,7 @@ from .market.binance_usdm_btc import (
     DEFAULT_LIMIT,
     binance_kline_relay,
     clamp_limit,
+    fetch_klines_daily_context_sync,
     fetch_klines_sync,
     validate_interval,
 )
@@ -58,6 +59,19 @@ async def websocket_channel(websocket: WebSocket, channel: str) -> None:
     finally:
         ws_manager.disconnect(channel, websocket)
         await binance_kline_relay.on_client_disconnected(channel)
+
+
+@app.get("/api/market/binance/usdm/btcusdt/klines/daily-context")
+def get_binance_usdm_btcusdt_klines_daily_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    candles = fetch_klines_daily_context_sync(safe_interval)
+    return {
+        "symbol": "BTCUSDT",
+        "interval": safe_interval,
+        "candles": candles,
+    }
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines")

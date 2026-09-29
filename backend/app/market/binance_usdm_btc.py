@@ -6,6 +6,7 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Callable, TypedDict
 
 import httpx
@@ -144,12 +145,28 @@ def parse_binance_ws_payload(raw: str) -> NormalizedCandle | None:
         return None
 
 
-def fetch_klines_sync(interval: str, limit: int) -> list[NormalizedCandle]:
+def utc_day_start_ms(epoch_ms: int) -> int:
+    dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+    day_start = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+    return int(day_start.timestamp() * 1000)
+
+
+def daily_context_window_ms(now_ms: int) -> tuple[int, int]:
+    current_day_start = utc_day_start_ms(now_ms)
+    start_ms = current_day_start - 86_400_000
+    end_ms = now_ms
+    return start_ms, end_ms
+
+
+def _fetch_binance_klines_rows(
+    params: dict[str, Any],
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[Any]:
+    get = http_get if http_get is not None else httpx.get
     url = f"{BINANCE_USDM_REST_BASE}{BINANCE_USDM_KLINES_PATH}"
-    params = {"symbol": SYMBOL, "interval": interval, "limit": limit}
 
     try:
-        response = httpx.get(url, params=params, timeout=10.0)
+        response = get(url, params=params, timeout=10.0)
         response.raise_for_status()
     except httpx.TimeoutException:
         raise HTTPException(status_code=502, detail="Binance market data request timed out") from None
@@ -166,6 +183,115 @@ def fetch_klines_sync(interval: str, limit: int) -> list[NormalizedCandle]:
     if not isinstance(rows, list):
         raise HTTPException(status_code=502, detail="Binance market data response was invalid") from None
 
+    return rows
+
+
+def _normalize_rows_in_range(
+    rows: list[Any],
+    interval: str,
+    start_time_ms: int,
+    end_time_ms: int,
+    now_ms: int,
+    by_time: dict[int, NormalizedCandle],
+) -> int | None:
+    last_open_ms: int | None = None
+
+    for row in rows:
+        if not isinstance(row, list):
+            raise HTTPException(status_code=502, detail="Binance market data response was invalid")
+        try:
+            open_time_ms = int(row[0])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=502, detail="Binance market data response was invalid") from None
+
+        last_open_ms = open_time_ms
+        if open_time_ms < start_time_ms or open_time_ms > end_time_ms:
+            continue
+
+        try:
+            candle = normalize_rest_kline_row(row, interval, now_ms)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=502,
+                detail="Binance market data response was invalid",
+            ) from None
+
+        by_time[candle["time"]] = candle
+
+    return last_open_ms
+
+
+def fetch_klines_paginated_sync(
+    interval: str,
+    start_time_ms: int,
+    end_time_ms: int,
+    *,
+    now_ms: int,
+    page_limit: int = MAX_LIMIT,
+    http_get: Callable[..., httpx.Response] | None = None,
+    max_pages: int = 32,
+) -> list[NormalizedCandle]:
+    if start_time_ms > end_time_ms:
+        return []
+
+    safe_limit = clamp_limit(page_limit)
+    by_time: dict[int, NormalizedCandle] = {}
+    cursor = start_time_ms
+
+    for _ in range(max_pages):
+        params = {
+            "symbol": SYMBOL,
+            "interval": interval,
+            "startTime": cursor,
+            "endTime": end_time_ms,
+            "limit": safe_limit,
+        }
+        rows = _fetch_binance_klines_rows(params, http_get=http_get)
+
+        if len(rows) == 0:
+            break
+
+        last_open_ms = _normalize_rows_in_range(
+            rows,
+            interval,
+            start_time_ms,
+            end_time_ms,
+            now_ms,
+            by_time,
+        )
+        if last_open_ms is None:
+            raise HTTPException(status_code=502, detail="Binance market data response was invalid")
+
+        if len(rows) < safe_limit:
+            break
+
+        next_cursor = last_open_ms + 1
+        if next_cursor <= cursor:
+            raise HTTPException(status_code=502, detail="Binance market data response was invalid")
+        cursor = next_cursor
+
+    return [by_time[key] for key in sorted(by_time)]
+
+
+def fetch_klines_daily_context_sync(
+    interval: str,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[NormalizedCandle]:
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    start_ms, end_ms = daily_context_window_ms(reference_ms)
+    return fetch_klines_paginated_sync(
+        interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+
+
+def fetch_klines_sync(interval: str, limit: int) -> list[NormalizedCandle]:
+    params = {"symbol": SYMBOL, "interval": interval, "limit": clamp_limit(limit)}
+    rows = _fetch_binance_klines_rows(params)
     now_ms = int(time.time() * 1000)
     candles: list[NormalizedCandle] = []
     for row in rows:

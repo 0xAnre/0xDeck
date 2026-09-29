@@ -4,8 +4,10 @@ import asyncio
 import json
 import unittest
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -14,9 +16,13 @@ from app.market.binance_usdm_btc import (
     BinanceUsdmBtcKlineRelay,
     binance_ws_stream_url,
     channel_for_interval,
+    daily_context_window_ms,
+    fetch_klines_daily_context_sync,
+    fetch_klines_paginated_sync,
     normalize_rest_kline_row,
     normalize_ws_kline,
     parse_binance_ws_payload,
+    utc_day_start_ms,
     validate_interval,
 )
 from app.ws import WebSocketChannelManager
@@ -35,6 +41,35 @@ SAMPLE_REST_ROW = [
     "0",
     "0",
 ]
+
+FIXED_NOW_MS = int(datetime(2024, 1, 2, 15, 30, tzinfo=timezone.utc).timestamp() * 1000)
+ONE_MINUTE_MS = 60_000
+
+
+def _kline_row(open_ms: int, close_ms: int | None = None) -> list:
+    resolved_close = close_ms if close_ms is not None else open_ms + ONE_MINUTE_MS - 1
+    return [
+        open_ms,
+        "62000.1",
+        "62100.2",
+        "61900.3",
+        "62050.4",
+        "100.0",
+        resolved_close,
+        "0",
+        10,
+        "0",
+        "0",
+        "0",
+    ]
+
+
+def _mock_klines_response(rows: list) -> MagicMock:
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+    response.json.return_value = rows
+    return response
+
 
 SAMPLE_WS_KLINE = {
     "t": 1_710_000_000_000,
@@ -283,6 +318,174 @@ class BinanceUsdmBtcRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(relay.upstream_count(channel), 0)
         await asyncio.sleep(0.02)
         self.assertTrue(state.task.done())
+
+
+class BinanceDailyContextTests(unittest.TestCase):
+    def test_daily_context_window_uses_previous_utc_midnight_through_now(self) -> None:
+        start_ms, end_ms = daily_context_window_ms(FIXED_NOW_MS)
+        current_day_start = utc_day_start_ms(FIXED_NOW_MS)
+        self.assertEqual(end_ms, FIXED_NOW_MS)
+        self.assertEqual(start_ms, current_day_start - 86_400_000)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_daily_context_paginates_1m_across_multiple_pages(self, mock_get: MagicMock) -> None:
+        start_ms, end_ms = daily_context_window_ms(FIXED_NOW_MS)
+        page_one = [_kline_row(start_ms + i * ONE_MINUTE_MS) for i in range(1000)]
+        page_two_start = page_one[-1][0] + ONE_MINUTE_MS
+        page_two = [_kline_row(page_two_start + i * ONE_MINUTE_MS) for i in range(50)]
+        mock_get.side_effect = [
+            _mock_klines_response(page_one),
+            _mock_klines_response(page_two),
+        ]
+
+        candles = fetch_klines_daily_context_sync("1m", now_ms=FIXED_NOW_MS)
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(len(candles), 1050)
+        self.assertEqual(candles[0]["time"], start_ms // 1000)
+        self.assertEqual(candles[-1]["time"], page_two[-1][0] // 1000)
+        times = [candle["time"] for candle in candles]
+        self.assertEqual(times, sorted(times))
+        self.assertEqual(len(times), len(set(times)))
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_daily_context_deduplicates_boundary_candle(self, mock_get: MagicMock) -> None:
+        start_ms, end_ms = daily_context_window_ms(FIXED_NOW_MS)
+        boundary_open = start_ms + ONE_MINUTE_MS
+        next_open = boundary_open + ONE_MINUTE_MS
+        page_one = [_kline_row(boundary_open), _kline_row(next_open)]
+        page_two = [
+            _kline_row(next_open),
+            _kline_row(next_open + ONE_MINUTE_MS),
+        ]
+        mock_get.side_effect = [
+            _mock_klines_response(page_one),
+            _mock_klines_response(page_two),
+            _mock_klines_response([]),
+        ]
+
+        candles = fetch_klines_paginated_sync(
+            "1m",
+            start_ms,
+            end_ms,
+            now_ms=FIXED_NOW_MS,
+            page_limit=2,
+        )
+
+        self.assertEqual(mock_get.call_count, 3)
+        next_times = [c["time"] for c in candles if c["time"] == next_open // 1000]
+        self.assertEqual(len(next_times), 1)
+        self.assertEqual(len(candles), 3)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_pagination_cursor_advances_after_full_page(self, mock_get: MagicMock) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + 3 * ONE_MINUTE_MS
+        page_one = [_kline_row(start_ms), _kline_row(start_ms + ONE_MINUTE_MS)]
+        page_two = [_kline_row(start_ms + 2 * ONE_MINUTE_MS)]
+        mock_get.side_effect = [
+            _mock_klines_response(page_one),
+            _mock_klines_response(page_two),
+        ]
+
+        candles = fetch_klines_paginated_sync(
+            "1m",
+            start_ms,
+            end_ms,
+            now_ms=FIXED_NOW_MS,
+            page_limit=2,
+        )
+
+        second_call_params = mock_get.call_args_list[1].kwargs["params"]
+        self.assertEqual(second_call_params["startTime"], start_ms + ONE_MINUTE_MS + 1)
+        self.assertEqual(len(candles), 3)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_empty_follow_up_page_ends_pagination(self, mock_get: MagicMock) -> None:
+        start_ms, end_ms = daily_context_window_ms(FIXED_NOW_MS)
+        page_one = [_kline_row(start_ms)]
+        mock_get.side_effect = [
+            _mock_klines_response(page_one),
+            _mock_klines_response([]),
+        ]
+
+        candles = fetch_klines_paginated_sync(
+            "1m",
+            start_ms,
+            end_ms,
+            now_ms=FIXED_NOW_MS,
+            page_limit=1,
+        )
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(len(candles), 1)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_non_advancing_upstream_page_raises(self, mock_get: MagicMock) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + 10 * ONE_MINUTE_MS
+        cursor_start = start_ms + 5 * ONE_MINUTE_MS
+        page = [
+            _kline_row(cursor_start - 1),
+            _kline_row(cursor_start - 1),
+        ]
+        mock_get.return_value = _mock_klines_response(page)
+
+        with self.assertRaises(HTTPException) as ctx:
+            fetch_klines_paginated_sync(
+                "1m",
+                cursor_start,
+                end_ms,
+                now_ms=FIXED_NOW_MS,
+                page_limit=2,
+            )
+
+        self.assertEqual(ctx.exception.status_code, 502)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_second_page_failure_does_not_return_partial_data(self, mock_get: MagicMock) -> None:
+        start_ms, end_ms = daily_context_window_ms(FIXED_NOW_MS)
+        page_one = [_kline_row(start_ms)]
+        failing = MagicMock()
+        failing.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "error",
+            request=MagicMock(),
+            response=MagicMock(status_code=500),
+        )
+        mock_get.side_effect = [_mock_klines_response(page_one), failing]
+
+        with self.assertRaises(HTTPException) as ctx:
+            fetch_klines_paginated_sync(
+                "1m",
+                start_ms,
+                end_ms,
+                now_ms=FIXED_NOW_MS,
+                page_limit=1,
+            )
+
+        self.assertEqual(ctx.exception.status_code, 502)
+
+
+class BinanceDailyContextEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    @patch("app.main.fetch_klines_daily_context_sync")
+    def test_daily_context_endpoint_shape(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(SAMPLE_REST_ROW, "1m", now_ms=FIXED_NOW_MS),
+        ]
+
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/daily-context",
+            params={"interval": "1m"},
+        )
+
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        self.assertEqual(body["symbol"], "BTCUSDT")
+        self.assertEqual(body["interval"], "1m")
+        self.assertEqual(len(body["candles"]), 1)
 
 
 class BinanceUsdmBtcGenericWsTests(unittest.TestCase):

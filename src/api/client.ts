@@ -116,6 +116,17 @@ export async function fetchBinanceBtcusdtKlines(
   )
 }
 
+export async function fetchBinanceBtcusdtKlinesDailyContext(
+  interval: CandleInterval,
+  signal?: AbortSignal,
+): Promise<BinanceKlinesResponse> {
+  const params = new URLSearchParams({ interval })
+  return request<BinanceKlinesResponse>(
+    `/market/binance/usdm/btcusdt/klines/daily-context?${params}`,
+    { signal },
+  )
+}
+
 export function pickDataset(
   datasets: DatasetSummary[],
   preferredName: string | null,

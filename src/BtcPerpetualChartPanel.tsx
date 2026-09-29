@@ -8,7 +8,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import { fetchBinanceBtcusdtKlines } from '@/api/client'
+import { fetchBinanceBtcusdtKlinesDailyContext } from '@/api/client'
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
 import { applyChartLiveCandle } from '@/market/applyChartLiveCandle'
@@ -337,7 +337,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
     void (async () => {
       try {
-        const response = await fetchBinanceBtcusdtKlines(interval, 500, controller.signal)
+        const response = await fetchBinanceBtcusdtKlinesDailyContext(interval, controller.signal)
         if (generation !== loadGenerationRef.current) return
         if (response.interval !== interval) return
 
