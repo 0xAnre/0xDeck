@@ -42,7 +42,7 @@ function fakeBundle(): ChartSeriesBundle {
     emas: [line, line, line] as ChartSeriesBundle['emas'],
     dailyVwap: {
       byKey: {} as ChartSeriesBundle['dailyVwap']['byKey'],
-      ordered: [line, line, line, line, line, line, line, line, line, line] as ChartSeriesBundle['dailyVwap']['ordered'],
+      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['dailyVwap']['ordered'],
     },
   }
 }

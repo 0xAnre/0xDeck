@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { DailyVwapPoint } from './dailyVwap.ts'
-import { dailyVwapPointsToLineData } from './dailyVwapLineData.ts'
+import {
+  DAILY_VWAP_CHART_SERIES_KEYS,
+  dailyVwapPointToLinePoint,
+  dailyVwapPointsToLineData,
+} from './dailyVwapLineData.ts'
 
 function point(overrides: Partial<DailyVwapPoint>): DailyVwapPoint {
   return {
@@ -20,6 +24,8 @@ function point(overrides: Partial<DailyVwapPoint>): DailyVwapPoint {
   }
 }
 
+const OUTER_BAND_KEYS = ['upper2', 'lower2', 'previousUpper2', 'previousLower2'] as const
+
 describe('dailyVwapPointsToLineData', () => {
   it('uses whitespace when value is null', () => {
     const data = dailyVwapPointsToLineData([point({ previousVwap: null })], 'previousVwap')
@@ -29,5 +35,43 @@ describe('dailyVwapPointsToLineData', () => {
   it('includes numeric values when present', () => {
     const data = dailyVwapPointsToLineData([point({ vwap: 42.5 })], 'vwap')
     assert.equal(data[0].value, 42.5)
+  })
+})
+
+describe('DAILY_VWAP_CHART_SERIES_KEYS', () => {
+  it('defines exactly six chart line series keys', () => {
+    assert.equal(DAILY_VWAP_CHART_SERIES_KEYS.length, 6)
+    assert.deepEqual([...DAILY_VWAP_CHART_SERIES_KEYS].sort(), [
+      'lower1',
+      'previousLower1',
+      'previousUpper1',
+      'previousVwap',
+      'upper1',
+      'vwap',
+    ])
+    for (const key of OUTER_BAND_KEYS) {
+      assert.equal((DAILY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)
+    }
+  })
+})
+
+describe('daily vwap chart live update keys', () => {
+  it('updates only the six remaining chart series', () => {
+    const last = point({ vwap: 99, upper1: 100, lower1: 98 })
+    const updatedKeys: string[] = []
+
+    for (const key of DAILY_VWAP_CHART_SERIES_KEYS) {
+      const linePoint = dailyVwapPointToLinePoint(last, key)
+      updatedKeys.push(key)
+      if (key === 'vwap') {
+        assert.equal(linePoint.value, 99)
+      }
+      assert.equal('time' in linePoint, true)
+    }
+
+    assert.deepEqual(updatedKeys, [...DAILY_VWAP_CHART_SERIES_KEYS])
+    for (const key of OUTER_BAND_KEYS) {
+      assert.equal((DAILY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)
+    }
   })
 })

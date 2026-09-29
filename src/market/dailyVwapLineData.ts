@@ -13,6 +13,21 @@ export type DailyVwapValueKey =
   | 'previousUpper2'
   | 'previousLower2'
 
+/** Keys rendered as Lightweight Charts line series (excludes ±2σ bands). */
+export type DailyVwapChartSeriesKey = Extract<
+  DailyVwapValueKey,
+  'vwap' | 'upper1' | 'lower1' | 'previousVwap' | 'previousUpper1' | 'previousLower1'
+>
+
+export const DAILY_VWAP_CHART_SERIES_KEYS: readonly DailyVwapChartSeriesKey[] = [
+  'previousLower1',
+  'previousUpper1',
+  'previousVwap',
+  'lower1',
+  'upper1',
+  'vwap',
+]
+
 export type DailyVwapLinePoint =
   | { time: UTCTimestamp; value: number }
   | { time: UTCTimestamp }

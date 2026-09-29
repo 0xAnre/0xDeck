@@ -1,33 +1,42 @@
 import { LineSeries, type IChartApi, type ISeriesApi } from 'lightweight-charts'
 import { computeDailyVwap, type DailyVwapPoint } from '@/market/dailyVwap'
 import {
+  DAILY_VWAP_CHART_SERIES_KEYS,
   dailyVwapPointToLinePoint,
   dailyVwapPointsToLineData,
-  type DailyVwapValueKey,
+  type DailyVwapChartSeriesKey,
 } from '@/market/dailyVwapLineData'
 import type { MarketCandle } from '@/market/types'
 
+export { DAILY_VWAP_CHART_SERIES_KEYS }
+
 type DailyVwapSeriesSpec = {
-  key: DailyVwapValueKey
+  key: DailyVwapChartSeriesKey
   color: string
   lineWidth: 1 | 2
 }
 
-const DAILY_VWAP_SERIES_SPECS: DailyVwapSeriesSpec[] = [
-  { key: 'previousLower2', color: '#1e88e566', lineWidth: 1 },
-  { key: 'previousLower1', color: '#9e9e9e66', lineWidth: 1 },
-  { key: 'previousUpper1', color: '#9e9e9e66', lineWidth: 1 },
-  { key: 'previousUpper2', color: '#e5393566', lineWidth: 1 },
-  { key: 'previousVwap', color: '#ff980099', lineWidth: 1 },
-  { key: 'lower2', color: '#1e88e5', lineWidth: 2 },
-  { key: 'lower1', color: '#9e9e9e', lineWidth: 2 },
-  { key: 'upper1', color: '#9e9e9e', lineWidth: 2 },
-  { key: 'upper2', color: '#e53935', lineWidth: 2 },
-  { key: 'vwap', color: '#e53935', lineWidth: 1 },
-]
+const DAILY_VWAP_SERIES_STYLE: Record<
+  DailyVwapChartSeriesKey,
+  Pick<DailyVwapSeriesSpec, 'color' | 'lineWidth'>
+> = {
+  previousLower1: { color: '#9e9e9e66', lineWidth: 1 },
+  previousUpper1: { color: '#9e9e9e66', lineWidth: 1 },
+  previousVwap: { color: '#ff980099', lineWidth: 1 },
+  lower1: { color: '#9e9e9e', lineWidth: 2 },
+  upper1: { color: '#9e9e9e', lineWidth: 2 },
+  vwap: { color: '#e53935', lineWidth: 1 },
+}
+
+const DAILY_VWAP_SERIES_SPECS: DailyVwapSeriesSpec[] = DAILY_VWAP_CHART_SERIES_KEYS.map(
+  (key) => ({
+    key,
+    ...DAILY_VWAP_SERIES_STYLE[key],
+  }),
+)
 
 export type DailyVwapLineSeriesBundle = {
-  byKey: Record<DailyVwapValueKey, ISeriesApi<'Line'>>
+  byKey: Record<DailyVwapChartSeriesKey, ISeriesApi<'Line'>>
   ordered: ISeriesApi<'Line'>[]
 }
 
@@ -42,7 +51,7 @@ export function createDailyVwapLineSeries(
   chart: IChartApi,
   visible: boolean,
 ): DailyVwapLineSeriesBundle {
-  const byKey = {} as Record<DailyVwapValueKey, ISeriesApi<'Line'>>
+  const byKey = {} as Record<DailyVwapChartSeriesKey, ISeriesApi<'Line'>>
   const ordered: ISeriesApi<'Line'>[] = []
 
   for (const spec of DAILY_VWAP_SERIES_SPECS) {
