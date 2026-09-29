@@ -6,6 +6,8 @@ import {
   mergeWeeklyContextCandles,
   shiftVisibleLogicalRange,
   shouldApplyWeeklyContextResponse,
+  shouldFinalizeWeeklyContextRequest,
+  shouldShowWeeklyVwapSeries,
 } from './btcPerpetualWeeklyContext.ts'
 import type { MarketCandle } from './types.ts'
 
@@ -45,20 +47,74 @@ describe('shiftVisibleLogicalRange', () => {
 })
 
 describe('countPrependedCandles', () => {
-  it('counts added history length', () => {
-    assert.equal(countPrependedCandles(100, 130), 30)
-    assert.equal(countPrependedCandles(100, 100), 0)
+  it('counts only candles older than the first existing timestamp', () => {
+    const before = [candle(100), candle(110)]
+    const after = [candle(90), candle(95), candle(100), candle(115)]
+    assert.equal(countPrependedCandles(before, after), 2)
+  })
+
+  it('ignores duplicate timestamps and newer bars when counting prepend', () => {
+    const before = [candle(100)]
+    const after = [candle(90), candle(100, 9), candle(105)]
+    assert.equal(countPrependedCandles(before, after), 1)
+  })
+
+  it('returns zero when existing list is empty', () => {
+    const after = [candle(90), candle(100)]
+    assert.equal(countPrependedCandles([], after), 0)
+  })
+})
+
+describe('shouldShowWeeklyVwapSeries', () => {
+  it('hides weekly lines until context is loaded for the active interval', () => {
+    assert.equal(
+      shouldShowWeeklyVwapSeries({
+        indicatorSelected: true,
+        loadedInterval: null,
+        activeInterval: '1m',
+      }),
+      false,
+    )
+    assert.equal(
+      shouldShowWeeklyVwapSeries({
+        indicatorSelected: true,
+        loadedInterval: '5m',
+        activeInterval: '1m',
+      }),
+      false,
+    )
+    assert.equal(
+      shouldShowWeeklyVwapSeries({
+        indicatorSelected: true,
+        loadedInterval: '1m',
+        activeInterval: '1m',
+      }),
+      true,
+    )
+  })
+
+  it('hides when indicator is not selected', () => {
+    assert.equal(
+      shouldShowWeeklyVwapSeries({
+        indicatorSelected: false,
+        loadedInterval: '1m',
+        activeInterval: '1m',
+      }),
+      false,
+    )
   })
 })
 
 describe('shouldApplyWeeklyContextResponse', () => {
-  it('rejects stale generation or interval mismatch', () => {
+  it('rejects stale generation, interval mismatch, or superseded request id', () => {
     assert.equal(
       shouldApplyWeeklyContextResponse({
         requestGeneration: 1,
         activeGeneration: 2,
         requestInterval: '1m',
         responseInterval: '1m',
+        requestId: 1,
+        latestRequestId: 1,
       }),
       false,
     )
@@ -68,6 +124,8 @@ describe('shouldApplyWeeklyContextResponse', () => {
         activeGeneration: 2,
         requestInterval: '1m',
         responseInterval: '5m',
+        requestId: 2,
+        latestRequestId: 2,
       }),
       false,
     )
@@ -77,9 +135,29 @@ describe('shouldApplyWeeklyContextResponse', () => {
         activeGeneration: 2,
         requestInterval: '1m',
         responseInterval: '1m',
+        requestId: 2,
+        latestRequestId: 3,
+      }),
+      false,
+    )
+    assert.equal(
+      shouldApplyWeeklyContextResponse({
+        requestGeneration: 2,
+        activeGeneration: 2,
+        requestInterval: '1m',
+        responseInterval: '1m',
+        requestId: 3,
+        latestRequestId: 3,
       }),
       true,
     )
+  })
+})
+
+describe('shouldFinalizeWeeklyContextRequest', () => {
+  it('allows only the latest request to clear shared in-flight ownership', () => {
+    assert.equal(shouldFinalizeWeeklyContextRequest(1, 2), false)
+    assert.equal(shouldFinalizeWeeklyContextRequest(2, 2), true)
   })
 })
 

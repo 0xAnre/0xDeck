@@ -14,8 +14,20 @@ export function mergeWeeklyContextCandles(
   return mergeOlderMarketCandles(existing, weeklyHistory)
 }
 
-export function countPrependedCandles(beforeLength: number, afterLength: number): number {
-  return Math.max(0, afterLength - beforeLength)
+/** Count candles in `after` that are strictly older than the first candle in `before`. */
+export function countPrependedCandles(
+  before: readonly MarketCandle[],
+  after: readonly MarketCandle[],
+): number {
+  if (before.length === 0 || after.length === 0) return 0
+  const firstExistingTime = before[0].time
+  let count = 0
+  for (const candle of after) {
+    if (candle.time < firstExistingTime) {
+      count += 1
+    }
+  }
+  return count
 }
 
 export function shiftVisibleLogicalRange(
@@ -33,11 +45,38 @@ export function shouldApplyWeeklyContextResponse(params: {
   activeGeneration: number
   requestInterval: CandleInterval
   responseInterval: CandleInterval
+  requestId: number
+  latestRequestId: number
 }): boolean {
-  const { requestGeneration, activeGeneration, requestInterval, responseInterval } = params
+  const {
+    requestGeneration,
+    activeGeneration,
+    requestInterval,
+    responseInterval,
+    requestId,
+    latestRequestId,
+  } = params
+  if (requestId !== latestRequestId) return false
   if (requestGeneration !== activeGeneration) return false
   if (responseInterval !== requestInterval) return false
   return true
+}
+
+export function shouldFinalizeWeeklyContextRequest(
+  requestId: number,
+  latestRequestId: number,
+): boolean {
+  return requestId === latestRequestId
+}
+
+export function shouldShowWeeklyVwapSeries(params: {
+  indicatorSelected: boolean
+  loadedInterval: CandleInterval | null
+  activeInterval: CandleInterval
+}): boolean {
+  const { indicatorSelected, loadedInterval, activeInterval } = params
+  if (!indicatorSelected) return false
+  return loadedInterval === activeInterval
 }
 
 export function isWeeklyContextAbortError(error: unknown): boolean {

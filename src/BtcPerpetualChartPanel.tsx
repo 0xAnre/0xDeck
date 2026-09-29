@@ -22,6 +22,7 @@ import {
   mergeWeeklyContextCandles,
   shiftVisibleLogicalRange,
   shouldApplyWeeklyContextResponse,
+  shouldShowWeeklyVwapSeries,
 } from '@/market/btcPerpetualWeeklyContext'
 import {
   createInfiniteHistoryState,
@@ -141,7 +142,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const infiniteHistoryRef = useRef(createInfiniteHistoryState())
   const weeklyContextLoadedIntervalRef = useRef<CandleInterval | null>(null)
   const weeklyContextAbortRef = useRef<AbortController | null>(null)
-  const weeklyContextInFlightRef = useRef(false)
+  const weeklyContextLatestRequestIdRef = useRef(0)
+
+  const syncWeeklyVwapSeriesVisibility = useCallback((bundle: ChartSeriesBundle) => {
+    const show = shouldShowWeeklyVwapSeries({
+      indicatorSelected: activeIndicatorsRef.current.includes('weekly-vwap'),
+      loadedInterval: weeklyContextLoadedIntervalRef.current,
+      activeInterval: activeIntervalRef.current,
+    })
+    setWeeklyVwapLineSeriesVisible(bundle.weeklyVwap, show)
+  }, [])
 
   const handleMarketIndicatorsChange = useCallback(
     (next: MarketIndicatorId[]) => {
@@ -197,8 +207,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     const bundle = seriesRef.current
     if (!bundle) return
-    setWeeklyVwapLineSeriesVisible(bundle.weeklyVwap, weeklyVwapVisible)
-  }, [weeklyVwapVisible])
+
+    if (!weeklyVwapVisible) {
+      weeklyContextLatestRequestIdRef.current += 1
+      weeklyContextAbortRef.current?.abort()
+      weeklyContextAbortRef.current = null
+      setWeeklyVwapLineSeriesVisible(bundle.weeklyVwap, false)
+      return
+    }
+
+    syncWeeklyVwapSeriesVisibility(bundle)
+  }, [weeklyVwapVisible, chartReady, interval, syncWeeklyVwapSeriesVisibility])
 
   useEffect(() => {
     const container = containerRef.current
@@ -295,8 +314,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       const dailyVwapVisibleOnCreate = activeIndicatorsRef.current.includes('daily-vwap')
       const dailyVwapSeries = createDailyVwapLineSeries(chart!, dailyVwapVisibleOnCreate)
-      const weeklyVwapVisibleOnCreate = activeIndicatorsRef.current.includes('weekly-vwap')
-      const weeklyVwapSeries = createWeeklyVwapLineSeries(chart!, weeklyVwapVisibleOnCreate)
+      const weeklyVwapSeries = createWeeklyVwapLineSeries(chart!, false)
 
       chartRef.current = chart
       seriesRef.current = {
@@ -345,9 +363,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const generation = loadGenerationRef.current
     historyReadyRef.current = false
     weeklyContextLoadedIntervalRef.current = null
+    weeklyContextLatestRequestIdRef.current += 1
     weeklyContextAbortRef.current?.abort()
     weeklyContextAbortRef.current = null
-    weeklyContextInFlightRef.current = false
     resetInfiniteHistoryState(infiniteHistoryRef.current, generation)
 
     abortRef.current?.abort()
@@ -467,6 +485,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (useWeeklyContextOnLoad) {
           weeklyContextLoadedIntervalRef.current = interval
         }
+        const bundleAfterLoad = seriesRef.current
+        if (bundleAfterLoad) {
+          syncWeeklyVwapSeriesVisibility(bundleAfterLoad)
+        }
         setChartReady(true)
       } catch (error) {
         if (controller.signal.aborted) return
@@ -490,7 +512,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       streamRef.current?.disconnect()
       streamRef.current = null
     }
-  }, [interval])
+  }, [interval, syncWeeklyVwapSeriesVisibility])
 
   useEffect(() => {
     if (!weeklyVwapVisible || !chartReady) return
@@ -502,13 +524,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const bundle = seriesRef.current
     const chart = chartRef.current
     if (!bundle || !chart) return
-    if (weeklyContextInFlightRef.current) return
 
     weeklyContextAbortRef.current?.abort()
     const controller = new AbortController()
     weeklyContextAbortRef.current = controller
     const generation = loadGenerationRef.current
-    weeklyContextInFlightRef.current = true
+    const requestId = ++weeklyContextLatestRequestIdRef.current
+
+    setWeeklyVwapLineSeriesVisible(bundle.weeklyVwap, false)
 
     void (async () => {
       try {
@@ -522,16 +545,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
             activeGeneration: loadGenerationRef.current,
             requestInterval: currentInterval,
             responseInterval: response.interval,
+            requestId,
+            latestRequestId: weeklyContextLatestRequestIdRef.current,
           })
         ) {
           return
         }
 
         const history = response.candles.filter((c) => c.interval === currentInterval)
-        const beforeLen = candlesRef.current.length
+        const beforeCandles = candlesRef.current
         const logicalRange = chart.timeScale().getVisibleLogicalRange()
-        const merged = mergeWeeklyContextCandles(candlesRef.current, history)
-        const addedCount = countPrependedCandles(beforeLen, merged.length)
+        const merged = mergeWeeklyContextCandles(beforeCandles, history)
+        const addedCount = countPrependedCandles(beforeCandles, merged)
 
         candlesRef.current = merged
         applyChartHistorySeries(bundle, merged)
@@ -542,19 +567,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }
 
         weeklyContextLoadedIntervalRef.current = currentInterval
+        syncWeeklyVwapSeriesVisibility(bundle)
       } catch (error) {
         if (isWeeklyContextAbortError(error)) return
         if (generation !== loadGenerationRef.current) return
-      } finally {
-        weeklyContextInFlightRef.current = false
       }
     })()
 
     return () => {
       controller.abort()
-      weeklyContextInFlightRef.current = false
     }
-  }, [weeklyVwapVisible, chartReady])
+  }, [weeklyVwapVisible, chartReady, syncWeeklyVwapSeriesVisibility])
 
   const streamLabel = chartReady ? streamStatusLabel(streamState) : null
 
