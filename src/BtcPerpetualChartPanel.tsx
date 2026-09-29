@@ -388,17 +388,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         )}
         aria-hidden={!chartReady}
       />
-
-      <p className="shrink-0 text-[10px] text-muted-foreground">
-        <a
-          href="https://www.tradingview.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 hover:text-foreground"
-        >
-          Charts by TradingView
-        </a>
-      </p>
     </div>
   )
 }
