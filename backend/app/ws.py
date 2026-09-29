@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import WebSocket
-from starlette.websockets import WebSocketDisconnect
 
 CHANNEL_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 
@@ -26,11 +25,17 @@ class WebSocketChannelManager:
     def connection_count(self, channel: str) -> int:
         return len(self._connections.get(channel, set()))
 
-    async def connect(self, channel: str, websocket: WebSocket) -> None:
+    async def connect(self, channel: str, websocket: WebSocket) -> bool:
         await websocket.accept()
+        try:
+            await self._send(websocket, channel, {"type": "connected"})
+        except Exception:
+            await self._safe_close(websocket)
+            return False
+
         bucket = self._connections.setdefault(channel, set())
         bucket.add(websocket)
-        await self._send(websocket, channel, {"type": "connected"})
+        return True
 
     def disconnect(self, channel: str, websocket: WebSocket) -> None:
         bucket = self._connections.get(channel)
@@ -43,7 +48,10 @@ class WebSocketChannelManager:
     async def publish(self, channel: str, payload: Any) -> None:
         message = {"type": "event", "payload": payload}
         for websocket in list(self._connections.get(channel, set())):
-            await self._send(websocket, channel, message)
+            try:
+                await self._send(websocket, channel, message)
+            except Exception:
+                self.disconnect(channel, websocket)
 
     async def handle_client_text(self, channel: str, websocket: WebSocket, text: str) -> None:
         try:
@@ -82,6 +90,12 @@ class WebSocketChannelManager:
             "timestamp": utc_timestamp(),
         }
         await websocket.send_text(json.dumps(envelope))
+
+    async def _safe_close(self, websocket: WebSocket) -> None:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 ws_manager = WebSocketChannelManager()

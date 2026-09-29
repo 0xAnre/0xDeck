@@ -51,6 +51,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     case 'pong':
       return { ...base, type: 'pong' }
     case 'event':
+      if (!('payload' in record)) return null
       return { ...base, type: 'event', payload: record.payload }
     case 'error':
       if (typeof record.message !== 'string') return null

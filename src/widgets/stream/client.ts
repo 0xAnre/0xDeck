@@ -70,9 +70,11 @@ export class WidgetStreamClient {
     this.clearReconnectTimer()
     this.reconnectAttempts = 0
 
-    if (this.socket) {
-      this.socket.close()
-      this.socket = null
+    const socket = this.socket
+    this.socket = null
+
+    if (socket) {
+      socket.close()
     }
 
     this.setState('closed')
@@ -92,16 +94,28 @@ export class WidgetStreamClient {
     this.socket = socket
 
     socket.addEventListener('open', () => {
+      if (!this.isActiveSocket(socket)) return
+
       this.reconnectAttempts = 0
       this.setState('open')
     })
 
     socket.addEventListener('message', (event) => {
+      if (!this.isActiveSocket(socket)) return
+
       try {
         const raw = JSON.parse(String(event.data)) as unknown
         const message = parseServerMessage(raw)
         if (!message) {
           this.emitError(new Error('Invalid WebSocket message shape'))
+          return
+        }
+        if (message.channel !== this.channel) {
+          this.emitError(
+            new Error(
+              `WebSocket message channel mismatch: expected "${this.channel}", got "${message.channel}"`,
+            ),
+          )
           return
         }
         this.onMessage(message)
@@ -111,11 +125,15 @@ export class WidgetStreamClient {
     })
 
     socket.addEventListener('error', () => {
+      if (!this.isActiveSocket(socket)) return
+
       this.setState('error')
       this.emitError(new Error('WebSocket connection error'))
     })
 
     socket.addEventListener('close', () => {
+      if (!this.isActiveSocket(socket)) return
+
       this.socket = null
 
       if (this.closedByUser) {
@@ -130,6 +148,10 @@ export class WidgetStreamClient {
 
       this.scheduleReconnect()
     })
+  }
+
+  private isActiveSocket(socket: WebSocket): boolean {
+    return this.socket === socket
   }
 
   private scheduleReconnect(): void {

@@ -36,7 +36,9 @@ async def websocket_channel(websocket: WebSocket, channel: str) -> None:
         await websocket.close(code=1008, reason="Invalid channel")
         return
 
-    await ws_manager.connect(channel, websocket)
+    if not await ws_manager.connect(channel, websocket):
+        return
+
     try:
         while True:
             text = await websocket.receive_text()
