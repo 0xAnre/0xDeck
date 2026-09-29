@@ -52,11 +52,18 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/datasets/{name}/preview` | Row preview (`limit`, `range`) |
 | GET | `/api/datasets/{name}/series` | Chart series (`limit`, `range`) |
 | GET | `/api/datasets/{name}/kpi` | KPI aggregation (`metric`, `agg`, `range`) |
-| WS | `/api/ws/{channel}` | WebSocket transport (infrastructure only; no data publisher yet) |
+| GET | `/api/market/binance/usdm/btcusdt/klines` | Latest BTCUSDT perpetual klines (`interval`: `1m` … `1w`) |
+| GET | `/api/market/binance/usdm/btcusdt/klines/history` | Older klines before a timestamp (`interval`, `before`) |
+| GET | `/api/market/binance/usdm/btcusdt/klines/daily-context` | Intraday klines for daily VWAP window |
+| GET | `/api/market/binance/usdm/btcusdt/klines/weekly-context` | Klines for weekly VWAP window |
+| GET | `/api/market/binance/usdm/btcusdt/klines/monthly-context` | Klines for monthly VWAP (`4h`, `1d`) |
+| GET | `/api/market/binance/usdm/btcusdt/klines/quarterly-context` | Klines for quarterly VWAP (`4h`, `1d`) |
+| GET | `/api/market/binance/usdm/btcusdt/klines/yearly-context` | Klines for yearly VWAP (`1d`, `1w`) |
+| WS | `/api/ws/{channel}` | WebSocket transport; Binance BTC kline relay on `binance.usdm.btcusdt.kline.{interval}` |
 
 ### WebSocket (`/api/ws/{channel}`)
 
-Infrastructure for future live widgets. Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). No producer calls `publish()` in this release — connections stay idle after `connected` until a later stage.
+Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). Generic channels accept `ping` / `pong` only. **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `30m`, `4h`, `1d`, `1w`). The backend opens a shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
 
 **Server → client** (every message includes `type`, `channel`, `timestamp` UTC ISO):
 

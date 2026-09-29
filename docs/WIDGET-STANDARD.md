@@ -50,7 +50,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `columns` | Column multi-select (table) |
 | `metric` | KPI metric column |
 | `aggregation` | KPI aggregation |
-| `interval` | Candle interval (`1m` … `1d`) for live market widgets |
+| `interval` | Candle interval (`1m`, `5m`, `30m`, `4h`, `1d`, `1w`) for live market widgets |
 
 ---
 
@@ -71,7 +71,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 - `kpi` — KPI endpoint
 - `candles` — Binance BTC perpetual klines (`/api/market/binance/usdm/btcusdt/klines`)
 
-**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). The **BTC Perpetual** widget uses `channels` with one relay channel per supported interval; the active channel follows the header interval picker.
+**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). **BTC Perpetual** (`btc-perpetual-chart`) uses `query-and-stream`: REST klines + context endpoints for VWAP, and one WebSocket relay channel per interval (`binance.usdm.btcusdt.kline.{interval}`). Indicator availability is timeframe-specific (see README BTC Perpetual section). Instance interval and indicators persist via `0xdeck-widget-market-intervals` and `0xdeck-widget-market-indicators`.
 
 ---
 

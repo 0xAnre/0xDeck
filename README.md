@@ -25,7 +25,7 @@ Most market tools force a fixed workflow. 0xDeck gives you a surface you can res
 |------|---------|
 | **Canvas** | Blank draggable workspace; resize, overlap, stack, and persist panels |
 | **Backend** | FastAPI + DuckDB — flat `.parquet` files and nested **streams** (`trades`, `prediction_price`, …) |
-| **Widgets** | Data Table, Chart, KPI Card, Dashboard, Reports (preview), Notes, Market Times |
+| **Widgets** | Data Table, Chart, KPI Card, Dashboard, Reports (preview), Notes, Market Times, **BTC Perpetual** (Binance USD-M) |
 | **Reusable widgets** | Register a template once in `src/widgets/registry/definitions.tsx`; add many instances; each keeps its own config |
 | **Custom widgets** | Add your own panels through `WIDGET_REGISTRY` (`src/widgets/registry/`) |
 | **Data binding** | Per-widget dataset, columns, time range (`15m`–`7d`), KPI metric + aggregation |
@@ -86,6 +86,27 @@ uvicorn app.main:app --reload --port 57342
 **Data source** → set your Parquet folder (absolute path) → **Save**. Registry refreshes automatically.
 
 Add widgets, then use the header dropdowns on each panel to set dataset, columns, time range, and aggregation.
+
+## BTC Perpetual widget
+
+Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts). Historical klines and VWAP context come from the backend REST API; candle updates use the backend **WebSocket relay** to Binance (see [backend/README.md](backend/README.md)).
+
+| Topic | Behavior |
+|-------|----------|
+| **Timeframes** | `1m`, `5m`, `30m`, `4h`, `1d`, `1w` (header interval picker) |
+| **Default** | `1m`, no indicators selected |
+| **Triple EMA** | EMA 13, 21, 35 — all timeframes |
+| **Daily VWAP** | `1m`–`1d` (not `1w`) |
+| **Weekly VWAP** | `1m`–`1d` (not `1w`) |
+| **Monthly VWAP** | `4h`, `1d` only |
+| **Quarterly VWAP** | `4h`, `1d` only |
+| **Yearly VWAP** | `1d`, `1w` only |
+| **Initial history** | At least **500** candles when available; **last 120** visible on open |
+| **1w history** | If Binance has fewer than 500 weekly candles, all available history is used |
+| **Scroll left** | Older candles load on demand (`/klines/history`) |
+| **Persistence** | Interval, indicators, and workspace layout survive refresh (`0xdeck-widget-market-intervals`, `0xdeck-widget-market-indicators`, layout keys) |
+
+Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
 
 ## Documentation
 
