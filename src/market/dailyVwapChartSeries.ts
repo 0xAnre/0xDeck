@@ -1,6 +1,7 @@
 import { LineSeries, type IChartApi, type ISeriesApi } from 'lightweight-charts'
 import { computeDailyVwap, type DailyVwapPoint } from '@/market/dailyVwap'
 import {
+  DAILY_VWAP_CHART_LINE_STYLE,
   DAILY_VWAP_CHART_SERIES_KEYS,
   dailyVwapPointToLinePoint,
   dailyVwapPointsToLineData,
@@ -13,25 +14,13 @@ export { DAILY_VWAP_CHART_SERIES_KEYS }
 type DailyVwapSeriesSpec = {
   key: DailyVwapChartSeriesKey
   color: string
-  lineWidth: 1 | 2
-}
-
-const DAILY_VWAP_SERIES_STYLE: Record<
-  DailyVwapChartSeriesKey,
-  Pick<DailyVwapSeriesSpec, 'color' | 'lineWidth'>
-> = {
-  previousLower1: { color: '#9e9e9e66', lineWidth: 1 },
-  previousUpper1: { color: '#9e9e9e66', lineWidth: 1 },
-  previousVwap: { color: '#ff980099', lineWidth: 1 },
-  lower1: { color: '#9e9e9e', lineWidth: 2 },
-  upper1: { color: '#9e9e9e', lineWidth: 2 },
-  vwap: { color: '#e53935', lineWidth: 1 },
+  lineWidth: 1
 }
 
 const DAILY_VWAP_SERIES_SPECS: DailyVwapSeriesSpec[] = DAILY_VWAP_CHART_SERIES_KEYS.map(
   (key) => ({
     key,
-    ...DAILY_VWAP_SERIES_STYLE[key],
+    ...DAILY_VWAP_CHART_LINE_STYLE,
   }),
 )
 

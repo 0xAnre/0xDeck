@@ -28,6 +28,11 @@ export const DAILY_VWAP_CHART_SERIES_KEYS: readonly DailyVwapChartSeriesKey[] = 
   'vwap',
 ]
 
+export const DAILY_VWAP_CHART_LINE_STYLE = {
+  color: '#9e9e9e',
+  lineWidth: 1 as const,
+}
+
 export type DailyVwapLinePoint =
   | { time: UTCTimestamp; value: number }
   | { time: UTCTimestamp }

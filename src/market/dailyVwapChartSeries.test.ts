@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { DailyVwapPoint } from './dailyVwap.ts'
 import {
+  DAILY_VWAP_CHART_LINE_STYLE,
   DAILY_VWAP_CHART_SERIES_KEYS,
   dailyVwapPointToLinePoint,
   dailyVwapPointsToLineData,
@@ -35,6 +36,20 @@ describe('dailyVwapPointsToLineData', () => {
   it('includes numeric values when present', () => {
     const data = dailyVwapPointsToLineData([point({ vwap: 42.5 })], 'vwap')
     assert.equal(data[0].value, 42.5)
+  })
+})
+
+describe('DAILY_VWAP_CHART_LINE_STYLE', () => {
+  it('applies thin gray to all six chart series keys', () => {
+    assert.deepEqual(DAILY_VWAP_CHART_LINE_STYLE, { color: '#9e9e9e', lineWidth: 1 })
+    for (const key of DAILY_VWAP_CHART_SERIES_KEYS) {
+      const spec = { key, ...DAILY_VWAP_CHART_LINE_STYLE }
+      assert.equal(spec.color, '#9e9e9e')
+      assert.equal(spec.lineWidth, 1)
+    }
+    for (const key of OUTER_BAND_KEYS) {
+      assert.equal((DAILY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)
+    }
   })
 })
 
