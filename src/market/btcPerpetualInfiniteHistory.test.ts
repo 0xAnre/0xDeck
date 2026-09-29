@@ -44,6 +44,10 @@ function fakeBundle(): ChartSeriesBundle {
       byKey: {} as ChartSeriesBundle['dailyVwap']['byKey'],
       ordered: [line, line, line, line, line, line] as ChartSeriesBundle['dailyVwap']['ordered'],
     },
+    weeklyVwap: {
+      byKey: {} as ChartSeriesBundle['weeklyVwap']['byKey'],
+      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['weeklyVwap']['ordered'],
+    },
   }
 }
 

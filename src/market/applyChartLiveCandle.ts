@@ -3,6 +3,10 @@ import {
   applyDailyVwapLiveFromCandles,
   type DailyVwapLineSeriesBundle,
 } from '@/market/dailyVwapChartSeries'
+import {
+  applyWeeklyVwapLiveFromCandles,
+  type WeeklyVwapLineSeriesBundle,
+} from '@/market/weeklyVwapChartSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
 import type { MarketCandle } from '@/market/types'
@@ -21,6 +25,7 @@ export type ChartSeriesBundle = {
   candle: ISeriesApi<'Candlestick'>
   emas: ISeriesApi<'Line'>[]
   dailyVwap: DailyVwapLineSeriesBundle
+  weeklyVwap: WeeklyVwapLineSeriesBundle
 }
 
 /** Update in-memory candles and chart series (no full setData). */
@@ -45,4 +50,5 @@ export function applyChartLiveCandle(
   })
 
   applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)
+  applyWeeklyVwapLiveFromCandles(candles, bundle.weeklyVwap)
 }
