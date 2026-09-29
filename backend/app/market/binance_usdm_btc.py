@@ -71,7 +71,7 @@ def clamp_limit(limit: int) -> int:
 
 
 def binance_ws_stream_url(interval: str) -> str:
-    return f"{BINANCE_USDM_WS_BASE}/ws/{SYMBOL_LOWER}@kline_{interval}"
+    return f"{BINANCE_USDM_WS_BASE}/market/ws/{SYMBOL_LOWER}@kline_{interval}"
 
 
 def normalize_rest_kline_row(row: list[Any], interval: str, now_ms: int | None = None) -> NormalizedCandle:

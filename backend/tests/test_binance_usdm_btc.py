@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.market.binance_usdm_btc import (
     BinanceUsdmBtcKlineRelay,
+    binance_ws_stream_url,
     channel_for_interval,
     normalize_rest_kline_row,
     normalize_ws_kline,
@@ -49,6 +50,12 @@ SAMPLE_WS_KLINE = {
 
 
 class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
+    def test_binance_ws_stream_url_uses_market_route(self) -> None:
+        self.assertEqual(
+            binance_ws_stream_url("1m"),
+            "wss://fstream.binance.com/market/ws/btcusdt@kline_1m",
+        )
+
     def test_supported_intervals_accepted(self) -> None:
         for interval in ("1m", "5m", "30m", "4h", "1d"):
             self.assertEqual(validate_interval(interval), interval)

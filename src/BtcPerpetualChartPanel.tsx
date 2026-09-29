@@ -33,16 +33,37 @@ import {
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
 
-const EMA_COLORS = ['var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'] as const
+const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
+
+function resolveCssColor(value: string, fallback: string): string {
+  const input = value.trim() || fallback
+  if (input.includes('oklch(') || input.includes('oklab(')) {
+    return fallback
+  }
+
+  const probe = document.createElement('span')
+  probe.style.color = input
+  document.body.appendChild(probe)
+  const resolved = getComputedStyle(probe).color
+  probe.remove()
+
+  if (!resolved || resolved.includes('oklch(') || resolved.includes('oklab(')) {
+    return fallback
+  }
+  return resolved
+}
 
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
   return {
     background: 'transparent',
-    text: style.getPropertyValue('--foreground').trim() || '#d4d4d8',
-    grid: style.getPropertyValue('--border').trim() || '#3f3f46',
-    up: style.getPropertyValue('--up').trim() || '#22c55e',
-    down: style.getPropertyValue('--down').trim() || '#ef4444',
+    text: resolveCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
+    grid: resolveCssColor(style.getPropertyValue('--border'), '#3f3f46'),
+    up: resolveCssColor(style.getPropertyValue('--up'), '#22c55e'),
+    down: resolveCssColor(style.getPropertyValue('--down'), '#ef4444'),
+    ema: EMA_COLOR_VARS.map((token, index) =>
+      resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
+    ),
   }
 }
 
@@ -108,7 +129,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     panelId,
     marketInterval: interval,
     onMarketIntervalChange: handleIntervalChange,
-    disabled: dataState.status === 'loading',
+    disabled: !chartReady && dataState.status === 'loading',
   })
 
   useEffect(() => {
@@ -152,7 +173,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       const emaSeries = EMA_PERIODS.map((period, index) =>
         chart!.addSeries(LineSeries, {
-          color: EMA_COLORS[index] ?? EMA_COLORS[0],
+          color: colors.ema[index] ?? colors.ema[0],
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
@@ -341,7 +362,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const streamLabel = chartReady ? streamStatusLabel(streamState) : null
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-1">
+    <div className="relative flex h-full min-h-0 flex-col gap-1">
       {!chartReady && (
         <div className="absolute inset-0 z-10 flex min-h-0 flex-col bg-card/90">
           <WidgetDataStateView state={dataState} className="flex-1" />
@@ -351,7 +372,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
         <div className="flex flex-wrap gap-3">
           {EMA_PERIODS.map((period, index) => (
-            <span key={period} style={{ color: EMA_COLORS[index] }}>
+            <span key={period} style={{ color: `var(${EMA_COLOR_VARS[index]})` }}>
               EMA {period}
             </span>
           ))}
@@ -361,7 +382,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       <div
         ref={containerRef}
-        className={cn('min-h-0 w-full flex-1', !chartReady && 'pointer-events-none opacity-0')}
+        className={cn(
+          'min-h-[5rem] w-full flex-1 basis-0',
+          !chartReady && 'pointer-events-none opacity-0',
+        )}
         aria-hidden={!chartReady}
       />
 
