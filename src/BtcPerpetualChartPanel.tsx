@@ -183,13 +183,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         wickDownColor: colors.down,
       })
 
-      const emaSeries = EMA_PERIODS.map((period, index) =>
+      const emaSeries = EMA_PERIODS.map((_, index) =>
         chart!.addSeries(LineSeries, {
           color: colors.ema[index] ?? colors.ema[0],
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
-          title: `EMA ${period}`,
         }),
       )
 
