@@ -181,6 +181,44 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
     const colors = readThemeColors()
     let chart: IChartApi | null = null
+    let historyListenerChart: IChartApi | null = null
+
+    const onVisibleLogicalRangeChange = (range: LogicalRange | null) => {
+      const bundle = seriesRef.current
+      const activeChart = chartRef.current
+      if (!bundle || !activeChart || activeChart !== historyListenerChart) return
+      maybeRequestOlderBtcPerpHistory({
+        state: infiniteHistoryRef.current,
+        historyReady: historyReadyRef.current,
+        range,
+        candleSeries: bundle.candle,
+        candlesRef,
+        generation: infiniteHistoryRef.current.generation,
+        interval: activeIntervalRef.current,
+        bundle,
+        chart: activeChart,
+        signal: abortRef.current?.signal,
+      })
+    }
+
+    const attachInfiniteHistoryListener = (targetChart: IChartApi) => {
+      if (historyListenerChart === targetChart) return
+      if (historyListenerChart) {
+        historyListenerChart
+          .timeScale()
+          .unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
+      }
+      targetChart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
+      historyListenerChart = targetChart
+    }
+
+    const detachInfiniteHistoryListener = () => {
+      if (!historyListenerChart) return
+      historyListenerChart
+        .timeScale()
+        .unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
+      historyListenerChart = null
+    }
 
     const ensureChart = () => {
       if (chart) return chart
@@ -235,6 +273,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       chartRef.current = chart
       seriesRef.current = { candle: candleSeries, emas: emaSeries, dailyVwap: dailyVwapSeries }
+      attachInfiniteHistoryListener(chart)
       return chart
     }
 
@@ -253,30 +292,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     resizeObserver.observe(container)
     ensureChart()
 
-    const onVisibleLogicalRangeChange = (range: LogicalRange | null) => {
-      const bundle = seriesRef.current
-      const activeChart = chartRef.current
-      if (!bundle || !activeChart) return
-      maybeRequestOlderBtcPerpHistory({
-        state: infiniteHistoryRef.current,
-        historyReady: historyReadyRef.current,
-        range,
-        candleSeries: bundle.candle,
-        candlesRef,
-        generation: infiniteHistoryRef.current.generation,
-        interval: activeIntervalRef.current,
-        bundle,
-        chart: activeChart,
-      })
-    }
-
-    const activeChart = ensureChart()
-    if (activeChart) {
-      activeChart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
-    }
-
     return () => {
-      chartRef.current?.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
+      detachInfiniteHistoryListener()
       resizeObserver.disconnect()
       streamRef.current?.disconnect()
       streamRef.current = null
