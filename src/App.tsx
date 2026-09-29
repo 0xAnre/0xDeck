@@ -198,7 +198,11 @@ function App() {
             rowHeight={ROW_HEIGHT}
             margin={[8, 8]}
             compactor={OVERLAP_COMPACTOR}
-            dragConfig={{ enabled: true, cancel: '.panel-close, .panel-controls' }}
+            dragConfig={{
+              enabled: true,
+              handle: '.panel-drag-handle',
+              cancel: '.panel-close, .panel-controls',
+            }}
             resizeConfig={{ enabled: true, handles: RESIZE_HANDLES }}
             onLayoutChange={handleLayoutChange}
             onDragStart={handleDragStart}
@@ -216,22 +220,22 @@ function App() {
               <Card
                 key={panel.id}
                 size="sm"
-                className="group/panel h-full cursor-grab gap-0 py-0 active:cursor-grabbing"
+                className="group/panel h-full gap-0 py-0"
                 style={{ zIndex: panelZIndex(panel.id) }}
               >
-                <CardHeader className="pointer-events-none !flex items-center gap-1.5 px-2 pb-1 pt-1.5">
-                  <CardTitle className="pointer-events-auto min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
+                <CardHeader className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing">
+                  <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
                     {panelDisplayTitle(panel, visiblePanels)}
                   </CardTitle>
                   {widgetHasHeaderControls(definition) && (
                     <PanelHeaderControls panelId={panel.id} />
                   )}
-                  <CardAction className="pointer-events-auto !col-start-auto !row-span-1 !row-start-auto ml-auto shrink-0">
+                  <CardAction className="!col-start-auto !row-span-1 !row-start-auto ml-auto shrink-0">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      className="panel-close shrink-0 opacity-0 transition-opacity group-hover/panel:opacity-100"
+                      className="panel-close cursor-pointer shrink-0 opacity-0 transition-opacity group-hover/panel:opacity-100"
                       aria-label={`${panel.title} panelini kapat`}
                       onClick={() => handleRemovePanel(panel.id)}
                     >

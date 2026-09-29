@@ -31,7 +31,7 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
 
   return (
     <div
-      className="panel-controls pointer-events-auto flex min-w-0 shrink items-center gap-1 overflow-x-auto"
+      className="panel-controls flex min-w-0 shrink cursor-default items-center gap-1 overflow-x-auto [&_button]:cursor-pointer"
       onPointerDown={(event) => event.stopPropagation()}
     >
       {settings.fields.dataset && (
