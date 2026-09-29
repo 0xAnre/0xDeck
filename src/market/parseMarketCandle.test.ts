@@ -37,7 +37,8 @@ describe('parseMarketCandlePayload', () => {
   })
 
   it('rejects missing volume', () => {
-    const { volume: _volume, ...rest } = VALID_PAYLOAD
+    const rest: Record<string, unknown> = { ...VALID_PAYLOAD }
+    delete rest.volume
     assert.equal(parseMarketCandlePayload(rest), null)
   })
 
