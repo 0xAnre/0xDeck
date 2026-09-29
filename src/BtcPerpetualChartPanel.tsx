@@ -15,12 +15,17 @@ import { BTC_PERPETUAL_CANDLESTICK_COLORS } from '@/market/btcPerpetualCandleCol
 import {
   countPrependedCandles,
   fetchBtcPerpKlinesForContextLevel,
-  isVwapContextAbortError,
   mergeVwapContextCandles,
   shiftVisibleLogicalRange,
   shouldApplyVwapContextResponse,
   vwapContextLevelSatisfiesLoaded,
 } from '@/market/btcPerpetualVwapContext'
+import {
+  cancelActiveVwapContextRequest,
+  finalizeOwnedVwapContextRequest,
+  isVwapContextAbortError,
+  releaseOwnedVwapContextRequest,
+} from '@/market/btcPerpetualVwapContextRequest'
 import { hideAllVwapSeries, syncVwapSeriesVisibility } from '@/market/btcPerpetualChartVwapSync'
 import { computeInitialVisibleLogicalRange } from '@/market/chartInitialVisibleRange'
 import {
@@ -368,9 +373,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const generation = loadGenerationRef.current
     historyReadyRef.current = false
     loadedVwapContextRef.current = null
-    vwapContextLatestRequestIdRef.current += 1
-    vwapContextAbortRef.current?.abort()
-    vwapContextAbortRef.current = null
+    cancelActiveVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef)
     resetInfiniteHistoryState(infiniteHistoryRef.current, generation)
 
     abortRef.current?.abort()
@@ -536,6 +539,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       loaded?.interval === currentInterval &&
       vwapContextLevelSatisfiesLoaded(loaded.level, neededLevel)
     ) {
+      cancelActiveVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef)
       const bundle = seriesRef.current
       if (bundle) syncAllVwapVisibility(bundle)
       return
@@ -545,20 +549,26 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const chart = chartRef.current
     if (!bundle || !chart) return
 
-    vwapContextAbortRef.current?.abort()
+    cancelActiveVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef)
     const controller = new AbortController()
     vwapContextAbortRef.current = controller
     const generation = loadGenerationRef.current
     const requestId = ++vwapContextLatestRequestIdRef.current
+    const requestContextLevel = neededLevel
+    const owner = { controller, requestId }
 
     hideAllVwapSeries(bundle)
 
     void (async () => {
       try {
         const response = await fetchBtcPerpKlinesForContextLevel(
-          neededLevel,
+          requestContextLevel,
           currentInterval,
           controller.signal,
+        )
+        const stillNeeded = requiredVwapContextLevel(
+          activeIndicatorsRef.current,
+          activeIntervalRef.current,
         )
         if (
           !shouldApplyVwapContextResponse({
@@ -568,6 +578,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
             responseInterval: response.interval,
             requestId,
             latestRequestId: vwapContextLatestRequestIdRef.current,
+            requestContextLevel,
+            stillNeededContextLevel: stillNeeded,
           })
         ) {
           return
@@ -587,25 +599,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           chart.timeScale().setVisibleLogicalRange(shifted)
         }
 
-        loadedVwapContextRef.current = { level: neededLevel, interval: currentInterval }
+        loadedVwapContextRef.current = { level: requestContextLevel, interval: currentInterval }
         syncAllVwapVisibility(bundle)
       } catch (error) {
         if (isVwapContextAbortError(error)) return
         if (generation !== loadGenerationRef.current) return
+      } finally {
+        finalizeOwnedVwapContextRequest(vwapContextAbortRef, owner)
       }
     })()
 
     return () => {
-      controller.abort()
+      releaseOwnedVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef, owner)
     }
   }, [activeIndicators, chartReady, interval, syncAllVwapVisibility])
-
-  useEffect(() => {
-    return () => {
-      vwapContextLatestRequestIdRef.current += 1
-      vwapContextAbortRef.current?.abort()
-    }
-  }, [])
 
   const streamLabel = chartReady ? streamStatusLabel(streamState) : null
 

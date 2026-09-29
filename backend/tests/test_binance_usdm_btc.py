@@ -40,6 +40,7 @@ from app.market.binance_usdm_btc import (
     normalize_rest_kline_row,
     normalize_ws_kline,
     parse_binance_ws_payload,
+    parse_channel_interval,
     utc_day_start_ms,
     utc_week_start_ms,
     validate_interval,
@@ -851,6 +852,84 @@ class BinanceLongHorizonContextTests(unittest.TestCase):
     def test_interval_1w_is_supported(self) -> None:
         self.assertEqual(validate_interval("1w"), "1w")
         self.assertEqual(channel_for_interval("1w"), "binance.usdm.btcusdt.kline.1w")
+
+
+class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    def test_monthly_context_rejects_1m_interval(self) -> None:
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/monthly-context",
+            params={"interval": "1m"},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    def test_quarterly_context_rejects_1w_interval(self) -> None:
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/quarterly-context",
+            params={"interval": "1w"},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    def test_yearly_context_rejects_4h_interval(self) -> None:
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/yearly-context",
+            params={"interval": "4h"},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    @patch("app.main.fetch_klines_monthly_context_sync")
+    def test_monthly_context_4h_success_shape(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(SAMPLE_REST_ROW, "4h", now_ms=FIXED_NOW_MS),
+        ]
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/monthly-context",
+            params={"interval": "4h"},
+        )
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        self.assertEqual(body["interval"], "4h")
+        self.assertEqual(len(body["candles"]), 1)
+
+    @patch("app.main.fetch_klines_quarterly_context_sync")
+    def test_quarterly_context_4h_success_shape(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(SAMPLE_REST_ROW, "4h", now_ms=FIXED_NOW_MS),
+        ]
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/quarterly-context",
+            params={"interval": "4h"},
+        )
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["interval"], "4h")
+
+    @patch("app.main.fetch_klines_yearly_context_sync")
+    def test_yearly_context_1d_and_1w_success_shape(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(SAMPLE_REST_ROW, "1d", now_ms=FIXED_NOW_MS),
+        ]
+        for interval in ("1d", "1w"):
+            result = self.client.get(
+                "/api/market/binance/usdm/btcusdt/klines/yearly-context",
+                params={"interval": interval},
+            )
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json()["interval"], interval)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_history_before_1w_returns_only_candles_before_param(self, mock_get: MagicMock) -> None:
+        before_seconds = int(datetime(2024, 6, 1, 0, 0, tzinfo=timezone.utc).timestamp())
+        start_ms, end_ms = history_before_window_ms(before_seconds, "1w")
+        rows = [_kline_row(start_ms), _kline_row(start_ms + 7 * 86_400_000)]
+        mock_get.return_value = _mock_klines_response(rows)
+        candles = fetch_klines_history_before_sync("1w", before_seconds, now_ms=FIXED_NOW_MS)
+        self.assertTrue(all(candle["time"] < before_seconds for candle in candles))
+
+    def test_1w_channel_and_ws_url_use_binance_interval(self) -> None:
+        self.assertEqual(parse_channel_interval(channel_for_interval("1w")), "1w")
+        self.assertIn("@kline_1w", binance_ws_stream_url("1w"))
 
 
 class BinanceUsdmBtcGenericWsTests(unittest.TestCase):

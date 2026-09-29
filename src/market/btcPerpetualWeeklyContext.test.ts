@@ -116,6 +116,8 @@ describe('shouldApplyWeeklyContextResponse', () => {
         responseInterval: '1m',
         requestId: 1,
         latestRequestId: 1,
+        requestContextLevel: 'weekly',
+        stillNeededContextLevel: 'weekly',
       }),
       false,
     )
@@ -127,6 +129,8 @@ describe('shouldApplyWeeklyContextResponse', () => {
         responseInterval: '5m',
         requestId: 2,
         latestRequestId: 2,
+        requestContextLevel: 'weekly',
+        stillNeededContextLevel: 'weekly',
       }),
       false,
     )
@@ -138,6 +142,8 @@ describe('shouldApplyWeeklyContextResponse', () => {
         responseInterval: '1m',
         requestId: 2,
         latestRequestId: 3,
+        requestContextLevel: 'weekly',
+        stillNeededContextLevel: 'weekly',
       }),
       false,
     )
@@ -149,8 +155,23 @@ describe('shouldApplyWeeklyContextResponse', () => {
         responseInterval: '1m',
         requestId: 3,
         latestRequestId: 3,
+        requestContextLevel: 'weekly',
+        stillNeededContextLevel: 'weekly',
       }),
       true,
+    )
+    assert.equal(
+      shouldApplyWeeklyContextResponse({
+        requestGeneration: 2,
+        activeGeneration: 2,
+        requestInterval: '1m',
+        responseInterval: '1m',
+        requestId: 4,
+        latestRequestId: 4,
+        requestContextLevel: 'weekly',
+        stillNeededContextLevel: 'daily',
+      }),
+      false,
     )
   })
 })

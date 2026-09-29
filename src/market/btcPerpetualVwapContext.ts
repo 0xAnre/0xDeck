@@ -6,7 +6,7 @@ import {
   fetchBinanceBtcusdtKlinesWeeklyContext,
   fetchBinanceBtcusdtKlinesYearlyContext,
 } from '../api/client.ts'
-import type { VwapContextLevel } from './indicators.ts'
+import { compareVwapContextLevels, type VwapContextLevel } from './indicators.ts'
 import { mergeOlderMarketCandles } from './mergeMarketCandles.ts'
 import type { BinanceKlinesResponse, CandleInterval, MarketCandle } from './types.ts'
 
@@ -49,6 +49,8 @@ export function shouldApplyVwapContextResponse(params: {
   responseInterval: CandleInterval
   requestId: number
   latestRequestId: number
+  requestContextLevel: VwapContextLevel
+  stillNeededContextLevel: VwapContextLevel
 }): boolean {
   const {
     requestGeneration,
@@ -57,16 +59,17 @@ export function shouldApplyVwapContextResponse(params: {
     responseInterval,
     requestId,
     latestRequestId,
+    requestContextLevel,
+    stillNeededContextLevel,
   } = params
   if (requestId !== latestRequestId) return false
   if (requestGeneration !== activeGeneration) return false
   if (responseInterval !== requestInterval) return false
+  if (compareVwapContextLevels(stillNeededContextLevel, requestContextLevel) < 0) return false
   return true
 }
 
-export function isVwapContextAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
+export { isVwapContextAbortError } from './btcPerpetualVwapContextRequest.ts'
 
 export function vwapContextLevelSatisfiesLoaded(
   loadedLevel: VwapContextLevel | null,
