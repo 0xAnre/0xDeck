@@ -15,8 +15,11 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.market.binance_usdm_btc import (
     BinanceUsdmBtcKlineRelay,
+    INTERVAL_DURATION_MS,
+    MIN_INITIAL_HISTORY_BARS,
     binance_ws_stream_url,
     channel_for_interval,
+    context_fetch_window_ms,
     daily_context_window_ms,
     fetch_klines_daily_context_sync,
     fetch_klines_history_before_sync,
@@ -333,9 +336,30 @@ class BinanceDailyContextTests(unittest.TestCase):
         self.assertEqual(end_ms, FIXED_NOW_MS)
         self.assertEqual(start_ms, current_day_start - 86_400_000)
 
+    def test_daily_fetch_window_uses_earlier_of_calendar_and_500_bars(self) -> None:
+        calendar_start, _ = daily_context_window_ms(FIXED_NOW_MS)
+        for interval in ("1m", "5m", "30m", "4h", "1d"):
+            start_ms, end_ms = context_fetch_window_ms(calendar_start, FIXED_NOW_MS, interval)
+            self.assertEqual(end_ms, FIXED_NOW_MS)
+            recent_start = FIXED_NOW_MS - MIN_INITIAL_HISTORY_BARS * INTERVAL_DURATION_MS[interval]
+            self.assertEqual(start_ms, min(calendar_start, recent_start))
+
+    def test_daily_fetch_window_4h_and_1d_cover_at_least_500_bars(self) -> None:
+        calendar_start, _ = daily_context_window_ms(FIXED_NOW_MS)
+        for interval in ("4h", "1d"):
+            start_ms, end_ms = context_fetch_window_ms(calendar_start, FIXED_NOW_MS, interval)
+            span_ms = end_ms - start_ms
+            self.assertGreaterEqual(span_ms, MIN_INITIAL_HISTORY_BARS * INTERVAL_DURATION_MS[interval])
+
+    def test_daily_fetch_window_1m_keeps_calendar_when_it_is_earlier(self) -> None:
+        calendar_start, _ = daily_context_window_ms(FIXED_NOW_MS)
+        start_ms, _ = context_fetch_window_ms(calendar_start, FIXED_NOW_MS, "1m")
+        self.assertEqual(start_ms, calendar_start)
+
     @patch("app.market.binance_usdm_btc.httpx.get")
     def test_daily_context_paginates_1m_across_multiple_pages(self, mock_get: MagicMock) -> None:
-        start_ms, end_ms = daily_context_window_ms(FIXED_NOW_MS)
+        calendar_start, _ = daily_context_window_ms(FIXED_NOW_MS)
+        start_ms, end_ms = context_fetch_window_ms(calendar_start, FIXED_NOW_MS, "1m")
         page_one = [_kline_row(start_ms + i * ONE_MINUTE_MS) for i in range(1000)]
         page_two_start = page_one[-1][0] + ONE_MINUTE_MS
         page_two = [_kline_row(page_two_start + i * ONE_MINUTE_MS) for i in range(50)]
@@ -649,7 +673,8 @@ class BinanceWeeklyContextTests(unittest.TestCase):
     def test_fetch_weekly_context_uses_single_reference_ms(self, mock_paginated: MagicMock) -> None:
         mock_paginated.return_value = []
         now_ms = FIXED_NOW_MS
-        start_ms, end_ms = weekly_context_window_ms(now_ms)
+        calendar_start, _ = weekly_context_window_ms(now_ms)
+        start_ms, end_ms = context_fetch_window_ms(calendar_start, now_ms, "1m")
 
         fetch_klines_weekly_context_sync("1m", now_ms=now_ms)
 
@@ -660,6 +685,17 @@ class BinanceWeeklyContextTests(unittest.TestCase):
             now_ms=now_ms,
             http_get=None,
         )
+
+    def test_weekly_fetch_window_1m_keeps_previous_week_calendar(self) -> None:
+        now_ms = int(datetime(2024, 1, 10, 15, 30, tzinfo=timezone.utc).timestamp() * 1000)
+        calendar_start, _ = weekly_context_window_ms(now_ms)
+        start_ms, _ = context_fetch_window_ms(calendar_start, now_ms, "1m")
+        self.assertEqual(start_ms, calendar_start)
+
+    def test_weekly_fetch_window_4h_extends_beyond_calendar(self) -> None:
+        calendar_start, _ = weekly_context_window_ms(FIXED_NOW_MS)
+        start_ms, _ = context_fetch_window_ms(calendar_start, FIXED_NOW_MS, "4h")
+        self.assertLess(start_ms, calendar_start)
 
     @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
     def test_weekly_context_pagination_failure_raises(self, mock_paginated: MagicMock) -> None:

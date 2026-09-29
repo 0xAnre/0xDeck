@@ -15,6 +15,7 @@ import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
 import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
+import { BTC_PERPETUAL_CANDLESTICK_COLORS } from '@/market/btcPerpetualCandleColors'
 import {
   countPrependedCandles,
   indicatorNeedsWeeklyContext,
@@ -24,6 +25,7 @@ import {
   shouldApplyWeeklyContextResponse,
   shouldShowWeeklyVwapSeries,
 } from '@/market/btcPerpetualWeeklyContext'
+import { computeInitialVisibleLogicalRange } from '@/market/chartInitialVisibleRange'
 import {
   createInfiniteHistoryState,
   maybeRequestOlderBtcPerpHistory,
@@ -67,13 +69,6 @@ import type { ServerEventMessage } from '@/widgets/stream/messages'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
 
-const BTC_CANDLESTICK_COLORS = {
-  upColor: '#3674D9',
-  downColor: '#E13255',
-  wickUpColor: '#3674D9',
-  wickDownColor: '#E13255',
-  borderVisible: false,
-} as const
 
 function resolveCssColor(value: string, fallback: string): string {
   const input = value.trim() || fallback
@@ -299,7 +294,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         height,
       })
 
-      const candleSeries = chart.addSeries(CandlestickSeries, BTC_CANDLESTICK_COLORS)
+      const candleSeries = chart.addSeries(CandlestickSeries, BTC_PERPETUAL_CANDLESTICK_COLORS)
 
       const emaVisible = activeIndicatorsRef.current.includes('triple-ema')
       const emaSeries = EMA_PERIODS.map((_, index) =>
@@ -427,7 +422,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (!bundleNow || !chart) return false
 
       applyChartHistorySeries(bundleNow, candles)
-      chart.timeScale().fitContent()
+      const initialRange = computeInitialVisibleLogicalRange(candles.length)
+      if (initialRange) {
+        chart.timeScale().setVisibleLogicalRange(initialRange)
+      }
       return true
     }
 

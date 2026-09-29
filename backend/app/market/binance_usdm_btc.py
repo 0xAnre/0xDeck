@@ -27,6 +27,16 @@ DEFAULT_INTERVAL = "1m"
 DEFAULT_LIMIT = 500
 MIN_LIMIT = 1
 MAX_LIMIT = 1000
+MIN_INITIAL_HISTORY_BARS = 500
+
+# Binance USDM kline interval durations (milliseconds).
+INTERVAL_DURATION_MS: dict[str, int] = {
+    "1m": 60_000,
+    "5m": 5 * 60_000,
+    "30m": 30 * 60_000,
+    "4h": 4 * 60 * 60_000,
+    "1d": 24 * 60 * 60_000,
+}
 
 CHANNEL_PREFIX = "binance.usdm.btcusdt.kline."
 CHANNEL_PATTERN = re.compile(
@@ -172,6 +182,31 @@ def weekly_context_window_ms(now_ms: int) -> tuple[int, int]:
     start_ms = current_week_start - MS_PER_UTC_WEEK
     end_ms = now_ms
     return start_ms, end_ms
+
+
+def interval_duration_ms(interval: str) -> int:
+    duration = INTERVAL_DURATION_MS.get(interval)
+    if duration is None:
+        raise ValueError(f"Unsupported interval '{interval}'")
+    return duration
+
+
+def recent_history_start_ms(
+    now_ms: int,
+    interval: str,
+    bar_count: int = MIN_INITIAL_HISTORY_BARS,
+) -> int:
+    return now_ms - bar_count * interval_duration_ms(interval)
+
+
+def context_fetch_window_ms(
+    calendar_start_ms: int,
+    now_ms: int,
+    interval: str,
+) -> tuple[int, int]:
+    """Earliest start needed for VWAP calendar context and minimum recent bar history."""
+    start_ms = min(calendar_start_ms, recent_history_start_ms(now_ms, interval))
+    return start_ms, now_ms
 
 
 def history_before_window_ms(before_epoch_seconds: int) -> tuple[int, int]:
@@ -348,7 +383,8 @@ def fetch_klines_daily_context_sync(
     http_get: Callable[..., httpx.Response] | None = None,
 ) -> list[NormalizedCandle]:
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
-    start_ms, end_ms = daily_context_window_ms(reference_ms)
+    calendar_start_ms, _ = daily_context_window_ms(reference_ms)
+    start_ms, end_ms = context_fetch_window_ms(calendar_start_ms, reference_ms, interval)
     return fetch_klines_paginated_sync(
         interval,
         start_ms,
@@ -364,7 +400,8 @@ def fetch_klines_weekly_context_sync(
     http_get: Callable[..., httpx.Response] | None = None,
 ) -> list[NormalizedCandle]:
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
-    start_ms, end_ms = weekly_context_window_ms(reference_ms)
+    calendar_start_ms, _ = weekly_context_window_ms(reference_ms)
+    start_ms, end_ms = context_fetch_window_ms(calendar_start_ms, reference_ms, interval)
     return fetch_klines_paginated_sync(
         interval,
         start_ms,
