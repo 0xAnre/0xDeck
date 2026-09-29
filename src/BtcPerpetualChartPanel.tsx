@@ -5,20 +5,24 @@ import {
   createChart,
   LineSeries,
   type IChartApi,
-  type UTCTimestamp,
+  type LogicalRange,
 } from 'lightweight-charts'
 import { fetchBinanceBtcusdtKlinesDailyContext } from '@/api/client'
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
+import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
-import { computeDailyVwap } from '@/market/dailyVwap'
+import {
+  createInfiniteHistoryState,
+  maybeRequestOlderBtcPerpHistory,
+  resetInfiniteHistoryState,
+} from '@/market/btcPerpetualInfiniteHistory'
 import {
   clearDailyVwapLineSeriesData,
   createDailyVwapLineSeries,
-  setDailyVwapLineSeriesData,
   setDailyVwapLineSeriesVisible,
 } from '@/market/dailyVwapChartSeries'
-import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
+import { EMA_PERIODS } from '@/market/ema'
 import type { MarketIndicatorId } from '@/market/indicators'
 import {
   bufferStreamCandle,
@@ -46,6 +50,14 @@ import type { ServerEventMessage } from '@/widgets/stream/messages'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
 
+const BTC_CANDLESTICK_COLORS = {
+  upColor: '#3674D9',
+  downColor: '#E13255',
+  wickUpColor: '#3674D9',
+  wickDownColor: '#E13255',
+  borderVisible: false,
+} as const
+
 function resolveCssColor(value: string, fallback: string): string {
   const input = value.trim() || fallback
   if (input.includes('oklch(') || input.includes('oklab(')) {
@@ -70,21 +82,9 @@ function readThemeColors() {
     background: 'transparent',
     text: resolveCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
     grid: resolveCssColor(style.getPropertyValue('--border'), '#3f3f46'),
-    up: resolveCssColor(style.getPropertyValue('--up'), '#22c55e'),
-    down: resolveCssColor(style.getPropertyValue('--down'), '#ef4444'),
     ema: EMA_COLOR_VARS.map((token, index) =>
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
-  }
-}
-
-function toCandlestickPoint(candle: MarketCandle) {
-  return {
-    time: candle.time as UTCTimestamp,
-    open: candle.open,
-    high: candle.high,
-    low: candle.low,
-    close: candle.close,
   }
 }
 
@@ -122,6 +122,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const streamRef = useRef<WidgetStreamClient | null>(null)
   const activeIntervalRef = useRef<CandleInterval>(interval)
   const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
+  const historyReadyRef = useRef(false)
+  const infiniteHistoryRef = useRef(createInfiniteHistoryState())
 
   const handleMarketIndicatorsChange = useCallback(
     (next: MarketIndicatorId[]) => {
@@ -215,14 +217,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         height,
       })
 
-      const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: colors.up,
-        downColor: colors.down,
-        borderUpColor: colors.up,
-        borderDownColor: colors.down,
-        wickUpColor: colors.up,
-        wickDownColor: colors.down,
-      })
+      const candleSeries = chart.addSeries(CandlestickSeries, BTC_CANDLESTICK_COLORS)
 
       const emaVisible = activeIndicatorsRef.current.includes('triple-ema')
       const emaSeries = EMA_PERIODS.map((_, index) =>
@@ -258,7 +253,30 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     resizeObserver.observe(container)
     ensureChart()
 
+    const onVisibleLogicalRangeChange = (range: LogicalRange | null) => {
+      const bundle = seriesRef.current
+      const activeChart = chartRef.current
+      if (!bundle || !activeChart) return
+      maybeRequestOlderBtcPerpHistory({
+        state: infiniteHistoryRef.current,
+        historyReady: historyReadyRef.current,
+        range,
+        candleSeries: bundle.candle,
+        candlesRef,
+        generation: infiniteHistoryRef.current.generation,
+        interval: activeIntervalRef.current,
+        bundle,
+        chart: activeChart,
+      })
+    }
+
+    const activeChart = ensureChart()
+    if (activeChart) {
+      activeChart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
+    }
+
     return () => {
+      chartRef.current?.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange)
       resizeObserver.disconnect()
       streamRef.current?.disconnect()
       streamRef.current = null
@@ -268,6 +286,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       chartRef.current = null
       seriesRef.current = null
       candlesRef.current = []
+      historyReadyRef.current = false
     }
   }, [])
 
@@ -275,6 +294,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     activeIntervalRef.current = interval
     loadGenerationRef.current += 1
     const generation = loadGenerationRef.current
+    historyReadyRef.current = false
+    resetInfiniteHistoryState(infiniteHistoryRef.current, generation)
 
     abortRef.current?.abort()
     streamRef.current?.disconnect()
@@ -333,17 +354,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const chart = chartRef.current
       if (!bundleNow || !chart) return false
 
-      bundleNow.candle.setData(candles.map(toCandlestickPoint))
-      EMA_PERIODS.forEach((period, index) => {
-        const line = computeEmaLine(candles, period)
-        bundleNow.emas[index].setData(
-          line.map((point) => ({
-            time: point.time as UTCTimestamp,
-            value: point.value,
-          })),
-        )
-      })
-      setDailyVwapLineSeriesData(bundleNow.dailyVwap, computeDailyVwap(candles))
+      applyChartHistorySeries(bundleNow, candles)
       chart.timeScale().fitContent()
       return true
     }
@@ -394,6 +405,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }
 
         historyReady = true
+        historyReadyRef.current = true
         setChartReady(true)
       } catch (error) {
         if (controller.signal.aborted) return
@@ -412,6 +424,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     return () => {
       controller.abort()
       historyReady = false
+      historyReadyRef.current = false
       streamBuffer.clear()
       streamRef.current?.disconnect()
       streamRef.current = null

@@ -18,7 +18,9 @@ from app.market.binance_usdm_btc import (
     channel_for_interval,
     daily_context_window_ms,
     fetch_klines_daily_context_sync,
+    fetch_klines_history_before_sync,
     fetch_klines_paginated_sync,
+    history_before_window_ms,
     normalize_rest_kline_row,
     normalize_ws_kline,
     parse_binance_ws_payload,
@@ -531,6 +533,80 @@ class BinanceDailyContextTests(unittest.TestCase):
 
         self.assertEqual(mock_get.call_count, 2)
         self.assertEqual(len(candles), 2)
+
+
+class BinanceHistoryBeforeTests(unittest.TestCase):
+    def test_history_before_window_is_previous_utc_day(self) -> None:
+        before_seconds = int(datetime(2024, 1, 2, 15, 30, tzinfo=timezone.utc).timestamp())
+        start_ms, end_ms = history_before_window_ms(before_seconds)
+        day_two_start = utc_day_start_ms(before_seconds * 1000)
+        day_one_start = day_two_start - 86_400_000
+        self.assertEqual(start_ms, day_one_start)
+        self.assertEqual(end_ms, day_two_start - 1)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_history_before_excludes_candles_at_or_after_before(self, mock_get: MagicMock) -> None:
+        before_seconds = int(datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc).timestamp())
+        day_one_start = utc_day_start_ms(before_seconds * 1000) - 86_400_000
+        rows = [
+            _kline_row(day_one_start),
+            _kline_row(day_one_start + ONE_MINUTE_MS),
+            _kline_row(before_seconds * 1000),
+        ]
+        mock_get.return_value = _mock_klines_response(rows)
+
+        candles = fetch_klines_history_before_sync("1m", before_seconds, now_ms=FIXED_NOW_MS)
+
+        self.assertEqual(len(candles), 2)
+        self.assertTrue(all(candle["time"] < before_seconds for candle in candles))
+        times = [candle["time"] for candle in candles]
+        self.assertEqual(times, sorted(times))
+        self.assertEqual(len(times), len(set(times)))
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_history_before_paginates_1m_day(self, mock_get: MagicMock) -> None:
+        before_seconds = int(datetime(2024, 1, 3, 12, 0, tzinfo=timezone.utc).timestamp())
+        start_ms, end_ms = history_before_window_ms(before_seconds)
+        page_one = [_kline_row(start_ms + i * ONE_MINUTE_MS) for i in range(1000)]
+        page_two_start = page_one[-1][0] + ONE_MINUTE_MS
+        remaining = int((end_ms - page_two_start) / ONE_MINUTE_MS) + 1
+        page_two = [_kline_row(page_two_start + i * ONE_MINUTE_MS) for i in range(remaining)]
+        mock_get.side_effect = [
+            _mock_klines_response(page_one),
+            _mock_klines_response(page_two),
+        ]
+
+        candles = fetch_klines_history_before_sync("1m", before_seconds, now_ms=FIXED_NOW_MS)
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(candles[0]["time"], start_ms // 1000)
+        self.assertLess(candles[-1]["time"], before_seconds)
+
+    def test_history_before_rejects_invalid_before(self) -> None:
+        client = TestClient(app)
+        result = client.get(
+            "/api/market/binance/usdm/btcusdt/klines/history",
+            params={"interval": "1m", "before": 0},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    def test_history_before_rejects_invalid_interval(self) -> None:
+        client = TestClient(app)
+        result = client.get(
+            "/api/market/binance/usdm/btcusdt/klines/history",
+            params={"interval": "2h", "before": 1_700_000_000},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_history_before_pagination_failure_raises(self, mock_paginated: MagicMock) -> None:
+        mock_paginated.side_effect = HTTPException(status_code=502, detail="Binance market data request failed")
+        before_seconds = int(datetime(2024, 1, 3, 12, 0, tzinfo=timezone.utc).timestamp())
+
+        with self.assertRaises(HTTPException) as ctx:
+            fetch_klines_history_before_sync("1m", before_seconds, now_ms=FIXED_NOW_MS)
+
+        self.assertEqual(ctx.exception.status_code, 502)
 
 
 class BinanceDailyContextEndpointTests(unittest.TestCase):

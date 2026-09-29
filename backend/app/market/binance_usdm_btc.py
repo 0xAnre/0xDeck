@@ -158,6 +158,48 @@ def daily_context_window_ms(now_ms: int) -> tuple[int, int]:
     return start_ms, end_ms
 
 
+def history_before_window_ms(before_epoch_seconds: int) -> tuple[int, int]:
+    """One full UTC day immediately before the UTC day that contains `before`."""
+    if before_epoch_seconds <= 0:
+        raise ValueError("Invalid before timestamp")
+
+    before_ms = before_epoch_seconds * 1000
+    before_day_start_ms = utc_day_start_ms(before_ms)
+    end_ms = before_day_start_ms - 1
+    start_ms = before_day_start_ms - 86_400_000
+    return start_ms, end_ms
+
+
+def validate_before_epoch_seconds(before: int) -> int:
+    if before <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'before' must be a positive Unix timestamp in seconds",
+        )
+    return before
+
+
+def fetch_klines_history_before_sync(
+    interval: str,
+    before_epoch_seconds: int,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> list[NormalizedCandle]:
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    start_ms, end_ms = history_before_window_ms(before_epoch_seconds)
+    if start_ms > end_ms:
+        return []
+
+    candles = fetch_klines_paginated_sync(
+        interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+    return [candle for candle in candles if candle["time"] < before_epoch_seconds]
+
+
 def _fetch_binance_klines_rows(
     params: dict[str, Any],
     http_get: Callable[..., httpx.Response] | None = None,
