@@ -31,7 +31,6 @@ CHANNEL_PATTERN = re.compile(
     r"^binance\.usdm\.btcusdt\.kline\.(1m|5m|30m|4h|1d)$",
 )
 
-MAX_RECONNECT_ATTEMPTS = 8
 BASE_RECONNECT_DELAY_S = 1.0
 MAX_RECONNECT_DELAY_S = 30.0
 
@@ -155,7 +154,13 @@ def fetch_klines_sync(interval: str, limit: int) -> list[NormalizedCandle]:
     for row in rows:
         if not isinstance(row, list):
             raise HTTPException(status_code=502, detail="Binance market data response was invalid")
-        candles.append(normalize_rest_kline_row(row, interval, now_ms))
+        try:
+            candles.append(normalize_rest_kline_row(row, interval, now_ms))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=502,
+                detail="Binance market data response was invalid",
+            ) from None
 
     return candles
 
@@ -171,9 +176,13 @@ class BinanceUsdmBtcKlineRelay:
         self,
         manager: WebSocketChannelManager,
         connect_ws: Callable[[str], Any] | None = None,
+        base_reconnect_delay_s: float = BASE_RECONNECT_DELAY_S,
+        max_reconnect_delay_s: float = MAX_RECONNECT_DELAY_S,
     ) -> None:
         self._manager = manager
         self._connect_ws = connect_ws
+        self._base_reconnect_delay_s = base_reconnect_delay_s
+        self._max_reconnect_delay_s = max_reconnect_delay_s
         self._upstreams: dict[str, _UpstreamState] = {}
 
     def upstream_count(self, channel: str) -> int:
@@ -199,50 +208,70 @@ class BinanceUsdmBtcKlineRelay:
         for channel in list(self._upstreams):
             await self._stop_upstream(channel)
 
+    def _clear_upstream_if_current(self, channel: str, task: asyncio.Task[None]) -> None:
+        state = self._upstreams.get(channel)
+        if state is not None and state.task is task:
+            del self._upstreams[channel]
+
     async def _start_upstream(self, channel: str, interval: str) -> None:
-        if channel in self._upstreams:
-            return
+        existing = self._upstreams.get(channel)
+        if existing is not None:
+            if not existing.task.done():
+                return
+            del self._upstreams[channel]
 
         stop_event = asyncio.Event()
         task = asyncio.create_task(self._run_upstream(channel, interval, stop_event))
         self._upstreams[channel] = _UpstreamState(task=task, stop_event=stop_event)
 
     async def _stop_upstream(self, channel: str) -> None:
-        state = self._upstreams.pop(channel, None)
+        state = self._upstreams.get(channel)
         if state is None:
             return
+
+        task = state.task
+        self._upstreams.pop(channel, None)
         state.stop_event.set()
-        state.task.cancel()
-        try:
-            await state.task
-        except asyncio.CancelledError:
-            pass
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     async def _run_upstream(self, channel: str, interval: str, stop_event: asyncio.Event) -> None:
-        attempt = 0
-        url = binance_ws_stream_url(interval)
+        task = asyncio.current_task()
+        if task is None:
+            return
 
-        while not stop_event.is_set():
-            if self._manager.connection_count(channel) == 0:
-                return
+        try:
+            attempt = 0
+            url = binance_ws_stream_url(interval)
 
-            try:
-                await self._consume_upstream(channel, url, stop_event)
-                attempt = 0
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                attempt += 1
-                if attempt > MAX_RECONNECT_ATTEMPTS:
+            while not stop_event.is_set():
+                if self._manager.connection_count(channel) == 0:
                     return
-                if stop_event.is_set() or self._manager.connection_count(channel) == 0:
-                    return
-                delay = min(BASE_RECONNECT_DELAY_S * (2 ** (attempt - 1)), MAX_RECONNECT_DELAY_S)
+
                 try:
-                    await asyncio.wait_for(stop_event.wait(), timeout=delay)
-                    return
-                except asyncio.TimeoutError:
-                    continue
+                    await self._consume_upstream(channel, url, stop_event)
+                    attempt = 0
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    attempt += 1
+                    if stop_event.is_set() or self._manager.connection_count(channel) == 0:
+                        return
+                    delay = min(
+                        self._base_reconnect_delay_s * (2 ** (attempt - 1)),
+                        self._max_reconnect_delay_s,
+                    )
+                    try:
+                        await asyncio.wait_for(stop_event.wait(), timeout=delay)
+                        return
+                    except asyncio.TimeoutError:
+                        continue
+        finally:
+            self._clear_upstream_if_current(channel, task)
 
     async def _consume_upstream(
         self,

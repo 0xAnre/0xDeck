@@ -111,6 +111,21 @@ class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
         )
         self.assertEqual(result.status_code, 400)
 
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_rest_endpoint_rejects_malformed_kline_row(self, mock_get: MagicMock) -> None:
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json.return_value = [[1, "not-a-number", "62100.2", "61900.3", "62050.4", "0", 999]]
+        mock_get.return_value = response
+
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines",
+            params={"interval": "1m"},
+        )
+
+        self.assertEqual(result.status_code, 502)
+        self.assertEqual(result.json()["detail"], "Binance market data response was invalid")
+
 
 class BinanceUsdmBtcRelayTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
@@ -176,6 +191,48 @@ class BinanceUsdmBtcRelayTests(unittest.IsolatedAsyncioTestCase):
         self.manager.disconnect(channel, socket)
         await self.relay.on_client_disconnected(channel)
         self.assertEqual(self.relay.upstream_count(channel), 0)
+
+    async def test_upstream_retries_past_eight_failures_while_subscriber_connected(self) -> None:
+        connect_attempts = 0
+
+        @asynccontextmanager
+        async def always_failing_connect(_url: str):
+            nonlocal connect_attempts
+            connect_attempts += 1
+            raise ConnectionError("upstream unavailable")
+            yield  # pragma: no cover
+
+        manager = WebSocketChannelManager()
+        relay = BinanceUsdmBtcKlineRelay(
+            manager,
+            connect_ws=always_failing_connect,
+            base_reconnect_delay_s=0.001,
+            max_reconnect_delay_s=0.001,
+        )
+        channel = channel_for_interval("30m")
+        socket = MagicMock()
+        socket.accept = AsyncMock()
+        socket.send_text = AsyncMock()
+
+        await manager.connect(channel, socket)
+        await relay.on_client_connected(channel)
+        self.assertEqual(relay.upstream_count(channel), 1)
+
+        for _ in range(50):
+            if connect_attempts > 10:
+                break
+            await asyncio.sleep(0.01)
+
+        self.assertGreater(connect_attempts, 8)
+        self.assertEqual(relay.upstream_count(channel), 1)
+        state = relay._upstreams[channel]
+        self.assertFalse(state.task.done())
+
+        manager.disconnect(channel, socket)
+        await relay.on_client_disconnected(channel)
+        self.assertEqual(relay.upstream_count(channel), 0)
+        await asyncio.sleep(0.02)
+        self.assertTrue(state.task.done())
 
 
 class BinanceUsdmBtcGenericWsTests(unittest.TestCase):
