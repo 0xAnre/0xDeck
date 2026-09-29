@@ -380,16 +380,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         </div>
       )}
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <div className="flex flex-wrap gap-3">
-          {EMA_PERIODS.map((period, index) => (
-            <span key={period} style={{ color: `var(${EMA_COLOR_VARS[index]})` }}>
-              EMA {period}
-            </span>
-          ))}
+      {streamLabel && (
+        <div className="flex shrink-0 text-[10px] text-muted-foreground">
+          <span>{streamLabel}</span>
         </div>
-        {streamLabel && <span className="text-muted-foreground">{streamLabel}</span>}
-      </div>
+      )}
 
       <div
         ref={containerRef}
