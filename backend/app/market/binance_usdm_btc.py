@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -52,7 +53,7 @@ def _parse_volume(value: Any) -> float:
         volume = float(value)
     except (TypeError, ValueError):
         raise ValueError("Invalid volume") from None
-    if volume < 0 or volume != volume:
+    if not math.isfinite(volume) or volume < 0:
         raise ValueError("Invalid volume")
     return volume
 

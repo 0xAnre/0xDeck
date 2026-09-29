@@ -90,6 +90,21 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normalize_rest_kline_row(bad_row, "1m")
 
+    def test_normalize_rest_row_rejects_infinite_volume(self) -> None:
+        bad_row = list(SAMPLE_REST_ROW)
+        bad_row[5] = "Infinity"
+        with self.assertRaises(ValueError):
+            normalize_rest_kline_row(bad_row, "1m")
+
+    def test_normalize_rest_row_accepts_zero_and_positive_volume(self) -> None:
+        zero_row = list(SAMPLE_REST_ROW)
+        zero_row[5] = "0"
+        self.assertEqual(normalize_rest_kline_row(zero_row, "1m")["volume"], 0.0)
+
+        positive_row = list(SAMPLE_REST_ROW)
+        positive_row[5] = "42.5"
+        self.assertEqual(normalize_rest_kline_row(positive_row, "1m")["volume"], 42.5)
+
     def test_normalize_ws_kline_rejects_missing_volume(self) -> None:
         kline = dict(SAMPLE_WS_KLINE)
         del kline["v"]
@@ -99,6 +114,12 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
     def test_parse_ws_payload_rejects_invalid_volume(self) -> None:
         kline = dict(SAMPLE_WS_KLINE)
         kline["v"] = "-5"
+        payload = json.dumps({"e": "kline", "k": kline})
+        self.assertIsNone(parse_binance_ws_payload(payload))
+
+    def test_parse_ws_payload_rejects_infinite_volume(self) -> None:
+        kline = dict(SAMPLE_WS_KLINE)
+        kline["v"] = "Infinity"
         payload = json.dumps({"e": "kline", "k": kline})
         self.assertIsNone(parse_binance_ws_payload(payload))
 
