@@ -5,10 +5,10 @@ export const FRVP_VALUE_AREA_ROW_OPACITY = 0.55
 export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY = 0.25
 
 /** Max histogram bar width as a fraction of the selected time range width (peak volume row). */
-export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 3
+export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
 
 /** POC, VAH, and VAL line thickness in CSS pixels. */
-export const FRVP_LEVEL_LINE_WIDTH_CSS_PX = 2
+export const FRVP_LEVEL_LINE_WIDTH_CSS_PX = 3
 
 export type FixedRangeVolumeProfileRowBarGeometry = {
   top: number
