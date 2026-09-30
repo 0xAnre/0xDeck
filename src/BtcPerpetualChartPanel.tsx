@@ -157,11 +157,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [interval, setInterval] = useState<CandleInterval>(() =>
     loadWidgetMarketInterval(panelId),
   )
+  const [rollingVwapPanelBoot] = useState(() => bootstrapRollingVwapPanelState(panelId))
   const [activeIndicators, setActiveIndicators] = useState<MarketIndicatorId[]>(
-    () => bootstrapRollingVwapPanelState(panelId).activeIndicators,
+    rollingVwapPanelBoot.activeIndicators,
   )
   const [rollingVwapInstances, setRollingVwapInstances] = useState<RollingVwapInstance[]>(
-    () => bootstrapRollingVwapPanelState(panelId).instances,
+    rollingVwapPanelBoot.instances,
   )
   const [dataState, setDataState] = useState<WidgetDataNotReadyState>({ status: 'loading' })
   const [chartReady, setChartReady] = useState(false)
