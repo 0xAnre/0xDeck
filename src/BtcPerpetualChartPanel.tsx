@@ -94,6 +94,9 @@ import {
   sanitizeFixedRangeVolumeProfileInstances,
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
+import { useFixedRangeVolumeProfileRuntime } from '@/hooks/useFixedRangeVolumeProfileRuntime'
+import { attachFixedRangeVolumeProfileSeriesPrimitive } from '@/market/fixedRangeVolumeProfileSeriesPrimitive'
+import type { FixedRangeVolumeProfileRuntimeSnapshot } from '@/market/fixedRangeVolumeProfileRuntimeTypes'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   requiredVwapContextLevel,
@@ -218,6 +221,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
   const fixedRangeVolumeProfileToolControllerRef =
     useRef<FixedRangeVolumeProfileChartToolController | null>(null)
+  const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
+    fixedRangeVolumeProfileInstances,
+  )
+  const fixedRangeVolumeProfileRuntimeRef = useRef<FixedRangeVolumeProfileRuntimeSnapshot>(
+    fixedRangeVolumeProfileRuntimeById,
+  )
+  const fixedRangeVolumeProfileSeriesAttachmentRef = useRef<{
+    update: () => void
+    dispose: () => void
+  } | null>(null)
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -230,6 +243,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileInteractionRef.current = fixedRangeVolumeProfileInteraction
   }, [fixedRangeVolumeProfileInteraction])
+
+  useEffect(() => {
+    fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
+    fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+  }, [fixedRangeVolumeProfileRuntimeById])
 
   const persistFixedRangeVolumeProfileInstances = useCallback(
     (next: FixedRangeVolumeProfileInstance[]) => {
@@ -448,6 +466,36 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       fixedRangeVolumeProfileToolControllerRef.current = null
     }
   }, [chartReady, persistFixedRangeVolumeProfileInstances])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    const bundle = seriesRef.current
+    if (!chart || !bundle || !chartReady) return
+
+    const attachment = attachFixedRangeVolumeProfileSeriesPrimitive(bundle.candle, () => ({
+      instances: fixedRangeVolumeProfileInstancesRef.current,
+      runtimeById: fixedRangeVolumeProfileRuntimeRef.current,
+    }))
+    fixedRangeVolumeProfileSeriesAttachmentRef.current = attachment
+
+    const onVisibleRangeChange = () => {
+      attachment.update()
+    }
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+    chart.timeScale().subscribeVisibleTimeRangeChange(onVisibleRangeChange)
+    attachment.update()
+
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(onVisibleRangeChange)
+      attachment.dispose()
+      fixedRangeVolumeProfileSeriesAttachmentRef.current = null
+    }
+  }, [chartReady])
+
+  useEffect(() => {
+    fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+  }, [fixedRangeVolumeProfileInstances])
 
   const tripleEmaVisible = activeIndicators.includes('triple-ema')
 
