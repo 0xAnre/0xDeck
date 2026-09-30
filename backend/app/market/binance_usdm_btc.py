@@ -76,6 +76,8 @@ VOLUME_PROFILE_TIME_ORDER_INVALID_DETAIL = (
 VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL = (
     "Time range is too large for volume profile source data at the maximum supported interval"
 )
+# Binance USDM klines: endTime - startTime must be <= 200 days (see REST kline docs).
+BINANCE_KLINE_MAX_REQUEST_SPAN_MS = 200 * 86_400_000
 
 MONTHLY_CONTEXT_INTERVALS = frozenset({"4h", "1d"})
 QUARTERLY_CONTEXT_INTERVALS = frozenset({"4h", "1d"})
@@ -271,6 +273,29 @@ def select_volume_profile_source_interval(start_time: int, end_time: int) -> str
     raise HTTPException(status_code=400, detail=VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL)
 
 
+def volume_profile_kline_request_windows_ms(
+    start_ms: int,
+    end_ms: int,
+) -> list[tuple[int, int]]:
+    """Split [start_ms, end_ms] into Binance-legal request windows (inclusive endTime)."""
+    if start_ms > end_ms:
+        return []
+
+    span_ms = end_ms - start_ms
+    if span_ms <= BINANCE_KLINE_MAX_REQUEST_SPAN_MS:
+        return [(start_ms, end_ms)]
+
+    windows: list[tuple[int, int]] = []
+    cursor = start_ms
+    while cursor <= end_ms:
+        chunk_end = min(cursor + BINANCE_KLINE_MAX_REQUEST_SPAN_MS, end_ms)
+        windows.append((cursor, chunk_end))
+        if chunk_end >= end_ms:
+            break
+        cursor = chunk_end + 1
+    return windows
+
+
 def fetch_volume_profile_source_klines_sync(
     start_time: int,
     end_time: int,
@@ -284,18 +309,18 @@ def fetch_volume_profile_source_klines_sync(
     end_ms = end_time * 1000 - 1
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
 
-    candles = fetch_klines_paginated_sync(
-        source_interval,
-        start_ms,
-        end_ms,
-        now_ms=reference_ms,
-        http_get=http_get,
-    )
-
     by_time: dict[int, NormalizedCandle] = {}
-    for candle in candles:
-        if start_time <= candle["time"] < end_time:
-            by_time[candle["time"]] = candle
+    for window_start_ms, window_end_ms in volume_profile_kline_request_windows_ms(start_ms, end_ms):
+        chunk_candles = fetch_klines_paginated_sync(
+            source_interval,
+            window_start_ms,
+            window_end_ms,
+            now_ms=reference_ms,
+            http_get=http_get,
+        )
+        for candle in chunk_candles:
+            if start_time <= candle["time"] < end_time:
+                by_time[candle["time"]] = candle
 
     return source_interval, [by_time[key] for key in sorted(by_time)]
 

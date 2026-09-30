@@ -41,6 +41,8 @@ from app.market.binance_usdm_btc import (
     history_before_window_ms,
     select_volume_profile_source_interval,
     validate_volume_profile_time_range,
+    volume_profile_kline_request_windows_ms,
+    BINANCE_KLINE_MAX_REQUEST_SPAN_MS,
     VOLUME_PROFILE_END_TIME_INVALID_DETAIL,
     VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL,
     VOLUME_PROFILE_START_TIME_INVALID_DETAIL,
@@ -73,6 +75,7 @@ SAMPLE_REST_ROW = [
 
 FIXED_NOW_MS = int(datetime(2024, 1, 2, 15, 30, tzinfo=timezone.utc).timestamp() * 1000)
 ONE_MINUTE_MS = 60_000
+ONE_DAY_MS = 86_400_000
 
 
 def _kline_row(open_ms: int, close_ms: int | None = None) -> list:
@@ -1007,6 +1010,22 @@ class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
             fetch_volume_profile_source_klines_sync(100, 100)
         mock_fetch.assert_not_called()
 
+    def test_request_windows_single_chunk_within_200_days(self) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + BINANCE_KLINE_MAX_REQUEST_SPAN_MS
+        windows = volume_profile_kline_request_windows_ms(start_ms, end_ms)
+        self.assertEqual(windows, [(start_ms, end_ms)])
+
+    def test_request_windows_splits_beyond_200_days(self) -> None:
+        start_ms = 1_700_000_000_000
+        end_ms = start_ms + BINANCE_KLINE_MAX_REQUEST_SPAN_MS + ONE_DAY_MS
+        windows = volume_profile_kline_request_windows_ms(start_ms, end_ms)
+        self.assertGreater(len(windows), 1)
+        for window_start, window_end in windows:
+            self.assertLessEqual(window_end - window_start, BINANCE_KLINE_MAX_REQUEST_SPAN_MS)
+        self.assertEqual(windows[0][0], start_ms)
+        self.assertEqual(windows[-1][1], end_ms)
+
     @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
     def test_fetch_uses_selected_interval_and_millisecond_bounds(self, mock_fetch: MagicMock) -> None:
         start_time = 1_700_000_000
@@ -1023,6 +1042,78 @@ class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
         self.assertEqual(args[1], start_time * 1000)
         self.assertEqual(args[2], end_time * 1000 - 1)
         self.assertEqual(kwargs["now_ms"], FIXED_NOW_MS)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_splits_long_range_into_multiple_paginator_calls(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = start_time + 201 * 86_400
+        start_ms = start_time * 1000
+        end_ms = end_time * 1000 - 1
+        mock_fetch.return_value = []
+        fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        expected_windows = volume_profile_kline_request_windows_ms(start_ms, end_ms)
+        self.assertGreater(len(expected_windows), 1)
+        self.assertEqual(mock_fetch.call_count, len(expected_windows))
+        for call, (window_start, window_end) in zip(mock_fetch.call_args_list, expected_windows):
+            args, kwargs = call
+            self.assertEqual(args[1], window_start)
+            self.assertEqual(args[2], window_end)
+            self.assertLessEqual(window_end - window_start, BINANCE_KLINE_MAX_REQUEST_SPAN_MS)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_deduplicates_boundary_timestamp_across_chunks(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = start_time + 201 * 86_400
+        boundary_time = start_time + 200 * 86_400
+        shared = normalize_rest_kline_row(
+            _kline_row(boundary_time * 1000),
+            "1d",
+            now_ms=FIXED_NOW_MS,
+        )
+        mock_fetch.side_effect = [[shared], [shared]]
+        _, candles = fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        self.assertEqual(len(candles), 1)
+        self.assertEqual(candles[0]["time"], boundary_time)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_merged_result_is_sorted_and_in_range(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = start_time + 201 * 86_400
+        t0 = start_time * 1000
+        t1 = (start_time + 86_400) * 1000
+        t2 = (start_time + 2 * 86_400) * 1000
+        mock_fetch.side_effect = [
+            [normalize_rest_kline_row(_kline_row(t1), "1d", now_ms=FIXED_NOW_MS)],
+            [
+                normalize_rest_kline_row(_kline_row(t0), "1d", now_ms=FIXED_NOW_MS),
+                normalize_rest_kline_row(_kline_row(t2), "1d", now_ms=FIXED_NOW_MS),
+            ],
+        ]
+        _, candles = fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        times = [candle["time"] for candle in candles]
+        self.assertEqual(times, sorted(times))
+        self.assertTrue(all(start_time <= time < end_time for time in times))
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_propagates_upstream_error_from_chunk(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = start_time + 201 * 86_400
+        mock_fetch.side_effect = HTTPException(status_code=502, detail="Binance market data request failed")
+        with self.assertRaises(HTTPException) as ctx:
+            fetch_volume_profile_source_klines_sync(start_time, end_time, now_ms=FIXED_NOW_MS)
+        self.assertEqual(ctx.exception.status_code, 502)
 
     @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
     def test_fetch_excludes_candle_at_end_time(self, mock_fetch: MagicMock) -> None:
