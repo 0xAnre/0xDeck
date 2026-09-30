@@ -41,6 +41,42 @@ INTERVAL_DURATION_MS: dict[str, int] = {
 
 HISTORY_BATCH_BARS = 500
 
+VOLUME_PROFILE_SOURCE_INTERVALS: tuple[str, ...] = (
+    "1m",
+    "3m",
+    "5m",
+    "15m",
+    "30m",
+    "1h",
+    "2h",
+    "4h",
+    "1d",
+)
+VOLUME_PROFILE_INTERVAL_DURATION_MS: dict[str, int] = {
+    "1m": 60_000,
+    "3m": 3 * 60_000,
+    "5m": 5 * 60_000,
+    "15m": 15 * 60_000,
+    "30m": 30 * 60_000,
+    "1h": 60 * 60_000,
+    "2h": 2 * 60 * 60_000,
+    "4h": 4 * 60 * 60_000,
+    "1d": 24 * 60 * 60_000,
+}
+VOLUME_PROFILE_MAX_ESTIMATED_CANDLES = 5000
+VOLUME_PROFILE_START_TIME_INVALID_DETAIL = (
+    "Query parameter 'start_time' must be a positive Unix timestamp in seconds"
+)
+VOLUME_PROFILE_END_TIME_INVALID_DETAIL = (
+    "Query parameter 'end_time' must be a positive Unix timestamp in seconds"
+)
+VOLUME_PROFILE_TIME_ORDER_INVALID_DETAIL = (
+    "Query parameter 'end_time' must be greater than 'start_time'"
+)
+VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL = (
+    "Time range is too large for volume profile source data at the maximum supported interval"
+)
+
 MONTHLY_CONTEXT_INTERVALS = frozenset({"4h", "1d"})
 QUARTERLY_CONTEXT_INTERVALS = frozenset({"4h", "1d"})
 YEARLY_CONTEXT_INTERVALS = frozenset({"1d", "1w"})
@@ -196,6 +232,72 @@ def interval_duration_ms(interval: str) -> int:
     if duration is None:
         raise ValueError(f"Unsupported interval '{interval}'")
     return duration
+
+
+def volume_profile_interval_duration_ms(interval: str) -> int:
+    duration = VOLUME_PROFILE_INTERVAL_DURATION_MS.get(interval)
+    if duration is None:
+        raise ValueError(f"Unsupported volume profile interval '{interval}'")
+    return duration
+
+
+def estimate_volume_profile_candle_count(
+    start_time: int,
+    end_time: int,
+    interval: str,
+) -> int:
+    duration_ms = (end_time - start_time) * 1000
+    if duration_ms <= 0:
+        return 0
+    interval_ms = volume_profile_interval_duration_ms(interval)
+    return math.ceil(duration_ms / interval_ms)
+
+
+def validate_volume_profile_time_range(start_time: int, end_time: int) -> tuple[int, int]:
+    if start_time <= 0:
+        raise HTTPException(status_code=400, detail=VOLUME_PROFILE_START_TIME_INVALID_DETAIL)
+    if end_time <= 0:
+        raise HTTPException(status_code=400, detail=VOLUME_PROFILE_END_TIME_INVALID_DETAIL)
+    if end_time <= start_time:
+        raise HTTPException(status_code=400, detail=VOLUME_PROFILE_TIME_ORDER_INVALID_DETAIL)
+    return start_time, end_time
+
+
+def select_volume_profile_source_interval(start_time: int, end_time: int) -> str:
+    for interval in VOLUME_PROFILE_SOURCE_INTERVALS:
+        estimated = estimate_volume_profile_candle_count(start_time, end_time, interval)
+        if estimated <= VOLUME_PROFILE_MAX_ESTIMATED_CANDLES:
+            return interval
+    raise HTTPException(status_code=400, detail=VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL)
+
+
+def fetch_volume_profile_source_klines_sync(
+    start_time: int,
+    end_time: int,
+    *,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> tuple[str, list[NormalizedCandle]]:
+    validate_volume_profile_time_range(start_time, end_time)
+    source_interval = select_volume_profile_source_interval(start_time, end_time)
+    start_ms = start_time * 1000
+    end_ms = end_time * 1000 - 1
+    reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+
+    candles = fetch_klines_paginated_sync(
+        source_interval,
+        start_ms,
+        end_ms,
+        now_ms=reference_ms,
+        http_get=http_get,
+    )
+
+    by_time: dict[int, NormalizedCandle] = {}
+    for candle in candles:
+        if start_time <= candle["time"] < end_time:
+            by_time[candle["time"]] = candle
+
+    return source_interval, [by_time[key] for key in sorted(by_time)]
 
 
 def recent_history_start_ms(

@@ -18,8 +18,10 @@ from .market.binance_usdm_btc import (
     fetch_klines_weekly_context_sync,
     fetch_klines_yearly_context_sync,
     fetch_klines_sync,
+    fetch_volume_profile_source_klines_sync,
     validate_before_epoch_seconds,
     validate_interval,
+    validate_volume_profile_time_range,
 )
 from .ws import is_valid_channel, ws_manager
 
@@ -143,6 +145,22 @@ def get_binance_usdm_btcusdt_klines_yearly_context(
     return {
         "symbol": "BTCUSDT",
         "interval": safe_interval,
+        "candles": candles,
+    }
+
+
+@app.get("/api/market/binance/usdm/btcusdt/klines/volume-profile")
+def get_binance_usdm_btcusdt_klines_volume_profile(
+    start_time: int,
+    end_time: int,
+) -> dict[str, object]:
+    safe_start, safe_end = validate_volume_profile_time_range(start_time, end_time)
+    source_interval, candles = fetch_volume_profile_source_klines_sync(safe_start, safe_end)
+    return {
+        "symbol": "BTCUSDT",
+        "start_time": safe_start,
+        "end_time": safe_end,
+        "source_interval": source_interval,
         "candles": candles,
     }
 

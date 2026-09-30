@@ -34,9 +34,17 @@ from app.market.binance_usdm_btc import (
     validate_quarterly_context_interval,
     validate_yearly_context_interval,
     yearly_context_window_ms,
+    estimate_volume_profile_candle_count,
     fetch_klines_paginated_sync,
     fetch_klines_weekly_context_sync,
+    fetch_volume_profile_source_klines_sync,
     history_before_window_ms,
+    select_volume_profile_source_interval,
+    validate_volume_profile_time_range,
+    VOLUME_PROFILE_END_TIME_INVALID_DETAIL,
+    VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL,
+    VOLUME_PROFILE_START_TIME_INVALID_DETAIL,
+    VOLUME_PROFILE_TIME_ORDER_INVALID_DETAIL,
     normalize_rest_kline_row,
     normalize_ws_kline,
     parse_binance_ws_payload,
@@ -930,6 +938,200 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
     def test_1w_channel_and_ws_url_use_binance_interval(self) -> None:
         self.assertEqual(parse_channel_interval(channel_for_interval("1w")), "1w")
         self.assertIn("@kline_1w", binance_ws_stream_url("1w"))
+
+
+class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    def test_short_range_selects_1m(self) -> None:
+        self.assertEqual(select_volume_profile_source_interval(1_700_000_000, 1_700_003_600), "1m")
+
+    def test_exactly_5000_one_minute_bars_selects_1m(self) -> None:
+        start = 0
+        end = 5000 * 60
+        self.assertEqual(estimate_volume_profile_candle_count(start, end, "1m"), 5000)
+        self.assertEqual(select_volume_profile_source_interval(start, end), "1m")
+
+    def test_5001_one_minute_bars_selects_larger_interval(self) -> None:
+        start = 0
+        end = 5001 * 60
+        self.assertGreater(estimate_volume_profile_candle_count(start, end, "1m"), 5000)
+        self.assertEqual(select_volume_profile_source_interval(start, end), "3m")
+
+    def test_medium_range_selects_expected_interval(self) -> None:
+        start = 0
+        end = 10_000 * 60
+        self.assertEqual(select_volume_profile_source_interval(start, end), "3m")
+
+    def test_long_range_selects_coarser_interval(self) -> None:
+        start = 0
+        end = 5000 * 60 * 60
+        self.assertEqual(select_volume_profile_source_interval(start, end), "1h")
+
+    def test_range_beyond_5000_daily_bars_rejected(self) -> None:
+        start = 0
+        end = 5001 * 86_400
+        with self.assertRaises(HTTPException) as ctx:
+            select_volume_profile_source_interval(start, end)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, VOLUME_PROFILE_RANGE_TOO_LARGE_DETAIL)
+
+    def test_validate_rejects_non_positive_start_time(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_volume_profile_time_range(0, 10)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, VOLUME_PROFILE_START_TIME_INVALID_DETAIL)
+
+    def test_validate_rejects_non_positive_end_time(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_volume_profile_time_range(10, 0)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, VOLUME_PROFILE_END_TIME_INVALID_DETAIL)
+
+    def test_validate_rejects_equal_times(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_volume_profile_time_range(100, 100)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, VOLUME_PROFILE_TIME_ORDER_INVALID_DETAIL)
+
+    def test_validate_rejects_reversed_times(self) -> None:
+        with self.assertRaises(HTTPException) as ctx:
+            validate_volume_profile_time_range(200, 100)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, VOLUME_PROFILE_TIME_ORDER_INVALID_DETAIL)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_invalid_range_does_not_call_upstream_fetch(self, mock_fetch: MagicMock) -> None:
+        with self.assertRaises(HTTPException):
+            fetch_volume_profile_source_klines_sync(100, 100)
+        mock_fetch.assert_not_called()
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_uses_selected_interval_and_millisecond_bounds(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = 1_700_000_600
+        mock_fetch.return_value = []
+        fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        mock_fetch.assert_called_once()
+        args, kwargs = mock_fetch.call_args
+        self.assertEqual(args[0], "1m")
+        self.assertEqual(args[1], start_time * 1000)
+        self.assertEqual(args[2], end_time * 1000 - 1)
+        self.assertEqual(kwargs["now_ms"], FIXED_NOW_MS)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_excludes_candle_at_end_time(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = 1_700_000_120
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(_kline_row(start_time * 1000), "1m", now_ms=FIXED_NOW_MS),
+            normalize_rest_kline_row(_kline_row(end_time * 1000), "1m", now_ms=FIXED_NOW_MS),
+        ]
+        _, candles = fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        times = [candle["time"] for candle in candles]
+        self.assertIn(start_time, times)
+        self.assertNotIn(end_time, times)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_includes_candle_at_start_time(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = 1_700_000_180
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(_kline_row(start_time * 1000), "1m", now_ms=FIXED_NOW_MS),
+        ]
+        _, candles = fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        self.assertEqual(len(candles), 1)
+        self.assertEqual(candles[0]["time"], start_time)
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_returns_sorted_unique_candles(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = 1_700_000_300
+        t0 = start_time * 1000
+        t1 = (start_time + 60) * 1000
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(_kline_row(t1), "1m", now_ms=FIXED_NOW_MS),
+            normalize_rest_kline_row(_kline_row(t0), "1m", now_ms=FIXED_NOW_MS),
+            normalize_rest_kline_row(_kline_row(t0), "1m", now_ms=FIXED_NOW_MS),
+        ]
+        _, candles = fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        self.assertEqual([candle["time"] for candle in candles], [start_time, start_time + 60])
+
+    @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
+    def test_fetch_sets_candle_interval_to_selected_source(self, mock_fetch: MagicMock) -> None:
+        start_time = 60
+        end_time = start_time + 5001 * 60
+        mock_fetch.return_value = [
+            normalize_rest_kline_row(_kline_row(start_time * 1000), "3m", now_ms=FIXED_NOW_MS),
+        ]
+        source_interval, candles = fetch_volume_profile_source_klines_sync(
+            start_time,
+            end_time,
+            now_ms=FIXED_NOW_MS,
+        )
+        self.assertEqual(source_interval, "3m")
+        self.assertEqual(candles[0]["interval"], "3m")
+
+    @patch("app.main.fetch_volume_profile_source_klines_sync")
+    def test_volume_profile_endpoint_success_shape(self, mock_fetch: MagicMock) -> None:
+        start_time = 1_700_000_000
+        end_time = 1_700_000_600
+        candle = normalize_rest_kline_row(_kline_row(start_time * 1000), "1m", now_ms=FIXED_NOW_MS)
+        mock_fetch.return_value = ("1m", [candle])
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/volume-profile",
+            params={"start_time": start_time, "end_time": end_time},
+        )
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        self.assertEqual(body["symbol"], "BTCUSDT")
+        self.assertEqual(body["start_time"], start_time)
+        self.assertEqual(body["end_time"], end_time)
+        self.assertEqual(body["source_interval"], "1m")
+        self.assertEqual(len(body["candles"]), 1)
+
+    def test_volume_profile_endpoint_rejects_invalid_query(self) -> None:
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/volume-profile",
+            params={"start_time": 100, "end_time": 100},
+        )
+        self.assertEqual(result.status_code, 400)
+
+    @patch("app.main.fetch_volume_profile_source_klines_sync")
+    def test_volume_profile_endpoint_invalid_query_does_not_fetch(self, mock_fetch: MagicMock) -> None:
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/volume-profile",
+            params={"start_time": 200, "end_time": 100},
+        )
+        self.assertEqual(result.status_code, 400)
+        mock_fetch.assert_not_called()
+
+    @patch("app.main.fetch_volume_profile_source_klines_sync")
+    def test_volume_profile_endpoint_propagates_upstream_502(self, mock_fetch: MagicMock) -> None:
+        mock_fetch.side_effect = HTTPException(status_code=502, detail="Binance market data request timed out")
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines/volume-profile",
+            params={"start_time": 1_700_000_000, "end_time": 1_700_000_600},
+        )
+        self.assertEqual(result.status_code, 502)
+        self.assertEqual(result.json()["detail"], "Binance market data request timed out")
 
 
 class BinanceUsdmBtcGenericWsTests(unittest.TestCase):
