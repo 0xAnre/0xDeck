@@ -64,6 +64,10 @@ import {
   loadWidgetRollingVwapSettings,
   saveWidgetRollingVwapSettings,
 } from '@/rollingVwapSettingsStorage'
+import {
+  commitRollingVwapPanelSettings,
+  resolveRollingVwapReapplySettings,
+} from '@/market/rollingVwapPanelSettingsCommit'
 import type { RollingVwapSettings } from '@/market/rollingVwapSettings'
 import { EMA_PERIODS } from '@/market/ema'
 import {
@@ -180,34 +184,45 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     rollingVwapSettingsRef.current = rollingVwapSettings
   }, [rollingVwapSettings])
 
-  const syncAllVwapVisibility = useCallback((bundle: ChartSeriesBundle) => {
-    const loaded = loadedVwapContextRef.current
-    syncVwapSeriesVisibility(bundle, {
-      activeIndicators: activeIndicatorsRef.current,
-      interval: activeIntervalRef.current,
-      loadedLevel: loaded?.interval === activeIntervalRef.current ? loaded.level : null,
-      loadedInterval: loaded?.interval ?? null,
-      rollingVwapSettings: rollingVwapSettingsRef.current,
-    })
-  }, [])
+  const syncAllVwapVisibility = useCallback(
+    (bundle: ChartSeriesBundle, rollingSettings?: RollingVwapSettings) => {
+      const loaded = loadedVwapContextRef.current
+      syncVwapSeriesVisibility(bundle, {
+        activeIndicators: activeIndicatorsRef.current,
+        interval: activeIntervalRef.current,
+        loadedLevel: loaded?.interval === activeIntervalRef.current ? loaded.level : null,
+        loadedInterval: loaded?.interval ?? null,
+        rollingVwapSettings: rollingSettings ?? rollingVwapSettingsRef.current,
+      })
+    },
+    [],
+  )
 
-  const reapplyRollingVwapFromBuffer = useCallback(() => {
-    const bundle = seriesRef.current
-    const candles = candlesRef.current
-    if (!bundle || candles.length === 0) return
-    applyChartHistorySeries(bundle, candles, rollingVwapSettingsRef.current)
-    syncAllVwapVisibility(bundle)
-  }, [syncAllVwapVisibility])
+  const reapplyRollingVwapFromBuffer = useCallback(
+    (settings?: RollingVwapSettings) => {
+      const bundle = seriesRef.current
+      const candles = candlesRef.current
+      if (!bundle || candles.length === 0) return
+      const effectiveSettings = resolveRollingVwapReapplySettings(
+        settings,
+        rollingVwapSettingsRef,
+      )
+      applyChartHistorySeries(bundle, candles, effectiveSettings)
+      syncAllVwapVisibility(bundle, effectiveSettings)
+    },
+    [syncAllVwapVisibility],
+  )
 
   const handleRollingVwapSettingsSave = useCallback(
     (next: RollingVwapSettings) => {
-      saveWidgetRollingVwapSettings(panelId, next)
-      setRollingVwapSettings(next)
+      const committed = commitRollingVwapPanelSettings(rollingVwapSettingsRef, next)
+      saveWidgetRollingVwapSettings(panelId, committed)
+      setRollingVwapSettings(committed)
       const bundle = seriesRef.current
       if (bundle) {
-        applyRollingVwapChartBandColors(bundle.rollingVwap, next.bandColors)
+        applyRollingVwapChartBandColors(bundle.rollingVwap, committed.bandColors)
       }
-      reapplyRollingVwapFromBuffer()
+      reapplyRollingVwapFromBuffer(committed)
     },
     [panelId, reapplyRollingVwapFromBuffer],
   )

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ChevronDownIcon, SettingsIcon } from 'lucide-react'
 import {
   DropdownMenu,
@@ -7,6 +8,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { MarketIndicatorId } from '@/market/indicators'
+import {
+  runIndicatorSettingsGearClick,
+  toggleMarketIndicatorSelection,
+} from '@/widgetSettings/headerIndicatorMenuActions'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 
 type IndicatorOption = {
@@ -34,6 +39,7 @@ export function HeaderIndicatorsMenu({
   indicatorsWithSettings = [],
   onIndicatorSettingsClick,
 }: HeaderIndicatorsMenuProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const activeSet = new Set(activeIndicators)
   const settingsSet = new Set(indicatorsWithSettings)
   const isDisabled = disabled || options.length === 0
@@ -44,16 +50,13 @@ export function HeaderIndicatorsMenu({
     optionDisabled: boolean,
   ) => {
     if (!onActiveIndicatorsChange || disabled || optionDisabled) return
-    if (checked) {
-      if (activeSet.has(indicatorId)) return
-      onActiveIndicatorsChange([...activeIndicators, indicatorId])
-      return
-    }
-    onActiveIndicatorsChange(activeIndicators.filter((item) => item !== indicatorId))
+    onActiveIndicatorsChange(
+      toggleMarketIndicatorSelection(activeIndicators, indicatorId, checked),
+    )
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger
         id={id}
         disabled={isDisabled}
@@ -96,7 +99,11 @@ export function HeaderIndicatorsMenu({
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  onIndicatorSettingsClick(option.value)
+                  runIndicatorSettingsGearClick({
+                    indicatorId: option.value,
+                    closeDropdown: () => setMenuOpen(false),
+                    onIndicatorSettingsClick,
+                  })
                 }}
               >
                 <SettingsIcon className="size-3.5" />
