@@ -91,6 +91,8 @@ Add widgets, then use the header dropdowns on each panel to set dataset, columns
 
 Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts). Historical klines and VWAP context come from the backend REST API; candle updates use the backend **WebSocket relay** to Binance (see [backend/README.md](backend/README.md)).
 
+![0xDeck BTC Perpetual widget preview](docs/0xdeck-btc-perp-widget-preview.png)
+
 | Topic | Behavior |
 |-------|----------|
 | **Timeframes** | `1m`, `5m`, `30m`, `4h`, `1d`, `1w` (header interval picker) |
