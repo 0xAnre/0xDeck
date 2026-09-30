@@ -1,10 +1,17 @@
-import type { MarketCandle } from './types.ts'
+export type FixedRangeVolumeProfileCandle = {
+  time: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
 
 export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
 export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 70
 
 export type FixedRangeVolumeProfileParams = {
-  candles: readonly MarketCandle[]
+  candles: readonly FixedRangeVolumeProfileCandle[]
   fromTime: number
   toTime: number
   rowCount?: number
@@ -43,9 +50,9 @@ const VOLUME_RELATIVE_EPSILON = 1e-9
 const TICK_SNAP_RELATIVE_EPSILON = 1e-12
 
 export function normalizeFixedRangeVolumeProfileCandles(
-  candles: readonly MarketCandle[],
-): MarketCandle[] {
-  const byTime = new Map<number, MarketCandle>()
+  candles: readonly FixedRangeVolumeProfileCandle[],
+): FixedRangeVolumeProfileCandle[] {
+  const byTime = new Map<number, FixedRangeVolumeProfileCandle>()
   for (const candle of candles) {
     byTime.set(candle.time, candle)
   }
@@ -213,7 +220,7 @@ function intersectionLength(
 
 function distributeCandleVolume(
   rows: FixedRangeVolumeProfileRow[],
-  candle: MarketCandle,
+  candle: FixedRangeVolumeProfileCandle,
 ): void {
   const volume = candle.volume
   if (!Number.isFinite(volume) || volume <= 0) return

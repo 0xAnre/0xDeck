@@ -1,6 +1,7 @@
 import {
   sanitizeFixedRangeVolumeProfileInstances,
   type FixedRangeVolumeProfileInstance,
+  type SanitizeFixedRangeVolumeProfileOptions,
 } from './market/fixedRangeVolumeProfileInstances.ts'
 
 export const WIDGET_FIXED_RANGE_VP_INSTANCES_STORAGE_KEY =
@@ -20,10 +21,11 @@ function loadWidgetFixedRangeVolumeProfileInstancesMap(): Record<string, unknown
 
 export function loadWidgetFixedRangeVolumeProfileInstances(
   panelId: string,
+  options: SanitizeFixedRangeVolumeProfileOptions = {},
 ): FixedRangeVolumeProfileInstance[] {
   const map = loadWidgetFixedRangeVolumeProfileInstancesMap()
   if (!Object.hasOwn(map, panelId)) return []
-  return sanitizeFixedRangeVolumeProfileInstances(map[panelId])
+  return sanitizeFixedRangeVolumeProfileInstances(map[panelId], options)
 }
 
 export function saveWidgetFixedRangeVolumeProfileInstances(

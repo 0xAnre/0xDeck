@@ -76,14 +76,15 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
 
   it('unlocks chart interaction immediately after second valid click', () => {
     const armed = armFixedRangeVolumeProfileTool()
-    const first = applyFixedRangeVolumeProfileClick(armed, 100, [])
-    const second = applyFixedRangeVolumeProfileClick(first.state, 200, [])
+    const first = applyFixedRangeVolumeProfileClick(armed, 100, [], '1m')
+    const second = applyFixedRangeVolumeProfileClick(first.state, 200, [], '1m')
     assert.equal(second.state.phase, 'inactive')
     assert.equal(isFixedRangeVolumeProfileChartInteractionLocked(second.state), false)
   })
 
   it('unlocks chart interaction immediately after escape', () => {
-    const preview = applyFixedRangeVolumeProfileClick(armFixedRangeVolumeProfileTool(), 100, []).state
+    const preview = applyFixedRangeVolumeProfileClick(armFixedRangeVolumeProfileTool(), 100, [], '1m')
+      .state
     const cancelled = cancelFixedRangeVolumeProfileInteraction(preview)
     assert.equal(isFixedRangeVolumeProfileChartInteractionLocked(cancelled), false)
   })
@@ -97,14 +98,19 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
   })
 
   it('uses the latest crosshair time for preview updates', () => {
-    const preview = applyFixedRangeVolumeProfileClick(armFixedRangeVolumeProfileTool(), 100, []).state
+    const preview = applyFixedRangeVolumeProfileClick(armFixedRangeVolumeProfileTool(), 100, [], '1m')
+      .state
     const moved = applyFixedRangeVolumeProfileCrosshairTime(preview, 150)
     const movedAgain = applyFixedRangeVolumeProfileCrosshairTime(moved, 180)
     assert.equal(movedAgain.draft?.previewTime, 180)
   })
 
   it('sync repaints primitive segments after instance removal', () => {
-    const instance = createFixedRangeVolumeProfileInstance({ fromTime: 100, toTime: 200 })!
+    const instance = createFixedRangeVolumeProfileInstance({
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m',
+    })!
     let instances = [instance]
     const segmentsAfterDelete = buildFixedRangeVolumeProfileRangeSegments(
       instances.filter((item) => item.id !== instance.id),
@@ -116,7 +122,11 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
   })
 
   it('keeps only completed instance segments without draft copy', () => {
-    const instance = createFixedRangeVolumeProfileInstance({ fromTime: 100, toTime: 200 })!
+    const instance = createFixedRangeVolumeProfileInstance({
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m',
+    })!
     const segments = buildFixedRangeVolumeProfileRangeSegments(
       [instance],
       INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
@@ -144,6 +154,7 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
           interaction: armFixedRangeVolumeProfileTool(),
           instances: [],
         }),
+        getSelectionInterval: () => '1m',
         onInteractionChange: () => {},
         onInstanceCompleted: () => {},
       })
@@ -160,16 +171,17 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
       let interaction = armFixedRangeVolumeProfileTool()
       const controller = attachFixedRangeVolumeProfileChartTool(chart, {
         getSnapshot: () => ({ interaction, instances: [] }),
+        getSelectionInterval: () => '1m',
         onInteractionChange: (state) => {
           interaction = state
         },
         onInstanceCompleted: () => {},
       })
       assert.equal(scrollMode(), 'locked')
-      const first = applyFixedRangeVolumeProfileClick(interaction, 100, [])
+      const first = applyFixedRangeVolumeProfileClick(interaction, 100, [], '1m')
       interaction = first.state
       applyFixedRangeVolumeProfileChartInteractionMode(chart, first.state)
-      const second = applyFixedRangeVolumeProfileClick(first.state, 200, [])
+      const second = applyFixedRangeVolumeProfileClick(first.state, 200, [], '1m')
       interaction = second.state
       applyFixedRangeVolumeProfileChartInteractionMode(chart, second.state)
       controller.sync()

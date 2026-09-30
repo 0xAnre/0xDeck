@@ -7,6 +7,7 @@ import {
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import type { CandleInterval } from './types.ts'
 import { resolveChartEventTime } from './fixedRangeVolumeProfileChartTime.ts'
 import {
   buildFixedRangeVolumeProfileRangeSegments,
@@ -20,6 +21,7 @@ export type FixedRangeVolumeProfileChartToolSnapshot = {
 
 export type FixedRangeVolumeProfileChartToolCallbacks = {
   getSnapshot: () => FixedRangeVolumeProfileChartToolSnapshot
+  getSelectionInterval: () => CandleInterval
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
 }
@@ -100,6 +102,7 @@ export function attachFixedRangeVolumeProfileChartTool(
       snapshot.interaction,
       clickTime,
       snapshot.instances,
+      callbacks.getSelectionInterval(),
     )
     commitInteraction(result.state)
     if (result.completedInstance) {

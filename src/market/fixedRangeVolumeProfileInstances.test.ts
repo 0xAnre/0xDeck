@@ -32,12 +32,18 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       },
     })
 
-    const instance = createFixedRangeVolumeProfileInstance({ fromTime: 10, toTime: 20 })
+    const instance = createFixedRangeVolumeProfileInstance({
+      fromTime: 10,
+      toTime: 20,
+      selectionInterval: '1m',
+    })
     assert.notEqual(instance, null)
     saveWidgetFixedRangeVolumeProfileInstances(panelA, [instance!])
     saveWidgetFixedRangeVolumeProfileInstances(panelB, [])
 
-    const loadedA = loadWidgetFixedRangeVolumeProfileInstances(panelA)
+    const loadedA = loadWidgetFixedRangeVolumeProfileInstances(panelA, {
+      selectionIntervalFallback: '1m',
+    })
     const loadedB = loadWidgetFixedRangeVolumeProfileInstances(panelB)
     assert.equal(loadedA.length, 1)
     assert.equal(loadedB.length, 0)
@@ -67,7 +73,15 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
 
   it('drops invalid and zero-length ranges', () => {
     const sanitized = sanitizeFixedRangeVolumeProfileInstances([
-      { id: 'frvp-1', fromTime: 10, toTime: 20, rowCount: 24, valueAreaPercent: 70, enabled: true },
+      {
+        id: 'frvp-1',
+        fromTime: 10,
+        toTime: 20,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+      },
       { id: 'frvp-2', fromTime: 30, toTime: 30, rowCount: 24, valueAreaPercent: 70, enabled: true },
       { id: 'bad', fromTime: 1, toTime: 2, rowCount: 24, valueAreaPercent: 70, enabled: true },
       { id: 'frvp-3', fromTime: Number.NaN, toTime: 40, rowCount: 24, valueAreaPercent: 70, enabled: true },
@@ -77,10 +91,15 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
   })
 
   it('deleting one instance leaves the others intact', () => {
-    const first = createFixedRangeVolumeProfileInstance({ fromTime: 10, toTime: 20 })!
+    const first = createFixedRangeVolumeProfileInstance({
+      fromTime: 10,
+      toTime: 20,
+      selectionInterval: '1m',
+    })!
     const second = createFixedRangeVolumeProfileInstance({
       fromTime: 30,
       toTime: 40,
+      selectionInterval: '5m',
       existingIds: new Set([first.id]),
     })!
     const remaining = sanitizeFixedRangeVolumeProfileInstances([first, second]).filter(
@@ -110,8 +129,51 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     assert.equal(resolveChartEventTime(1_700_000_000), 1_700_000_000)
   })
 
+  it('upgrades legacy instances with selection interval fallback', () => {
+    const upgraded = sanitizeFixedRangeVolumeProfileInstances(
+      [{ id: 'frvp-legacy', fromTime: 100, toTime: 200, rowCount: 24, valueAreaPercent: 70, enabled: true }],
+      { selectionIntervalFallback: '30m' },
+    )
+    assert.equal(upgraded.length, 1)
+    assert.equal(upgraded[0].selectionInterval, '30m')
+  })
+
+  it('falls back to default interval when stored interval is invalid', () => {
+    const upgraded = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-bad-interval',
+        fromTime: 100,
+        toTime: 200,
+        selectionInterval: '3m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+      },
+    ])
+    assert.equal(upgraded[0].selectionInterval, '1m')
+  })
+
+  it('keeps completed instance selection interval across sanitize', () => {
+    const instances = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-keep',
+        fromTime: 100,
+        toTime: 200,
+        selectionInterval: '1w',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+      },
+    ])
+    assert.equal(instances[0].selectionInterval, '1w')
+  })
+
   it('keeps unix seconds without milliseconds', () => {
-    const instance = createFixedRangeVolumeProfileInstance({ fromTime: 1_700_000_000, toTime: 1_700_000_600 })
+    const instance = createFixedRangeVolumeProfileInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_600,
+      selectionInterval: '1m',
+    })
     assert.notEqual(instance, null)
     assert.equal(instance!.fromTime, 1_700_000_000)
     assert.ok(instance!.toTime < 2_000_000_000)

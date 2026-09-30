@@ -86,6 +86,7 @@ import {
 } from '@/market/fixedRangeVolumeProfileChartTool'
 import {
   armFixedRangeVolumeProfileTool,
+  cancelFixedRangeVolumeProfileInteraction,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
   type FixedRangeVolumeProfileInteractionState,
 } from '@/market/fixedRangeVolumeProfileInteraction'
@@ -190,7 +191,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [fixedRangeVolumeProfileInstances, setFixedRangeVolumeProfileInstances] = useState<
     FixedRangeVolumeProfileInstance[]
-  >(() => loadWidgetFixedRangeVolumeProfileInstances(panelId))
+  >(() =>
+    loadWidgetFixedRangeVolumeProfileInstances(panelId, {
+      selectionIntervalFallback: loadWidgetMarketInterval(panelId),
+    }),
+  )
   const [fixedRangeVolumeProfileInteraction, setFixedRangeVolumeProfileInteraction] =
     useState<FixedRangeVolumeProfileInteractionState>(INITIAL_FIXED_RANGE_VP_INTERACTION_STATE)
 
@@ -380,6 +385,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
+      const cancelled = cancelFixedRangeVolumeProfileInteraction(
+        fixedRangeVolumeProfileInteractionRef.current,
+      )
+      if (cancelled !== fixedRangeVolumeProfileInteractionRef.current) {
+        fixedRangeVolumeProfileInteractionRef.current = cancelled
+        setFixedRangeVolumeProfileInteraction(cancelled)
+        fixedRangeVolumeProfileToolControllerRef.current?.sync()
+      }
       saveWidgetMarketInterval(panelId, next)
       setDataState({ status: 'loading' })
       setChartReady(false)
@@ -416,6 +429,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         interaction: fixedRangeVolumeProfileInteractionRef.current,
         instances: fixedRangeVolumeProfileInstancesRef.current,
       }),
+      getSelectionInterval: () => activeIntervalRef.current,
       onInteractionChange: (state) => {
         fixedRangeVolumeProfileInteractionRef.current = state
         setFixedRangeVolumeProfileInteraction(state)

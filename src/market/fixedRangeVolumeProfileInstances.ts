@@ -1,3 +1,6 @@
+import { isCandleInterval } from './candleIntervalDuration.ts'
+import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
+
 export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
 export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 70
 
@@ -5,9 +8,14 @@ export type FixedRangeVolumeProfileInstance = {
   id: string
   fromTime: number
   toTime: number
+  selectionInterval: CandleInterval
   rowCount: number
   valueAreaPercent: number
   enabled: boolean
+}
+
+export type SanitizeFixedRangeVolumeProfileOptions = {
+  selectionIntervalFallback?: CandleInterval
 }
 
 const INSTANCE_ID_PREFIX = 'frvp-'
@@ -59,8 +67,18 @@ export function normalizeFixedRangeVolumeProfileTimes(
   return { fromTime: from, toTime: to }
 }
 
+function resolveSelectionInterval(
+  value: unknown,
+  fallback?: CandleInterval,
+): CandleInterval {
+  if (isCandleInterval(value)) return value
+  if (fallback && isCandleInterval(fallback)) return fallback
+  return DEFAULT_CANDLE_INTERVAL
+}
+
 export function sanitizeFixedRangeVolumeProfileInstance(
   value: unknown,
+  options: SanitizeFixedRangeVolumeProfileOptions = {},
 ): FixedRangeVolumeProfileInstance | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
@@ -72,10 +90,16 @@ export function sanitizeFixedRangeVolumeProfileInstance(
   )
   if (!normalized) return null
 
+  const selectionInterval = resolveSelectionInterval(
+    record.selectionInterval,
+    options.selectionIntervalFallback,
+  )
+
   return {
     id: record.id.trim(),
     fromTime: normalized.fromTime,
     toTime: normalized.toTime,
+    selectionInterval,
     rowCount: sanitizePositiveInt(record.rowCount, DEFAULT_FIXED_RANGE_VP_ROW_COUNT),
     valueAreaPercent: sanitizeValueAreaPercent(record.valueAreaPercent),
     enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
@@ -84,12 +108,13 @@ export function sanitizeFixedRangeVolumeProfileInstance(
 
 export function sanitizeFixedRangeVolumeProfileInstances(
   value: unknown,
+  options: SanitizeFixedRangeVolumeProfileOptions = {},
 ): FixedRangeVolumeProfileInstance[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<string>()
   const instances: FixedRangeVolumeProfileInstance[] = []
   for (const item of value) {
-    const instance = sanitizeFixedRangeVolumeProfileInstance(item)
+    const instance = sanitizeFixedRangeVolumeProfileInstance(item, options)
     if (!instance || seen.has(instance.id)) continue
     seen.add(instance.id)
     instances.push(instance)
@@ -100,6 +125,7 @@ export function sanitizeFixedRangeVolumeProfileInstances(
 export function createFixedRangeVolumeProfileInstance(params: {
   fromTime: number
   toTime: number
+  selectionInterval: CandleInterval
   existingIds?: ReadonlySet<string>
   rowCount?: number
   valueAreaPercent?: number
@@ -107,11 +133,13 @@ export function createFixedRangeVolumeProfileInstance(params: {
 }): FixedRangeVolumeProfileInstance | null {
   const normalized = normalizeFixedRangeVolumeProfileTimes(params.fromTime, params.toTime)
   if (!normalized) return null
+  if (!isCandleInterval(params.selectionInterval)) return null
   const existingIds = params.existingIds ?? new Set<string>()
   return {
     id: createFixedRangeVolumeProfileInstanceId(existingIds),
     fromTime: normalized.fromTime,
     toTime: normalized.toTime,
+    selectionInterval: params.selectionInterval,
     rowCount: params.rowCount ?? DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
     valueAreaPercent: params.valueAreaPercent ?? DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
     enabled: params.enabled ?? true,

@@ -3,6 +3,7 @@ import {
   isValidUnixChartTimeSeconds,
   type FixedRangeVolumeProfileInstance,
 } from './fixedRangeVolumeProfileInstances.ts'
+import type { CandleInterval } from './types.ts'
 
 export type FixedRangeVolumeProfileToolPhase = 'inactive' | 'armed' | 'preview'
 
@@ -64,6 +65,7 @@ export function applyFixedRangeVolumeProfileClick(
   state: FixedRangeVolumeProfileInteractionState,
   clickTime: number | null,
   existingInstances: readonly FixedRangeVolumeProfileInstance[],
+  selectionInterval: CandleInterval,
 ): FixedRangeVolumeProfileClickResult {
   if (!isFixedRangeVolumeProfileToolActive(state) || clickTime === null || !Number.isFinite(clickTime)) {
     return { state, completedInstance: null }
@@ -91,6 +93,7 @@ export function applyFixedRangeVolumeProfileClick(
   const instance = createFixedRangeVolumeProfileInstance({
     fromTime: state.draft.anchorTime,
     toTime: time,
+    selectionInterval,
     existingIds: new Set(existingInstances.map((item) => item.id)),
   })
 
