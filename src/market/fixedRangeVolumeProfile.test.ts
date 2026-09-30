@@ -269,9 +269,58 @@ describe('computeFixedRangeVolumeProfile', () => {
       { rowCount: 24, tickSize: 1 },
     )
     assert.equal(result.rowHeight % 1, 0)
-    assert.ok(result.rows.length >= 1)
-    assert.equal(result.rows[result.rows.length - 1].priceHigh, 125)
-    assert.ok(Math.abs(result.rows.length - 24) <= 2)
+    assert.equal(result.rows.length, 24)
+    assert.equal(result.rows[0].priceLow, 100)
+    assert.equal(result.rows[result.rows.length - 1].priceHigh, 124)
+    assert.ok(result.rows.every((row) => row.totalVolume > 0))
+    assert.ok(Math.abs(result.totalVolume - 10) <= 1e-9)
+  })
+
+  it('does not add empty upper row for integer range 100–124', () => {
+    const result = compute(
+      [candle({ time: 10, low: 100, high: 124, volume: 10 })],
+      10,
+      10,
+      { rowCount: 24, tickSize: 1 },
+    )
+    assert.equal(result.rows.length, 24)
+    assert.equal(result.rows[result.rows.length - 1].priceHigh, 124)
+    assert.ok(!result.rows.some((row) => row.priceLow === 124 && row.priceHigh === 125))
+    assert.ok(Math.abs(result.totalVolume - 10) <= 1e-9)
+  })
+
+  it('uses sixteen rows ending at 100.8 for fractional range 99.2–100.8', () => {
+    const tickSize = 0.1
+    const result = compute(
+      [candle({ time: 10, low: 99.2, high: 100.8, open: 100, close: 100, volume: 16 })],
+      10,
+      10,
+      { rowCount: 24, tickSize },
+    )
+    assert.equal(result.rows.length, 16)
+    assert.ok(Math.abs(result.rows[result.rows.length - 1].priceHigh - 100.8) <= tickSize * 1e-6)
+    assert.ok(
+      !result.rows.some(
+        (row) =>
+          Math.abs(row.priceLow - 100.8) <= tickSize * 1e-6 &&
+          Math.abs(row.priceHigh - 100.9) <= tickSize * 1e-6,
+      ),
+    )
+    assert.ok(result.rows.every((row) => row.totalVolume > 0))
+    assert.ok(Math.abs(result.totalVolume - 16) <= 1e-6)
+  })
+
+  it('ceil-aligns upper boundary for off-grid high with tick 0.1', () => {
+    const tickSize = 0.1
+    const result = compute(
+      [candle({ time: 10, low: 99.2, high: 100.85, open: 100, close: 100, volume: 20 })],
+      10,
+      10,
+      { rowCount: 24, tickSize },
+    )
+    assert.ok(Math.abs(result.rows[result.rows.length - 1].priceHigh - 100.9) <= tickSize * 1e-6)
+    assert.ok(result.rows[result.rows.length - 1].totalVolume > 0)
+    assert.ok(Math.abs(result.totalVolume - 20) <= 1e-6)
   })
 
   it('builds one tick-tall row for flat profile at fractional tick price 83442.7', () => {
@@ -315,7 +364,8 @@ describe('computeFixedRangeVolumeProfile', () => {
     assertRowsWellFormed(result.rows, tickSize)
     const distributed = result.rows.reduce((sum, row) => sum + row.totalVolume, 0)
     assert.ok(Math.abs(distributed - 16) <= 1e-6)
-    assert.ok(result.rows[result.rows.length - 1].priceHigh >= 100.8)
+    assert.ok(Math.abs(result.rows[result.rows.length - 1].priceHigh - 100.8) <= tickSize * 1e-6)
+    assert.equal(result.rows.length, 16)
     assertFiniteResult(result)
   })
 
@@ -340,9 +390,10 @@ describe('computeFixedRangeVolumeProfile', () => {
         candle({ time: 10, low: 100, high: 100, volume: 1 / 3 }),
         candle({ time: 11, low: 101, high: 101, volume: 1 / 3 }),
         candle({ time: 12, low: 102, high: 102, volume: 1 / 3 }),
+        candle({ time: 13, low: 103, high: 103, volume: 0 }),
       ],
       fromTime: 10,
-      toTime: 12,
+      toTime: 13,
       rowCount: 3,
       tickSize: 1,
     })

@@ -152,11 +152,11 @@ function chooseRowHeightTicks(spanTicks: number, targetRowCount: number): number
 
 function buildPriceRowsFromTicks(
   alignedLowTick: number,
-  alignedHighExclusiveTick: number,
+  alignedHighBoundaryTick: number,
   rowHeightTicks: number,
   invTick: number,
 ): Array<{ priceLow: number; priceHigh: number }> {
-  const spanTicks = alignedHighExclusiveTick - alignedLowTick
+  const spanTicks = alignedHighBoundaryTick - alignedLowTick
   if (spanTicks <= 0 || rowHeightTicks < 1) return []
 
   const rowCount = Math.ceil(spanTicks / rowHeightTicks)
@@ -166,8 +166,8 @@ function buildPriceRowsFromTicks(
     const rowLowTick = alignedLowTick + index * rowHeightTicks
     const rowHighTick =
       index === rowCount - 1
-        ? alignedHighExclusiveTick
-        : Math.min(alignedLowTick + (index + 1) * rowHeightTicks, alignedHighExclusiveTick)
+        ? alignedHighBoundaryTick
+        : Math.min(alignedLowTick + (index + 1) * rowHeightTicks, alignedHighBoundaryTick)
     if (rowHighTick <= rowLowTick) continue
     rows.push({
       priceLow: tickToPrice(rowLowTick, invTick),
@@ -373,8 +373,12 @@ export function computeFixedRangeVolumeProfile(
     alignedHighInclusiveTick = Math.max(alignedHighInclusiveTick, tickIndexCeil(candle.high, invTick))
   }
 
-  const alignedHighExclusiveTick = alignedHighInclusiveTick + 1
-  const spanTicks = alignedHighExclusiveTick - alignedLowTick
+  let alignedHighBoundaryTick = alignedHighInclusiveTick
+  if (alignedHighBoundaryTick <= alignedLowTick) {
+    alignedHighBoundaryTick = alignedLowTick + 1
+  }
+
+  const spanTicks = alignedHighBoundaryTick - alignedLowTick
   if (spanTicks <= 0) {
     return emptyResult(fromTime, toTime)
   }
@@ -383,7 +387,7 @@ export function computeFixedRangeVolumeProfile(
   const rowHeight = rowHeightTicks / invTick
   const priceRows = buildPriceRowsFromTicks(
     alignedLowTick,
-    alignedHighExclusiveTick,
+    alignedHighBoundaryTick,
     rowHeightTicks,
     invTick,
   )
