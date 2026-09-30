@@ -1,6 +1,5 @@
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
 import {
-  applyFixedRangeVolumeProfileClick,
   applyFixedRangeVolumeProfileCrosshairTime,
   cancelFixedRangeVolumeProfileInteraction,
   isFixedRangeVolumeProfileToolActive,
@@ -8,10 +7,11 @@ import {
 } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { CandleInterval } from './types.ts'
+import { resolveFixedRangeVolumeProfileCrosshairTime } from './fixedRangeVolumeProfileChartTime.ts'
 import {
-  resolveFixedRangeVolumeProfileClickTime,
-  resolveFixedRangeVolumeProfileCrosshairTime,
-} from './fixedRangeVolumeProfileChartTime.ts'
+  attachFixedRangeVolumeProfilePanePointer,
+  type FixedRangeVolumeProfilePanePointerController,
+} from './fixedRangeVolumeProfilePanePointer.ts'
 
 export type FixedRangeVolumeProfileChartToolSnapshot = {
   interaction: FixedRangeVolumeProfileInteractionState
@@ -71,6 +71,8 @@ export function attachFixedRangeVolumeProfileChartTool(
   chart: IChartApi,
   callbacks: FixedRangeVolumeProfileChartToolCallbacks,
 ): FixedRangeVolumeProfileChartToolController {
+  let panePointer: FixedRangeVolumeProfilePanePointerController | null = null
+
   const present = (interaction: FixedRangeVolumeProfileInteractionState) => {
     applyFixedRangeVolumeProfileChartInteractionMode(chart, interaction)
   }
@@ -84,30 +86,19 @@ export function attachFixedRangeVolumeProfileChartTool(
     present(callbacks.getSnapshot().interaction)
   }
 
-  const onClick = (param: MouseEventParams<Time>) => {
-    const snapshot = callbacks.getSnapshot()
-    let interaction = snapshot.interaction
-    if (interaction.phase === 'preview') {
-      const hoverTime = resolveFixedRangeVolumeProfileCrosshairTime(chart, param)
-      const previewState = applyFixedRangeVolumeProfileCrosshairTime(interaction, hoverTime)
-      if (previewState !== interaction) {
-        interaction = previewState
-        commitInteraction(previewState)
-      }
-    }
-    const clickTime = resolveFixedRangeVolumeProfileClickTime(chart, param, interaction)
-    const result = applyFixedRangeVolumeProfileClick(
-      interaction,
-      clickTime,
-      snapshot.instances,
-      callbacks.getSelectionInterval(),
-    )
-    commitInteraction(result.state)
-    if (result.completedInstance) {
-      callbacks.onInstanceCompleted(result.completedInstance)
+  const pointerCallbacks: FixedRangeVolumeProfileChartToolCallbacks = {
+    getSnapshot: callbacks.getSnapshot,
+    getSelectionInterval: callbacks.getSelectionInterval,
+    onInteractionChange: (state) => {
+      commitInteraction(state)
+    },
+    onInstanceCompleted: (instance) => {
+      callbacks.onInstanceCompleted(instance)
       sync()
-    }
+    },
   }
+
+  panePointer = attachFixedRangeVolumeProfilePanePointer(chart, pointerCallbacks)
 
   const onCrosshairMove = (param: MouseEventParams<Time>) => {
     const snapshot = callbacks.getSnapshot()
@@ -126,7 +117,6 @@ export function attachFixedRangeVolumeProfileChartTool(
     commitInteraction(next)
   }
 
-  chart.subscribeClick(onClick)
   chart.subscribeCrosshairMove(onCrosshairMove)
   window.addEventListener('keydown', onKeyDown)
 
@@ -134,8 +124,9 @@ export function attachFixedRangeVolumeProfileChartTool(
 
   const dispose = () => {
     window.removeEventListener('keydown', onKeyDown)
-    chart.unsubscribeClick(onClick)
     chart.unsubscribeCrosshairMove(onCrosshairMove)
+    panePointer?.dispose()
+    panePointer = null
     applyFixedRangeVolumeProfileChartInteractionMode(
       chart,
       { phase: 'inactive', draft: null },

@@ -52,13 +52,20 @@ function createMockChart(): { chart: IChartApi; scrollMode: () => ScrollMode } {
       if (options.handleScroll?.mouseWheel === false) mode = 'locked'
       if (options.handleScroll?.mouseWheel === true) mode = 'unlocked'
     },
-    subscribeClick: () => {},
-    unsubscribeClick: () => {},
     subscribeCrosshairMove: () => {},
     unsubscribeCrosshairMove: () => {},
     timeScale: () => ({
       coordinateToTime: () => null,
     }),
+    panes: () => [
+      {
+        getHTMLElement: () =>
+          ({
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          }) as unknown as HTMLElement,
+      },
+    ],
   } as unknown as IChartApi
   return { chart, scrollMode: () => mode }
 }
@@ -103,12 +110,12 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
   it('dispose unlocks chart interaction and detaches handlers', () => {
     withMockWindow(() => {
       const { chart, scrollMode } = createMockChart()
-      let clickHandlers = 0
-      chart.subscribeClick = () => {
-        clickHandlers += 1
+      let crosshairHandlers = 0
+      chart.subscribeCrosshairMove = () => {
+        crosshairHandlers += 1
       }
-      chart.unsubscribeClick = () => {
-        clickHandlers -= 1
+      chart.unsubscribeCrosshairMove = () => {
+        crosshairHandlers -= 1
       }
       const controller = attachFixedRangeVolumeProfileChartTool(chart, {
         getSnapshot: () => ({
@@ -122,7 +129,7 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
       assert.equal(scrollMode(), 'locked')
       controller.dispose()
       assert.equal(scrollMode(), 'unlocked')
-      assert.equal(clickHandlers, 0)
+      assert.equal(crosshairHandlers, 0)
     })
   })
 
