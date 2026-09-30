@@ -13,6 +13,7 @@ import {
   resolveRollingVwapWindowMs,
   rollingVwapAutoWindowMs,
   validateRollingVwapFixedTimePeriod,
+  validateRollingVwapStdevMultipliers,
 } from './rollingVwap.ts'
 import type { MarketCandle } from './types.ts'
 
@@ -217,6 +218,38 @@ describe('computeRollingVwap', () => {
     assert.deepEqual(computeRollingVwap([], largeWindow), [])
     assert.deepEqual(computeRollingVwapForInterval([], '1m'), [])
   })
+
+  it('with zero window keeps only minBars newest bars', () => {
+    const t0 = 8_000_000
+    const candles = Array.from({ length: 5 }, (_, i) =>
+      candle({ time: t0 + i * 60, high: i + 1, low: i + 1, close: i + 1, volume: 1 }),
+    )
+    const last = computeRollingVwap(candles, 0, { minBars: 3 }).at(-1)!
+    assertClose(last.vwap, 4)
+  })
+
+  it('with zero window uses all bars when fewer than minBars exist', () => {
+    const t0 = 8_100_000
+    const candles = [
+      candle({ time: t0, high: 10, low: 10, close: 10, volume: 1 }),
+      candle({ time: t0 + 60, high: 20, low: 20, close: 20, volume: 1 }),
+    ]
+    const last = computeRollingVwap(candles, 0, { minBars: 3 }).at(-1)!
+    assertClose(last.vwap, 15)
+  })
+
+  it('includes the bar exactly at currentTime minus window', () => {
+    const windowMs = MS_IN_HOUR
+    const boundary = 1_000_000
+    const current = boundary + windowMs / 1000
+    const candles = [
+      candle({ time: boundary - 1, high: 1, low: 1, close: 1, volume: 1 }),
+      candle({ time: boundary, high: 10, low: 10, close: 10, volume: 1 }),
+      candle({ time: current, high: 30, low: 30, close: 30, volume: 1 }),
+    ]
+    const last = computeRollingVwap(candles, windowMs, { minBars: 1 }).at(-1)!
+    assertClose(last.vwap, 20)
+  })
 })
 
 describe('validateRollingVwapFixedTimePeriod', () => {
@@ -241,16 +274,51 @@ describe('validateRollingVwapFixedTimePeriod', () => {
         }),
       RollingVwapConfigError,
     )
-    assert.throws(
-      () =>
-        validateRollingVwapFixedTimePeriod({
-          useFixedTimePeriod: true,
-          days: 0,
-          hours: 0,
-          minutes: 0,
-        }),
-      RollingVwapConfigError,
-    )
+  })
+
+  it('allows fixed zero day hour minute (0ms window)', () => {
+    const period = { useFixedTimePeriod: true, days: 0, hours: 0, minutes: 0 }
+    validateRollingVwapFixedTimePeriod(period)
+    assert.equal(resolveRollingVwapWindowMs('1m', period), 0)
+  })
+})
+
+describe('validateRollingVwapStdevMultipliers', () => {
+  const base = { multiplier1: 0, multiplier2: 0, multiplier3: 0 }
+
+  it('rejects a negative value at each multiplier position', () => {
+    for (const key of ['multiplier1', 'multiplier2', 'multiplier3'] as const) {
+      assert.throws(
+        () => validateRollingVwapStdevMultipliers({ ...base, [key]: -0.5 }),
+        RollingVwapConfigError,
+      )
+    }
+  })
+
+  it('rejects NaN and infinite multipliers', () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.throws(
+        () => validateRollingVwapStdevMultipliers({ ...base, multiplier2: bad }),
+        RollingVwapConfigError,
+      )
+    }
+  })
+
+  it('accepts zero and positive fractional multipliers', () => {
+    validateRollingVwapStdevMultipliers(base)
+    validateRollingVwapStdevMultipliers({ multiplier1: 1.5, multiplier2: 0, multiplier3: 2.5 })
+    const t0 = 9_000_000
+    const candles = [
+      candle({ time: t0, high: 8, low: 8, close: 8, volume: 2 }),
+      candle({ time: t0 + 60, high: 12, low: 12, close: 12, volume: 2 }),
+    ]
+    const [, second] = computeRollingVwap(candles, MS_IN_DAY, {
+      minBars: 1,
+      multipliers: { multiplier1: 1.5, multiplier2: 0, multiplier3: 0 },
+    })
+    assertClose(second.vwap, 10)
+    assertClose(second.upper1, second.vwap! + second.stdev! * 1.5)
+    assertClose(second.upper2, second.vwap)
   })
 })
 

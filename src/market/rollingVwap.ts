@@ -132,10 +132,14 @@ export function validateRollingVwapFixedTimePeriod(period: RollingVwapFixedTimeP
   if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
     throw new RollingVwapConfigError('minutes must be an integer from 0 to 59')
   }
-  if (period.useFixedTimePeriod) {
-    const totalMs = fixedTimePeriodWindowMs(period)
-    if (totalMs <= 0) {
-      throw new RollingVwapConfigError('fixed time period must be greater than zero')
+}
+
+export function validateRollingVwapStdevMultipliers(multipliers: RollingVwapStdevMultipliers): void {
+  const keys: (keyof RollingVwapStdevMultipliers)[] = ['multiplier1', 'multiplier2', 'multiplier3']
+  for (const key of keys) {
+    const value = multipliers[key]
+    if (!Number.isFinite(value) || value < 0) {
+      throw new RollingVwapConfigError(`${key} must be a finite number >= 0`)
     }
   }
 }
@@ -280,8 +284,8 @@ export function computeRollingVwap(
   windowMs: number,
   options: RollingVwapComputeOptions = {},
 ): RollingVwapPoint[] {
-  if (windowMs <= 0 || !Number.isFinite(windowMs)) {
-    throw new RollingVwapConfigError('windowMs must be a positive finite number')
+  if (!Number.isFinite(windowMs) || windowMs < 0) {
+    throw new RollingVwapConfigError('windowMs must be a non-negative finite number')
   }
 
   const minBars = options.minBars ?? DEFAULT_ROLLING_VWAP_MIN_BARS
@@ -290,6 +294,7 @@ export function computeRollingVwap(
   }
 
   const multipliers = options.multipliers ?? DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS
+  validateRollingVwapStdevMultipliers(multipliers)
   const normalized = normalizeRollingVwapCandles(candles)
   if (normalized.length === 0) {
     return []
