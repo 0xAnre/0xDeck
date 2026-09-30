@@ -120,6 +120,7 @@ export const WIDGET_REGISTRY = [
       aggregation: false,
       interval: true,
       indicators: true,
+      tools: true,
     },
     stateScope: 'instance',
     data: {

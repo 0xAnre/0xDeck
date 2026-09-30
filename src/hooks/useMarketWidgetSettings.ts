@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
+import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
 import {
@@ -22,6 +23,9 @@ type UseMarketWidgetSettingsArgs = {
   onRollingVwapToggle: (instanceId: string, enabled: boolean) => void
   onRollingVwapSettingsClick: (instanceId: string) => void
   onRollingVwapDelete: (instanceId: string) => void
+  fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
+  onFixedRangeVolumeProfileArm: () => void
+  onFixedRangeVolumeProfileDelete: (instanceId: string) => void
   disabled: boolean
 }
 
@@ -39,6 +43,9 @@ export function useMarketWidgetSettings({
   onRollingVwapToggle,
   onRollingVwapSettingsClick,
   onRollingVwapDelete,
+  fixedRangeVolumeProfileInstances,
+  onFixedRangeVolumeProfileArm,
+  onFixedRangeVolumeProfileDelete,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -67,12 +74,22 @@ export function useMarketWidgetSettings({
         ? onRollingVwapSettingsClick
         : undefined,
       onRollingVwapDelete: headerSettings.indicators ? onRollingVwapDelete : undefined,
+      fixedRangeVolumeProfileInstances: headerSettings.tools === true
+        ? fixedRangeVolumeProfileInstances
+        : undefined,
+      onFixedRangeVolumeProfileArm:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileArm : undefined,
+      onFixedRangeVolumeProfileDelete:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileDelete : undefined,
     }),
     [
       disabled,
+      fixedRangeVolumeProfileInstances,
       headerSettings,
       marketIndicators,
       marketInterval,
+      onFixedRangeVolumeProfileArm,
+      onFixedRangeVolumeProfileDelete,
       onMarketIndicatorsChange,
       onRollingVwapAdd,
       onRollingVwapDelete,

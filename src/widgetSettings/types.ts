@@ -1,6 +1,7 @@
 import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
+import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
@@ -13,6 +14,7 @@ export type WidgetSettingsFields = {
   aggregation: boolean
   interval: boolean
   indicators: boolean
+  tools?: boolean
 }
 
 export type WidgetSettingsRegistration = {
@@ -45,6 +47,9 @@ export type WidgetSettingsRegistration = {
   onRollingVwapToggle?: (instanceId: string, enabled: boolean) => void
   onRollingVwapSettingsClick?: (instanceId: string) => void
   onRollingVwapDelete?: (instanceId: string) => void
+  fixedRangeVolumeProfileInstances?: FixedRangeVolumeProfileInstance[]
+  onFixedRangeVolumeProfileArm?: () => void
+  onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {

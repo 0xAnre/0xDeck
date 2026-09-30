@@ -5,6 +5,7 @@ import type { CandleInterval } from '@/market/types'
 import { TIME_RANGE_OPTIONS, type TimeRange } from '@/timeRangeStorage'
 import { HeaderColumnsSelect } from '@/widgetSettings/HeaderColumnsSelect'
 import { HeaderIndicatorsMenu } from '@/widgetSettings/HeaderIndicatorsMenu'
+import { HeaderToolsMenu } from '@/widgetSettings/HeaderToolsMenu'
 import { HeaderSelect } from '@/widgetSettings/HeaderSelect'
 
 function datasetLabel(name: string) {
@@ -137,6 +138,19 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onRollingVwapToggle={settings.onRollingVwapToggle}
             onRollingVwapSettingsClick={settings.onRollingVwapSettingsClick}
             onRollingVwapDelete={settings.onRollingVwapDelete}
+          />
+        )}
+
+      {settings.fields.tools === true &&
+        settings.fixedRangeVolumeProfileInstances &&
+        settings.onFixedRangeVolumeProfileArm &&
+        settings.onFixedRangeVolumeProfileDelete && (
+          <HeaderToolsMenu
+            id={`${panelId}-tools`}
+            disabled={settings.disabled}
+            fixedRangeVolumeProfileInstances={settings.fixedRangeVolumeProfileInstances}
+            onFixedRangeVolumeProfileArm={settings.onFixedRangeVolumeProfileArm}
+            onFixedRangeVolumeProfileDelete={settings.onFixedRangeVolumeProfileDelete}
           />
         )}
     </div>
