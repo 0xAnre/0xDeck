@@ -15,7 +15,7 @@ import {
   rollingVwapPointToLinePoint,
   rollingVwapPointsToLineData,
   setRollingVwapChartSeriesData,
-  setRollingVwapChartSeriesVisibility,
+  setRollingVwapInstanceSeriesVisibility,
   type RollingVwapChartSeriesBundle,
 } from './rollingVwapChartSeries.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
@@ -105,6 +105,7 @@ describe('rollingVwap chart series defaults', () => {
     assert.equal(createdOptions[0].color, '#FF9800')
     assert.equal(createdOptions[0].lineWidth, 1)
     assert.equal(createdOptions[0].priceLineVisible, false)
+    assert.equal(createdOptions[0].lastValueVisible, true)
     assert.equal(createdOptions[1].color, '#4caf50')
     assert.equal(createdOptions[3].color, '#ffeb3b')
     assert.equal(createdOptions[5].color, '#ff5252')
@@ -124,16 +125,16 @@ describe('rollingVwapPointsToLineData', () => {
   })
 })
 
-describe('setRollingVwapChartSeriesVisibility', () => {
+describe('setRollingVwapInstanceSeriesVisibility', () => {
   const settings = createDefaultRollingVwapSettings()
 
-  it('hides all series when indicator is off', () => {
+  it('hides all series when instance is disabled', () => {
     const { bundle, visibility } = trackBundle()
-    setRollingVwapChartSeriesVisibility(bundle, {
-      activeIndicators: [],
-      interval: '1m',
-      settings,
-    })
+    setRollingVwapInstanceSeriesVisibility(
+      bundle,
+      { id: 'a', enabled: false, settings },
+      '1m',
+    )
     assert.ok(visibility.every((visible) => visible === false))
   })
 
@@ -143,15 +144,33 @@ describe('setRollingVwapChartSeriesVisibility', () => {
       ...settings,
       multipliers: { multiplier1: 1, multiplier2: 0, multiplier3: 0 },
     }
-    setRollingVwapChartSeriesVisibility(bundle, {
-      activeIndicators: ['rolling-vwap'],
-      interval: '1m',
-      settings: withBand1,
-    })
+    setRollingVwapInstanceSeriesVisibility(
+      bundle,
+      { id: 'a', enabled: true, settings: withBand1 },
+      '1m',
+    )
     assert.equal(visibility[0], true)
     assert.equal(visibility[1], true)
     assert.equal(visibility[2], true)
     assert.equal(visibility[3], false)
+  })
+
+  it('sets center last value label title and keeps price line hidden', () => {
+    const { bundle } = trackBundle()
+    let centerOptions: Record<string, unknown> = {}
+    bundle.center.applyOptions = (opts: Record<string, unknown>) => {
+      centerOptions = opts
+    }
+    const settings = createDefaultRollingVwapSettings()
+    settings.fixedTimePeriod = { useFixedTimePeriod: true, days: 1, hours: 0, minutes: 0 }
+    setRollingVwapInstanceSeriesVisibility(
+      bundle,
+      { id: 'a', enabled: true, settings },
+      '1m',
+    )
+    assert.equal(centerOptions.lastValueVisible, true)
+    assert.equal(centerOptions.priceLineVisible, false)
+    assert.equal(centerOptions.title, '1D')
   })
 })
 

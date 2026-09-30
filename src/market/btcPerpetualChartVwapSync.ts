@@ -1,14 +1,11 @@
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
+import { syncRollingVwapInstancesVisibility } from './rollingVwapChartInstances.ts'
 import { setDailyVwapLineSeriesVisible } from './dailyVwapChartSeries.ts'
 import { setMonthlyVwapLineSeriesVisible } from './monthlyVwapChartSeries.ts'
 import { setQuarterlyVwapLineSeriesVisible } from './quarterlyVwapChartSeries.ts'
 import { setWeeklyVwapLineSeriesVisible } from './weeklyVwapChartSeries.ts'
 import { setYearlyVwapLineSeriesVisible } from './yearlyVwapChartSeries.ts'
-import { setRollingVwapChartSeriesVisibility } from './rollingVwapChartSeries.ts'
-import {
-  createDefaultRollingVwapSettings,
-  type RollingVwapSettings,
-} from './rollingVwapSettings.ts'
+import type { RollingVwapInstance } from './rollingVwapInstances.ts'
 import {
   shouldShowVwapIndicatorSeries,
   type MarketIndicatorId,
@@ -23,10 +20,10 @@ export function syncVwapSeriesVisibility(
     interval: CandleInterval
     loadedLevel: VwapContextLevel | null
     loadedInterval: CandleInterval | null
-    rollingVwapSettings?: RollingVwapSettings
+    rollingVwapInstances?: readonly RollingVwapInstance[]
   },
 ): void {
-  const { activeIndicators, interval, loadedLevel, loadedInterval, rollingVwapSettings } = params
+  const { activeIndicators, interval, loadedLevel, loadedInterval, rollingVwapInstances } = params
   const base = {
     interval,
     loadedLevel,
@@ -73,11 +70,10 @@ export function syncVwapSeriesVisibility(
       ...base,
     }),
   )
-  setRollingVwapChartSeriesVisibility(bundle.rollingVwap, {
-    activeIndicators,
-    interval,
-    settings: rollingVwapSettings ?? createDefaultRollingVwapSettings(),
-  })
+
+  if (rollingVwapInstances) {
+    syncRollingVwapInstancesVisibility(bundle, rollingVwapInstances, interval)
+  }
 }
 
 /** Hides anchored session VWAP lines only (not Rolling VWAP). */

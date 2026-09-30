@@ -131,8 +131,12 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             options={settings.marketIndicatorOptions}
             activeIndicators={settings.marketIndicators}
             onActiveIndicatorsChange={settings.onMarketIndicatorsChange}
-            indicatorsWithSettings={settings.marketIndicatorsWithSettings}
-            onIndicatorSettingsClick={settings.onMarketIndicatorSettingsClick}
+            marketInterval={settings.marketInterval}
+            rollingVwapInstances={settings.rollingVwapInstances}
+            onRollingVwapAdd={settings.onRollingVwapAdd}
+            onRollingVwapToggle={settings.onRollingVwapToggle}
+            onRollingVwapSettingsClick={settings.onRollingVwapSettingsClick}
+            onRollingVwapDelete={settings.onRollingVwapDelete}
           />
         )}
     </div>

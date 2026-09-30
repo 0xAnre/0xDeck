@@ -1,5 +1,7 @@
 import type { UTCTimestamp } from 'lightweight-charts'
 import type { ChartSeriesBundle } from '@/market/applyChartLiveCandle'
+import { applyRollingVwapInstancesHistory } from '@/market/rollingVwapChartInstances'
+import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import { computeDailyVwap } from '@/market/dailyVwap'
 import { setDailyVwapLineSeriesData } from '@/market/dailyVwapChartSeries'
 import { computeMonthlyVwap } from '@/market/monthlyVwap'
@@ -10,15 +12,6 @@ import { computeWeeklyVwap } from '@/market/weeklyVwap'
 import { setWeeklyVwapLineSeriesData } from '@/market/weeklyVwapChartSeries'
 import { computeYearlyVwap } from '@/market/yearlyVwap'
 import { setYearlyVwapLineSeriesData } from '@/market/yearlyVwapChartSeries'
-import {
-  computeRollingVwapPointsForSettings,
-  createDefaultRollingVwapSettings,
-  type RollingVwapSettings,
-} from '@/market/rollingVwapSettings'
-import {
-  clearRollingVwapChartSeriesData,
-  setRollingVwapChartSeriesData,
-} from '@/market/rollingVwapChartSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import type { MarketCandle } from '@/market/types'
 
@@ -36,7 +29,7 @@ function toCandlestickPoint(candle: MarketCandle) {
 export function applyChartHistorySeries(
   bundle: ChartSeriesBundle,
   candles: readonly MarketCandle[],
-  rollingVwapSettings?: RollingVwapSettings,
+  rollingVwapInstances: readonly RollingVwapInstance[] = [],
 ): void {
   bundle.candle.setData(candles.map(toCandlestickPoint))
   EMA_PERIODS.forEach((period, index) => {
@@ -53,14 +46,5 @@ export function applyChartHistorySeries(
   setMonthlyVwapLineSeriesData(bundle.monthlyVwap, computeMonthlyVwap(candles))
   setQuarterlyVwapLineSeriesData(bundle.quarterlyVwap, computeQuarterlyVwap(candles))
   setYearlyVwapLineSeriesData(bundle.yearlyVwap, computeYearlyVwap(candles))
-  const rollingSettings = rollingVwapSettings ?? createDefaultRollingVwapSettings()
-  if (candles.length === 0) {
-    clearRollingVwapChartSeriesData(bundle.rollingVwap)
-  } else {
-    const interval = candles[candles.length - 1].interval
-    setRollingVwapChartSeriesData(
-      bundle.rollingVwap,
-      computeRollingVwapPointsForSettings(candles, interval, rollingSettings),
-    )
-  }
+  applyRollingVwapInstancesHistory(bundle, candles, rollingVwapInstances)
 }

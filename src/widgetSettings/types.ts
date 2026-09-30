@@ -1,6 +1,7 @@
 import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
+import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
 
@@ -39,8 +40,11 @@ export type WidgetSettingsRegistration = {
     disabled?: boolean
   }[]
   onMarketIndicatorsChange?: (indicators: MarketIndicatorId[]) => void
-  marketIndicatorsWithSettings?: readonly MarketIndicatorId[]
-  onMarketIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
+  rollingVwapInstances?: RollingVwapInstance[]
+  onRollingVwapAdd?: () => void
+  onRollingVwapToggle?: (instanceId: string, enabled: boolean) => void
+  onRollingVwapSettingsClick?: (instanceId: string) => void
+  onRollingVwapDelete?: (instanceId: string) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {

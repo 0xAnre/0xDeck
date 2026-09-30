@@ -10,8 +10,9 @@ import {
   type WeeklyVwapLineSeriesBundle,
 } from '@/market/weeklyVwapChartSeries'
 import { applyYearlyVwapLiveFromCandles } from '@/market/yearlyVwapChartSeries'
-import { applyRollingVwapLiveFromCandles, type RollingVwapChartSeriesBundle } from '@/market/rollingVwapChartSeries'
-import { createDefaultRollingVwapSettings, type RollingVwapSettings } from '@/market/rollingVwapSettings'
+import { applyRollingVwapInstancesLive } from '@/market/rollingVwapChartInstances'
+import type { RollingVwapChartInstanceMap } from '@/market/rollingVwapChartInstances'
+import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
@@ -39,7 +40,7 @@ export type ChartSeriesBundle = {
   monthlyVwap: MonthlyVwapLineSeriesBundle
   quarterlyVwap: QuarterlyVwapLineSeriesBundle
   yearlyVwap: YearlyVwapLineSeriesBundle
-  rollingVwap: RollingVwapChartSeriesBundle
+  rollingVwaps: RollingVwapChartInstanceMap
 }
 
 export type LiveVwapUpdateContext = {
@@ -68,12 +69,11 @@ export function applyChartLiveCandle(
   candle: MarketCandle,
   bundle: ChartSeriesBundle,
   vwapContext?: LiveVwapUpdateContext,
-  rollingVwapSettings?: RollingVwapSettings,
+  rollingVwapInstances: readonly RollingVwapInstance[] = [],
 ): void {
   const applyResult = applyLiveCandle(candles, candle)
   if (applyResult === 'ignore') return
 
-  const rollingSettings = rollingVwapSettings ?? createDefaultRollingVwapSettings()
   const rollingInterval = candle.interval
 
   bundle.candle.update(toCandlestickPoint(candle))
@@ -94,7 +94,7 @@ export function applyChartLiveCandle(
     applyMonthlyVwapLiveFromCandles(candles, bundle.monthlyVwap)
     applyQuarterlyVwapLiveFromCandles(candles, bundle.quarterlyVwap)
     applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
-    applyRollingVwapLiveFromCandles(candles, bundle.rollingVwap, rollingInterval, rollingSettings)
+    applyRollingVwapInstancesLive(candles, bundle, rollingVwapInstances, rollingInterval)
     return
   }
 
@@ -114,5 +114,5 @@ export function applyChartLiveCandle(
     applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
   }
 
-  applyRollingVwapLiveFromCandles(candles, bundle.rollingVwap, rollingInterval, rollingSettings)
+  applyRollingVwapInstancesLive(candles, bundle, rollingVwapInstances, rollingInterval)
 }

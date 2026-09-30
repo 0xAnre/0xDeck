@@ -9,7 +9,7 @@ import {
   type InfiniteHistoryState,
 } from '@/market/btcPerpetualInfiniteHistoryCore'
 import { mergeOlderMarketCandles } from '@/market/mergeMarketCandles'
-import type { RollingVwapSettings } from '@/market/rollingVwapSettings'
+import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 
 export {
@@ -30,16 +30,16 @@ type LoadOlderHistoryParams = {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
-  rollingVwapSettings?: RollingVwapSettings
+  rollingVwapInstances?: readonly RollingVwapInstance[]
 }
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
-  const { fetchHistory = fetchBinanceBtcusdtKlinesHistory, rollingVwapSettings, ...rest } = params
+  const { fetchHistory = fetchBinanceBtcusdtKlinesHistory, rollingVwapInstances, ...rest } = params
   return loadOlderBtcPerpHistoryCore({
     ...rest,
     fetchHistory,
     applyMergedHistory: (bundle, candles) =>
-      applyChartHistorySeries(bundle as ChartSeriesBundle, candles, rollingVwapSettings),
+      applyChartHistorySeries(bundle as ChartSeriesBundle, candles, rollingVwapInstances ?? []),
     mergeOlderCandles: mergeOlderMarketCandles,
   })
 }
@@ -56,7 +56,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
-  rollingVwapSettings?: RollingVwapSettings
+  rollingVwapInstances?: readonly RollingVwapInstance[]
 }): void {
   const {
     state,
@@ -70,7 +70,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
-    rollingVwapSettings,
+    rollingVwapInstances,
   } = params
 
   if (!historyReady || !range || state.exhausted || state.loading) return
@@ -94,6 +94,6 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
-    rollingVwapSettings,
+    rollingVwapInstances,
   })
 }
