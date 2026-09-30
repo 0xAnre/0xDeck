@@ -60,6 +60,7 @@ function fakeBundle(): ChartSeriesBundle {
       byKey: {} as ChartSeriesBundle['yearlyVwap']['byKey'],
       ordered: [line, line, line, line, line, line] as ChartSeriesBundle['yearlyVwap']['ordered'],
     },
+    rollingVwap: line as ChartSeriesBundle['rollingVwap'],
   }
 }
 

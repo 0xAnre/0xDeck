@@ -10,6 +10,11 @@ import { computeWeeklyVwap } from '@/market/weeklyVwap'
 import { setWeeklyVwapLineSeriesData } from '@/market/weeklyVwapChartSeries'
 import { computeYearlyVwap } from '@/market/yearlyVwap'
 import { setYearlyVwapLineSeriesData } from '@/market/yearlyVwapChartSeries'
+import { computeRollingVwapForInterval } from '@/market/rollingVwap'
+import {
+  clearRollingVwapLineSeriesData,
+  setRollingVwapLineSeriesData,
+} from '@/market/rollingVwapChartSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import type { MarketCandle } from '@/market/types'
 
@@ -40,4 +45,13 @@ export function applyChartHistorySeries(bundle: ChartSeriesBundle, candles: read
   setMonthlyVwapLineSeriesData(bundle.monthlyVwap, computeMonthlyVwap(candles))
   setQuarterlyVwapLineSeriesData(bundle.quarterlyVwap, computeQuarterlyVwap(candles))
   setYearlyVwapLineSeriesData(bundle.yearlyVwap, computeYearlyVwap(candles))
+  if (candles.length === 0) {
+    clearRollingVwapLineSeriesData(bundle.rollingVwap)
+  } else {
+    const interval = candles[candles.length - 1].interval
+    setRollingVwapLineSeriesData(
+      bundle.rollingVwap,
+      computeRollingVwapForInterval(candles, interval),
+    )
+  }
 }

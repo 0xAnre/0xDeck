@@ -5,6 +5,10 @@ import { setQuarterlyVwapLineSeriesVisible } from './quarterlyVwapChartSeries.ts
 import { setWeeklyVwapLineSeriesVisible } from './weeklyVwapChartSeries.ts'
 import { setYearlyVwapLineSeriesVisible } from './yearlyVwapChartSeries.ts'
 import {
+  setRollingVwapLineSeriesVisible,
+  shouldShowRollingVwapLineSeries,
+} from './rollingVwapChartSeries.ts'
+import {
   shouldShowVwapIndicatorSeries,
   type MarketIndicatorId,
   type VwapContextLevel,
@@ -67,6 +71,10 @@ export function syncVwapSeriesVisibility(
       ...base,
     }),
   )
+  setRollingVwapLineSeriesVisible(
+    bundle.rollingVwap,
+    shouldShowRollingVwapLineSeries(activeIndicators, interval),
+  )
 }
 
 export function hideAllVwapSeries(bundle: ChartSeriesBundle): void {
@@ -75,4 +83,5 @@ export function hideAllVwapSeries(bundle: ChartSeriesBundle): void {
   setMonthlyVwapLineSeriesVisible(bundle.monthlyVwap, false)
   setQuarterlyVwapLineSeriesVisible(bundle.quarterlyVwap, false)
   setYearlyVwapLineSeriesVisible(bundle.yearlyVwap, false)
+  setRollingVwapLineSeriesVisible(bundle.rollingVwap, false)
 }

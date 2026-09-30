@@ -53,6 +53,10 @@ import {
   clearYearlyVwapLineSeriesData,
   createYearlyVwapLineSeries,
 } from '@/market/yearlyVwapChartSeries'
+import {
+  clearRollingVwapLineSeriesData,
+  createRollingVwapLineSeries,
+} from '@/market/rollingVwapChartSeries'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   requiredVwapContextLevel,
@@ -322,6 +326,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const monthlyVwapSeries = createMonthlyVwapLineSeries(chart!, false)
       const quarterlyVwapSeries = createQuarterlyVwapLineSeries(chart!, false)
       const yearlyVwapSeries = createYearlyVwapLineSeries(chart!, false)
+      const rollingVwapSeries = createRollingVwapLineSeries(chart!)
 
       chartRef.current = chart
       seriesRef.current = {
@@ -332,6 +337,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         monthlyVwap: monthlyVwapSeries,
         quarterlyVwap: quarterlyVwapSeries,
         yearlyVwap: yearlyVwapSeries,
+        rollingVwap: rollingVwapSeries,
       }
       attachInfiniteHistoryListener(chart)
       return chart
@@ -390,6 +396,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       clearMonthlyVwapLineSeriesData(bundle.monthlyVwap)
       clearQuarterlyVwapLineSeriesData(bundle.quarterlyVwap)
       clearYearlyVwapLineSeriesData(bundle.yearlyVwap)
+      clearRollingVwapLineSeriesData(bundle.rollingVwap)
       hideAllVwapSeries(bundle)
     }
 

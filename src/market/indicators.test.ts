@@ -3,10 +3,13 @@ import { describe, it } from 'node:test'
 import {
   buildMarketIndicatorOptions,
   DEFAULT_MARKET_INDICATORS,
+  indicatorContextLevel,
   isIndicatorSupportedOnInterval,
   isMarketIndicatorId,
+  MARKET_INDICATOR_DEFINITIONS,
   requiredVwapContextLevel,
 } from './indicators.ts'
+import { CANDLE_INTERVALS } from './types.ts'
 
 describe('DEFAULT_MARKET_INDICATORS', () => {
   it('is empty so new BTC Perp panels open without indicators', () => {
@@ -19,6 +22,27 @@ describe('market indicator ids', () => {
     assert.equal(isMarketIndicatorId('monthly-vwap'), true)
     assert.equal(isMarketIndicatorId('quarterly-vwap'), true)
     assert.equal(isMarketIndicatorId('yearly-vwap'), true)
+  })
+
+  it('accepts rolling-vwap', () => {
+    assert.equal(isMarketIndicatorId('rolling-vwap'), true)
+  })
+})
+
+describe('rolling-vwap registry', () => {
+  it('is enabled on all six intervals with no context level', () => {
+    const def = MARKET_INDICATOR_DEFINITIONS['rolling-vwap']
+    assert.equal(def.label, 'Rolling VWAP')
+    assert.equal(def.contextLevel, null)
+    assert.equal(indicatorContextLevel('rolling-vwap'), null)
+    for (const interval of CANDLE_INTERVALS) {
+      assert.equal(isIndicatorSupportedOnInterval('rolling-vwap', interval), true)
+    }
+  })
+
+  it('does not widen requiredVwapContextLevel when only rolling-vwap is selected', () => {
+    assert.equal(requiredVwapContextLevel(['rolling-vwap'], '1m'), 'daily')
+    assert.equal(requiredVwapContextLevel(['rolling-vwap'], '1w'), 'daily')
   })
 })
 

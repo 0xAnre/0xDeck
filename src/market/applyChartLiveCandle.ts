@@ -10,6 +10,7 @@ import {
   type WeeklyVwapLineSeriesBundle,
 } from '@/market/weeklyVwapChartSeries'
 import { applyYearlyVwapLiveFromCandles } from '@/market/yearlyVwapChartSeries'
+import { applyRollingVwapLiveFromCandles, type RollingVwapLineSeries } from '@/market/rollingVwapChartSeries'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
@@ -37,6 +38,7 @@ export type ChartSeriesBundle = {
   monthlyVwap: MonthlyVwapLineSeriesBundle
   quarterlyVwap: QuarterlyVwapLineSeriesBundle
   yearlyVwap: YearlyVwapLineSeriesBundle
+  rollingVwap: RollingVwapLineSeries
 }
 
 export type LiveVwapUpdateContext = {
@@ -87,6 +89,7 @@ export function applyChartLiveCandle(
     applyMonthlyVwapLiveFromCandles(candles, bundle.monthlyVwap)
     applyQuarterlyVwapLiveFromCandles(candles, bundle.quarterlyVwap)
     applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
+    applyRollingVwapLiveFromCandles(candles, bundle.rollingVwap)
     return
   }
 
@@ -105,4 +108,6 @@ export function applyChartLiveCandle(
   if (shouldUpdateVwap('yearly-vwap', vwapContext)) {
     applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
   }
+
+  applyRollingVwapLiveFromCandles(candles, bundle.rollingVwap)
 }

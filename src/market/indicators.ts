@@ -7,6 +7,7 @@ export const MARKET_INDICATOR_IDS = [
   'monthly-vwap',
   'quarterly-vwap',
   'yearly-vwap',
+  'rolling-vwap',
 ] as const
 
 export type MarketIndicatorId = (typeof MARKET_INDICATOR_IDS)[number]
@@ -63,6 +64,11 @@ export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndic
     label: 'Yearly VWAP',
     supportedIntervals: ['1d', '1w'],
     contextLevel: 'yearly',
+  },
+  'rolling-vwap': {
+    label: 'Rolling VWAP',
+    supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
+    contextLevel: null,
   },
 }
 
