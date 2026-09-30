@@ -13,8 +13,6 @@ import {
   cancelFixedRangeVolumeProfileInteraction,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
 } from './fixedRangeVolumeProfileInteraction.ts'
-import { buildFixedRangeVolumeProfileRangeSegments } from './fixedRangeVolumeProfileRangePrimitive.ts'
-import { createFixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 
 type ScrollMode = 'locked' | 'unlocked'
 
@@ -58,12 +56,9 @@ function createMockChart(): { chart: IChartApi; scrollMode: () => ScrollMode } {
     unsubscribeClick: () => {},
     subscribeCrosshairMove: () => {},
     unsubscribeCrosshairMove: () => {},
-    panes: () => [
-      {
-        attachPrimitive: () => {},
-        detachPrimitive: () => {},
-      },
-    ],
+    timeScale: () => ({
+      coordinateToTime: () => null,
+    }),
   } as unknown as IChartApi
   return { chart, scrollMode: () => mode }
 }
@@ -103,40 +98,6 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
     const moved = applyFixedRangeVolumeProfileCrosshairTime(preview, 150)
     const movedAgain = applyFixedRangeVolumeProfileCrosshairTime(moved, 180)
     assert.equal(movedAgain.draft?.previewTime, 180)
-  })
-
-  it('sync repaints primitive segments after instance removal', () => {
-    const instance = createFixedRangeVolumeProfileInstance({
-      fromTime: 100,
-      toTime: 200,
-      selectionInterval: '1m',
-    })!
-    let instances = [instance]
-    const segmentsAfterDelete = buildFixedRangeVolumeProfileRangeSegments(
-      instances.filter((item) => item.id !== instance.id),
-      INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
-    )
-    assert.equal(segmentsAfterDelete.length, 0)
-    instances = instances.filter((item) => item.id !== instance.id)
-    assert.equal(instances.length, 0)
-  })
-
-  it('keeps only completed instance segments without draft copy', () => {
-    const instance = createFixedRangeVolumeProfileInstance({
-      fromTime: 100,
-      toTime: 200,
-      selectionInterval: '1m',
-    })!
-    const segments = buildFixedRangeVolumeProfileRangeSegments(
-      [instance],
-      INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
-    )
-    assert.equal(segments.length, 1)
-    const withDraft = buildFixedRangeVolumeProfileRangeSegments([instance], {
-      phase: 'preview',
-      draft: { anchorTime: 300, previewTime: 400 },
-    })
-    assert.equal(withDraft.length, 2)
   })
 
   it('dispose unlocks chart interaction and detaches handlers', () => {
