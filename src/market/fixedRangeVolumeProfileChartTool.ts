@@ -22,10 +22,24 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getSnapshot: () => FixedRangeVolumeProfileChartToolSnapshot
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
-  onRequestChartInteractionOptions: (toolActive: boolean) => void
 }
 
-function applyChartInteractionMode(chart: IChartApi, toolActive: boolean): void {
+export type FixedRangeVolumeProfileChartToolController = {
+  sync: () => void
+  dispose: () => void
+}
+
+export function isFixedRangeVolumeProfileChartInteractionLocked(
+  interaction: FixedRangeVolumeProfileInteractionState,
+): boolean {
+  return isFixedRangeVolumeProfileToolActive(interaction)
+}
+
+export function applyFixedRangeVolumeProfileChartInteractionMode(
+  chart: IChartApi,
+  interaction: FixedRangeVolumeProfileInteractionState,
+): boolean {
+  const toolActive = isFixedRangeVolumeProfileChartInteractionLocked(interaction)
   chart.applyOptions({
     handleScroll: toolActive
       ? { mouseWheel: false, pressedMouseMove: false, horzTouchDrag: false, vertTouchDrag: false }
@@ -49,12 +63,13 @@ function applyChartInteractionMode(chart: IChartApi, toolActive: boolean): void 
           axisDoubleClickReset: { time: true, price: true },
         },
   })
+  return toolActive
 }
 
 export function attachFixedRangeVolumeProfileChartTool(
   chart: IChartApi,
   callbacks: FixedRangeVolumeProfileChartToolCallbacks,
-): () => void {
+): FixedRangeVolumeProfileChartToolController {
   const primitive = new FixedRangeVolumeProfileRangePrimitive(() => {
     const snapshot = callbacks.getSnapshot()
     return buildFixedRangeVolumeProfileRangeSegments(snapshot.instances, snapshot.interaction)
@@ -63,11 +78,18 @@ export function attachFixedRangeVolumeProfileChartTool(
   const pane = chart.panes()[0]
   pane.attachPrimitive(primitive)
 
-  const syncInteractionMode = () => {
-    const active = isFixedRangeVolumeProfileToolActive(callbacks.getSnapshot().interaction)
-    applyChartInteractionMode(chart, active)
-    callbacks.onRequestChartInteractionOptions(active)
+  const present = (interaction: FixedRangeVolumeProfileInteractionState) => {
+    applyFixedRangeVolumeProfileChartInteractionMode(chart, interaction)
     primitive.updateAllViews()
+  }
+
+  const commitInteraction = (next: FixedRangeVolumeProfileInteractionState) => {
+    callbacks.onInteractionChange(next)
+    present(next)
+  }
+
+  const sync = () => {
+    present(callbacks.getSnapshot().interaction)
   }
 
   const onClick = (param: MouseEventParams<Time>) => {
@@ -79,21 +101,20 @@ export function attachFixedRangeVolumeProfileChartTool(
       clickTime,
       snapshot.instances,
     )
-    callbacks.onInteractionChange(result.state)
+    commitInteraction(result.state)
     if (result.completedInstance) {
       callbacks.onInstanceCompleted(result.completedInstance)
+      sync()
     }
-    syncInteractionMode()
-    primitive.updateAllViews()
   }
 
   const onCrosshairMove = (param: MouseEventParams<Time>) => {
     const snapshot = callbacks.getSnapshot()
+    if (snapshot.interaction.phase !== 'preview') return
     const hoverTime = param.point ? resolveChartEventTime(param.time) : null
     const next = applyFixedRangeVolumeProfileCrosshairTime(snapshot.interaction, hoverTime)
     if (next === snapshot.interaction) return
-    callbacks.onInteractionChange(next)
-    primitive.updateAllViews()
+    commitInteraction(next)
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -101,22 +122,26 @@ export function attachFixedRangeVolumeProfileChartTool(
     const snapshot = callbacks.getSnapshot()
     const next = cancelFixedRangeVolumeProfileInteraction(snapshot.interaction)
     if (next === snapshot.interaction) return
-    callbacks.onInteractionChange(next)
-    syncInteractionMode()
-    primitive.updateAllViews()
+    commitInteraction(next)
   }
 
   chart.subscribeClick(onClick)
   chart.subscribeCrosshairMove(onCrosshairMove)
   window.addEventListener('keydown', onKeyDown)
 
-  syncInteractionMode()
+  sync()
 
-  return () => {
+  const dispose = () => {
     window.removeEventListener('keydown', onKeyDown)
     chart.unsubscribeClick(onClick)
     chart.unsubscribeCrosshairMove(onCrosshairMove)
     pane.detachPrimitive(primitive)
-    applyChartInteractionMode(chart, false)
+    applyFixedRangeVolumeProfileChartInteractionMode(
+      chart,
+      { phase: 'inactive', draft: null },
+    )
+    primitive.updateAllViews()
   }
+
+  return { sync, dispose }
 }

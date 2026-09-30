@@ -41,6 +41,10 @@ function sanitizeValueAreaPercent(value: unknown): number {
   return n
 }
 
+export function isValidUnixChartTimeSeconds(value: number): boolean {
+  return Number.isFinite(value) && Number.isInteger(value) && value > 0
+}
+
 export function normalizeFixedRangeVolumeProfileTimes(
   fromTime: number,
   toTime: number,
@@ -48,6 +52,7 @@ export function normalizeFixedRangeVolumeProfileTimes(
   if (!Number.isFinite(fromTime) || !Number.isFinite(toTime)) return null
   const a = Math.trunc(fromTime)
   const b = Math.trunc(toTime)
+  if (!isValidUnixChartTimeSeconds(a) || !isValidUnixChartTimeSeconds(b)) return null
   const from = Math.min(a, b)
   const to = Math.max(a, b)
   if (from >= to) return null

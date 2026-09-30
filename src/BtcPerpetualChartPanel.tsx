@@ -80,7 +80,10 @@ import {
   loadWidgetFixedRangeVolumeProfileInstances,
   saveWidgetFixedRangeVolumeProfileInstances,
 } from '@/fixedRangeVolumeProfileInstancesStorage'
-import { attachFixedRangeVolumeProfileChartTool } from '@/market/fixedRangeVolumeProfileChartTool'
+import {
+  attachFixedRangeVolumeProfileChartTool,
+  type FixedRangeVolumeProfileChartToolController,
+} from '@/market/fixedRangeVolumeProfileChartTool'
 import {
   armFixedRangeVolumeProfileTool,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
@@ -208,6 +211,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const rollingVwapInstancesRef = useRef(rollingVwapInstances)
   const fixedRangeVolumeProfileInstancesRef = useRef(fixedRangeVolumeProfileInstances)
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
+  const fixedRangeVolumeProfileToolControllerRef =
+    useRef<FixedRangeVolumeProfileChartToolController | null>(null)
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -227,13 +232,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       fixedRangeVolumeProfileInstancesRef.current = sanitized
       setFixedRangeVolumeProfileInstances(sanitized)
       saveWidgetFixedRangeVolumeProfileInstances(panelId, sanitized)
+      fixedRangeVolumeProfileToolControllerRef.current?.sync()
       return sanitized
     },
     [panelId],
   )
 
   const handleFixedRangeVolumeProfileArm = useCallback(() => {
-    setFixedRangeVolumeProfileInteraction(armFixedRangeVolumeProfileTool())
+    const armed = armFixedRangeVolumeProfileTool()
+    fixedRangeVolumeProfileInteractionRef.current = armed
+    setFixedRangeVolumeProfileInteraction(armed)
+    fixedRangeVolumeProfileToolControllerRef.current?.sync()
   }, [])
 
   const handleFixedRangeVolumeProfileDelete = useCallback(
@@ -402,20 +411,28 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const chart = chartRef.current
     if (!chart || !chartReady) return
 
-    return attachFixedRangeVolumeProfileChartTool(chart, {
+    const controller = attachFixedRangeVolumeProfileChartTool(chart, {
       getSnapshot: () => ({
         interaction: fixedRangeVolumeProfileInteractionRef.current,
         instances: fixedRangeVolumeProfileInstancesRef.current,
       }),
-      onInteractionChange: setFixedRangeVolumeProfileInteraction,
+      onInteractionChange: (state) => {
+        fixedRangeVolumeProfileInteractionRef.current = state
+        setFixedRangeVolumeProfileInteraction(state)
+      },
       onInstanceCompleted: (instance) => {
         persistFixedRangeVolumeProfileInstances([
           ...fixedRangeVolumeProfileInstancesRef.current,
           instance,
         ])
       },
-      onRequestChartInteractionOptions: () => {},
     })
+    fixedRangeVolumeProfileToolControllerRef.current = controller
+    controller.sync()
+    return () => {
+      controller.dispose()
+      fixedRangeVolumeProfileToolControllerRef.current = null
+    }
   }, [chartReady, persistFixedRangeVolumeProfileInstances])
 
   const tripleEmaVisible = activeIndicators.includes('triple-ema')

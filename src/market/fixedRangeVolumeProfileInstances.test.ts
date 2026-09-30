@@ -7,8 +7,10 @@ import {
 } from '../fixedRangeVolumeProfileInstancesStorage.ts'
 import {
   createFixedRangeVolumeProfileInstance,
+  normalizeFixedRangeVolumeProfileTimes,
   sanitizeFixedRangeVolumeProfileInstances,
 } from './fixedRangeVolumeProfileInstances.ts'
+import { resolveChartEventTime } from './fixedRangeVolumeProfileChartTime.ts'
 
 describe('fixedRangeVolumeProfileInstances storage', () => {
   const panelA = 'panel-a'
@@ -86,6 +88,26 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     )
     assert.equal(remaining.length, 1)
     assert.equal(remaining[0].id, second.id)
+  })
+
+  it('rejects zero timestamps during normalization', () => {
+    assert.equal(normalizeFixedRangeVolumeProfileTimes(0, 10), null)
+    assert.equal(normalizeFixedRangeVolumeProfileTimes(10, 0), null)
+    assert.equal(resolveChartEventTime(0), null)
+  })
+
+  it('rejects negative timestamps during normalization', () => {
+    assert.equal(normalizeFixedRangeVolumeProfileTimes(-1, 10), null)
+    assert.equal(normalizeFixedRangeVolumeProfileTimes(10, -5), null)
+    assert.equal(resolveChartEventTime(-100), null)
+  })
+
+  it('keeps positive unix seconds', () => {
+    assert.deepEqual(normalizeFixedRangeVolumeProfileTimes(1_700_000_000, 1_700_000_600), {
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_600,
+    })
+    assert.equal(resolveChartEventTime(1_700_000_000), 1_700_000_000)
   })
 
   it('keeps unix seconds without milliseconds', () => {

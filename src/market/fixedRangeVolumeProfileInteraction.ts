@@ -1,5 +1,6 @@
 import {
   createFixedRangeVolumeProfileInstance,
+  isValidUnixChartTimeSeconds,
   type FixedRangeVolumeProfileInstance,
 } from './fixedRangeVolumeProfileInstances.ts'
 
@@ -46,6 +47,7 @@ export function applyFixedRangeVolumeProfileCrosshairTime(
   }
   if (!Number.isFinite(hoverTime)) return state
   const previewTime = Math.trunc(hoverTime)
+  if (!isValidUnixChartTimeSeconds(previewTime)) return state
   if (previewTime === state.draft.previewTime) return state
   return {
     phase: 'preview',
@@ -68,6 +70,9 @@ export function applyFixedRangeVolumeProfileClick(
   }
 
   const time = Math.trunc(clickTime)
+  if (!isValidUnixChartTimeSeconds(time)) {
+    return { state, completedInstance: null }
+  }
 
   if (state.phase === 'armed') {
     return {
