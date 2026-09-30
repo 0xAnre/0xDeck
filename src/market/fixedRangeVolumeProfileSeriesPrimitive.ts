@@ -72,7 +72,7 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
           context.beginPath()
           context.setLineDash(line.lineDash.map((value) => value * horizontalPixelRatio))
           context.strokeStyle = line.strokeStyle
-          context.lineWidth = FRVP_LEVEL_LINE_WIDTH_CSS_PX * horizontalPixelRatio
+          context.lineWidth = FRVP_LEVEL_LINE_WIDTH_CSS_PX * verticalPixelRatio
           context.moveTo(x1, y)
           context.lineTo(x2, y)
           context.stroke()
