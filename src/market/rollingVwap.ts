@@ -121,15 +121,68 @@ function intervalToMs(interval: CandleInterval): number {
   }
 }
 
+export function isRollingVwapDays(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+export function isRollingVwapHours(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 23
+}
+
+export function isRollingVwapMinutes(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 59
+}
+
+export function isRollingVwapMinBars(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+}
+
+export function isRollingVwapStdevMultiplier(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+export function sanitizeRollingVwapFixedTimePeriod(
+  value: unknown,
+  defaults: RollingVwapFixedTimePeriod = DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD,
+): RollingVwapFixedTimePeriod {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    useFixedTimePeriod:
+      typeof record.useFixedTimePeriod === 'boolean'
+        ? record.useFixedTimePeriod
+        : defaults.useFixedTimePeriod,
+    days: isRollingVwapDays(record.days) ? record.days : defaults.days,
+    hours: isRollingVwapHours(record.hours) ? record.hours : defaults.hours,
+    minutes: isRollingVwapMinutes(record.minutes) ? record.minutes : defaults.minutes,
+  }
+}
+
+export function sanitizeRollingVwapStdevMultipliers(
+  value: unknown,
+  defaults: RollingVwapStdevMultipliers = { ...DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS },
+): RollingVwapStdevMultipliers {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    multiplier1: isRollingVwapStdevMultiplier(record.multiplier1)
+      ? record.multiplier1
+      : defaults.multiplier1,
+    multiplier2: isRollingVwapStdevMultiplier(record.multiplier2)
+      ? record.multiplier2
+      : defaults.multiplier2,
+    multiplier3: isRollingVwapStdevMultiplier(record.multiplier3)
+      ? record.multiplier3
+      : defaults.multiplier3,
+  }
+}
+
 export function validateRollingVwapFixedTimePeriod(period: RollingVwapFixedTimePeriod): void {
-  const { days, hours, minutes } = period
-  if (!Number.isInteger(days) || days < 0) {
+  if (!isRollingVwapDays(period.days)) {
     throw new RollingVwapConfigError('days must be an integer >= 0')
   }
-  if (!Number.isInteger(hours) || hours < 0 || hours > 23) {
+  if (!isRollingVwapHours(period.hours)) {
     throw new RollingVwapConfigError('hours must be an integer from 0 to 23')
   }
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+  if (!isRollingVwapMinutes(period.minutes)) {
     throw new RollingVwapConfigError('minutes must be an integer from 0 to 59')
   }
 }
@@ -137,8 +190,7 @@ export function validateRollingVwapFixedTimePeriod(period: RollingVwapFixedTimeP
 export function validateRollingVwapStdevMultipliers(multipliers: RollingVwapStdevMultipliers): void {
   const keys: (keyof RollingVwapStdevMultipliers)[] = ['multiplier1', 'multiplier2', 'multiplier3']
   for (const key of keys) {
-    const value = multipliers[key]
-    if (!Number.isFinite(value) || value < 0) {
+    if (!isRollingVwapStdevMultiplier(multipliers[key])) {
       throw new RollingVwapConfigError(`${key} must be a finite number >= 0`)
     }
   }

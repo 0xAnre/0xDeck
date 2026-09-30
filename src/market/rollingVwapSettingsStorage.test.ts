@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict'
+import { afterEach, beforeEach, describe, it } from 'node:test'
+import { createDefaultRollingVwapSettings } from './rollingVwapSettings.ts'
+import {
+  loadWidgetRollingVwapSettings,
+  saveWidgetRollingVwapSettings,
+  WIDGET_ROLLING_VWAP_SETTINGS_STORAGE_KEY,
+} from '../rollingVwapSettingsStorage.ts'
+
+const memory = new Map<string, string>()
+
+beforeEach(() => {
+  memory.clear()
+  globalThis.localStorage = {
+    get length() {
+      return memory.size
+    },
+    clear() {
+      memory.clear()
+    },
+    getItem(key: string) {
+      return memory.get(key) ?? null
+    },
+    setItem(key: string, value: string) {
+      memory.set(key, value)
+    },
+    removeItem(key: string) {
+      memory.delete(key)
+    },
+    key(index: number) {
+      return [...memory.keys()][index] ?? null
+    },
+  }
+})
+
+afterEach(() => {
+  memory.clear()
+})
+
+describe('rollingVwapSettingsStorage', () => {
+  it('returns defaults when panel has no saved entry', () => {
+    const settings = loadWidgetRollingVwapSettings('panel-a')
+    assert.equal(settings.minBars, 10)
+    assert.equal(settings.infoBox.size, 'small')
+  })
+
+  it('isolates settings per panel id', () => {
+    const a = createDefaultRollingVwapSettings()
+    a.minBars = 15
+    const b = createDefaultRollingVwapSettings()
+    b.minBars = 22
+
+    saveWidgetRollingVwapSettings('panel-a', a)
+    saveWidgetRollingVwapSettings('panel-b', b)
+
+    assert.equal(loadWidgetRollingVwapSettings('panel-a').minBars, 15)
+    assert.equal(loadWidgetRollingVwapSettings('panel-b').minBars, 22)
+  })
+
+  it('returns defaults when stored JSON is corrupt', () => {
+    memory.set(WIDGET_ROLLING_VWAP_SETTINGS_STORAGE_KEY, '{not-json')
+    assert.equal(loadWidgetRollingVwapSettings('panel-a').minBars, 10)
+  })
+
+  it('mutating a loaded settings object does not affect the next load', () => {
+    saveWidgetRollingVwapSettings('panel-a', createDefaultRollingVwapSettings())
+    const loaded = loadWidgetRollingVwapSettings('panel-a')
+    loaded.minBars = 99
+    loaded.infoBox.visible = false
+    assert.equal(loadWidgetRollingVwapSettings('panel-a').minBars, 10)
+    assert.equal(loadWidgetRollingVwapSettings('panel-a').infoBox.visible, true)
+  })
+})
