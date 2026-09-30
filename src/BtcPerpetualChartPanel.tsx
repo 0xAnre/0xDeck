@@ -26,7 +26,7 @@ import {
   isVwapContextAbortError,
   releaseOwnedVwapContextRequest,
 } from '@/market/btcPerpetualVwapContextRequest'
-import { hideAllVwapSeries, syncVwapSeriesVisibility } from '@/market/btcPerpetualChartVwapSync'
+import { hideAllAnchoredVwapSeries, syncVwapSeriesVisibility } from '@/market/btcPerpetualChartVwapSync'
 import { computeInitialVisibleLogicalRange } from '@/market/chartInitialVisibleRange'
 import {
   createInfiniteHistoryState,
@@ -56,6 +56,7 @@ import {
 import {
   clearRollingVwapLineSeriesData,
   createRollingVwapLineSeries,
+  setRollingVwapLineSeriesVisible,
 } from '@/market/rollingVwapChartSeries'
 import { EMA_PERIODS } from '@/market/ema'
 import {
@@ -397,7 +398,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       clearQuarterlyVwapLineSeriesData(bundle.quarterlyVwap)
       clearYearlyVwapLineSeriesData(bundle.yearlyVwap)
       clearRollingVwapLineSeriesData(bundle.rollingVwap)
-      hideAllVwapSeries(bundle)
+      setRollingVwapLineSeriesVisible(bundle.rollingVwap, false)
+      hideAllAnchoredVwapSeries(bundle)
     }
 
     const controller = new AbortController()
@@ -564,7 +566,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const requestContextLevel = neededLevel
     const owner = { controller, requestId }
 
-    hideAllVwapSeries(bundle)
+    hideAllAnchoredVwapSeries(bundle)
 
     void (async () => {
       try {

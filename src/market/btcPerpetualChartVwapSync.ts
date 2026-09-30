@@ -77,11 +77,11 @@ export function syncVwapSeriesVisibility(
   )
 }
 
-export function hideAllVwapSeries(bundle: ChartSeriesBundle): void {
+/** Hides anchored session VWAP lines only (not Rolling VWAP). */
+export function hideAllAnchoredVwapSeries(bundle: ChartSeriesBundle): void {
   setDailyVwapLineSeriesVisible(bundle.dailyVwap, false)
   setWeeklyVwapLineSeriesVisible(bundle.weeklyVwap, false)
   setMonthlyVwapLineSeriesVisible(bundle.monthlyVwap, false)
   setQuarterlyVwapLineSeriesVisible(bundle.quarterlyVwap, false)
   setYearlyVwapLineSeriesVisible(bundle.yearlyVwap, false)
-  setRollingVwapLineSeriesVisible(bundle.rollingVwap, false)
 }
