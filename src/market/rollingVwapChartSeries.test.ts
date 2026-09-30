@@ -82,8 +82,8 @@ function trackBundle() {
 }
 
 describe('rollingVwap chart series defaults', () => {
-  it('uses orange center style and six band keys', () => {
-    assert.equal(ROLLING_VWAP_LINE_CHART_OPTIONS.color, '#FF9800')
+  it('uses gray center style and six band keys', () => {
+    assert.equal(ROLLING_VWAP_LINE_CHART_OPTIONS.color, '#9e9e9e')
     assert.equal(ROLLING_VWAP_BAND_SERIES_KEYS.length, 6)
   })
 
@@ -102,7 +102,7 @@ describe('rollingVwap chart series defaults', () => {
     const defaults = createDefaultRollingVwapSettings()
     const bundle = createRollingVwapChartSeriesBundle(chart, defaults.bandColors)
     assert.equal(bundle.ordered.length, 7)
-    assert.equal(createdOptions[0].color, '#FF9800')
+    assert.equal(createdOptions[0].color, '#9e9e9e')
     assert.equal(createdOptions[0].lineWidth, 1)
     assert.equal(createdOptions[0].priceLineVisible, false)
     assert.equal(createdOptions[0].lastValueVisible, true)

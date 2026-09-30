@@ -9,8 +9,8 @@ import {
 } from './rollingVwapSettings.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 
-/** Pine `color.orange` for Rolling VWAP line. */
-export const ROLLING_VWAP_LINE_COLOR = '#FF9800'
+/** Same gray as anchored Daily/Weekly VWAP center lines. */
+export const ROLLING_VWAP_LINE_COLOR = '#9e9e9e'
 
 export const ROLLING_VWAP_CENTER_LINE_OPTIONS = {
   color: ROLLING_VWAP_LINE_COLOR,
