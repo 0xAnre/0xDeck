@@ -39,6 +39,9 @@ export type FixedRangeVolumeProfileResult = {
   valueAreaPercentAchieved: number
 }
 
+const VOLUME_RELATIVE_EPSILON = 1e-9
+const TICK_SNAP_RELATIVE_EPSILON = 1e-12
+
 export function normalizeFixedRangeVolumeProfileCandles(
   candles: readonly MarketCandle[],
 ): MarketCandle[] {
@@ -52,9 +55,11 @@ export function normalizeFixedRangeVolumeProfileCandles(
 }
 
 function emptyResult(fromTime: number, toTime: number): FixedRangeVolumeProfileResult {
+  const safeFrom = Number.isFinite(fromTime) ? fromTime : 0
+  const safeTo = Number.isFinite(toTime) ? toTime : 0
   return {
-    fromTime,
-    toTime,
+    fromTime: safeFrom,
+    toTime: safeTo,
     candleCount: 0,
     profileLow: 0,
     profileHigh: 0,
@@ -75,45 +80,53 @@ function isFinitePositive(value: number): boolean {
   return Number.isFinite(value) && value > 0
 }
 
-function alignPriceLow(price: number, tickSize: number): number {
-  return Math.floor(price / tickSize) * tickSize
+function snapTolerance(scaled: number): number {
+  return Math.max(1e-9, Math.abs(scaled) * TICK_SNAP_RELATIVE_EPSILON)
 }
 
-function alignPriceHigh(price: number, tickSize: number): number {
-  const ticks = Math.ceil(price / tickSize)
-  return ticks * tickSize
+function isOnTickGrid(scaled: number): boolean {
+  const rounded = Math.round(scaled)
+  return Math.abs(scaled - rounded) <= snapTolerance(scaled)
 }
 
-function buildPriceRows(
-  alignedLow: number,
-  alignedHigh: number,
-  rowHeight: number,
-): Array<{ priceLow: number; priceHigh: number }> {
-  const span = alignedHigh - alignedLow
-  if (span <= 0 || !isFinitePositive(rowHeight)) return []
-  const rowCount = Math.max(1, Math.ceil(span / rowHeight))
-  const rows: Array<{ priceLow: number; priceHigh: number }> = []
-  for (let index = 0; index < rowCount; index += 1) {
-    const priceLow = alignedLow + index * rowHeight
-    const priceHigh = index === rowCount - 1 ? alignedHigh : priceLow + rowHeight
-    rows.push({ priceLow, priceHigh })
-  }
-  return rows
+function tickIndexFloor(price: number, invTick: number): number {
+  const scaled = price * invTick
+  if (isOnTickGrid(scaled)) return Math.round(scaled)
+  return Math.floor(scaled + snapTolerance(scaled))
 }
 
-function actualRowCount(alignedLow: number, alignedHigh: number, rowHeight: number): number {
-  const span = alignedHigh - alignedLow
-  if (span <= 0) return 0
-  return Math.max(1, Math.ceil(span / rowHeight))
+function tickIndexCeil(price: number, invTick: number): number {
+  const scaled = price * invTick
+  if (isOnTickGrid(scaled)) return Math.round(scaled)
+  return Math.ceil(scaled - snapTolerance(scaled))
 }
 
-function chooseRowHeightTicks(
-  alignedLow: number,
-  alignedHigh: number,
-  tickSize: number,
-  targetRowCount: number,
-): number {
-  const spanTicks = (alignedHigh - alignedLow) / tickSize
+function tickToPrice(tickIndex: number, invTick: number): number {
+  return tickIndex / invTick
+}
+
+function volumeEpsilon(a: number, b: number): number {
+  return Math.max(VOLUME_RELATIVE_EPSILON, Math.abs(a) * VOLUME_RELATIVE_EPSILON, Math.abs(b) * VOLUME_RELATIVE_EPSILON)
+}
+
+function volumeGreater(a: number, b: number): boolean {
+  return a - b > volumeEpsilon(a, b)
+}
+
+function volumeGreaterOrEqual(a: number, b: number): boolean {
+  return a - b > -volumeEpsilon(a, b)
+}
+
+function volumeLess(a: number, b: number): boolean {
+  return b - a > volumeEpsilon(a, b)
+}
+
+function actualRowCountFromTicks(spanTicks: number, rowHeightTicks: number): number {
+  if (spanTicks <= 0 || rowHeightTicks < 1) return 0
+  return Math.max(1, Math.ceil(spanTicks / rowHeightTicks))
+}
+
+function chooseRowHeightTicks(spanTicks: number, targetRowCount: number): number {
   const floorTicks = Math.max(1, Math.floor(spanTicks / targetRowCount))
   const ceilTicks = Math.max(1, Math.ceil(spanTicks / targetRowCount))
   const candidates = floorTicks === ceilTicks ? [floorTicks] : [floorTicks, ceilTicks]
@@ -122,8 +135,7 @@ function chooseRowHeightTicks(
   let bestDistance = Number.POSITIVE_INFINITY
 
   for (const ticks of candidates) {
-    const rowHeight = ticks * tickSize
-    const rows = actualRowCount(alignedLow, alignedHigh, rowHeight)
+    const rows = actualRowCountFromTicks(spanTicks, ticks)
     const distance = Math.abs(rows - targetRowCount)
     if (distance < bestDistance) {
       bestDistance = distance
@@ -136,6 +148,34 @@ function chooseRowHeightTicks(
   }
 
   return bestTicks
+}
+
+function buildPriceRowsFromTicks(
+  alignedLowTick: number,
+  alignedHighExclusiveTick: number,
+  rowHeightTicks: number,
+  invTick: number,
+): Array<{ priceLow: number; priceHigh: number }> {
+  const spanTicks = alignedHighExclusiveTick - alignedLowTick
+  if (spanTicks <= 0 || rowHeightTicks < 1) return []
+
+  const rowCount = Math.ceil(spanTicks / rowHeightTicks)
+  const rows: Array<{ priceLow: number; priceHigh: number }> = []
+
+  for (let index = 0; index < rowCount; index += 1) {
+    const rowLowTick = alignedLowTick + index * rowHeightTicks
+    const rowHighTick =
+      index === rowCount - 1
+        ? alignedHighExclusiveTick
+        : Math.min(alignedLowTick + (index + 1) * rowHeightTicks, alignedHighExclusiveTick)
+    if (rowHighTick <= rowLowTick) continue
+    rows.push({
+      priceLow: tickToPrice(rowLowTick, invTick),
+      priceHigh: tickToPrice(rowHighTick, invTick),
+    })
+  }
+
+  return rows
 }
 
 function findRowIndexForPrice(
@@ -219,12 +259,16 @@ function selectPocIndex(rows: readonly FixedRangeVolumeProfileRow[]): number | n
   let bestVolume = rows[0].totalVolume
   for (let index = 1; index < rows.length; index += 1) {
     const volume = rows[index].totalVolume
-    if (volume > bestVolume) {
+    if (volumeGreater(volume, bestVolume)) {
       bestVolume = volume
       bestIndex = index
       continue
     }
-    if (volume === bestVolume && rows[index].priceLow < rows[bestIndex].priceLow) {
+    if (
+      !volumeGreater(volume, bestVolume) &&
+      !volumeGreater(bestVolume, volume) &&
+      rows[index].priceLow < rows[bestIndex].priceLow
+    ) {
       bestIndex = index
     }
   }
@@ -236,12 +280,17 @@ function expandValueArea(
   pocIndex: number,
   targetVolume: number,
 ): number {
-  const included = new Set<number>([pocIndex])
+  rows[pocIndex].inValueArea = true
   let collected = rows[pocIndex].totalVolume
+
+  if (!volumeGreater(targetVolume, 0)) {
+    return collected
+  }
+
   let upper = pocIndex + 1
   let lower = pocIndex - 1
 
-  while (collected < targetVolume) {
+  while (volumeLess(collected, targetVolume)) {
     const canExpandUp = upper < rows.length
     const canExpandDown = lower >= 0
     if (!canExpandUp && !canExpandDown) break
@@ -250,21 +299,17 @@ function expandValueArea(
       ? true
       : !canExpandUp
         ? false
-        : rows[upper].totalVolume >= rows[lower].totalVolume
+        : volumeGreaterOrEqual(rows[upper].totalVolume, rows[lower].totalVolume)
 
     if (pickUpper) {
-      included.add(upper)
+      rows[upper].inValueArea = true
       collected += rows[upper].totalVolume
       upper += 1
     } else {
-      included.add(lower)
+      rows[lower].inValueArea = true
       collected += rows[lower].totalVolume
       lower -= 1
     }
-  }
-
-  for (const index of included) {
-    rows[index].inValueArea = true
   }
 
   return collected
@@ -273,6 +318,10 @@ function expandValueArea(
 export function computeFixedRangeVolumeProfile(
   params: FixedRangeVolumeProfileParams,
 ): FixedRangeVolumeProfileResult {
+  if (!Number.isFinite(params.fromTime) || !Number.isFinite(params.toTime)) {
+    return emptyResult(0, 0)
+  }
+
   const fromTime = Math.min(params.fromTime, params.toTime)
   const toTime = Math.max(params.fromTime, params.toTime)
   const rowCount = params.rowCount ?? DEFAULT_FIXED_RANGE_VP_ROW_COUNT
@@ -282,10 +331,17 @@ export function computeFixedRangeVolumeProfile(
   if (
     !isFinitePositive(tickSize) ||
     !Number.isFinite(rowCount) ||
+    !Number.isInteger(rowCount) ||
     rowCount < 1 ||
     !Number.isFinite(valueAreaPercent) ||
-    valueAreaPercent <= 0
+    valueAreaPercent < 0 ||
+    valueAreaPercent > 100
   ) {
+    return emptyResult(fromTime, toTime)
+  }
+
+  const invTick = 1 / tickSize
+  if (!Number.isFinite(invTick)) {
     return emptyResult(fromTime, toTime)
   }
 
@@ -310,19 +366,27 @@ export function computeFixedRangeVolumeProfile(
     return emptyResult(fromTime, toTime)
   }
 
-  const alignedLow = alignPriceLow(profileLow, tickSize)
-  let alignedHigh = alignPriceHigh(profileHigh, tickSize)
-  if (alignedHigh <= alignedLow) {
-    alignedHigh = alignedLow + tickSize
+  let alignedLowTick = Number.POSITIVE_INFINITY
+  let alignedHighInclusiveTick = Number.NEGATIVE_INFINITY
+  for (const candle of selected) {
+    alignedLowTick = Math.min(alignedLowTick, tickIndexFloor(candle.low, invTick))
+    alignedHighInclusiveTick = Math.max(alignedHighInclusiveTick, tickIndexCeil(candle.high, invTick))
   }
-  const span = alignedHigh - alignedLow
-  if (span <= 0) {
+
+  const alignedHighExclusiveTick = alignedHighInclusiveTick + 1
+  const spanTicks = alignedHighExclusiveTick - alignedLowTick
+  if (spanTicks <= 0) {
     return emptyResult(fromTime, toTime)
   }
 
-  const rowHeightTicks = chooseRowHeightTicks(alignedLow, alignedHigh, tickSize, rowCount)
-  const rowHeight = rowHeightTicks * tickSize
-  const priceRows = buildPriceRows(alignedLow, alignedHigh, rowHeight)
+  const rowHeightTicks = chooseRowHeightTicks(spanTicks, rowCount)
+  const rowHeight = rowHeightTicks / invTick
+  const priceRows = buildPriceRowsFromTicks(
+    alignedLowTick,
+    alignedHighExclusiveTick,
+    rowHeightTicks,
+    invTick,
+  )
   if (priceRows.length === 0) {
     return emptyResult(fromTime, toTime)
   }

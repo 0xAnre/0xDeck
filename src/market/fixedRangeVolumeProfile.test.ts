@@ -39,6 +39,19 @@ function compute(
   })
 }
 
+function assertRowsWellFormed(
+  rows: ReturnType<typeof computeFixedRangeVolumeProfile>['rows'],
+  tickSize: number,
+) {
+  for (const row of rows) {
+    assert.ok(row.priceHigh > row.priceLow)
+    assert.ok(row.priceHigh - row.priceLow > 0)
+  }
+  for (let index = 1; index < rows.length; index += 1) {
+    assert.ok(Math.abs(rows[index].priceLow - rows[index - 1].priceHigh) <= tickSize * 1e-6)
+  }
+}
+
 function assertFiniteResult(result: ReturnType<typeof computeFixedRangeVolumeProfile>) {
   const numbers = [
     result.profileLow,
@@ -257,7 +270,146 @@ describe('computeFixedRangeVolumeProfile', () => {
     )
     assert.equal(result.rowHeight % 1, 0)
     assert.ok(result.rows.length >= 1)
-    assert.equal(result.rows[result.rows.length - 1].priceHigh, 124)
+    assert.equal(result.rows[result.rows.length - 1].priceHigh, 125)
     assert.ok(Math.abs(result.rows.length - 24) <= 2)
+  })
+
+  it('builds one tick-tall row for flat profile at fractional tick price 83442.7', () => {
+    const tickSize = 0.1
+    const result = compute(
+      [candle({ time: 10, low: 83442.7, high: 83442.7, volume: 5 })],
+      10,
+      10,
+      { rowCount: 24, tickSize },
+    )
+    assert.equal(result.rows.length, 1)
+    assert.ok(Math.abs(result.rows[0].priceLow - 83442.7) <= tickSize * 1e-6)
+    assert.ok(Math.abs(result.rows[0].priceHigh - 83442.8) <= tickSize * 1e-6)
+    assert.ok(result.rows[0].priceHigh - result.rows[0].priceLow >= tickSize - tickSize * 1e-6)
+    assertRowsWellFormed(result.rows, tickSize)
+    assertFiniteResult(result)
+  })
+
+  it('builds one positive row for flat profile at 0.3 with tick 0.1', () => {
+    const tickSize = 0.1
+    const result = compute(
+      [candle({ time: 10, low: 0.3, high: 0.3, volume: 2 })],
+      10,
+      10,
+      { rowCount: 24, tickSize },
+    )
+    assert.equal(result.rows.length, 1)
+    assert.ok(Math.abs(result.rows[0].priceLow - 0.3) <= tickSize * 1e-6)
+    assert.ok(result.rows[0].priceHigh > result.rows[0].priceLow)
+    assertRowsWellFormed(result.rows, tickSize)
+  })
+
+  it('avoids zero-height trailing rows for fractional range 99.2–100.8', () => {
+    const tickSize = 0.1
+    const result = compute(
+      [candle({ time: 10, low: 99.2, high: 100.8, open: 100, close: 100, volume: 16 })],
+      10,
+      10,
+      { rowCount: 24, tickSize },
+    )
+    assertRowsWellFormed(result.rows, tickSize)
+    const distributed = result.rows.reduce((sum, row) => sum + row.totalVolume, 0)
+    assert.ok(Math.abs(distributed - 16) <= 1e-6)
+    assert.ok(result.rows[result.rows.length - 1].priceHigh >= 100.8)
+    assertFiniteResult(result)
+  })
+
+  it('keeps rows sorted contiguous with positive height for fractional ticks', () => {
+    const tickSize = 0.1
+    const result = compute(
+      [
+        candle({ time: 10, low: 99.2, high: 100.8, volume: 8 }),
+        candle({ time: 11, low: 100.1, high: 102.3, volume: 12 }),
+      ],
+      10,
+      11,
+      { rowCount: 12, tickSize },
+    )
+    assert.ok(result.rows.length >= 1)
+    assertRowsWellFormed(result.rows, tickSize)
+  })
+
+  it('selects lower POC row when volumes differ only by floating point noise', () => {
+    const result = computeFixedRangeVolumeProfile({
+      candles: [
+        candle({ time: 10, low: 100, high: 100, volume: 1 / 3 }),
+        candle({ time: 11, low: 101, high: 101, volume: 1 / 3 }),
+        candle({ time: 12, low: 102, high: 102, volume: 1 / 3 }),
+      ],
+      fromTime: 10,
+      toTime: 12,
+      rowCount: 3,
+      tickSize: 1,
+    })
+    assert.equal(result.pocRowIndex, 0)
+  })
+
+  it('prefers upper neighbor on volume-equal value area expansion with float noise', () => {
+    const result = computeFixedRangeVolumeProfile({
+      candles: [
+        candle({ time: 10, low: 100, high: 100, volume: 10 }),
+        candle({ time: 11, low: 101, high: 101, volume: 30 }),
+        candle({ time: 12, low: 102, high: 102, volume: 10 + 1e-15 }),
+        candle({ time: 13, low: 103, high: 103, volume: 10 }),
+      ],
+      fromTime: 10,
+      toTime: 13,
+      rowCount: 4,
+      valueAreaPercent: 70,
+      tickSize: 1,
+    })
+    const pocIndex = result.pocRowIndex!
+    assert.equal(pocIndex, 1)
+    assert.equal(result.rows[pocIndex + 1].inValueArea, true)
+    assert.equal(result.rows[pocIndex - 1].inValueArea, false)
+  })
+
+  it('returns finite empty result for non-finite time bounds', () => {
+    const result = computeFixedRangeVolumeProfile({
+      candles: [candle({ time: 10 })],
+      fromTime: Number.NaN,
+      toTime: Number.POSITIVE_INFINITY,
+      tickSize: 1,
+    })
+    assert.equal(result.candleCount, 0)
+    assert.equal(Number.isFinite(result.fromTime), true)
+    assert.equal(Number.isFinite(result.toTime), true)
+    assertFiniteResult(result)
+  })
+
+  it('rejects fractional or zero rowCount with safe empty result', () => {
+    const base = [candle({ time: 10, low: 100, high: 101, volume: 1 })]
+    for (const rowCount of [0, -1, 1.5]) {
+      const result = compute(base, 10, 10, { rowCount })
+      assert.equal(result.candleCount, 0)
+      assert.equal(result.rows.length, 0)
+      assertFiniteResult(result)
+    }
+  })
+
+  it('handles valueAreaPercent boundaries 0 and 100 and rejects out of range', () => {
+    const candles = [
+      candle({ time: 10, low: 100, high: 100, volume: 10 }),
+      candle({ time: 11, low: 101, high: 101, volume: 20 }),
+      candle({ time: 12, low: 102, high: 102, volume: 30 }),
+    ]
+    const zero = compute(candles, 10, 12, { rowCount: 3, valueAreaPercent: 0 })
+    assert.equal(zero.rows[zero.pocRowIndex!].inValueArea, true)
+    assert.equal(zero.rows.filter((row) => row.inValueArea).length, 1)
+
+    const full = compute(candles, 10, 12, { rowCount: 3, valueAreaPercent: 100 })
+    assert.equal(full.rows.every((row) => row.inValueArea), true)
+    assert.ok(Math.abs(full.valueAreaPercentAchieved - 1) <= 1e-9)
+
+    for (const valueAreaPercent of [-1, 101]) {
+      const rejected = compute(candles, 10, 12, { rowCount: 3, valueAreaPercent })
+      assert.equal(rejected.candleCount, 0)
+      assertFiniteResult(rejected)
+    }
   })
 })
