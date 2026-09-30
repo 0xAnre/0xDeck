@@ -131,6 +131,8 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             options={settings.marketIndicatorOptions}
             activeIndicators={settings.marketIndicators}
             onActiveIndicatorsChange={settings.onMarketIndicatorsChange}
+            indicatorsWithSettings={settings.marketIndicatorsWithSettings}
+            onIndicatorSettingsClick={settings.onMarketIndicatorSettingsClick}
           />
         )}
     </div>

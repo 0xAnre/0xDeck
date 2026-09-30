@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from 'lucide-react'
+import { ChevronDownIcon, SettingsIcon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -21,6 +21,8 @@ type HeaderIndicatorsMenuProps = {
   options: IndicatorOption[]
   activeIndicators: MarketIndicatorId[]
   onActiveIndicatorsChange?: (indicators: MarketIndicatorId[]) => void
+  indicatorsWithSettings?: readonly MarketIndicatorId[]
+  onIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
 }
 
 export function HeaderIndicatorsMenu({
@@ -29,8 +31,11 @@ export function HeaderIndicatorsMenu({
   options,
   activeIndicators,
   onActiveIndicatorsChange,
+  indicatorsWithSettings = [],
+  onIndicatorSettingsClick,
 }: HeaderIndicatorsMenuProps) {
   const activeSet = new Set(activeIndicators)
+  const settingsSet = new Set(indicatorsWithSettings)
   const isDisabled = disabled || options.length === 0
 
   const toggleIndicator = (
@@ -70,17 +75,34 @@ export function HeaderIndicatorsMenu({
         className="z-[200] max-h-48 min-w-[10rem] overflow-y-auto"
       >
         {options.map((option) => (
-          <DropdownMenuCheckboxItem
-            key={option.value}
-            checked={activeSet.has(option.value)}
-            disabled={option.disabled === true}
-            onCheckedChange={(checked) =>
-              toggleIndicator(option.value, checked === true, option.disabled === true)
-            }
-            onSelect={(event) => event.preventDefault()}
-          >
-            <span className="truncate">{option.label}</span>
-          </DropdownMenuCheckboxItem>
+          <div key={option.value} className="flex items-center gap-0.5 pr-1">
+            <DropdownMenuCheckboxItem
+              className="min-w-0 flex-1"
+              checked={activeSet.has(option.value)}
+              disabled={option.disabled === true}
+              onCheckedChange={(checked) =>
+                toggleIndicator(option.value, checked === true, option.disabled === true)
+              }
+              onSelect={(event) => event.preventDefault()}
+            >
+              <span className="truncate">{option.label}</span>
+            </DropdownMenuCheckboxItem>
+            {settingsSet.has(option.value) && onIndicatorSettingsClick && (
+              <button
+                type="button"
+                aria-label={`${option.label} settings`}
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onIndicatorSettingsClick(option.value)
+                }}
+              >
+                <SettingsIcon className="size-3.5" />
+              </button>
+            )}
+          </div>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

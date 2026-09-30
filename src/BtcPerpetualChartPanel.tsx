@@ -53,11 +53,18 @@ import {
   clearYearlyVwapLineSeriesData,
   createYearlyVwapLineSeries,
 } from '@/market/yearlyVwapChartSeries'
+import { RollingVwapSettingsDialog } from '@/market/RollingVwapSettingsDialog'
 import {
-  clearRollingVwapLineSeriesData,
-  createRollingVwapLineSeries,
-  setRollingVwapLineSeriesVisible,
+  applyRollingVwapChartBandColors,
+  clearRollingVwapChartSeriesData,
+  createRollingVwapChartSeriesBundle,
+  setRollingVwapChartSeriesVisibility,
 } from '@/market/rollingVwapChartSeries'
+import {
+  loadWidgetRollingVwapSettings,
+  saveWidgetRollingVwapSettings,
+} from '@/rollingVwapSettingsStorage'
+import type { RollingVwapSettings } from '@/market/rollingVwapSettings'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   requiredVwapContextLevel,
@@ -148,6 +155,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [dataState, setDataState] = useState<WidgetDataNotReadyState>({ status: 'loading' })
   const [chartReady, setChartReady] = useState(false)
   const [streamState, setStreamState] = useState<WidgetStreamConnectionState>('idle')
+  const [rollingVwapSettings, setRollingVwapSettings] = useState<RollingVwapSettings>(() =>
+    loadWidgetRollingVwapSettings(panelId),
+  )
+  const [rollingVwapSettingsOpen, setRollingVwapSettingsOpen] = useState(false)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -163,6 +174,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const loadedVwapContextRef = useRef<LoadedVwapContext | null>(null)
   const vwapContextAbortRef = useRef<AbortController | null>(null)
   const vwapContextLatestRequestIdRef = useRef(0)
+  const rollingVwapSettingsRef = useRef(rollingVwapSettings)
+
+  useEffect(() => {
+    rollingVwapSettingsRef.current = rollingVwapSettings
+  }, [rollingVwapSettings])
 
   const syncAllVwapVisibility = useCallback((bundle: ChartSeriesBundle) => {
     const loaded = loadedVwapContextRef.current
@@ -171,7 +187,34 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       interval: activeIntervalRef.current,
       loadedLevel: loaded?.interval === activeIntervalRef.current ? loaded.level : null,
       loadedInterval: loaded?.interval ?? null,
+      rollingVwapSettings: rollingVwapSettingsRef.current,
     })
+  }, [])
+
+  const reapplyRollingVwapFromBuffer = useCallback(() => {
+    const bundle = seriesRef.current
+    const candles = candlesRef.current
+    if (!bundle || candles.length === 0) return
+    applyChartHistorySeries(bundle, candles, rollingVwapSettingsRef.current)
+    syncAllVwapVisibility(bundle)
+  }, [syncAllVwapVisibility])
+
+  const handleRollingVwapSettingsSave = useCallback(
+    (next: RollingVwapSettings) => {
+      saveWidgetRollingVwapSettings(panelId, next)
+      setRollingVwapSettings(next)
+      const bundle = seriesRef.current
+      if (bundle) {
+        applyRollingVwapChartBandColors(bundle.rollingVwap, next.bandColors)
+      }
+      reapplyRollingVwapFromBuffer()
+    },
+    [panelId, reapplyRollingVwapFromBuffer],
+  )
+
+  const handleMarketIndicatorSettingsClick = useCallback((indicatorId: MarketIndicatorId) => {
+    if (indicatorId !== 'rolling-vwap') return
+    setRollingVwapSettingsOpen(true)
   }, [])
 
   const liveVwapContext = useCallback(() => {
@@ -211,6 +254,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onMarketIntervalChange: handleIntervalChange,
     marketIndicators: activeIndicators,
     onMarketIndicatorsChange: handleMarketIndicatorsChange,
+    onMarketIndicatorSettingsClick: handleMarketIndicatorSettingsClick,
     disabled: !chartReady && dataState.status === 'loading',
   })
 
@@ -252,6 +296,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         bundle,
         chart: activeChart,
         signal: abortRef.current?.signal,
+        rollingVwapSettings: rollingVwapSettingsRef.current,
       })
     }
 
@@ -327,7 +372,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const monthlyVwapSeries = createMonthlyVwapLineSeries(chart!, false)
       const quarterlyVwapSeries = createQuarterlyVwapLineSeries(chart!, false)
       const yearlyVwapSeries = createYearlyVwapLineSeries(chart!, false)
-      const rollingVwapSeries = createRollingVwapLineSeries(chart!)
+      const rollingVwapSeries = createRollingVwapChartSeriesBundle(
+        chart!,
+        rollingVwapSettingsRef.current.bandColors,
+      )
 
       chartRef.current = chart
       seriesRef.current = {
@@ -397,8 +445,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       clearMonthlyVwapLineSeriesData(bundle.monthlyVwap)
       clearQuarterlyVwapLineSeriesData(bundle.quarterlyVwap)
       clearYearlyVwapLineSeriesData(bundle.yearlyVwap)
-      clearRollingVwapLineSeriesData(bundle.rollingVwap)
-      setRollingVwapLineSeriesVisible(bundle.rollingVwap, false)
+      clearRollingVwapChartSeriesData(bundle.rollingVwap)
+      setRollingVwapChartSeriesVisibility(bundle.rollingVwap, {
+        activeIndicators: [],
+        interval: activeIntervalRef.current,
+        settings: rollingVwapSettingsRef.current,
+      })
       hideAllAnchoredVwapSeries(bundle)
     }
 
@@ -437,7 +489,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
         const bundleLive = seriesRef.current
         if (!bundleLive) return
-        applyChartLiveCandle(candlesRef.current, candle, bundleLive, liveVwapContext())
+        applyChartLiveCandle(
+          candlesRef.current,
+          candle,
+          bundleLive,
+          liveVwapContext(),
+          rollingVwapSettingsRef.current,
+        )
       },
     })
     streamRef.current = client
@@ -448,7 +506,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const chart = chartRef.current
       if (!bundleNow || !chart) return false
 
-      applyChartHistorySeries(bundleNow, candles)
+      applyChartHistorySeries(bundleNow, candles, rollingVwapSettingsRef.current)
       const initialRange = computeInitialVisibleLogicalRange(candles.length)
       if (initialRange) {
         chart.timeScale().setVisibleLogicalRange(initialRange)
@@ -500,7 +558,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           const bundleTail = seriesRef.current
           if (bundleTail) {
             for (const candle of tail) {
-              applyChartLiveCandle(candlesRef.current, candle, bundleTail, liveVwapContext())
+              applyChartLiveCandle(
+                candlesRef.current,
+                candle,
+                bundleTail,
+                liveVwapContext(),
+                rollingVwapSettingsRef.current,
+              )
             }
           }
         }
@@ -601,7 +665,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         const addedCount = countPrependedCandles(beforeCandles, merged)
 
         candlesRef.current = merged
-        applyChartHistorySeries(bundle, merged)
+        applyChartHistorySeries(bundle, merged, rollingVwapSettingsRef.current)
 
         const shifted = shiftVisibleLogicalRange(logicalRange, addedCount)
         if (shifted) {
@@ -646,6 +710,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           !chartReady && 'pointer-events-none opacity-0',
         )}
         aria-hidden={!chartReady}
+      />
+
+      <RollingVwapSettingsDialog
+        open={rollingVwapSettingsOpen}
+        savedSettings={rollingVwapSettings}
+        onOpenChange={setRollingVwapSettingsOpen}
+        onSave={handleRollingVwapSettingsSave}
       />
     </div>
   )

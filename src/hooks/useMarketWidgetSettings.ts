@@ -16,6 +16,7 @@ type UseMarketWidgetSettingsArgs = {
   onMarketIntervalChange: (interval: CandleInterval) => void
   marketIndicators: MarketIndicatorId[]
   onMarketIndicatorsChange: (indicators: MarketIndicatorId[]) => void
+  onMarketIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
   disabled: boolean
 }
 
@@ -28,6 +29,7 @@ export function useMarketWidgetSettings({
   onMarketIntervalChange,
   marketIndicators,
   onMarketIndicatorsChange,
+  onMarketIndicatorSettingsClick,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -47,6 +49,10 @@ export function useMarketWidgetSettings({
         ? buildMarketIndicatorOptions(marketInterval)
         : undefined,
       onMarketIndicatorsChange: headerSettings.indicators ? onMarketIndicatorsChange : undefined,
+      marketIndicatorsWithSettings: headerSettings.indicators ? ['rolling-vwap'] : undefined,
+      onMarketIndicatorSettingsClick: headerSettings.indicators
+        ? onMarketIndicatorSettingsClick
+        : undefined,
     }),
     [
       disabled,
@@ -54,6 +60,7 @@ export function useMarketWidgetSettings({
       marketIndicators,
       marketInterval,
       onMarketIndicatorsChange,
+      onMarketIndicatorSettingsClick,
       onMarketIntervalChange,
       panelId,
     ],

@@ -39,6 +39,8 @@ export type WidgetSettingsRegistration = {
     disabled?: boolean
   }[]
   onMarketIndicatorsChange?: (indicators: MarketIndicatorId[]) => void
+  marketIndicatorsWithSettings?: readonly MarketIndicatorId[]
+  onMarketIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {

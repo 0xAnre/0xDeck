@@ -1,4 +1,5 @@
 import {
+  computeRollingVwapForInterval,
   DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD,
   DEFAULT_ROLLING_VWAP_MIN_BARS,
   DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS,
@@ -6,8 +7,10 @@ import {
   sanitizeRollingVwapFixedTimePeriod,
   sanitizeRollingVwapStdevMultipliers,
   type RollingVwapFixedTimePeriod,
+  type RollingVwapPoint,
   type RollingVwapStdevMultipliers,
 } from './rollingVwap.ts'
+import type { CandleInterval, MarketCandle } from './types.ts'
 
 export const ROLLING_VWAP_INFO_BOX_SIZES = [
   'tiny',
@@ -128,6 +131,17 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
 
 export const DEFAULT_ROLLING_VWAP_BAND_COLORS: RollingVwapBandColors = { ...DEFAULT_BAND_COLORS }
 export const DEFAULT_ROLLING_VWAP_INFO_BOX: RollingVwapInfoBoxSettings = { ...DEFAULT_INFO_BOX }
+
+export function computeRollingVwapPointsForSettings(
+  candles: readonly MarketCandle[],
+  interval: CandleInterval,
+  settings: RollingVwapSettings,
+): RollingVwapPoint[] {
+  return computeRollingVwapForInterval(candles, interval, settings.fixedTimePeriod, {
+    minBars: settings.minBars,
+    multipliers: settings.multipliers,
+  })
+}
 
 export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings {
   const defaults = createDefaultRollingVwapSettings()

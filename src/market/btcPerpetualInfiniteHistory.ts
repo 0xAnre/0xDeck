@@ -9,6 +9,7 @@ import {
   type InfiniteHistoryState,
 } from '@/market/btcPerpetualInfiniteHistoryCore'
 import { mergeOlderMarketCandles } from '@/market/mergeMarketCandles'
+import type { RollingVwapSettings } from '@/market/rollingVwapSettings'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 
 export {
@@ -29,15 +30,16 @@ type LoadOlderHistoryParams = {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
+  rollingVwapSettings?: RollingVwapSettings
 }
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
-  const { fetchHistory = fetchBinanceBtcusdtKlinesHistory, ...rest } = params
+  const { fetchHistory = fetchBinanceBtcusdtKlinesHistory, rollingVwapSettings, ...rest } = params
   return loadOlderBtcPerpHistoryCore({
     ...rest,
     fetchHistory,
     applyMergedHistory: (bundle, candles) =>
-      applyChartHistorySeries(bundle as ChartSeriesBundle, candles),
+      applyChartHistorySeries(bundle as ChartSeriesBundle, candles, rollingVwapSettings),
     mergeOlderCandles: mergeOlderMarketCandles,
   })
 }
@@ -54,6 +56,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
+  rollingVwapSettings?: RollingVwapSettings
 }): void {
   const {
     state,
@@ -67,6 +70,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
+    rollingVwapSettings,
   } = params
 
   if (!historyReady || !range || state.exhausted || state.loading) return
@@ -90,5 +94,6 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
+    rollingVwapSettings,
   })
 }

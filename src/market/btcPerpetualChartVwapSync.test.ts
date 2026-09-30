@@ -4,9 +4,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 import {
-  setRollingVwapLineSeriesVisible,
-  shouldShowRollingVwapLineSeries,
+  ROLLING_VWAP_BAND_SERIES_KEYS,
+  setRollingVwapChartSeriesVisibility,
+  type RollingVwapChartSeriesBundle,
 } from './rollingVwapChartSeries.ts'
+import { createDefaultRollingVwapSettings } from './rollingVwapSettings.ts'
 
 const syncSourcePath = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -30,19 +32,31 @@ describe('hideAllAnchoredVwapSeries', () => {
   })
 })
 
+function miniRollingBundle(): RollingVwapChartSeriesBundle {
+  const makeLine = () => ({ applyOptions: () => {} })
+  const center = makeLine() as RollingVwapChartSeriesBundle['center']
+  const bands = {} as RollingVwapChartSeriesBundle['bands']
+  const ordered = [center]
+  for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+    const series = makeLine() as RollingVwapChartSeriesBundle['bands'][typeof key]
+    bands[key] = series
+    ordered.push(series)
+  }
+  return { center, bands, ordered }
+}
+
 describe('rolling visibility after anchored hide', () => {
   it('remains driven by indicator selection (sync rolling branch contract)', () => {
-    const visible: boolean[] = []
-    const series = {
-      applyOptions: (opts: { visible?: boolean }) => {
-        if (typeof opts.visible === 'boolean') visible.push(opts.visible)
-      },
-    } as Parameters<typeof setRollingVwapLineSeriesVisible>[0]
-
-    setRollingVwapLineSeriesVisible(
-      series,
-      shouldShowRollingVwapLineSeries(['rolling-vwap'], '1m'),
-    )
-    assert.deepEqual(visible, [true])
+    let centerVisible = false
+    const rolling = miniRollingBundle()
+    rolling.center.applyOptions = (opts: { visible?: boolean }) => {
+      if (typeof opts.visible === 'boolean') centerVisible = opts.visible
+    }
+    setRollingVwapChartSeriesVisibility(rolling, {
+      activeIndicators: ['rolling-vwap'],
+      interval: '1m',
+      settings: createDefaultRollingVwapSettings(),
+    })
+    assert.equal(centerVisible, true)
   })
 })
