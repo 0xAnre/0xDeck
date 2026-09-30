@@ -4,6 +4,12 @@ import type { FixedRangeVolumeProfileResult, FixedRangeVolumeProfileRow } from '
 export const FRVP_VALUE_AREA_ROW_OPACITY = 0.55
 export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY = 0.25
 
+/** Max histogram bar width as a fraction of the selected time range width (peak volume row). */
+export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 3
+
+/** POC, VAH, and VAL line thickness in CSS pixels. */
+export const FRVP_LEVEL_LINE_WIDTH_CSS_PX = 2
+
 export type FixedRangeVolumeProfileRowBarGeometry = {
   top: number
   bottom: number
@@ -93,7 +99,8 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   const height = bottom - top
   if (!Number.isFinite(height) || height <= 0) return null
 
-  const totalWidth = (rangeWidth * row.totalVolume) / maxRowVolume
+  const histogramMaxWidth = rangeWidth * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE
+  const totalWidth = (histogramMaxWidth * row.totalVolume) / maxRowVolume
   if (!Number.isFinite(totalWidth) || totalWidth <= 0) return null
 
   const upShare = row.totalVolume > 0 ? row.upVolume / row.totalVolume : 0

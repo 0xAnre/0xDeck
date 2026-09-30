@@ -11,6 +11,7 @@ import type {
 } from 'lightweight-charts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
+  FRVP_LEVEL_LINE_WIDTH_CSS_PX,
   type FixedRangeVolumeProfileInstanceDrawModel,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
@@ -71,7 +72,7 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
           context.beginPath()
           context.setLineDash(line.lineDash.map((value) => value * horizontalPixelRatio))
           context.strokeStyle = line.strokeStyle
-          context.lineWidth = horizontalPixelRatio
+          context.lineWidth = FRVP_LEVEL_LINE_WIDTH_CSS_PX * horizontalPixelRatio
           context.moveTo(x1, y)
           context.lineTo(x2, y)
           context.stroke()

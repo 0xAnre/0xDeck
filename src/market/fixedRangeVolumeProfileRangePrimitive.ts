@@ -11,7 +11,6 @@ import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolume
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import { normalizeFixedRangeVolumeProfileTimes } from './fixedRangeVolumeProfileInstances.ts'
 
-const RANGE_FILL = 'rgba(160, 160, 160, 0.14)'
 const RANGE_BORDER = 'rgba(160, 160, 160, 0.65)'
 
 export type FixedRangeVolumeProfileRangeSegment = {
@@ -67,11 +66,6 @@ class FixedRangeVolumeProfileRangeRenderer implements IPrimitivePaneRenderer {
 
         const left = Math.min(x1, x2)
         const right = Math.max(x1, x2)
-        const width = Math.max(1, right - left)
-
-        context.fillStyle = RANGE_FILL
-        context.fillRect(left, 0, width, mediaSize.height)
-
         context.strokeStyle = RANGE_BORDER
         context.lineWidth = 1
         context.beginPath()

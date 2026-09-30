@@ -6,6 +6,7 @@ import {
   buildFixedRangeVolumeProfileLevelLines,
   buildFixedRangeVolumeProfileRowBarGeometry,
   computeMaxRowVolume,
+  FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
   FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY,
   FRVP_VALUE_AREA_ROW_OPACITY,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
@@ -23,31 +24,39 @@ function row(overrides: Partial<FixedRangeVolumeProfileRow> = {}): FixedRangeVol
 }
 
 describe('fixedRangeVolumeProfileRenderGeometry', () => {
-  it('uses full width for the highest volume row', () => {
+  it('uses one-third of range width for the highest volume row', () => {
+    const rangeWidth = 200
     const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ totalVolume: 100 }),
       rangeRight: 300,
-      rangeWidth: 200,
+      rangeWidth,
       maxRowVolume: 100,
       top: 10,
       bottom: 20,
       inValueArea: true,
     })
-    assert.equal(geometry?.totalWidth, 200)
+    assert.equal(
+      geometry?.totalWidth,
+      rangeWidth * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
+    )
     assert.equal(geometry?.right, 300)
   })
 
-  it('uses half width for half-volume row', () => {
+  it('scales half-volume row to half of the histogram max width', () => {
+    const rangeWidth = 200
     const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ totalVolume: 50 }),
       rangeRight: 300,
-      rangeWidth: 200,
+      rangeWidth,
       maxRowVolume: 100,
       top: 10,
       bottom: 20,
       inValueArea: false,
     })
-    assert.equal(geometry?.totalWidth, 100)
+    assert.equal(
+      geometry?.totalWidth,
+      (rangeWidth * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE) / 2,
+    )
   })
 
   it('splits up and down widths to the total bar width', () => {
