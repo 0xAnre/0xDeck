@@ -1,23 +1,12 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react'
 import type { WidgetSettingsRegistration } from '@/widgetSettings/types'
-
-type WidgetSettingsContextValue = {
-  settingsRevision: number
-  syncRegistration: (registration: WidgetSettingsRegistration) => void
-  bumpSettingsRevision: () => void
-  unregisterSettings: (panelId: string) => void
-  getSettings: (panelId: string) => WidgetSettingsRegistration | null
-}
-
-const WidgetSettingsContext = createContext<WidgetSettingsContextValue | null>(null)
+import { WidgetSettingsContext } from '@/context/widgetSettingsContextValue'
 
 export function WidgetSettingsProvider({ children }: { children: ReactNode }) {
   const registryRef = useRef(new Map<string, WidgetSettingsRegistration>())
@@ -58,12 +47,4 @@ export function WidgetSettingsProvider({ children }: { children: ReactNode }) {
   return (
     <WidgetSettingsContext.Provider value={value}>{children}</WidgetSettingsContext.Provider>
   )
-}
-
-export function useWidgetSettings() {
-  const context = useContext(WidgetSettingsContext)
-  if (!context) {
-    throw new Error('useWidgetSettings must be used within WidgetSettingsProvider')
-  }
-  return context
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   Table,
   TableBody,
@@ -35,26 +35,44 @@ function LoadingTable() {
 export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps) {
   const { state, datasets, selectedName, selectDataset, timeRange, setTimeRange, catalogStatus } =
     useWidgetParquetData(panelId, 'trades')
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(() => loadWorkspaceDataConfig().columns)
-  const [availableColumns, setAvailableColumns] = useState<string[]>(EMPTY_COLUMNS)
+  const readyState = isParquetReady(state) ? state : null
 
-  useEffect(() => {
-    if (!isParquetReady(state)) return
+  const columnSyncKey = readyState
+    ? `${readyState.dataset.name}\0${readyState.preview.columns.join('\0')}`
+    : ''
+
+  const defaultColumns = useMemo(() => {
+    if (!readyState) {
+      return { available: EMPTY_COLUMNS, selected: EMPTY_COLUMNS }
+    }
 
     const saved = loadWorkspaceDataConfig()
     const validSavedColumns =
-      saved.datasetName === state.dataset.name
-        ? saved.columns.filter((column) => state.preview.columns.includes(column))
+      saved.datasetName === readyState.dataset.name
+        ? saved.columns.filter((column) => readyState.preview.columns.includes(column))
         : []
 
-    setAvailableColumns(state.preview.columns)
-    setSelectedColumns(validSavedColumns.length > 0 ? validSavedColumns : state.preview.columns)
-  }, [state])
+    return {
+      available: readyState.preview.columns,
+      selected: validSavedColumns.length > 0 ? validSavedColumns : readyState.preview.columns,
+    }
+  }, [readyState])
+
+  const [columnOverride, setColumnOverride] = useState<{
+    syncKey: string
+    selected: string[]
+  } | null>(null)
+
+  const availableColumns = defaultColumns.available
+  const selectedColumns =
+    columnOverride !== null && columnOverride.syncKey === columnSyncKey
+      ? columnOverride.selected
+      : defaultColumns.selected
 
   const handleSelectDataset = useCallback(
     (name: string) => {
       saveWorkspaceDataConfig({ datasetName: name, columns: [] })
-      setSelectedColumns([])
+      setColumnOverride(null)
       selectDataset(name)
     },
     [selectDataset],
@@ -62,16 +80,18 @@ export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps)
 
   const handleColumnChange = useCallback(
     (columns: string[]) => {
-      setSelectedColumns(columns)
+      setColumnOverride({ syncKey: columnSyncKey, selected: columns })
       saveWorkspaceDataConfig({ datasetName: selectedName, columns })
     },
-    [selectedName],
+    [columnSyncKey, selectedName],
   )
 
-  const ready = isParquetReady(state)
-  const previewColumns = ready ? state.preview.columns : []
+  const previewColumns = useMemo(
+    () => (readyState ? readyState.preview.columns : EMPTY_COLUMNS),
+    [readyState],
+  )
   const visibleColumns =
-    ready && selectedColumns.length > 0 ? selectedColumns : previewColumns
+    readyState && selectedColumns.length > 0 ? selectedColumns : previewColumns
   const visibleIndexes = useMemo(
     () => visibleColumns.map((column) => previewColumns.indexOf(column)).filter((index) => index >= 0),
     [previewColumns, visibleColumns],

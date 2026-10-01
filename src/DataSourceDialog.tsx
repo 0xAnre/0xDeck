@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { DatabaseIcon } from 'lucide-react'
 import { fetchRegistry, fetchSettings, saveSettings } from '@/api/client'
 import type { DatasetRegistryItem } from '@/api/types'
@@ -39,34 +39,33 @@ export function DataSourceDialog() {
   const [registryLoading, setRegistryLoading] = useState(false)
   const [registryError, setRegistryError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) return
-
-    let cancelled = false
+  const loadSettings = useCallback(() => {
     setLoading(true)
     setError(null)
     setSavedMessage(null)
 
     void fetchSettings()
       .then((settings) => {
-        if (!cancelled) {
-          setParquetFolder(settings.parquet_folder)
-          setFolderReady(settings.folder_ready)
-        }
+        setParquetFolder(settings.parquet_folder)
+        setFolderReady(settings.folder_ready)
       })
       .catch((loadError) => {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Backend unavailable')
-        }
+        setError(loadError instanceof Error ? loadError.message : 'Backend unavailable')
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        setLoading(false)
       })
+  }, [])
 
-    return () => {
-      cancelled = true
-    }
-  }, [open])
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen)
+      if (nextOpen) {
+        loadSettings()
+      }
+    },
+    [loadSettings],
+  )
 
   const loadRegistry = async () => {
     setRegistryLoading(true)
@@ -117,7 +116,7 @@ export function DataSourceDialog() {
     registry.find((item) => item.name === selectedRegistryName) ?? registry[0] ?? null
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" aria-label="Data source">
           <DatabaseIcon data-icon="inline-start" />

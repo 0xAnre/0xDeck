@@ -1,4 +1,4 @@
-import { useWidgetSettings } from '@/context/WidgetSettingsContext'
+import { useWidgetSettings } from '@/hooks/useWidgetSettings'
 import { KPI_AGG_OPTIONS, type KpiAggregation } from '@/kpiStorage'
 import { MARKET_INTERVAL_OPTIONS } from '@/marketIntervalStorage'
 import type { CandleInterval } from '@/market/types'

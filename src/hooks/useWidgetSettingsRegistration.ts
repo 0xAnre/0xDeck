@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react'
-import { useWidgetSettings } from '@/context/WidgetSettingsContext'
+import { useWidgetSettings } from '@/hooks/useWidgetSettings'
 import type { WidgetSettingsRegistration } from '@/widgetSettings/types'
 
 export function useWidgetSettingsRegistration(

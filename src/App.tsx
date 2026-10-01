@@ -44,21 +44,24 @@ import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
 const OVERLAP_COMPACTOR = getCompactor(null, true)
 
+function reconcileStackOrder(previous: string[], activePanels: string[]): string[] {
+  const kept = previous.filter((id) => activePanels.includes(id))
+  const added = activePanels.filter((id) => !kept.includes(id))
+  return [...kept, ...added]
+}
+
 function App() {
   const { width, containerRef, mounted } = useContainerWidth()
   const [workspace, setWorkspace] = useState<WorkspaceState>(loadWorkspace)
   const [theme, setTheme] = useState<Theme>(loadTheme)
-  const [stackOrder, setStackOrder] = useState<string[]>(
+  const [focusOrder, setFocusOrder] = useState<string[]>(
     () => loadWorkspace().activePanels,
   )
 
-  useEffect(() => {
-    setStackOrder((prev) => {
-      const kept = prev.filter((id) => workspace.activePanels.includes(id))
-      const added = workspace.activePanels.filter((id) => !kept.includes(id))
-      return [...kept, ...added]
-    })
-  }, [workspace.activePanels])
+  const stackOrder = useMemo(
+    () => reconcileStackOrder(focusOrder, workspace.activePanels),
+    [focusOrder, workspace.activePanels],
+  )
 
   useEffect(() => {
     applyTheme(theme)
@@ -99,9 +102,15 @@ function App() {
     [width],
   )
 
-  const bringToFront = useCallback((panelId: string) => {
-    setStackOrder((prev) => [...prev.filter((id) => id !== panelId), panelId])
-  }, [])
+  const bringToFront = useCallback(
+    (panelId: string) => {
+      setFocusOrder((prev) => {
+        const synced = reconcileStackOrder(prev, workspace.activePanels)
+        return [...synced.filter((id) => id !== panelId), panelId]
+      })
+    },
+    [workspace.activePanels],
+  )
 
   const handleDragStart = useCallback(
     (_layout: Layout, _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {

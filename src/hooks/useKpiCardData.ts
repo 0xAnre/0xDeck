@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchDatasetKpi, fetchDatasetSchema, pickDataset } from '@/api/client'
 import type { DatasetSummary } from '@/api/types'
 import { EMPTY_COLUMNS, EMPTY_DATASETS } from '@/api/types'
@@ -75,7 +75,28 @@ export function useKpiCardData(widgetId: string, preferredName = 'trades') {
     () => loadWidgetTimeRange(widgetId),
   )
   const [availableColumns, setAvailableColumns] = useState<string[]>(EMPTY_COLUMNS)
-  const [state, setState] = useState<KpiCardState>({ status: 'loading' })
+  const [fetchedSnapshot, setFetchedSnapshot] = useState<{
+    loadKey: string
+    state: KpiCardState
+  }>({ loadKey: '', state: { status: 'loading' } })
+
+  const datasetToLoad = useMemo(() => {
+    if (catalog.status !== 'ready') {
+      return undefined
+    }
+
+    return (
+      catalog.datasets.find((item) => item.name === selectedName) ??
+      pickWidgetDataset(catalog.datasets, widgetId, preferredName)
+    )
+  }, [catalog, preferredName, selectedName, widgetId])
+
+  const loadKey =
+    datasetToLoad === undefined
+      ? ''
+      : datasetToLoad
+        ? `${datasetToLoad.name}\0${aggregation}\0${timeRange}\0${metricColumn ?? ''}`
+        : 'empty'
 
   const selectDataset = useCallback(
     (name: string) => {
@@ -111,30 +132,19 @@ export function useKpiCardData(widgetId: string, preferredName = 'trades') {
   )
 
   useEffect(() => {
-    if (catalog.status !== 'ready') {
-      setState(catalog)
+    if (catalog.status !== 'ready' || !datasetToLoad) {
       return
     }
 
-    const dataset =
-      catalog.datasets.find((item) => item.name === selectedName) ??
-      pickWidgetDataset(catalog.datasets, widgetId, preferredName)
-
-    if (!dataset) {
-      setState({ status: 'empty' })
-      return
-    }
-
-    const selectedDataset = dataset
+    const selectedDataset = datasetToLoad
     const readyDatasets = catalog.datasets
+    const activeLoadKey = `${selectedDataset.name}\0${aggregation}\0${timeRange}\0${metricColumn ?? ''}`
 
     if (selectedDataset.name !== selectedName) {
-      setSelectedName(selectedDataset.name)
       saveWidgetDataset(widgetId, selectedDataset.name)
     }
 
     let cancelled = false
-    setState({ status: 'loading' })
 
     async function loadKpi() {
       try {
@@ -151,9 +161,12 @@ export function useKpiCardData(widgetId: string, preferredName = 'trades') {
 
         if (!metric) {
           if (!cancelled) {
-            setState({
-              status: 'error',
-              message: 'No metric column available for this dataset',
+            setFetchedSnapshot({
+              loadKey: activeLoadKey,
+              state: {
+                status: 'error',
+                message: 'No metric column available for this dataset',
+              },
             })
           }
           return
@@ -169,19 +182,25 @@ export function useKpiCardData(widgetId: string, preferredName = 'trades') {
         const kpi = await fetchDatasetKpi(selectedDataset.name, metric, aggregation, timeRange)
 
         if (!cancelled) {
-          setState({
-            status: 'ready',
-            dataset: selectedDataset,
-            datasets: readyDatasets,
-            columns,
-            kpi,
+          setFetchedSnapshot({
+            loadKey: activeLoadKey,
+            state: {
+              status: 'ready',
+              dataset: selectedDataset,
+              datasets: readyDatasets,
+              columns,
+              kpi,
+            },
           })
         }
       } catch (error) {
         if (!cancelled) {
-          setState({
-            status: 'error',
-            message: error instanceof Error ? error.message : 'Failed to load KPI',
+          setFetchedSnapshot({
+            loadKey: activeLoadKey,
+            state: {
+              status: 'error',
+              message: error instanceof Error ? error.message : 'Failed to load KPI',
+            },
           })
         }
       }
@@ -192,14 +211,30 @@ export function useKpiCardData(widgetId: string, preferredName = 'trades') {
     return () => {
       cancelled = true
     }
-  }, [aggregation, catalog, metricColumn, preferredName, selectedName, timeRange, widgetId])
+  }, [aggregation, catalog, datasetToLoad, metricColumn, preferredName, selectedName, timeRange, widgetId])
+
+  const state = useMemo((): KpiCardState => {
+    if (catalog.status !== 'ready') {
+      return catalog
+    }
+    if (!datasetToLoad) {
+      return { status: 'empty' }
+    }
+    if (fetchedSnapshot.loadKey === loadKey) {
+      return fetchedSnapshot.state
+    }
+    return { status: 'loading' }
+  }, [catalog, datasetToLoad, fetchedSnapshot, loadKey])
 
   const datasets = catalog.status === 'ready' ? catalog.datasets : EMPTY_DATASETS
+
+  const resolvedSelectedName =
+    catalog.status === 'ready' && datasetToLoad ? datasetToLoad.name : selectedName
 
   return {
     state,
     datasets,
-    selectedName,
+    selectedName: resolvedSelectedName,
     selectDataset,
     metricColumn,
     setMetric,
