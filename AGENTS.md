@@ -187,6 +187,14 @@ npm run test:market
 python -m unittest discover -s tests
 ```
 
+## Cursor Cloud specific instructions
+
+- Node.js 22 and Python 3.12 are on the image. `python3 -m venv` needs the `python3.12-venv` package, which the saved environment image includes. Without it, venv creation fails with `ensurepip is not available`.
+- Dependency setup from the repo root: `npm ci`, then `python3 -m venv backend/.venv`, `backend/.venv/bin/pip install -r backend/requirements.txt`, and `backend/.venv/bin/python backend/scripts/generate_sample.py`. The sample file is `data/sample/market_ticks.parquet`. In the UI, set Data source to the absolute path of `data/sample`. The dataset id is `market_ticks.parquet`.
+- Dev servers: Vite on `127.0.0.1:57341` (`npm run dev -- --host 127.0.0.1 --port 57341`) and uvicorn on `127.0.0.1:57342` (`backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 57342`, working directory `backend/`). The environment start script launches each one only when its port is down. Check `http://127.0.0.1:57342/api/health` before starting another backend.
+- Parquet widgets are the offline end-to-end path. Binance USD-M (`https://fapi.binance.com`) returns HTTP 451 from this cloud region, so BTC Perp live candles fail with `Binance market data request failed`. That is a venue geo block, not a missing dependency.
+- The default layout draws Chart underneath Data table (overlap is allowed). The panel close control stays hidden until the card is hovered.
+
 ## Extended docs
 
 - [README.md](README.md) — project overview, quick start
