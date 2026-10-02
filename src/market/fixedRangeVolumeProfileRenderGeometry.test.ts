@@ -8,9 +8,11 @@ import {
   computeMaxRowVolume,
   FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
   FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY,
-  FRVP_POC_LINE_STROKE_STYLE,
   FRVP_VALUE_AREA_ROW_OPACITY,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
+
+const TEST_POC_STROKE_STYLE = 'rgba(220, 38, 38, 0.85)'
 
 function row(overrides: Partial<FixedRangeVolumeProfileRow> = {}): FixedRangeVolumeProfileRow {
   return {
@@ -100,6 +102,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const lines = buildFixedRangeVolumeProfileLevelLines({
       rangeLeft: 10,
       rangeRight: 200,
+      pocStrokeStyle: TEST_POC_STROKE_STYLE,
       pocPrice: null,
       vah: null,
       val: null,
@@ -112,6 +115,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const lines = buildFixedRangeVolumeProfileLevelLines({
       rangeLeft: 10,
       rangeRight: 200,
+      pocStrokeStyle: readFrvpPocLineStrokeStyle(),
       pocPrice: 105,
       vah: 110,
       val: 100,
@@ -123,7 +127,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const vah = lines.find((line) => line.kind === 'vah')
     const val = lines.find((line) => line.kind === 'val')
 
-    assert.equal(poc?.strokeStyle, FRVP_POC_LINE_STROKE_STYLE)
+    assert.equal(poc?.strokeStyle, readFrvpPocLineStrokeStyle())
     assert.equal(poc?.lineDash.length, 0)
     assert.equal(poc?.x1, 10)
     assert.equal(poc?.x2, 200)
@@ -189,6 +193,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       barSpacing: 6,
       timeToCoordinate: (time) => time / 10,
       priceToY: (price) => 500 - price,
+      pocStrokeStyle: TEST_POC_STROKE_STYLE,
     })
     assert.equal(models.length, 2)
     assert.notEqual(models[0].instanceId, models[1].instanceId)

@@ -10,9 +10,6 @@ export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
 /** POC, VAH, and VAL line thickness in CSS pixels. */
 export const FRVP_LEVEL_LINE_WIDTH_CSS_PX = 3
 
-/** POC level line stroke (solid red at 0.85 opacity). */
-export const FRVP_POC_LINE_STROKE_STYLE = 'rgba(220, 38, 38, 0.85)'
-
 const FRVP_VAH_VAL_LINE_STROKE_STYLE = 'rgba(160, 160, 160, 0.55)'
 const FRVP_VAH_VAL_LINE_DASH: readonly number[] = [4, 4]
 
@@ -132,6 +129,7 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
 export function buildFixedRangeVolumeProfileLevelLines(params: {
   rangeLeft: number
   rangeRight: number
+  pocStrokeStyle: string
   pocPrice: number | null
   vah: number | null
   val: number | null
@@ -157,7 +155,7 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
     })
   }
 
-  add('poc', params.pocPrice, FRVP_POC_LINE_STROKE_STYLE, [])
+  add('poc', params.pocPrice, params.pocStrokeStyle, [])
   add('vah', params.vah, FRVP_VAH_VAL_LINE_STROKE_STYLE, FRVP_VAH_VAL_LINE_DASH)
   add('val', params.val, FRVP_VAH_VAL_LINE_STROKE_STYLE, FRVP_VAH_VAL_LINE_DASH)
   return lines
@@ -171,6 +169,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   timeToCoordinate: (time: number) => number | null
   barSpacing: number
   priceToY: (price: number) => number | null
+  pocStrokeStyle: string
 }): FixedRangeVolumeProfileInstanceDrawModel | null {
   const range = computeSelectionRangeHorizontalBounds({
     fromTime: params.fromTime,
@@ -209,6 +208,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   const lines = buildFixedRangeVolumeProfileLevelLines({
     rangeLeft: range.left,
     rangeRight: range.right,
+    pocStrokeStyle: params.pocStrokeStyle,
     pocPrice: params.profile.pocPrice,
     vah: params.profile.vah,
     val: params.profile.val,
@@ -241,6 +241,7 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
   timeToCoordinate: (time: number) => number | null
   barSpacing: number
   priceToY: (price: number) => number | null
+  pocStrokeStyle: string
 }): FixedRangeVolumeProfileInstanceDrawModel[] {
   const models: FixedRangeVolumeProfileInstanceDrawModel[] = []
   for (const instance of params.instances) {
@@ -255,6 +256,7 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
       timeToCoordinate: params.timeToCoordinate,
       barSpacing: params.barSpacing,
       priceToY: params.priceToY,
+      pocStrokeStyle: params.pocStrokeStyle,
     })
     if (model) models.push(model)
   }
