@@ -123,26 +123,9 @@ import {
   type WidgetStreamConnectionState,
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
+import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
-
-function resolveCssColor(value: string, fallback: string): string {
-  const input = value.trim() || fallback
-  if (input.includes('oklch(') || input.includes('oklab(')) {
-    return fallback
-  }
-
-  const probe = document.createElement('span')
-  probe.style.color = input
-  document.body.appendChild(probe)
-  const resolved = getComputedStyle(probe).color
-  probe.remove()
-
-  if (!resolved || resolved.includes('oklch(') || resolved.includes('oklab(')) {
-    return fallback
-  }
-  return resolved
-}
 
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)

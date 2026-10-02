@@ -9,6 +9,7 @@ import type {
   Time,
   UTCTimestamp,
 } from 'lightweight-charts'
+import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
   FRVP_LEVEL_LINE_WIDTH_CSS_PX,
@@ -130,6 +131,7 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
       barSpacing,
       timeToCoordinate: (time) => timeScale.timeToCoordinate(time as UTCTimestamp),
       priceToY: (price) => series.priceToCoordinate(price),
+      pocStrokeStyle: readFrvpPocLineStrokeStyle(),
     })
   }
 
