@@ -45,6 +45,30 @@ function parseOklchChroma(value: string): number | null {
   return Number.isFinite(number) ? number : null
 }
 
+function parseOklchHueToDegrees(value: string): number | null {
+  const trimmed = value.trim()
+  const match = /^([+-]?\d*\.?\d+)(deg|rad|grad|turn)?$/i.exec(trimmed)
+  if (!match) return null
+
+  const magnitude = Number.parseFloat(match[1])
+  if (!Number.isFinite(magnitude)) return null
+
+  const unit = (match[2] ?? '').toLowerCase()
+  switch (unit) {
+    case '':
+    case 'deg':
+      return magnitude
+    case 'rad':
+      return magnitude * (180 / Math.PI)
+    case 'grad':
+      return magnitude * (360 / 400)
+    case 'turn':
+      return magnitude * 360
+    default:
+      return null
+  }
+}
+
 function linearSrgbChannelToByte(channel: number): number {
   const abs = Math.abs(channel)
   const srgb =
@@ -81,9 +105,8 @@ export function oklchCssColorToRgbString(value: string): string | null {
 
   const l = parseOklchLightness(match[1])
   const c = parseOklchChroma(match[2])
-  const hRaw = match[3].trim()
-  const hDegrees = Number.parseFloat(hRaw.replace(/deg$/i, ''))
-  if (l === null || c === null || !Number.isFinite(hDegrees)) return null
+  const hDegrees = parseOklchHueToDegrees(match[3])
+  if (l === null || c === null || hDegrees === null) return null
 
   const [r, g, b] = oklchTripletToRgb(l, c, hDegrees)
   return `rgb(${r}, ${g}, ${b})`

@@ -16,6 +16,23 @@ describe('resolveCssColor theme tokens', () => {
     assert.equal(oklchCssColorToRgbString('oklch(0.704 0.191 22.216)'), 'rgb(255, 100, 103)')
   })
 
+  it('converts css hue units to degrees before rgb conversion', () => {
+    const base = 'oklch(0.7 0.15 180)'
+    assert.equal(oklchCssColorToRgbString('oklch(0.7 0.15 0.5turn)'), oklchCssColorToRgbString(base))
+    assert.equal(
+      oklchCssColorToRgbString('oklch(0.7 0.15 1.5707963267948966rad)'),
+      oklchCssColorToRgbString('oklch(0.7 0.15 90deg)'),
+    )
+    assert.equal(
+      oklchCssColorToRgbString('oklch(0.7 0.15 100grad)'),
+      oklchCssColorToRgbString('oklch(0.7 0.15 90)'),
+    )
+    assert.notEqual(
+      oklchCssColorToRgbString('oklch(0.7 0.15 0.5turn)'),
+      oklchCssColorToRgbString('oklch(0.7 0.15 0.5)'),
+    )
+  })
+
   it('scales percentage chroma using the css 0.4 reference', () => {
     const percentChroma = 'oklch(70% 20% 20)'
     const absoluteChroma = 'oklch(0.7 0.08 20)'
