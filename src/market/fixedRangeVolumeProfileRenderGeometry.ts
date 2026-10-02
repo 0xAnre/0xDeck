@@ -10,6 +10,12 @@ export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
 /** POC, VAH, and VAL line thickness in CSS pixels. */
 export const FRVP_LEVEL_LINE_WIDTH_CSS_PX = 3
 
+/** POC level line stroke (solid red at 0.85 opacity). */
+export const FRVP_POC_LINE_STROKE_STYLE = 'rgba(220, 38, 38, 0.85)'
+
+const FRVP_VAH_VAL_LINE_STROKE_STYLE = 'rgba(160, 160, 160, 0.55)'
+const FRVP_VAH_VAL_LINE_DASH: readonly number[] = [4, 4]
+
 export type FixedRangeVolumeProfileRowBarGeometry = {
   top: number
   bottom: number
@@ -151,9 +157,9 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
     })
   }
 
-  add('poc', params.pocPrice, 'rgba(180, 180, 180, 0.85)', [])
-  add('vah', params.vah, 'rgba(160, 160, 160, 0.55)', [4, 4])
-  add('val', params.val, 'rgba(160, 160, 160, 0.55)', [4, 4])
+  add('poc', params.pocPrice, FRVP_POC_LINE_STROKE_STYLE, [])
+  add('vah', params.vah, FRVP_VAH_VAL_LINE_STROKE_STYLE, FRVP_VAH_VAL_LINE_DASH)
+  add('val', params.val, FRVP_VAH_VAL_LINE_STROKE_STYLE, FRVP_VAH_VAL_LINE_DASH)
   return lines
 }
 
