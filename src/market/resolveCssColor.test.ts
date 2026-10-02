@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { oklchCssColorToRgbString, resolveThemeCssColor } from '../lib/resolveCssColor.ts'
+import {
+  canvasAcceptsFillStyleAssignment,
+  oklchCssColorToRgbString,
+  resolveThemeCssColor,
+} from '../lib/resolveCssColor.ts'
 
 describe('resolveCssColor theme tokens', () => {
   it('converts neutral theme --down oklch syntax to rgb without using fallback', () => {
@@ -14,6 +18,17 @@ describe('resolveCssColor theme tokens', () => {
 
   it('converts repository oklch down token to the expected srgb value', () => {
     assert.equal(oklchCssColorToRgbString('oklch(0.704 0.191 22.216)'), 'rgb(255, 100, 103)')
+  })
+
+  it('rejects canvas fillStyle results that still match the sentinel', () => {
+    assert.equal(canvasAcceptsFillStyleAssignment('#010203', '#010203'), false)
+    assert.equal(canvasAcceptsFillStyleAssignment('rgb(1, 2, 3)', 'rgb(1, 2, 3)'), false)
+    assert.equal(canvasAcceptsFillStyleAssignment('#010203', 'rgb(255, 0, 0)'), true)
+  })
+
+  it('uses fallback when malformed oklch cannot be parsed or resolved', () => {
+    const fallback = 'rgb(220, 38, 38)'
+    assert.equal(resolveThemeCssColor('oklch(1 2)', fallback), fallback)
   })
 
   it('converts css hue units to degrees before rgb conversion', () => {

@@ -96,6 +96,15 @@ function oklchTripletToRgb(l: number, c: number, hDegrees: number): [number, num
   return [linearSrgbChannelToByte(r), linearSrgbChannelToByte(g), linearSrgbChannelToByte(bl)]
 }
 
+const CANVAS_FILL_STYLE_SENTINEL = '#010203'
+
+export function canvasAcceptsFillStyleAssignment(
+  sentinelResolved: string,
+  assignedResolved: string,
+): boolean {
+  return Boolean(assignedResolved) && assignedResolved !== sentinelResolved
+}
+
 /** Convert `oklch(...)` CSS syntax to `rgb(r, g, b)` for canvas use. */
 export function oklchCssColorToRgbString(value: string): string | null {
   const trimmed = value.trim()
@@ -119,15 +128,18 @@ function resolveCssColorWithCanvas(color: string): string | null {
   const context = canvas.getContext('2d')
   if (!context) return null
 
+  let resolved: string
   try {
-    context.fillStyle = '#000000'
+    context.fillStyle = CANVAS_FILL_STYLE_SENTINEL
+    const sentinelResolved = context.fillStyle
     context.fillStyle = color
+    resolved = context.fillStyle
+    if (typeof resolved !== 'string' || !canvasAcceptsFillStyleAssignment(sentinelResolved, resolved)) {
+      return null
+    }
   } catch {
     return null
   }
-
-  const resolved = context.fillStyle
-  if (typeof resolved !== 'string' || !resolved) return null
   if (resolved.startsWith('#')) {
     return hexColorToRgbString(resolved)
   }
