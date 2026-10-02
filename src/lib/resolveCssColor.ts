@@ -20,11 +20,26 @@ function hexColorToRgbString(hex: string): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-function parseOklchComponent(value: string): number | null {
+/** CSS Color 4: `100%` chroma in OKLCH equals absolute chroma `0.4`. */
+const OKLCH_CHROMA_PERCENT_REFERENCE = 0.4
+
+function parseOklchLightness(value: string): number | null {
   const trimmed = value.trim()
   if (trimmed.endsWith('%')) {
     const percent = Number.parseFloat(trimmed)
     return Number.isFinite(percent) ? percent / 100 : null
+  }
+  const number = Number.parseFloat(trimmed)
+  return Number.isFinite(number) ? number : null
+}
+
+function parseOklchChroma(value: string): number | null {
+  const trimmed = value.trim()
+  if (trimmed.endsWith('%')) {
+    const percent = Number.parseFloat(trimmed)
+    return Number.isFinite(percent)
+      ? (percent / 100) * OKLCH_CHROMA_PERCENT_REFERENCE
+      : null
   }
   const number = Number.parseFloat(trimmed)
   return Number.isFinite(number) ? number : null
@@ -64,8 +79,8 @@ export function oklchCssColorToRgbString(value: string): string | null {
     /^oklch\(\s*([^/\s)]+)\s+([^/\s)]+)\s+([^/\s)]+)(?:\s*\/\s*[^)]+)?\s*\)$/i.exec(trimmed)
   if (!match) return null
 
-  const l = parseOklchComponent(match[1])
-  const c = parseOklchComponent(match[2])
+  const l = parseOklchLightness(match[1])
+  const c = parseOklchChroma(match[2])
   const hRaw = match[3].trim()
   const hDegrees = Number.parseFloat(hRaw.replace(/deg$/i, ''))
   if (l === null || c === null || !Number.isFinite(hDegrees)) return null

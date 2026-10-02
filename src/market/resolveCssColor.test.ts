@@ -15,4 +15,16 @@ describe('resolveCssColor theme tokens', () => {
   it('converts repository oklch down token to the expected srgb value', () => {
     assert.equal(oklchCssColorToRgbString('oklch(0.704 0.191 22.216)'), 'rgb(255, 100, 103)')
   })
+
+  it('scales percentage chroma using the css 0.4 reference', () => {
+    const percentChroma = 'oklch(70% 20% 20)'
+    const absoluteChroma = 'oklch(0.7 0.08 20)'
+    const overScaledChroma = 'oklch(0.7 0.2 20)'
+
+    assert.equal(oklchCssColorToRgbString(percentChroma), oklchCssColorToRgbString(absoluteChroma))
+    assert.notEqual(
+      oklchCssColorToRgbString(percentChroma),
+      oklchCssColorToRgbString(overScaledChroma),
+    )
+  })
 })
