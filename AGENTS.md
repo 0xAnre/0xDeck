@@ -76,6 +76,49 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
 
+## Agent Handoff Protocol
+
+This is the standard GitHub workflow for agent-assisted changes:
+
+- **Codex** is the Lead Developer and Reviewer. Codex turns approved work into implementation-ready GitHub Issues, reviews the resulting pull requests, and decides whether feedback is actionable.
+- **Cursor Cloud** is the implementation/coding agent. Cursor implements the Issue and addresses actionable review feedback on the same pull request.
+- **The user** is the final merge authority. Agents must never merge automatically.
+
+### Start implementation: Codex to Cursor
+
+After Codex creates an implementation-ready GitHub Issue, Codex must add a **separate top-level Issue comment** that mentions `@cursor`. A mention only inside the Issue body is not a valid handoff.
+
+Use an instruction equivalent to:
+
+```text
+@cursor Read AGENTS.md, implement this issue on a dedicated branch, run all required tests, and open a pull request. Never merge the pull request.
+```
+
+The Issue must contain enough acceptance criteria and verification guidance for Cursor to implement without guessing. The handoff comment must instruct Cursor to:
+
+1. Read `AGENTS.md` before making changes.
+2. Implement the Issue without expanding its scope.
+3. Create or use a dedicated branch for the work.
+4. Run the required tests documented in the Issue and this repository.
+5. Open a pull request linked to the Issue.
+6. Never merge the pull request.
+
+When Cursor completes the implementation, its GitHub-visible response must end with this exact line:
+
+```text
+@codex review
+```
+
+### Review loop: Codex and Cursor
+
+Codex reviews the existing pull request as Lead Developer and Reviewer.
+
+- If Codex finds actionable problems, Codex must leave a GitHub-visible instruction mentioning `@cursor` and describing the required fixes. Cursor must update the **existing branch and pull request**, run the required tests, push the changes, and post a GitHub-visible response ending with `@codex review`.
+- Review fixes must not create a new Issue or pull request.
+- If Codex finds no actionable problems, Codex must not mention Cursor again. Leave the pull request ready for the user to evaluate and merge.
+- Keep the loop proportional to risk. Do not create repeated review cycles for cosmetic preferences or other low-risk, non-actionable observations.
+- Neither Codex nor Cursor may merge. The user remains responsible for the final merge.
+
 ## shadcn-first workflow
 
 Before any new UI work:
