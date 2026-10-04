@@ -86,6 +86,20 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
   cursor-ready
   ```
 
+### Lead task routing
+
+When a user prompt begins with `Lead task:`, Codex must treat it exclusively as a Lead Developer request:
+
+1. Analyze the request without implementing the feature or modifying application code.
+2. Create exactly one implementation-ready GitHub Issue with clear scope, acceptance criteria, and verification requirements.
+3. Post exactly one top-level Issue comment whose entire contents are:
+
+   ```text
+   cursor-ready
+   ```
+
+Cursor is responsible for implementation. The existing pull request review/fix automation and user-only final merge rules below remain unchanged.
+
 - Codex reviews Cursor's pull request but does not implement the feature itself.
 - Neither Codex nor Cursor merges. The final merge belongs to the user.
 
