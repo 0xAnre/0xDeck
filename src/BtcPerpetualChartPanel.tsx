@@ -81,9 +81,25 @@ import {
   saveWidgetFixedRangeVolumeProfileInstances,
 } from '@/fixedRangeVolumeProfileInstancesStorage'
 import {
+  loadWidgetDottedLineInstances,
+  saveWidgetDottedLineInstances,
+} from '@/dottedLineInstancesStorage'
+import {
+  attachDottedLineChartTool,
+  isDottedLineChartInteractionLocked,
+  type DottedLineChartToolController,
+} from '@/market/dottedLineChartTool'
+import {
   attachFixedRangeVolumeProfileChartTool,
+  isFixedRangeVolumeProfileChartInteractionLocked,
   type FixedRangeVolumeProfileChartToolController,
 } from '@/market/fixedRangeVolumeProfileChartTool'
+import {
+  armDottedLineTool,
+  cancelDottedLineInteraction,
+  INITIAL_DOTTED_LINE_INTERACTION_STATE,
+  type DottedLineInteractionState,
+} from '@/market/dottedLineInteraction'
 import {
   armFixedRangeVolumeProfileTool,
   cancelFixedRangeVolumeProfileInteraction,
@@ -95,7 +111,12 @@ import {
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import { useFixedRangeVolumeProfileRuntime } from '@/hooks/useFixedRangeVolumeProfileRuntime'
+import { attachDottedLineSeriesPrimitive } from '@/market/dottedLineSeriesPrimitive'
 import { attachFixedRangeVolumeProfileSeriesPrimitive } from '@/market/fixedRangeVolumeProfileSeriesPrimitive'
+import {
+  sanitizeDottedLineInstances,
+  type DottedLineInstance,
+} from '@/market/dottedLineInstances'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from '@/market/fixedRangeVolumeProfileRuntimeTypes'
 import { EMA_PERIODS } from '@/market/ema'
 import {
@@ -184,6 +205,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [fixedRangeVolumeProfileInteraction, setFixedRangeVolumeProfileInteraction] =
     useState<FixedRangeVolumeProfileInteractionState>(INITIAL_FIXED_RANGE_VP_INTERACTION_STATE)
+  const [dottedLineInstances, setDottedLineInstances] = useState<DottedLineInstance[]>(() =>
+    loadWidgetDottedLineInstances(panelId),
+  )
+  const [dottedLineInteraction, setDottedLineInteraction] =
+    useState<DottedLineInteractionState>(INITIAL_DOTTED_LINE_INTERACTION_STATE)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -204,6 +230,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
   const fixedRangeVolumeProfileToolControllerRef =
     useRef<FixedRangeVolumeProfileChartToolController | null>(null)
+  const dottedLineInstancesRef = useRef(dottedLineInstances)
+  const dottedLineInteractionRef = useRef(dottedLineInteraction)
+  const dottedLineToolControllerRef = useRef<DottedLineChartToolController | null>(null)
   const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
     fixedRangeVolumeProfileInstances,
   )
@@ -214,6 +243,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     update: () => void
     dispose: () => void
   } | null>(null)
+  const dottedLineSeriesAttachmentRef = useRef<{
+    update: () => void
+    dispose: () => void
+  } | null>(null)
+
+  const isChartDrawingInteractionLocked = useCallback(() => {
+    return (
+      isFixedRangeVolumeProfileChartInteractionLocked(
+        fixedRangeVolumeProfileInteractionRef.current,
+      ) || isDottedLineChartInteractionLocked(dottedLineInteractionRef.current)
+    )
+  }, [])
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -226,6 +267,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileInteractionRef.current = fixedRangeVolumeProfileInteraction
   }, [fixedRangeVolumeProfileInteraction])
+
+  useEffect(() => {
+    dottedLineInstancesRef.current = dottedLineInstances
+  }, [dottedLineInstances])
+
+  useEffect(() => {
+    dottedLineInteractionRef.current = dottedLineInteraction
+    dottedLineSeriesAttachmentRef.current?.update()
+  }, [dottedLineInteraction])
 
   useEffect(() => {
     fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
@@ -244,12 +294,57 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  const persistDottedLineInstances = useCallback(
+    (next: DottedLineInstance[]) => {
+      const sanitized = sanitizeDottedLineInstances(next)
+      dottedLineInstancesRef.current = sanitized
+      setDottedLineInstances(sanitized)
+      saveWidgetDottedLineInstances(panelId, sanitized)
+      dottedLineToolControllerRef.current?.sync()
+      dottedLineSeriesAttachmentRef.current?.update()
+      return sanitized
+    },
+    [panelId],
+  )
+
   const handleFixedRangeVolumeProfileArm = useCallback(() => {
+    const cancelledDotted = cancelDottedLineInteraction(dottedLineInteractionRef.current)
+    if (cancelledDotted !== dottedLineInteractionRef.current) {
+      dottedLineInteractionRef.current = cancelledDotted
+      setDottedLineInteraction(cancelledDotted)
+      dottedLineToolControllerRef.current?.sync()
+      dottedLineSeriesAttachmentRef.current?.update()
+    }
     const armed = armFixedRangeVolumeProfileTool()
     fixedRangeVolumeProfileInteractionRef.current = armed
     setFixedRangeVolumeProfileInteraction(armed)
     fixedRangeVolumeProfileToolControllerRef.current?.sync()
   }, [])
+
+  const handleDottedLineArm = useCallback(() => {
+    const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
+      fixedRangeVolumeProfileInteractionRef.current,
+    )
+    if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+      fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
+      setFixedRangeVolumeProfileInteraction(cancelledFrvp)
+      fixedRangeVolumeProfileToolControllerRef.current?.sync()
+    }
+    const armed = armDottedLineTool()
+    dottedLineInteractionRef.current = armed
+    setDottedLineInteraction(armed)
+    dottedLineToolControllerRef.current?.sync()
+    dottedLineSeriesAttachmentRef.current?.update()
+  }, [])
+
+  const handleDottedLineDelete = useCallback(
+    (instanceId: string) => {
+      persistDottedLineInstances(
+        dottedLineInstancesRef.current.filter((item) => item.id !== instanceId),
+      )
+    },
+    [persistDottedLineInstances],
+  )
 
   const handleFixedRangeVolumeProfileDelete = useCallback(
     (instanceId: string) => {
@@ -386,13 +481,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
-      const cancelled = cancelFixedRangeVolumeProfileInteraction(
+      const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
         fixedRangeVolumeProfileInteractionRef.current,
       )
-      if (cancelled !== fixedRangeVolumeProfileInteractionRef.current) {
-        fixedRangeVolumeProfileInteractionRef.current = cancelled
-        setFixedRangeVolumeProfileInteraction(cancelled)
+      if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+        fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
+        setFixedRangeVolumeProfileInteraction(cancelledFrvp)
         fixedRangeVolumeProfileToolControllerRef.current?.sync()
+      }
+      const cancelledDotted = cancelDottedLineInteraction(dottedLineInteractionRef.current)
+      if (cancelledDotted !== dottedLineInteractionRef.current) {
+        dottedLineInteractionRef.current = cancelledDotted
+        setDottedLineInteraction(cancelledDotted)
+        dottedLineToolControllerRef.current?.sync()
+        dottedLineSeriesAttachmentRef.current?.update()
       }
       saveWidgetMarketInterval(panelId, next)
       setDataState({ status: 'loading' })
@@ -418,6 +520,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileInstances,
     onFixedRangeVolumeProfileArm: handleFixedRangeVolumeProfileArm,
     onFixedRangeVolumeProfileDelete: handleFixedRangeVolumeProfileDelete,
+    dottedLineInstances,
+    onDottedLineArm: handleDottedLineArm,
+    onDottedLineDelete: handleDottedLineDelete,
     disabled: !chartReady && dataState.status === 'loading',
   })
 
@@ -431,6 +536,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         instances: fixedRangeVolumeProfileInstancesRef.current,
       }),
       getSelectionInterval: () => activeIntervalRef.current,
+      getChartInteractionLocked: isChartDrawingInteractionLocked,
       onInteractionChange: (state) => {
         fixedRangeVolumeProfileInteractionRef.current = state
         setFixedRangeVolumeProfileInteraction(state)
@@ -448,7 +554,35 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       fixedRangeVolumeProfileToolControllerRef.current = null
     }
-  }, [chartReady, persistFixedRangeVolumeProfileInstances])
+  }, [chartReady, isChartDrawingInteractionLocked, persistFixedRangeVolumeProfileInstances])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const controller = attachDottedLineChartTool(chart, {
+      getSnapshot: () => ({
+        interaction: dottedLineInteractionRef.current,
+        instances: dottedLineInstancesRef.current,
+      }),
+      getSeries: () => seriesRef.current?.candle ?? null,
+      getChartInteractionLocked: isChartDrawingInteractionLocked,
+      onInteractionChange: (state) => {
+        dottedLineInteractionRef.current = state
+        setDottedLineInteraction(state)
+        dottedLineSeriesAttachmentRef.current?.update()
+      },
+      onInstanceCompleted: (instance) => {
+        persistDottedLineInstances([...dottedLineInstancesRef.current, instance])
+      },
+    })
+    dottedLineToolControllerRef.current = controller
+    controller.sync()
+    return () => {
+      controller.dispose()
+      dottedLineToolControllerRef.current = null
+    }
+  }, [chartReady, isChartDrawingInteractionLocked, persistDottedLineInstances])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -479,6 +613,39 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
   }, [fixedRangeVolumeProfileInstances])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    const bundle = seriesRef.current
+    if (!chart || !bundle || !chartReady) return
+
+    const attachment = attachDottedLineSeriesPrimitive(bundle.candle, () => ({
+      instances: dottedLineInstancesRef.current,
+      draft:
+        dottedLineInteractionRef.current.phase === 'preview'
+          ? dottedLineInteractionRef.current.draft
+          : null,
+    }))
+    dottedLineSeriesAttachmentRef.current = attachment
+
+    const onVisibleRangeChange = () => {
+      attachment.update()
+    }
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+    chart.timeScale().subscribeVisibleTimeRangeChange(onVisibleRangeChange)
+    attachment.update()
+
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(onVisibleRangeChange)
+      attachment.dispose()
+      dottedLineSeriesAttachmentRef.current = null
+    }
+  }, [chartReady])
+
+  useEffect(() => {
+    dottedLineSeriesAttachmentRef.current?.update()
+  }, [dottedLineInstances])
 
   const tripleEmaVisible = activeIndicators.includes('triple-ema')
 

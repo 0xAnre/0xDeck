@@ -162,7 +162,7 @@ Before any new UI work:
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP), fixed-range volume profile tool; REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP), Tools menu (fixed-range volume profile, gray dotted line); REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
@@ -182,6 +182,7 @@ Before any new UI work:
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Rolling VWAP band/settings per instance |
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |
+| `0xdeck-widget-dotted-line-instances` | Gray dotted line drawing instances (BTC Perp) |
 
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
 

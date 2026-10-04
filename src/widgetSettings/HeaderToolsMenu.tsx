@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { formatDottedLineInstanceLabel, type DottedLineInstance } from '@/market/dottedLineInstances'
 import { formatFixedRangeVolumeProfileInstanceLabel } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
@@ -18,6 +19,9 @@ type HeaderToolsMenuProps = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  dottedLineInstances: DottedLineInstance[]
+  onDottedLineArm?: () => void
+  onDottedLineDelete?: (instanceId: string) => void
 }
 
 export function HeaderToolsMenu({
@@ -26,13 +30,24 @@ export function HeaderToolsMenu({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  dottedLineInstances,
+  onDottedLineArm,
+  onDottedLineDelete,
 }: HeaderToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const armTool = () => {
+  const armFrvp = () => {
     onFixedRangeVolumeProfileArm?.()
     setMenuOpen(false)
   }
+
+  const armDottedLine = () => {
+    onDottedLineArm?.()
+    setMenuOpen(false)
+  }
+
+  const hasSavedTools =
+    fixedRangeVolumeProfileInstances.length > 0 || dottedLineInstances.length > 0
 
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -50,10 +65,13 @@ export function HeaderToolsMenu({
         <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[16rem]">
-        <DropdownMenuItem disabled={disabled} onSelect={armTool}>
+        <DropdownMenuItem disabled={disabled} onSelect={armFrvp}>
           Fixed Range Volume Profile
         </DropdownMenuItem>
-        {fixedRangeVolumeProfileInstances.length > 0 && (
+        <DropdownMenuItem disabled={disabled} onSelect={armDottedLine}>
+          Gray Dotted Line
+        </DropdownMenuItem>
+        {hasSavedTools && (
           <>
             <DropdownMenuSeparator />
             {fixedRangeVolumeProfileInstances.map((instance) => (
@@ -73,6 +91,29 @@ export function HeaderToolsMenu({
                   onClick={(event) => {
                     event.stopPropagation()
                     onFixedRangeVolumeProfileDelete?.(instance.id)
+                  }}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </button>
+              </DropdownMenuItem>
+            ))}
+            {dottedLineInstances.map((instance) => (
+              <DropdownMenuItem
+                key={instance.id}
+                className="flex items-center justify-between gap-2"
+                onSelect={(event) => event.preventDefault()}
+              >
+                <span className="min-w-0 truncate text-xs">
+                  {formatDottedLineInstanceLabel(instance)}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Delete line"
+                  className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDottedLineDelete?.(instance.id)
                   }}
                 >
                   <Trash2Icon className="size-3.5" />

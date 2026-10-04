@@ -106,7 +106,8 @@ Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts
 | **Initial history** | At least **500** candles when available; **last 120** visible on open |
 | **1w history** | If Binance has fewer than 500 weekly candles, all available history is used |
 | **Scroll left** | Older candles load on demand (`/klines/history`) |
-| **Persistence** | Interval, indicators, and workspace layout survive refresh (`0xdeck-widget-market-intervals`, `0xdeck-widget-market-indicators`, layout keys) |
+| **Tools** | Fixed Range Volume Profile and **Gray Dotted Line** (two-click segment, live preview, per-instance delete in Tools menu) |
+| **Persistence** | Interval, indicators, chart tools (FRVP + dotted lines), and workspace layout survive refresh (`0xdeck-widget-market-intervals`, `0xdeck-widget-market-indicators`, `0xdeck-widget-fixed-range-vp-instances`, `0xdeck-widget-dotted-line-instances`, layout keys) |
 
 Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
 

@@ -1,4 +1,5 @@
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
+import { applyBtcPerpetualChartDrawingInteractionMode } from './btcPerpetualChartDrawingInteractionMode.ts'
 import {
   applyFixedRangeVolumeProfileCrosshairTime,
   cancelFixedRangeVolumeProfileInteraction,
@@ -23,6 +24,7 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getSelectionInterval: () => CandleInterval
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
+  getChartInteractionLocked?: () => boolean
 }
 
 export type FixedRangeVolumeProfileChartToolController = {
@@ -39,31 +41,12 @@ export function isFixedRangeVolumeProfileChartInteractionLocked(
 export function applyFixedRangeVolumeProfileChartInteractionMode(
   chart: IChartApi,
   interaction: FixedRangeVolumeProfileInteractionState,
+  getChartInteractionLocked?: () => boolean,
 ): boolean {
-  const toolActive = isFixedRangeVolumeProfileChartInteractionLocked(interaction)
-  chart.applyOptions({
-    handleScroll: toolActive
-      ? { mouseWheel: false, pressedMouseMove: false, horzTouchDrag: false, vertTouchDrag: false }
-      : {
-          mouseWheel: true,
-          pressedMouseMove: true,
-          horzTouchDrag: true,
-          vertTouchDrag: true,
-        },
-    handleScale: toolActive
-      ? {
-          mouseWheel: false,
-          pinch: false,
-          axisPressedMouseMove: { time: false, price: false },
-          axisDoubleClickReset: { time: false, price: false },
-        }
-      : {
-          mouseWheel: true,
-          pinch: true,
-          axisPressedMouseMove: { time: true, price: true },
-          axisDoubleClickReset: { time: true, price: true },
-        },
-  })
+  const toolActive = getChartInteractionLocked
+    ? getChartInteractionLocked()
+    : isFixedRangeVolumeProfileChartInteractionLocked(interaction)
+  applyBtcPerpetualChartDrawingInteractionMode(chart, toolActive)
   return toolActive
 }
 
@@ -74,7 +57,11 @@ export function attachFixedRangeVolumeProfileChartTool(
   let panePointer: FixedRangeVolumeProfilePanePointerController | null = null
 
   const present = (interaction: FixedRangeVolumeProfileInteractionState) => {
-    applyFixedRangeVolumeProfileChartInteractionMode(chart, interaction)
+    applyFixedRangeVolumeProfileChartInteractionMode(
+      chart,
+      interaction,
+      callbacks.getChartInteractionLocked,
+    )
   }
 
   const commitInteraction = (next: FixedRangeVolumeProfileInteractionState) => {
@@ -127,10 +114,9 @@ export function attachFixedRangeVolumeProfileChartTool(
     chart.unsubscribeCrosshairMove(onCrosshairMove)
     panePointer?.dispose()
     panePointer = null
-    applyFixedRangeVolumeProfileChartInteractionMode(
-      chart,
-      { phase: 'inactive', draft: null },
-    )
+    if (!callbacks.getChartInteractionLocked?.()) {
+      applyBtcPerpetualChartDrawingInteractionMode(chart, false)
+    }
   }
 
   return { sync, dispose }

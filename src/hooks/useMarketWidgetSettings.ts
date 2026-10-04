@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
+import type { DottedLineInstance } from '@/market/dottedLineInstances'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
@@ -26,6 +27,9 @@ type UseMarketWidgetSettingsArgs = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm: () => void
   onFixedRangeVolumeProfileDelete: (instanceId: string) => void
+  dottedLineInstances: DottedLineInstance[]
+  onDottedLineArm: () => void
+  onDottedLineDelete: (instanceId: string) => void
   disabled: boolean
 }
 
@@ -46,6 +50,9 @@ export function useMarketWidgetSettings({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  dottedLineInstances,
+  onDottedLineArm,
+  onDottedLineDelete,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -81,13 +88,19 @@ export function useMarketWidgetSettings({
         headerSettings.tools === true ? onFixedRangeVolumeProfileArm : undefined,
       onFixedRangeVolumeProfileDelete:
         headerSettings.tools === true ? onFixedRangeVolumeProfileDelete : undefined,
+      dottedLineInstances: headerSettings.tools === true ? dottedLineInstances : undefined,
+      onDottedLineArm: headerSettings.tools === true ? onDottedLineArm : undefined,
+      onDottedLineDelete: headerSettings.tools === true ? onDottedLineDelete : undefined,
     }),
     [
       disabled,
+      dottedLineInstances,
       fixedRangeVolumeProfileInstances,
       headerSettings,
       marketIndicators,
       marketInterval,
+      onDottedLineArm,
+      onDottedLineDelete,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
       onMarketIndicatorsChange,
