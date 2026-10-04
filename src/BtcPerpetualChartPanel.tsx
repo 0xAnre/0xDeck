@@ -81,7 +81,17 @@ import {
   saveWidgetFixedRangeVolumeProfileInstances,
 } from '@/fixedRangeVolumeProfileInstancesStorage'
 import {
+  loadWidgetHorizontalLineInstances,
+  saveWidgetHorizontalLineInstances,
+} from '@/horizontalLineInstancesStorage'
+import {
+  attachHorizontalLineChartTool,
+  isHorizontalLineChartInteractionLocked,
+  type HorizontalLineChartToolController,
+} from '@/market/horizontalLineChartTool'
+import {
   attachFixedRangeVolumeProfileChartTool,
+  isFixedRangeVolumeProfileChartInteractionLocked,
   type FixedRangeVolumeProfileChartToolController,
 } from '@/market/fixedRangeVolumeProfileChartTool'
 import {
@@ -90,6 +100,16 @@ import {
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
   type FixedRangeVolumeProfileInteractionState,
 } from '@/market/fixedRangeVolumeProfileInteraction'
+import {
+  armHorizontalLineTool,
+  cancelHorizontalLineInteraction,
+  INITIAL_HORIZONTAL_LINE_INTERACTION_STATE,
+  type HorizontalLineInteractionState,
+} from '@/market/horizontalLineInteraction'
+import {
+  sanitizeHorizontalLineInstances,
+  type HorizontalLineInstance,
+} from '@/market/horizontalLineInstances'
 import {
   sanitizeFixedRangeVolumeProfileInstances,
   type FixedRangeVolumeProfileInstance,
@@ -184,6 +204,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [fixedRangeVolumeProfileInteraction, setFixedRangeVolumeProfileInteraction] =
     useState<FixedRangeVolumeProfileInteractionState>(INITIAL_FIXED_RANGE_VP_INTERACTION_STATE)
+  const [horizontalLineInstances, setHorizontalLineInstances] = useState<HorizontalLineInstance[]>(
+    () => loadWidgetHorizontalLineInstances(panelId),
+  )
+  const [horizontalLineInteraction, setHorizontalLineInteraction] =
+    useState<HorizontalLineInteractionState>(INITIAL_HORIZONTAL_LINE_INTERACTION_STATE)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -202,8 +227,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const rollingVwapInstancesRef = useRef(rollingVwapInstances)
   const fixedRangeVolumeProfileInstancesRef = useRef(fixedRangeVolumeProfileInstances)
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
+  const horizontalLineInstancesRef = useRef(horizontalLineInstances)
+  const horizontalLineInteractionRef = useRef(horizontalLineInteraction)
   const fixedRangeVolumeProfileToolControllerRef =
     useRef<FixedRangeVolumeProfileChartToolController | null>(null)
+  const horizontalLineToolControllerRef = useRef<HorizontalLineChartToolController | null>(null)
   const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
     fixedRangeVolumeProfileInstances,
   )
@@ -228,6 +256,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [fixedRangeVolumeProfileInteraction])
 
   useEffect(() => {
+    horizontalLineInstancesRef.current = horizontalLineInstances
+  }, [horizontalLineInstances])
+
+  useEffect(() => {
+    horizontalLineInteractionRef.current = horizontalLineInteraction
+  }, [horizontalLineInteraction])
+
+  useEffect(() => {
     fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
     fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
   }, [fixedRangeVolumeProfileRuntimeById])
@@ -244,12 +280,65 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  const isAnyDrawingToolChartLocked = useCallback(() => {
+    return (
+      isFixedRangeVolumeProfileChartInteractionLocked(
+        fixedRangeVolumeProfileInteractionRef.current,
+      ) || isHorizontalLineChartInteractionLocked(horizontalLineInteractionRef.current)
+    )
+  }, [])
+
+  const syncDrawingToolControllers = useCallback(() => {
+    fixedRangeVolumeProfileToolControllerRef.current?.sync()
+    horizontalLineToolControllerRef.current?.sync()
+  }, [])
+
+  const persistHorizontalLineInstances = useCallback(
+    (next: HorizontalLineInstance[]) => {
+      const sanitized = sanitizeHorizontalLineInstances(next)
+      horizontalLineInstancesRef.current = sanitized
+      setHorizontalLineInstances(sanitized)
+      saveWidgetHorizontalLineInstances(panelId, sanitized)
+      horizontalLineToolControllerRef.current?.sync()
+      return sanitized
+    },
+    [panelId],
+  )
+
+  const handleHorizontalLineArm = useCallback(() => {
+    const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
+      fixedRangeVolumeProfileInteractionRef.current,
+    )
+    if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+      fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
+      setFixedRangeVolumeProfileInteraction(cancelledFrvp)
+    }
+    const armed = armHorizontalLineTool()
+    horizontalLineInteractionRef.current = armed
+    setHorizontalLineInteraction(armed)
+    syncDrawingToolControllers()
+  }, [syncDrawingToolControllers])
+
+  const handleHorizontalLineDelete = useCallback(
+    (instanceId: string) => {
+      persistHorizontalLineInstances(
+        horizontalLineInstancesRef.current.filter((item) => item.id !== instanceId),
+      )
+    },
+    [persistHorizontalLineInstances],
+  )
+
   const handleFixedRangeVolumeProfileArm = useCallback(() => {
+    const cancelledHline = cancelHorizontalLineInteraction(horizontalLineInteractionRef.current)
+    if (cancelledHline !== horizontalLineInteractionRef.current) {
+      horizontalLineInteractionRef.current = cancelledHline
+      setHorizontalLineInteraction(cancelledHline)
+    }
     const armed = armFixedRangeVolumeProfileTool()
     fixedRangeVolumeProfileInteractionRef.current = armed
     setFixedRangeVolumeProfileInteraction(armed)
-    fixedRangeVolumeProfileToolControllerRef.current?.sync()
-  }, [])
+    syncDrawingToolControllers()
+  }, [syncDrawingToolControllers])
 
   const handleFixedRangeVolumeProfileDelete = useCallback(
     (instanceId: string) => {
@@ -386,13 +475,23 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
-      const cancelled = cancelFixedRangeVolumeProfileInteraction(
-        fixedRangeVolumeProfileInteractionRef.current,
-      )
-      if (cancelled !== fixedRangeVolumeProfileInteractionRef.current) {
-        fixedRangeVolumeProfileInteractionRef.current = cancelled
-        setFixedRangeVolumeProfileInteraction(cancelled)
-        fixedRangeVolumeProfileToolControllerRef.current?.sync()
+      const previousFrvp = fixedRangeVolumeProfileInteractionRef.current
+      const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(previousFrvp)
+      const previousHline = horizontalLineInteractionRef.current
+      const cancelledHline = cancelHorizontalLineInteraction(previousHline)
+      let interactionChanged = false
+      if (cancelledFrvp !== previousFrvp) {
+        fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
+        setFixedRangeVolumeProfileInteraction(cancelledFrvp)
+        interactionChanged = true
+      }
+      if (cancelledHline !== previousHline) {
+        horizontalLineInteractionRef.current = cancelledHline
+        setHorizontalLineInteraction(cancelledHline)
+        interactionChanged = true
+      }
+      if (interactionChanged) {
+        syncDrawingToolControllers()
       }
       saveWidgetMarketInterval(panelId, next)
       setDataState({ status: 'loading' })
@@ -400,7 +499,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setStreamState('idle')
       setInterval(next)
     },
-    [panelId],
+    [panelId, syncDrawingToolControllers],
   )
 
   useMarketWidgetSettings({
@@ -418,6 +517,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileInstances,
     onFixedRangeVolumeProfileArm: handleFixedRangeVolumeProfileArm,
     onFixedRangeVolumeProfileDelete: handleFixedRangeVolumeProfileDelete,
+    horizontalLineInstances,
+    onHorizontalLineArm: handleHorizontalLineArm,
+    onHorizontalLineDelete: handleHorizontalLineDelete,
     disabled: !chartReady && dataState.status === 'loading',
   })
 
@@ -431,6 +533,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         instances: fixedRangeVolumeProfileInstancesRef.current,
       }),
       getSelectionInterval: () => activeIntervalRef.current,
+      isChartInteractionLocked: isAnyDrawingToolChartLocked,
       onInteractionChange: (state) => {
         fixedRangeVolumeProfileInteractionRef.current = state
         setFixedRangeVolumeProfileInteraction(state)
@@ -448,7 +551,41 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       fixedRangeVolumeProfileToolControllerRef.current = null
     }
-  }, [chartReady, persistFixedRangeVolumeProfileInstances])
+  }, [chartReady, isAnyDrawingToolChartLocked, persistFixedRangeVolumeProfileInstances])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const controller = attachHorizontalLineChartTool(chart, {
+      getSnapshot: () => ({
+        interaction: horizontalLineInteractionRef.current,
+        instances: horizontalLineInstancesRef.current,
+      }),
+      getCandleSeries: () => seriesRef.current?.candle ?? null,
+      isChartInteractionLocked: isAnyDrawingToolChartLocked,
+      onInteractionChange: (state) => {
+        horizontalLineInteractionRef.current = state
+        setHorizontalLineInteraction(state)
+      },
+      onInstanceCompleted: (instance) => {
+        persistHorizontalLineInstances([
+          ...horizontalLineInstancesRef.current,
+          instance,
+        ])
+      },
+    })
+    horizontalLineToolControllerRef.current = controller
+    controller.sync()
+    return () => {
+      controller.dispose()
+      horizontalLineToolControllerRef.current = null
+    }
+  }, [chartReady, isAnyDrawingToolChartLocked, persistHorizontalLineInstances])
+
+  useEffect(() => {
+    horizontalLineToolControllerRef.current?.sync()
+  }, [horizontalLineInstances])
 
   useEffect(() => {
     const chart = chartRef.current

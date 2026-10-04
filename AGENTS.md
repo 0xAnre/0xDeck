@@ -182,6 +182,7 @@ Before any new UI work:
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Rolling VWAP band/settings per instance |
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |
+| `0xdeck-widget-horizontal-line-instances` | Horizontal price line instances (BTC Perp) |
 
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
 

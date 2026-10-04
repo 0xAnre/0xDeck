@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { HorizontalLineInstance } from '@/market/horizontalLineInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
 import {
@@ -26,6 +27,9 @@ type UseMarketWidgetSettingsArgs = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm: () => void
   onFixedRangeVolumeProfileDelete: (instanceId: string) => void
+  horizontalLineInstances: HorizontalLineInstance[]
+  onHorizontalLineArm: () => void
+  onHorizontalLineDelete: (instanceId: string) => void
   disabled: boolean
 }
 
@@ -46,6 +50,9 @@ export function useMarketWidgetSettings({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  horizontalLineInstances,
+  onHorizontalLineArm,
+  onHorizontalLineDelete,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -81,15 +88,23 @@ export function useMarketWidgetSettings({
         headerSettings.tools === true ? onFixedRangeVolumeProfileArm : undefined,
       onFixedRangeVolumeProfileDelete:
         headerSettings.tools === true ? onFixedRangeVolumeProfileDelete : undefined,
+      horizontalLineInstances:
+        headerSettings.tools === true ? horizontalLineInstances : undefined,
+      onHorizontalLineArm: headerSettings.tools === true ? onHorizontalLineArm : undefined,
+      onHorizontalLineDelete:
+        headerSettings.tools === true ? onHorizontalLineDelete : undefined,
     }),
     [
       disabled,
       fixedRangeVolumeProfileInstances,
+      horizontalLineInstances,
       headerSettings,
       marketIndicators,
       marketInterval,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
+      onHorizontalLineArm,
+      onHorizontalLineDelete,
       onMarketIndicatorsChange,
       onRollingVwapAdd,
       onRollingVwapDelete,

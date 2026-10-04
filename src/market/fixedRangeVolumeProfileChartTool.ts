@@ -1,4 +1,5 @@
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
+import { applyMarketChartDrawingInteractionLock } from './chartDrawingInteractionLock.ts'
 import {
   applyFixedRangeVolumeProfileCrosshairTime,
   cancelFixedRangeVolumeProfileInteraction,
@@ -23,6 +24,7 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getSelectionInterval: () => CandleInterval
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
+  isChartInteractionLocked?: () => boolean
 }
 
 export type FixedRangeVolumeProfileChartToolController = {
@@ -41,29 +43,7 @@ export function applyFixedRangeVolumeProfileChartInteractionMode(
   interaction: FixedRangeVolumeProfileInteractionState,
 ): boolean {
   const toolActive = isFixedRangeVolumeProfileChartInteractionLocked(interaction)
-  chart.applyOptions({
-    handleScroll: toolActive
-      ? { mouseWheel: false, pressedMouseMove: false, horzTouchDrag: false, vertTouchDrag: false }
-      : {
-          mouseWheel: true,
-          pressedMouseMove: true,
-          horzTouchDrag: true,
-          vertTouchDrag: true,
-        },
-    handleScale: toolActive
-      ? {
-          mouseWheel: false,
-          pinch: false,
-          axisPressedMouseMove: { time: false, price: false },
-          axisDoubleClickReset: { time: false, price: false },
-        }
-      : {
-          mouseWheel: true,
-          pinch: true,
-          axisPressedMouseMove: { time: true, price: true },
-          axisDoubleClickReset: { time: true, price: true },
-        },
-  })
+  applyMarketChartDrawingInteractionLock(chart, toolActive)
   return toolActive
 }
 
@@ -73,17 +53,20 @@ export function attachFixedRangeVolumeProfileChartTool(
 ): FixedRangeVolumeProfileChartToolController {
   let panePointer: FixedRangeVolumeProfilePanePointerController | null = null
 
-  const present = (interaction: FixedRangeVolumeProfileInteractionState) => {
-    applyFixedRangeVolumeProfileChartInteractionMode(chart, interaction)
+  const presentInteractionLock = () => {
+    const locked =
+      callbacks.isChartInteractionLocked?.() ??
+      isFixedRangeVolumeProfileChartInteractionLocked(callbacks.getSnapshot().interaction)
+    applyMarketChartDrawingInteractionLock(chart, locked)
   }
 
   const commitInteraction = (next: FixedRangeVolumeProfileInteractionState) => {
     callbacks.onInteractionChange(next)
-    present(next)
+    presentInteractionLock()
   }
 
   const sync = () => {
-    present(callbacks.getSnapshot().interaction)
+    presentInteractionLock()
   }
 
   const pointerCallbacks: FixedRangeVolumeProfileChartToolCallbacks = {
@@ -127,10 +110,7 @@ export function attachFixedRangeVolumeProfileChartTool(
     chart.unsubscribeCrosshairMove(onCrosshairMove)
     panePointer?.dispose()
     panePointer = null
-    applyFixedRangeVolumeProfileChartInteractionMode(
-      chart,
-      { phase: 'inactive', draft: null },
-    )
+    applyMarketChartDrawingInteractionLock(chart, false)
   }
 
   return { sync, dispose }

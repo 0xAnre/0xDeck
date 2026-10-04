@@ -2,6 +2,7 @@ import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { HorizontalLineInstance } from '@/market/horizontalLineInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
@@ -50,6 +51,9 @@ export type WidgetSettingsRegistration = {
   fixedRangeVolumeProfileInstances?: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  horizontalLineInstances?: HorizontalLineInstance[]
+  onHorizontalLineArm?: () => void
+  onHorizontalLineDelete?: (instanceId: string) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {

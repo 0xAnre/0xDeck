@@ -10,6 +10,8 @@ import {
 import { cn } from '@/lib/utils'
 import { formatFixedRangeVolumeProfileInstanceLabel } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import { formatHorizontalLineInstanceLabel } from '@/market/horizontalLineInstances'
+import type { HorizontalLineInstance } from '@/market/horizontalLineInstances'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 
 type HeaderToolsMenuProps = {
@@ -18,6 +20,9 @@ type HeaderToolsMenuProps = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  horizontalLineInstances: HorizontalLineInstance[]
+  onHorizontalLineArm?: () => void
+  onHorizontalLineDelete?: (instanceId: string) => void
 }
 
 export function HeaderToolsMenu({
@@ -26,13 +31,24 @@ export function HeaderToolsMenu({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  horizontalLineInstances,
+  onHorizontalLineArm,
+  onHorizontalLineDelete,
 }: HeaderToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const armTool = () => {
+  const armFixedRangeVolumeProfile = () => {
     onFixedRangeVolumeProfileArm?.()
     setMenuOpen(false)
   }
+
+  const armHorizontalLine = () => {
+    onHorizontalLineArm?.()
+    setMenuOpen(false)
+  }
+
+  const hasInstanceRows =
+    fixedRangeVolumeProfileInstances.length > 0 || horizontalLineInstances.length > 0
 
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -50,10 +66,13 @@ export function HeaderToolsMenu({
         <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[16rem]">
-        <DropdownMenuItem disabled={disabled} onSelect={armTool}>
+        <DropdownMenuItem disabled={disabled} onSelect={armFixedRangeVolumeProfile}>
           Fixed Range Volume Profile
         </DropdownMenuItem>
-        {fixedRangeVolumeProfileInstances.length > 0 && (
+        <DropdownMenuItem disabled={disabled} onSelect={armHorizontalLine}>
+          Horizontal Line
+        </DropdownMenuItem>
+        {hasInstanceRows && (
           <>
             <DropdownMenuSeparator />
             {fixedRangeVolumeProfileInstances.map((instance) => (
@@ -73,6 +92,29 @@ export function HeaderToolsMenu({
                   onClick={(event) => {
                     event.stopPropagation()
                     onFixedRangeVolumeProfileDelete?.(instance.id)
+                  }}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </button>
+              </DropdownMenuItem>
+            ))}
+            {horizontalLineInstances.map((instance) => (
+              <DropdownMenuItem
+                key={instance.id}
+                className="flex items-center justify-between gap-2"
+                onSelect={(event) => event.preventDefault()}
+              >
+                <span className="min-w-0 truncate text-xs">
+                  {formatHorizontalLineInstanceLabel(instance.price)}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Delete horizontal line"
+                  className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onHorizontalLineDelete?.(instance.id)
                   }}
                 >
                   <Trash2Icon className="size-3.5" />
