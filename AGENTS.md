@@ -179,6 +179,7 @@ Before any new UI work:
 | `0xdeck-data-config` | Workspace default dataset + columns (from Data Table) |
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
+| `0xdeck-widget-market-crosshair` | Per-instance BTC Perp crosshair visibility (default enabled) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Rolling VWAP band/settings per instance |
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |

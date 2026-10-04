@@ -111,6 +111,11 @@ import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 import { klineChannelForInterval } from '@/market/types'
 import { saveWidgetMarketIndicators } from '@/marketIndicatorStorage'
+import { crosshairModeForEnabled } from '@/market/crosshairChartMode'
+import {
+  loadWidgetMarketCrosshairEnabled,
+  saveWidgetMarketCrosshairEnabled,
+} from '@/marketCrosshairStorage'
 import {
   loadWidgetMarketInterval,
   saveWidgetMarketInterval,
@@ -184,6 +189,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [fixedRangeVolumeProfileInteraction, setFixedRangeVolumeProfileInteraction] =
     useState<FixedRangeVolumeProfileInteractionState>(INITIAL_FIXED_RANGE_VP_INTERACTION_STATE)
+  const [crosshairEnabled, setCrosshairEnabled] = useState(() =>
+    loadWidgetMarketCrosshairEnabled(panelId),
+  )
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -214,6 +222,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     update: () => void
     dispose: () => void
   } | null>(null)
+  const crosshairEnabledRef = useRef(crosshairEnabled)
+
+  useEffect(() => {
+    crosshairEnabledRef.current = crosshairEnabled
+  }, [crosshairEnabled])
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -384,6 +397,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  const handleMarketCrosshairEnabledChange = useCallback(
+    (enabled: boolean) => {
+      crosshairEnabledRef.current = enabled
+      setCrosshairEnabled(enabled)
+      saveWidgetMarketCrosshairEnabled(panelId, enabled)
+      chartRef.current?.applyOptions({
+        crosshair: { mode: crosshairModeForEnabled(enabled) },
+      })
+    },
+    [panelId],
+  )
+
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
       const cancelled = cancelFixedRangeVolumeProfileInteraction(
@@ -418,8 +443,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileInstances,
     onFixedRangeVolumeProfileArm: handleFixedRangeVolumeProfileArm,
     onFixedRangeVolumeProfileDelete: handleFixedRangeVolumeProfileDelete,
+    marketCrosshairEnabled: crosshairEnabled,
+    onMarketCrosshairEnabledChange: handleMarketCrosshairEnabledChange,
     disabled: !chartReady && dataState.status === 'loading',
   })
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+    chart.applyOptions({
+      crosshair: { mode: crosshairModeForEnabled(crosshairEnabled) },
+    })
+  }, [chartReady, crosshairEnabled])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -592,6 +627,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         },
         width,
         height,
+      })
+
+      chart.applyOptions({
+        crosshair: { mode: crosshairModeForEnabled(crosshairEnabledRef.current) },
       })
 
       const candleSeries = chart.addSeries(CandlestickSeries, BTC_PERPETUAL_CANDLESTICK_COLORS)

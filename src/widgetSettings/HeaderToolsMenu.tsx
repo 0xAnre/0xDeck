@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronDownIcon, Trash2Icon } from 'lucide-react'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -15,6 +16,8 @@ import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 type HeaderToolsMenuProps = {
   id: string
   disabled?: boolean
+  crosshairEnabled: boolean
+  onCrosshairEnabledChange?: (enabled: boolean) => void
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
@@ -23,6 +26,8 @@ type HeaderToolsMenuProps = {
 export function HeaderToolsMenu({
   id,
   disabled = false,
+  crosshairEnabled,
+  onCrosshairEnabledChange,
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
@@ -50,6 +55,15 @@ export function HeaderToolsMenu({
         <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[16rem]">
+        <DropdownMenuCheckboxItem
+          checked={crosshairEnabled}
+          disabled={disabled}
+          onCheckedChange={(checked) => onCrosshairEnabledChange?.(checked === true)}
+          onSelect={(event) => event.preventDefault()}
+        >
+          Crosshair
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem disabled={disabled} onSelect={armTool}>
           Fixed Range Volume Profile
         </DropdownMenuItem>

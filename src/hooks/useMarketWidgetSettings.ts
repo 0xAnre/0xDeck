@@ -26,6 +26,8 @@ type UseMarketWidgetSettingsArgs = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm: () => void
   onFixedRangeVolumeProfileDelete: (instanceId: string) => void
+  marketCrosshairEnabled: boolean
+  onMarketCrosshairEnabledChange: (enabled: boolean) => void
   disabled: boolean
 }
 
@@ -46,6 +48,8 @@ export function useMarketWidgetSettings({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  marketCrosshairEnabled,
+  onMarketCrosshairEnabledChange,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -81,13 +85,18 @@ export function useMarketWidgetSettings({
         headerSettings.tools === true ? onFixedRangeVolumeProfileArm : undefined,
       onFixedRangeVolumeProfileDelete:
         headerSettings.tools === true ? onFixedRangeVolumeProfileDelete : undefined,
+      marketCrosshairEnabled: headerSettings.tools === true ? marketCrosshairEnabled : undefined,
+      onMarketCrosshairEnabledChange:
+        headerSettings.tools === true ? onMarketCrosshairEnabledChange : undefined,
     }),
     [
       disabled,
       fixedRangeVolumeProfileInstances,
       headerSettings,
+      marketCrosshairEnabled,
       marketIndicators,
       marketInterval,
+      onMarketCrosshairEnabledChange,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
       onMarketIndicatorsChange,

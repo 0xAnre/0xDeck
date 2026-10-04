@@ -148,6 +148,8 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
           <HeaderToolsMenu
             id={`${panelId}-tools`}
             disabled={settings.disabled}
+            crosshairEnabled={settings.marketCrosshairEnabled ?? true}
+            onCrosshairEnabledChange={settings.onMarketCrosshairEnabledChange}
             fixedRangeVolumeProfileInstances={settings.fixedRangeVolumeProfileInstances}
             onFixedRangeVolumeProfileArm={settings.onFixedRangeVolumeProfileArm}
             onFixedRangeVolumeProfileDelete={settings.onFixedRangeVolumeProfileDelete}

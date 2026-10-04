@@ -50,6 +50,8 @@ export type WidgetSettingsRegistration = {
   fixedRangeVolumeProfileInstances?: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  marketCrosshairEnabled?: boolean
+  onMarketCrosshairEnabledChange?: (enabled: boolean) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {
