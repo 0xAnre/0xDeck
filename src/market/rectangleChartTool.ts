@@ -3,7 +3,10 @@ import {
   applyFixedRangeVolumeProfileChartInteractionMode,
   isFixedRangeVolumeProfileChartInteractionLocked,
 } from './fixedRangeVolumeProfileChartTool.ts'
-import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
+import {
+  isFixedRangeVolumeProfileToolActive,
+  type FixedRangeVolumeProfileInteractionState,
+} from './fixedRangeVolumeProfileInteraction.ts'
 import {
   cancelRectangleInteraction,
   INITIAL_RECTANGLE_INTERACTION_STATE,
@@ -114,6 +117,8 @@ export function attachRectangleChartTool(
     onPointerPreviewChange: (time, price) => {
       callbacks.setPointerPreview(time, price)
     },
+    isAlternateToolActive: () =>
+      isFixedRangeVolumeProfileToolActive(callbacks.getFixedRangeVolumeProfileInteraction()),
   })
 
   const onKeyDown = (event: KeyboardEvent) => {

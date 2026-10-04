@@ -2,6 +2,7 @@ import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import {
   applyRectangleSelection,
+  cancelRectangleInteraction,
   commitRectangleCreate,
   commitRectangleResize,
   isRectangleChartNavigationLocked,
@@ -27,6 +28,7 @@ export type RectanglePanePointerCallbacks = {
   onInstanceUpdated: (instance: RectangleInstance) => void
   onRequestRender: () => void
   onPointerPreviewChange: (time: number | null, price: number | null) => void
+  isAlternateToolActive: () => boolean
 }
 
 export type RectanglePanePointerController = {
@@ -80,6 +82,7 @@ export function attachRectanglePanePointer(
 
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return
+    if (callbacks.isAlternateToolActive()) return
     const snapshot = callbacks.getSnapshot()
     const interaction = snapshot.interaction
     const paneX = resolvePaneRelativePointerX(event, paneElement)
@@ -199,6 +202,13 @@ export function attachRectanglePanePointer(
 
   const onPointerCancel = (event: PointerEvent) => {
     if (activePointerId !== event.pointerId) return
+    const snapshot = callbacks.getSnapshot()
+    if (isRectangleChartNavigationLocked(snapshot.interaction)) {
+      const cancelled = cancelRectangleInteraction(snapshot.interaction)
+      callbacks.onPointerPreviewChange(null, null)
+      callbacks.onInteractionChange(cancelled)
+      callbacks.onRequestRender()
+    }
     releasePointer(event)
   }
 

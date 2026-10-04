@@ -582,7 +582,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       },
       onRequestRender: () => {
         rectangleSeriesAttachmentRef.current?.update()
-        rectangleToolControllerRef.current?.sync()
       },
       getChart: () => chartRef.current,
       getSeries: () => seriesRef.current?.candle ?? null,
