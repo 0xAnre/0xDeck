@@ -1,0 +1,94 @@
+name: Codex PR review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+concurrency:
+  group: codex-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - name: Check out the PR merge commit
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+
+      - name: Fetch the PR base and head
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch --no-tags origin \
+            "$PR_BASE_REF" \
+            "+refs/pull/$PR_NUMBER/head"
+
+      - name: Review the PR diff with Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            Review only changes introduced by this PR, using this diff as the review scope:
+              git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+
+            Read and follow AGENTS.md, docs/README.md, and any repository documentation
+            they reference that is relevant to the changed files.
+
+            Report only actionable findings involving:
+            - correctness or bugs
+            - regressions
+            - security issues
+            - clear violations of repository rules
+
+            Do not report stylistic preferences or speculative concerns unless they
+            materially affect the implementation. Do not modify files, push commits,
+            open another pull request, or merge this pull request.
+
+            For each actionable finding, include its severity, file and line, the
+            concrete impact, and a specific fix. Start that response with exactly:
+            ## Codex review: action required
+
+            If there are no actionable findings, respond with exactly:
+            ## Codex review: passed
+
+            No actionable findings in the PR diff.
+
+  publish:
+    needs: review
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Publish the Codex review on the existing PR
+        uses: actions/github-script@v7
+        env:
+          CODEX_REVIEW: ${{ needs.review.outputs.final_message }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const body = (process.env.CODEX_REVIEW || "").trim() ||
+              "## Codex review: passed\n\nNo actionable findings in the PR diff.";
+
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              event: "COMMENT",
+              body,
+            });
