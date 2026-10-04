@@ -7,8 +7,8 @@ import type {
   IPrimitivePaneView,
   SeriesType,
   Time,
-  UTCTimestamp,
 } from 'lightweight-charts'
+import { resolveRectangleTimeToCoordinate } from './rectangleChartTime.ts'
 import { readRectangleFillStyle, readRectangleHandleFillStyle } from './rectangleColors.ts'
 import {
   buildRectangleDrawModels,
@@ -107,7 +107,6 @@ class RectanglePaneView implements IPrimitivePaneView {
     }
 
     const context = this._getContext()
-    const timeScale = chart.timeScale()
     this._models = buildRectangleDrawModels({
       instances: context.instances,
       interaction: context.interaction,
@@ -115,7 +114,7 @@ class RectanglePaneView implements IPrimitivePaneView {
       handleFillStyle: readRectangleHandleFillStyle(),
       pointerTime: context.pointerTime,
       pointerPrice: context.pointerPrice,
-      timeToCoordinate: (time) => timeScale.timeToCoordinate(time as UTCTimestamp),
+      timeToCoordinate: (time) => resolveRectangleTimeToCoordinate(chart, time),
       priceToY: (price) => series.priceToCoordinate(price),
       handleRadiusPx: RECTANGLE_HANDLE_DRAW_RADIUS_PX,
     })

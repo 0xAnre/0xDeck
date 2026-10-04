@@ -106,11 +106,16 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
+  applyRectangleSelection,
   armRectangleTool,
   cancelRectangleInteraction,
   INITIAL_RECTANGLE_INTERACTION_STATE,
   type RectangleInteractionState,
 } from '@/market/rectangleInteraction'
+import {
+  claimRectangleKeyboardPanel,
+  isActiveRectangleKeyboardPanel,
+} from '@/market/rectangleKeyboardScope'
 import {
   sanitizeRectangleInstances,
   type RectangleInstance,
@@ -270,6 +275,35 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     rectangleInteractionRef.current = rectangleInteraction
   }, [rectangleInteraction])
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const container = containerRef.current
+      if (!container) return
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (container.contains(target)) {
+        claimRectangleKeyboardPanel(panelId)
+        return
+      }
+      if (isActiveRectangleKeyboardPanel(panelId)) {
+        claimRectangleKeyboardPanel(null)
+      }
+      if (rectangleInteractionRef.current.selectedId === null) return
+      const next = applyRectangleSelection(rectangleInteractionRef.current, null)
+      rectangleInteractionRef.current = next
+      setRectangleInteraction(next)
+      rectangleSeriesAttachmentRef.current?.update()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      if (isActiveRectangleKeyboardPanel(panelId)) {
+        claimRectangleKeyboardPanel(null)
+      }
+    }
+  }, [panelId])
 
   useEffect(() => {
     fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
@@ -587,6 +621,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getSeries: () => seriesRef.current?.candle ?? null,
       getFixedRangeVolumeProfileInteraction: () =>
         fixedRangeVolumeProfileInteractionRef.current,
+      shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     rectangleToolControllerRef.current = controller
     controller.sync()
@@ -594,7 +629,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       rectangleToolControllerRef.current = null
     }
-  }, [chartReady, persistRectangleInstances])
+  }, [chartReady, panelId, persistRectangleInstances])
 
   useEffect(() => {
     const chart = chartRef.current

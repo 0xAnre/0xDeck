@@ -61,6 +61,7 @@ describe('rectangleChartTool', () => {
       getChart: () => chart as never,
       getSeries: () => null,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      shouldHandleKeyboardShortcut: () => true,
     })
 
     assert.equal(keyListenerCount, 1)

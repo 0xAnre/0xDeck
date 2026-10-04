@@ -31,6 +31,7 @@ export type RectangleChartToolCallbacks = {
   getSnapshot: () => Omit<RectangleChartToolSnapshot, 'pointerTime' | 'pointerPrice'>
   getPointerPreview: () => { pointerTime: number | null; pointerPrice: number | null }
   setPointerPreview: (time: number | null, price: number | null) => void
+  shouldHandleKeyboardShortcut: () => boolean
   onInteractionChange: (state: RectangleInteractionState) => void
   onInstancesChange: (instances: RectangleInstance[]) => void
   onInstanceCompleted: (instance: RectangleInstance) => void
@@ -117,12 +118,17 @@ export function attachRectangleChartTool(
     onPointerPreviewChange: (time, price) => {
       callbacks.setPointerPreview(time, price)
     },
+    getPointerPreview: () => {
+      const preview = callbacks.getPointerPreview()
+      return { time: preview.pointerTime, price: preview.pointerPrice }
+    },
     isAlternateToolActive: () =>
       isFixedRangeVolumeProfileToolActive(callbacks.getFixedRangeVolumeProfileInteraction()),
   })
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (isEditableKeyboardTarget(event.target)) return
+    if (!callbacks.shouldHandleKeyboardShortcut()) return
     const snapshot = callbacks.getSnapshot()
     if (event.key === 'Escape') {
       const next = cancelRectangleInteraction(snapshot.interaction)

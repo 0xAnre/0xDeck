@@ -73,6 +73,7 @@ describe('rectanglePanePointer', () => {
       onInstanceUpdated: () => {},
       onRequestRender: () => {},
       onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
     })
 
@@ -100,6 +101,7 @@ describe('rectanglePanePointer', () => {
       onInstanceUpdated: () => {},
       onRequestRender: () => {},
       onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
     })
 
@@ -139,6 +141,7 @@ describe('rectanglePanePointer', () => {
       onInstanceUpdated: () => {},
       onRequestRender: () => {},
       onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => true,
     })
 

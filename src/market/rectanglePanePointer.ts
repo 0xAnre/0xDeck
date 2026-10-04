@@ -15,6 +15,7 @@ import type { RectangleInstance } from './rectangleInstances.ts'
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
+import { resolveRectangleTimeToCoordinate } from './rectangleChartTime.ts'
 
 export type RectanglePanePointerCallbacks = {
   getSnapshot: () => {
@@ -28,6 +29,7 @@ export type RectanglePanePointerCallbacks = {
   onInstanceUpdated: (instance: RectangleInstance) => void
   onRequestRender: () => void
   onPointerPreviewChange: (time: number | null, price: number | null) => void
+  getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
 }
 
@@ -55,10 +57,9 @@ export function attachRectanglePanePointer(
   const projectInstance = (instance: RectangleInstance) => {
     const series = callbacks.getSeries()
     if (!series) return null
-    const timeScale = chart.timeScale()
     return projectRectangleInstanceToScreenBox(
       instance,
-      (time) => timeScale.timeToCoordinate(time as never),
+      (time) => resolveRectangleTimeToCoordinate(chart, time),
       (price) => series.priceToCoordinate(price),
     )
   }
@@ -180,16 +181,23 @@ export function attachRectanglePanePointer(
       return
     }
 
-    if (snapshot.interaction.phase === 'resizing' && point) {
-      const result = commitRectangleResize(
-        snapshot.interaction,
-        snapshot.instances,
-        point.time,
-        point.price,
-      )
-      callbacks.onInteractionChange(result.state)
-      if (result.updatedInstance) {
-        callbacks.onInstanceUpdated(result.updatedInstance)
+    if (snapshot.interaction.phase === 'resizing') {
+      const preview = callbacks.getPointerPreview()
+      const commitTime = point?.time ?? preview.time
+      const commitPrice = point?.price ?? preview.price
+      if (commitTime !== null && commitPrice !== null) {
+        const result = commitRectangleResize(
+          snapshot.interaction,
+          snapshot.instances,
+          commitTime,
+          commitPrice,
+        )
+        callbacks.onInteractionChange(result.state)
+        if (result.updatedInstance) {
+          callbacks.onInstanceUpdated(result.updatedInstance)
+        }
+      } else {
+        callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
       }
       callbacks.onPointerPreviewChange(null, null)
       releasePointer(event)
