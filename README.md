@@ -10,7 +10,7 @@ Start from a blank canvas. Add built-in panels. Create your own widgets — regi
 
 Most market tools force a fixed workflow. 0xDeck gives you a surface you can reshape around your own research process.
 
-## What you can build
+## What you can build with it
 
 - Research dashboards
 - Strategy monitoring panels
