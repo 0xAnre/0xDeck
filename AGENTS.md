@@ -84,9 +84,23 @@ This is the standard GitHub workflow for agent-assisted changes:
 - **Cursor Cloud** is the implementation/coding agent. Cursor implements the Issue and addresses actionable review feedback on the same pull request.
 - **The user** is the final merge authority. Agents must never merge automatically.
 
+### Lead task routing
+
+When a user prompt begins with `Lead task:`, Codex must treat it exclusively as a Lead Developer request:
+
+1. Analyze the request without implementing the feature or modifying application code.
+2. Create exactly one implementation-ready GitHub Issue with clear scope, acceptance criteria, and verification requirements.
+3. Post exactly one top-level Issue comment whose entire contents are:
+
+   ```text
+   cursor-ready
+   ```
+
+Cursor is responsible for implementation. The existing pull request review/fix automation and user-only final merge rules below remain unchanged.
+
 ### Start implementation: Codex to Cursor
 
-After Codex creates an implementation-ready GitHub Issue, Codex must add a **separate top-level Issue comment** that mentions `@cursor`. A mention only inside the Issue body is not a valid handoff.
+For approved work that does not use the `Lead task:` route, after Codex creates an implementation-ready GitHub Issue, Codex must add a **separate top-level Issue comment** that mentions `@cursor`. A mention only inside the Issue body is not a valid handoff.
 
 Use an instruction equivalent to:
 
