@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
 import {
@@ -26,6 +27,9 @@ type UseMarketWidgetSettingsArgs = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm: () => void
   onFixedRangeVolumeProfileDelete: (instanceId: string) => void
+  rectangleInstances: RectangleInstance[]
+  onRectangleArm: () => void
+  onRectangleDelete: (instanceId: string) => void
   disabled: boolean
 }
 
@@ -46,6 +50,9 @@ export function useMarketWidgetSettings({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  rectangleInstances,
+  onRectangleArm,
+  onRectangleDelete,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -81,15 +88,21 @@ export function useMarketWidgetSettings({
         headerSettings.tools === true ? onFixedRangeVolumeProfileArm : undefined,
       onFixedRangeVolumeProfileDelete:
         headerSettings.tools === true ? onFixedRangeVolumeProfileDelete : undefined,
+      rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
+      onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
+      onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
     }),
     [
       disabled,
       fixedRangeVolumeProfileInstances,
+      rectangleInstances,
       headerSettings,
       marketIndicators,
       marketInterval,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
+      onRectangleArm,
+      onRectangleDelete,
       onMarketIndicatorsChange,
       onRollingVwapAdd,
       onRollingVwapDelete,
