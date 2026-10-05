@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { computeSmaLine, SMA_20_PERIOD } from './sma.ts'
+import { computeSmaLine, SMA_20_PERIOD, SMA_50_PERIOD } from './sma.ts'
 import type { MarketCandle } from './types.ts'
 
 function candle(time: number, close: number): MarketCandle {
@@ -30,5 +30,19 @@ describe('computeSmaLine', () => {
     assert.equal(line[0].time, candles[19].time)
     assert.equal(line[0].value, (1 + 20) * 20 / 2 / 20)
     assert.equal(line[1].value, (2 + 21) * 20 / 2 / 20)
+  })
+
+  it('returns no points when fewer than 50 candles for period 50', () => {
+    const candles = Array.from({ length: SMA_50_PERIOD - 1 }, (_, i) => candle(i, i + 1))
+    assert.deepEqual(computeSmaLine(candles, SMA_50_PERIOD), [])
+  })
+
+  it('starts at the 50th candle with the mean of closes 1–50', () => {
+    const candles = Array.from({ length: 55 }, (_, i) => candle(i, i + 1))
+    const line = computeSmaLine(candles, SMA_50_PERIOD)
+    assert.equal(line.length, 6)
+    assert.equal(line[0].time, candles[49].time)
+    assert.equal(line[0].value, (1 + 50) * 50 / 2 / 50)
+    assert.equal(line[1].value, (2 + 51) * 50 / 2 / 50)
   })
 })

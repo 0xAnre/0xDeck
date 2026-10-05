@@ -31,6 +31,10 @@ describe('market indicator ids', () => {
   it('accepts sma-20', () => {
     assert.equal(isMarketIndicatorId('sma-20'), true)
   })
+
+  it('accepts sma-50', () => {
+    assert.equal(isMarketIndicatorId('sma-50'), true)
+  })
 })
 
 describe('sma-20 registry', () => {
@@ -41,6 +45,32 @@ describe('sma-20 registry', () => {
     assert.equal(indicatorContextLevel('sma-20'), null)
     for (const interval of CANDLE_INTERVALS) {
       assert.equal(isIndicatorSupportedOnInterval('sma-20', interval), true)
+    }
+  })
+})
+
+describe('sma-50 registry', () => {
+  it('is enabled on all six intervals with no context level', () => {
+    const def = MARKET_INDICATOR_DEFINITIONS['sma-50']
+    assert.equal(def.label, 'SMA 50')
+    assert.equal(def.contextLevel, null)
+    assert.equal(indicatorContextLevel('sma-50'), null)
+    for (const interval of CANDLE_INTERVALS) {
+      assert.equal(isIndicatorSupportedOnInterval('sma-50', interval), true)
+    }
+  })
+})
+
+describe('SMA indicator menu options', () => {
+  it('lists independent SMA 20 and SMA 50 entries on every interval', () => {
+    for (const interval of CANDLE_INTERVALS) {
+      const options = buildMarketIndicatorOptions(interval)
+      const sma20 = options.find((o) => o.value === 'sma-20')
+      const sma50 = options.find((o) => o.value === 'sma-50')
+      assert.equal(sma20?.label, 'SMA 20')
+      assert.equal(sma20?.disabled, false)
+      assert.equal(sma50?.label, 'SMA 50')
+      assert.equal(sma50?.disabled, false)
     }
   })
 })

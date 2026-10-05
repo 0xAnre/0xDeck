@@ -16,7 +16,7 @@ import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
-import { computeSmaLine, SMA_20_PERIOD } from '@/market/sma'
+import { computeSmaLine, SMA_20_PERIOD, SMA_50_PERIOD } from '@/market/sma'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
 import type { MonthlyVwapLineSeriesBundle } from '@/market/monthlyVwapChartSeries'
 import type { QuarterlyVwapLineSeriesBundle } from '@/market/quarterlyVwapChartSeries'
@@ -37,6 +37,7 @@ export type ChartSeriesBundle = {
   candle: ISeriesApi<'Candlestick'>
   emas: ISeriesApi<'Line'>[]
   sma20: ISeriesApi<'Line'>
+  sma50: ISeriesApi<'Line'>
   dailyVwap: DailyVwapLineSeriesBundle
   weeklyVwap: WeeklyVwapLineSeriesBundle
   monthlyVwap: MonthlyVwapLineSeriesBundle
@@ -90,12 +91,21 @@ export function applyChartLiveCandle(
     })
   })
 
-  const smaLine = computeSmaLine(candles, SMA_20_PERIOD)
-  if (smaLine.length > 0) {
-    const lastSma = smaLine[smaLine.length - 1]
+  const sma20Line = computeSmaLine(candles, SMA_20_PERIOD)
+  if (sma20Line.length > 0) {
+    const lastSma20 = sma20Line[sma20Line.length - 1]
     bundle.sma20.update({
-      time: lastSma.time as UTCTimestamp,
-      value: lastSma.value,
+      time: lastSma20.time as UTCTimestamp,
+      value: lastSma20.value,
+    })
+  }
+
+  const sma50Line = computeSmaLine(candles, SMA_50_PERIOD)
+  if (sma50Line.length > 0) {
+    const lastSma50 = sma50Line[sma50Line.length - 1]
+    bundle.sma50.update({
+      time: lastSma50.time as UTCTimestamp,
+      value: lastSma50.value,
     })
   }
 
