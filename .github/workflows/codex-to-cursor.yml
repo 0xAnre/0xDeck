@@ -5,6 +5,8 @@ on:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
+  issue_comment:
+    types: [created]
 
 jobs:
   trigger-cursor:
