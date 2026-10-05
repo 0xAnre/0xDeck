@@ -98,6 +98,7 @@ import { useFixedRangeVolumeProfileRuntime } from '@/hooks/useFixedRangeVolumePr
 import { attachFixedRangeVolumeProfileSeriesPrimitive } from '@/market/fixedRangeVolumeProfileSeriesPrimitive'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from '@/market/fixedRangeVolumeProfileRuntimeTypes'
 import { EMA_PERIODS } from '@/market/ema'
+import { resolveSma100LineColor, SMA_100_COLOR_VAR } from '@/market/sma100LineColor'
 import {
   requiredVwapContextLevel,
   type MarketIndicatorId,
@@ -128,7 +129,6 @@ import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
 const SMA_20_COLOR_VAR = '--chart-1'
 const SMA_50_COLOR_VAR = '--chart-5'
-const SMA_100_COLOR_VAR = '--muted-foreground'
 
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
@@ -140,7 +140,7 @@ function readThemeColors() {
     ),
     sma20: resolveCssColor(style.getPropertyValue(SMA_20_COLOR_VAR), '#d4d4d8'),
     sma50: resolveCssColor(style.getPropertyValue(SMA_50_COLOR_VAR), '#a1a1aa'),
-    sma100: resolveCssColor(style.getPropertyValue(SMA_100_COLOR_VAR), '#71717a'),
+    sma100: resolveSma100LineColor(style.getPropertyValue(SMA_100_COLOR_VAR)),
   }
 }
 
