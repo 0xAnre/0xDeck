@@ -106,6 +106,7 @@ Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts
 | **Initial history** | At least **500** candles when available; **last 120** visible on open |
 | **1w history** | If Binance has fewer than 500 weekly candles, all available history is used |
 | **Scroll left** | Older candles load on demand (`/klines/history`) |
+| **Crosshair** | **Tools** menu toggle (default on); show or hide the chart crosshair per widget instance |
 | **Persistence** | Interval, indicators, and workspace layout survive refresh (`0xdeck-widget-market-intervals`, `0xdeck-widget-market-indicators`, layout keys) |
 
 Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
