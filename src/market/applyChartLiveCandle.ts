@@ -16,6 +16,7 @@ import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
+import { computeSmaLine, SMA_20_PERIOD } from '@/market/sma'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
 import type { MonthlyVwapLineSeriesBundle } from '@/market/monthlyVwapChartSeries'
 import type { QuarterlyVwapLineSeriesBundle } from '@/market/quarterlyVwapChartSeries'
@@ -35,6 +36,7 @@ function toCandlestickPoint(candle: MarketCandle) {
 export type ChartSeriesBundle = {
   candle: ISeriesApi<'Candlestick'>
   emas: ISeriesApi<'Line'>[]
+  sma20: ISeriesApi<'Line'>
   dailyVwap: DailyVwapLineSeriesBundle
   weeklyVwap: WeeklyVwapLineSeriesBundle
   monthlyVwap: MonthlyVwapLineSeriesBundle
@@ -87,6 +89,15 @@ export function applyChartLiveCandle(
       value: last.value,
     })
   })
+
+  const smaLine = computeSmaLine(candles, SMA_20_PERIOD)
+  if (smaLine.length > 0) {
+    const lastSma = smaLine[smaLine.length - 1]
+    bundle.sma20.update({
+      time: lastSma.time as UTCTimestamp,
+      value: lastSma.value,
+    })
+  }
 
   if (!vwapContext) {
     applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)
