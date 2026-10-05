@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { applyLiveCandle } from './parseMarketCandle.ts'
-import { computeSmaLine, SMA_20_PERIOD, SMA_50_PERIOD } from './sma.ts'
+import { computeSmaLine, SMA_20_PERIOD, SMA_50_PERIOD, SMA_100_PERIOD } from './sma.ts'
 import type { MarketCandle } from './types.ts'
 
 function candle(time: number, close: number): MarketCandle {
@@ -63,6 +63,23 @@ describe('BTC Perp SMA chart series (history)', () => {
     assert.equal(data.length, 3 + 5)
     assert.equal(data[0].time, merged[SMA_50_PERIOD - 1].time)
   })
+
+  it('builds SMA 100 history line starting at candle 100', () => {
+    const candles = candlesWithCloses(Array.from({ length: 102 }, (_, i) => i + 1))
+    const data = smaLineData(candles, SMA_100_PERIOD)
+    assert.equal(data.length, 3)
+    assert.equal(data[0].time, candles[SMA_100_PERIOD - 1].time)
+    assert.equal(data[0].value, (1 + 100) * 100 / 2 / 100)
+  })
+
+  it('recomputes SMA 100 when older history is prepended', () => {
+    const newer = candlesWithCloses(Array.from({ length: 102 }, (_, i) => i + 100))
+    const older = candlesWithCloses(Array.from({ length: 5 }, (_, i) => i + 1))
+    const merged = [...older, ...newer]
+    const data = smaLineData(merged, SMA_100_PERIOD)
+    assert.equal(data.length, 3 + 5)
+    assert.equal(data[0].time, merged[SMA_100_PERIOD - 1].time)
+  })
 })
 
 describe('BTC Perp SMA chart series (live)', () => {
@@ -115,14 +132,43 @@ describe('BTC Perp SMA 50 chart series (live)', () => {
   })
 })
 
-describe('independent SMA 20 and SMA 50 series', () => {
+describe('BTC Perp SMA 100 chart series (live)', () => {
+  it('updates last point when the live candle is replaced', () => {
+    const candles = candlesWithCloses(Array.from({ length: 100 }, () => 10))
+    const live = candle(99, 30)
+    applyLiveCandle(candles, live)
+    const line = computeSmaLine(candles, SMA_100_PERIOD)
+    const last = line[line.length - 1]
+    assert.equal(last.time, 99)
+    assert.equal(last.value, (99 * 10 + 30) / 100)
+  })
+
+  it('updates when a new live candle is appended', () => {
+    const candles = candlesWithCloses(Array.from({ length: 100 }, (_, i) => i + 1))
+    const live = candle(100, 200)
+    applyLiveCandle(candles, live)
+    const line = computeSmaLine(candles, SMA_100_PERIOD)
+    const last = line[line.length - 1]
+    assert.equal(last.time, 100)
+    const windowCloses = candles.slice(-SMA_100_PERIOD).map((c) => c.close)
+    const expected =
+      windowCloses.reduce((sum, close) => sum + close, 0) / SMA_100_PERIOD
+    assert.equal(last.value, expected)
+  })
+})
+
+describe('independent SMA 20, SMA 50, and SMA 100 series', () => {
   it('produces different point counts and values for the same candles', () => {
-    const candles = candlesWithCloses(Array.from({ length: 60 }, (_, i) => i + 1))
+    const candles = candlesWithCloses(Array.from({ length: 110 }, (_, i) => i + 1))
     const sma20 = computeSmaLine(candles, SMA_20_PERIOD)
     const sma50 = computeSmaLine(candles, SMA_50_PERIOD)
-    assert.equal(sma20.length, 41)
-    assert.equal(sma50.length, 11)
+    const sma100 = computeSmaLine(candles, SMA_100_PERIOD)
+    assert.equal(sma20.length, 91)
+    assert.equal(sma50.length, 61)
+    assert.equal(sma100.length, 11)
     assert.notEqual(sma20[0].value, sma50[0].value)
+    assert.notEqual(sma50[0].value, sma100[0].value)
     assert.notEqual(sma20[sma20.length - 1].value, sma50[sma50.length - 1].value)
+    assert.notEqual(sma50[sma50.length - 1].value, sma100[sma100.length - 1].value)
   })
 })

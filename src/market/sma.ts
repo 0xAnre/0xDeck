@@ -2,6 +2,7 @@ import type { MarketCandle } from '@/market/types'
 
 export const SMA_20_PERIOD = 20
 export const SMA_50_PERIOD = 50
+export const SMA_100_PERIOD = 100
 
 export type SmaPoint = {
   time: number
