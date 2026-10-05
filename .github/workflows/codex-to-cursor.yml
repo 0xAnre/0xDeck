@@ -1,0 +1,23 @@
+name: Codex to Cursor Fix
+
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  trigger-cursor:
+    if: >
+      github.event.sender.login == 'chatgpt-codex-connector[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Cursor fix automation
+        run: |
+          curl --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CURSOR_WEBHOOK_AUTH }}" \
+            -H "Content-Type: application/json" \
+            -d '${{ toJSON(github.event) }}' \
+            "${{ secrets.CURSOR_WEBHOOK_URL }}"
