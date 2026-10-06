@@ -76,15 +76,27 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
 
-## Lead Developer Rule
+## Agent development workflow
 
-- **Codex is the Lead Developer and MUST NOT implement application code.**
-- **Cursor is the implementation/coding agent.**
-- For implementation requests, Codex analyzes the task, creates one implementation-ready GitHub Issue, then posts this exact top-level Issue comment:
+Ordered process for feature and fix work:
 
-  ```text
-  cursor-ready
-  ```
+`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
+
+| Role | Responsibility |
+|------|----------------|
+| **User** | Requests work; **only the user** performs the final merge into `main`. |
+| **Codex (Lead Developer)** | Analyze requests; create one implementation-ready GitHub Issue; post the handoff comment; review the resulting pull request. **Must not** implement application code or merge. |
+| **Cursor** | Implement the Issue; open a pull request **against `main`**; apply Codex review feedback on the **same** branch and pull request. **Must not** merge. |
+
+### Issue handoff (`cursor-ready`)
+
+For implementation requests, Codex creates one GitHub Issue (scope, acceptance criteria, verification), then posts **exactly one** top-level Issue comment whose **entire contents** are:
+
+```text
+cursor-ready
+```
+
+That comment is the sole handoff signal. Do not require bot mentions or other strings in the handoff.
 
 ### Lead task routing
 
@@ -98,10 +110,7 @@ When a user prompt begins with `Lead task:`, Codex must treat it exclusively as 
    cursor-ready
    ```
 
-Cursor is responsible for implementation. The existing pull request review/fix automation and user-only final merge rules below remain unchanged.
-
-- Codex reviews Cursor's pull request but does not implement the feature itself.
-- Neither Codex nor Cursor merges. The final merge belongs to the user.
+Cursor implements from the Issue, opens **one** PR against `main`, and updates that same PR when addressing Codex review. Neither Codex nor Cursor merges.
 
 ## shadcn-first workflow
 
