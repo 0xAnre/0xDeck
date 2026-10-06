@@ -51,6 +51,7 @@ function trackChartBundle() {
   const bundle: ChartSeriesBundle = {
     candle: makeLine() as ChartSeriesBundle['candle'],
     emas: [],
+    sma20: makeLine() as ChartSeriesBundle['sma20'],
     dailyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['dailyVwap'],
     weeklyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['weeklyVwap'],
     monthlyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['monthlyVwap'],

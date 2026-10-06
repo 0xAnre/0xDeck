@@ -126,6 +126,7 @@ import type { ServerEventMessage } from '@/widgets/stream/messages'
 import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
+const SMA_20_COLOR_VAR = '--chart-1'
 
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
@@ -135,6 +136,7 @@ function readThemeColors() {
     ema: EMA_COLOR_VARS.map((token, index) =>
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
+    sma20: resolveCssColor(style.getPropertyValue(SMA_20_COLOR_VAR), '#d4d4d8'),
   }
 }
 
@@ -481,6 +483,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [fixedRangeVolumeProfileInstances])
 
   const tripleEmaVisible = activeIndicators.includes('triple-ema')
+  const sma20Visible = activeIndicators.includes('sma-20')
 
   useEffect(() => {
     activeIndicatorsRef.current = activeIndicators
@@ -492,8 +495,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     bundle.emas.forEach((series) => {
       series.applyOptions({ visible: tripleEmaVisible })
     })
+    bundle.sma20.applyOptions({ visible: sma20Visible })
     syncAllVwapVisibility(bundle)
-  }, [tripleEmaVisible, activeIndicators, chartReady, interval, rollingVwapInstances, syncAllVwapVisibility])
+  }, [tripleEmaVisible, sma20Visible, activeIndicators, chartReady, interval, rollingVwapInstances, syncAllVwapVisibility])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -607,6 +611,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }),
       )
 
+      const sma20Series = chart!.addSeries(LineSeries, {
+        color: colors.sma20,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        visible: activeIndicatorsRef.current.includes('sma-20'),
+      })
+
       const dailyVwapSeries = createDailyVwapLineSeries(chart!, false)
       const weeklyVwapSeries = createWeeklyVwapLineSeries(chart!, false)
       const monthlyVwapSeries = createMonthlyVwapLineSeries(chart!, false)
@@ -624,6 +636,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       seriesRef.current = {
         candle: candleSeries,
         emas: emaSeries,
+        sma20: sma20Series,
         dailyVwap: dailyVwapSeries,
         weeklyVwap: weeklyVwapSeries,
         monthlyVwap: monthlyVwapSeries,
@@ -683,6 +696,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (bundle) {
       bundle.candle.setData([])
       bundle.emas.forEach((series) => series.setData([]))
+      bundle.sma20.setData([])
       clearDailyVwapLineSeriesData(bundle.dailyVwap)
       clearWeeklyVwapLineSeriesData(bundle.weeklyVwap)
       clearMonthlyVwapLineSeriesData(bundle.monthlyVwap)

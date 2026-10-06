@@ -27,6 +27,22 @@ describe('market indicator ids', () => {
   it('accepts rolling-vwap', () => {
     assert.equal(isMarketIndicatorId('rolling-vwap'), true)
   })
+
+  it('accepts sma-20', () => {
+    assert.equal(isMarketIndicatorId('sma-20'), true)
+  })
+})
+
+describe('sma-20 registry', () => {
+  it('is enabled on all six intervals with no context level', () => {
+    const def = MARKET_INDICATOR_DEFINITIONS['sma-20']
+    assert.equal(def.label, 'SMA 20')
+    assert.equal(def.contextLevel, null)
+    assert.equal(indicatorContextLevel('sma-20'), null)
+    for (const interval of CANDLE_INTERVALS) {
+      assert.equal(isIndicatorSupportedOnInterval('sma-20', interval), true)
+    }
+  })
 })
 
 describe('rolling-vwap registry', () => {
