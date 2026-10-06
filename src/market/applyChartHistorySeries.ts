@@ -13,13 +13,6 @@ import { setWeeklyVwapLineSeriesData } from '@/market/weeklyVwapChartSeries'
 import { computeYearlyVwap } from '@/market/yearlyVwap'
 import { setYearlyVwapLineSeriesData } from '@/market/yearlyVwapChartSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
-import {
-  computeSmaLine,
-  SMA_20_PERIOD,
-  SMA_50_PERIOD,
-  SMA_100_PERIOD,
-  SMA_200_PERIOD,
-} from '@/market/sma'
 import type { MarketCandle } from '@/market/types'
 
 function toCandlestickPoint(candle: MarketCandle) {
@@ -48,34 +41,6 @@ export function applyChartHistorySeries(
       })),
     )
   })
-  const sma20Line = computeSmaLine([...candles], SMA_20_PERIOD)
-  bundle.sma20.setData(
-    sma20Line.map((point) => ({
-      time: point.time as UTCTimestamp,
-      value: point.value,
-    })),
-  )
-  const sma50Line = computeSmaLine([...candles], SMA_50_PERIOD)
-  bundle.sma50.setData(
-    sma50Line.map((point) => ({
-      time: point.time as UTCTimestamp,
-      value: point.value,
-    })),
-  )
-  const sma100Line = computeSmaLine([...candles], SMA_100_PERIOD)
-  bundle.sma100.setData(
-    sma100Line.map((point) => ({
-      time: point.time as UTCTimestamp,
-      value: point.value,
-    })),
-  )
-  const sma200Line = computeSmaLine([...candles], SMA_200_PERIOD)
-  bundle.sma200.setData(
-    sma200Line.map((point) => ({
-      time: point.time as UTCTimestamp,
-      value: point.value,
-    })),
-  )
   setDailyVwapLineSeriesData(bundle.dailyVwap, computeDailyVwap(candles))
   setWeeklyVwapLineSeriesData(bundle.weeklyVwap, computeWeeklyVwap(candles))
   setMonthlyVwapLineSeriesData(bundle.monthlyVwap, computeMonthlyVwap(candles))
