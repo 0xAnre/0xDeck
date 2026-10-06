@@ -12,6 +12,7 @@ import { computeWeeklyVwap } from '@/market/weeklyVwap'
 import { setWeeklyVwapLineSeriesData } from '@/market/weeklyVwapChartSeries'
 import { computeYearlyVwap } from '@/market/yearlyVwap'
 import { setYearlyVwapLineSeriesData } from '@/market/yearlyVwapChartSeries'
+import { setEma200HistoryData } from '@/market/chartEma200Series'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import type { MarketCandle } from '@/market/types'
 
@@ -41,6 +42,7 @@ export function applyChartHistorySeries(
       })),
     )
   })
+  setEma200HistoryData(bundle.ema200, candles)
   setDailyVwapLineSeriesData(bundle.dailyVwap, computeDailyVwap(candles))
   setWeeklyVwapLineSeriesData(bundle.weeklyVwap, computeWeeklyVwap(candles))
   setMonthlyVwapLineSeriesData(bundle.monthlyVwap, computeMonthlyVwap(candles))

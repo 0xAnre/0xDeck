@@ -2,6 +2,8 @@ import type { MarketCandle } from '@/market/types'
 
 export const EMA_PERIODS = [13, 21, 35] as const
 
+export const EMA_200_PERIOD = 200
+
 export type EmaPeriod = (typeof EMA_PERIODS)[number]
 
 export type EmaPoint = {

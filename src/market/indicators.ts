@@ -2,6 +2,7 @@ import type { CandleInterval } from './types.ts'
 
 export const MARKET_INDICATOR_IDS = [
   'triple-ema',
+  'ema-200',
   'daily-vwap',
   'weekly-vwap',
   'monthly-vwap',
@@ -37,6 +38,11 @@ export type MarketIndicatorDefinition = {
 export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndicatorDefinition> = {
   'triple-ema': {
     label: '3 EMA',
+    supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
+    contextLevel: null,
+  },
+  'ema-200': {
+    label: 'EMA 200',
     supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
     contextLevel: null,
   },
