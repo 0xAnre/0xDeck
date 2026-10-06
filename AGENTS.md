@@ -2,6 +2,24 @@
 
 Context for AI agents helping users customize this repository.
 
+## Lead → Cursor workflow
+
+This workflow is **unconditional** for every user development/implementation request. It does **not** require a `Lead task:` prefix. A normal request such as "Add a moving average indicator" uses this path automatically. Questions and read-only analysis are not implementation requests and do not create Issues.
+
+**Codex** is always the Lead Developer. Codex analyzes the request, creates **exactly one** implementation-ready GitHub Issue, then posts **exactly one** top-level Issue comment whose entire contents are:
+
+```text
+cursor-ready
+```
+
+After Cursor opens a PR, Codex reviews it. Codex must **not** implement the requested change, modify application/project files, commit, or push.
+
+**Cursor** is the implementation agent. Cursor creates the task branch from `main`, modifies files, runs required checks (see Verification), commits, pushes, and opens or updates a PR targeting **`main`**. Codex review fixes are applied by Cursor on the **same** PR/branch.
+
+**Neither Codex nor Cursor merges.** Only the user merges.
+
+Commit permission is role-specific: Codex does not commit implementation work; Cursor commits and pushes its assigned implementation branch as part of this workflow.
+
 ## Read order (bootstrap)
 
 1. This file (`AGENTS.md`)
@@ -72,36 +90,9 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 5. **Imports at top of file** — no inline imports
 6. **`minW`/`minH` in registry `grid`** = minimum and default open size
 7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (57341), backend `uvicorn` (57342)
-8. **Do not commit** unless the user explicitly asks
+8. **Commits** — role-specific; see Lead → Cursor workflow (not a generic "never commit" rule)
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
-
-## Lead Developer Rule
-
-- **Codex is the Lead Developer and MUST NOT implement application code.**
-- **Cursor is the implementation/coding agent.**
-- For implementation requests, Codex analyzes the task, creates one implementation-ready GitHub Issue, then posts this exact top-level Issue comment:
-
-  ```text
-  cursor-ready
-  ```
-
-### Lead task routing
-
-When a user prompt begins with `Lead task:`, Codex must treat it exclusively as a Lead Developer request:
-
-1. Analyze the request without implementing the feature or modifying application code.
-2. Create exactly one implementation-ready GitHub Issue with clear scope, acceptance criteria, and verification requirements.
-3. Post exactly one top-level Issue comment whose entire contents are:
-
-   ```text
-   cursor-ready
-   ```
-
-Cursor is responsible for implementation. The existing pull request review/fix automation and user-only final merge rules below remain unchanged.
-
-- Codex reviews Cursor's pull request but does not implement the feature itself.
-- Neither Codex nor Cursor merges. The final merge belongs to the user.
 
 ## shadcn-first workflow
 
