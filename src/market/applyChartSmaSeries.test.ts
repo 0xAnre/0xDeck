@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { applyLiveCandle } from './parseMarketCandle.ts'
 import {
+  computeLatestSmaPoint,
   computeSmaLine,
   SMA_20_PERIOD,
   SMA_50_PERIOD,
@@ -185,23 +186,36 @@ describe('BTC Perp SMA 200 chart series (live)', () => {
     const candles = candlesWithCloses(Array.from({ length: 200 }, () => 10))
     const live = candle(199, 30)
     applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_200_PERIOD)
     const line = computeSmaLine(candles, SMA_200_PERIOD)
-    const last = line[line.length - 1]
-    assert.equal(last.time, 199)
-    assert.equal(last.value, (199 * 10 + 30) / 200)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 199)
+    assert.equal(latest?.value, (199 * 10 + 30) / 200)
   })
 
   it('updates when a new live candle is appended', () => {
     const candles = candlesWithCloses(Array.from({ length: 200 }, (_, i) => i + 1))
     const live = candle(200, 400)
     applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_200_PERIOD)
     const line = computeSmaLine(candles, SMA_200_PERIOD)
-    const last = line[line.length - 1]
-    assert.equal(last.time, 200)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 200)
     const windowCloses = candles.slice(-SMA_200_PERIOD).map((c) => c.close)
     const expected =
       windowCloses.reduce((sum, close) => sum + close, 0) / SMA_200_PERIOD
-    assert.equal(last.value, expected)
+    assert.equal(latest?.value, expected)
+  })
+
+  it('uses the latest 200 closes when history is longer than the period', () => {
+    const candles = candlesWithCloses(Array.from({ length: 800 }, (_, i) => i + 1))
+    const live = candle(800, 900)
+    applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_200_PERIOD)
+    const line = computeSmaLine(candles, SMA_200_PERIOD)
+    assert.equal(line.length, 602)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 800)
   })
 })
 

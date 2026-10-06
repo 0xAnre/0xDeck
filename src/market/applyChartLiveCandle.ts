@@ -17,6 +17,7 @@ import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
 import {
+  computeLatestSmaPoint,
   computeSmaLine,
   SMA_20_PERIOD,
   SMA_50_PERIOD,
@@ -126,9 +127,8 @@ export function applyChartLiveCandle(
     })
   }
 
-  const sma200Line = computeSmaLine(candles, SMA_200_PERIOD)
-  if (sma200Line.length > 0) {
-    const lastSma200 = sma200Line[sma200Line.length - 1]
+  const lastSma200 = computeLatestSmaPoint(candles, SMA_200_PERIOD)
+  if (lastSma200) {
     bundle.sma200.update({
       time: lastSma200.time as UTCTimestamp,
       value: lastSma200.value,
