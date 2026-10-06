@@ -118,9 +118,8 @@ export function applyChartLiveCandle(
     })
   }
 
-  const sma100Line = computeSmaLine(candles, SMA_100_PERIOD)
-  if (sma100Line.length > 0) {
-    const lastSma100 = sma100Line[sma100Line.length - 1]
+  const lastSma100 = computeLatestSmaPoint(candles, SMA_100_PERIOD)
+  if (lastSma100) {
     bundle.sma100.update({
       time: lastSma100.time as UTCTimestamp,
       value: lastSma100.value,

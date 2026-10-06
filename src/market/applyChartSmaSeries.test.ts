@@ -161,23 +161,36 @@ describe('BTC Perp SMA 100 chart series (live)', () => {
     const candles = candlesWithCloses(Array.from({ length: 100 }, () => 10))
     const live = candle(99, 30)
     applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_100_PERIOD)
     const line = computeSmaLine(candles, SMA_100_PERIOD)
-    const last = line[line.length - 1]
-    assert.equal(last.time, 99)
-    assert.equal(last.value, (99 * 10 + 30) / 100)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 99)
+    assert.equal(latest?.value, (99 * 10 + 30) / 100)
   })
 
   it('updates when a new live candle is appended', () => {
     const candles = candlesWithCloses(Array.from({ length: 100 }, (_, i) => i + 1))
     const live = candle(100, 200)
     applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_100_PERIOD)
     const line = computeSmaLine(candles, SMA_100_PERIOD)
-    const last = line[line.length - 1]
-    assert.equal(last.time, 100)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 100)
     const windowCloses = candles.slice(-SMA_100_PERIOD).map((c) => c.close)
     const expected =
       windowCloses.reduce((sum, close) => sum + close, 0) / SMA_100_PERIOD
-    assert.equal(last.value, expected)
+    assert.equal(latest?.value, expected)
+  })
+
+  it('uses the latest 100 closes when history is longer than the period', () => {
+    const candles = candlesWithCloses(Array.from({ length: 800 }, (_, i) => i + 1))
+    const live = candle(800, 900)
+    applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_100_PERIOD)
+    const line = computeSmaLine(candles, SMA_100_PERIOD)
+    assert.equal(line.length, 702)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 800)
   })
 })
 
