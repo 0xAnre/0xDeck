@@ -16,14 +16,6 @@ import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
-import {
-  computeLatestSmaPoint,
-  computeSmaLine,
-  SMA_20_PERIOD,
-  SMA_50_PERIOD,
-  SMA_100_PERIOD,
-  SMA_200_PERIOD,
-} from '@/market/sma'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
 import type { MonthlyVwapLineSeriesBundle } from '@/market/monthlyVwapChartSeries'
 import type { QuarterlyVwapLineSeriesBundle } from '@/market/quarterlyVwapChartSeries'
@@ -43,10 +35,6 @@ function toCandlestickPoint(candle: MarketCandle) {
 export type ChartSeriesBundle = {
   candle: ISeriesApi<'Candlestick'>
   emas: ISeriesApi<'Line'>[]
-  sma20: ISeriesApi<'Line'>
-  sma50: ISeriesApi<'Line'>
-  sma100: ISeriesApi<'Line'>
-  sma200: ISeriesApi<'Line'>
   dailyVwap: DailyVwapLineSeriesBundle
   weeklyVwap: WeeklyVwapLineSeriesBundle
   monthlyVwap: MonthlyVwapLineSeriesBundle
@@ -99,40 +87,6 @@ export function applyChartLiveCandle(
       value: last.value,
     })
   })
-
-  const sma20Line = computeSmaLine(candles, SMA_20_PERIOD)
-  if (sma20Line.length > 0) {
-    const lastSma20 = sma20Line[sma20Line.length - 1]
-    bundle.sma20.update({
-      time: lastSma20.time as UTCTimestamp,
-      value: lastSma20.value,
-    })
-  }
-
-  const sma50Line = computeSmaLine(candles, SMA_50_PERIOD)
-  if (sma50Line.length > 0) {
-    const lastSma50 = sma50Line[sma50Line.length - 1]
-    bundle.sma50.update({
-      time: lastSma50.time as UTCTimestamp,
-      value: lastSma50.value,
-    })
-  }
-
-  const lastSma100 = computeLatestSmaPoint(candles, SMA_100_PERIOD)
-  if (lastSma100) {
-    bundle.sma100.update({
-      time: lastSma100.time as UTCTimestamp,
-      value: lastSma100.value,
-    })
-  }
-
-  const lastSma200 = computeLatestSmaPoint(candles, SMA_200_PERIOD)
-  if (lastSma200) {
-    bundle.sma200.update({
-      time: lastSma200.time as UTCTimestamp,
-      value: lastSma200.value,
-    })
-  }
 
   if (!vwapContext) {
     applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)

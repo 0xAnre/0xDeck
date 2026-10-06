@@ -98,10 +98,6 @@ Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts
 | **Timeframes** | `1m`, `5m`, `30m`, `4h`, `1d`, `1w` (header interval picker) |
 | **Default** | `1m`, no indicators selected |
 | **Triple EMA** | EMA 13, 21, 35 — all timeframes |
-| **SMA 20** | 20-period simple moving average of close — all timeframes |
-| **SMA 50** | 50-period simple moving average of close — all timeframes |
-| **SMA 100** | 100-period simple moving average of close — all timeframes |
-| **SMA 200** | 200-period simple moving average of close — all timeframes |
 | **Daily VWAP** | `1m`–`1d` (not `1w`) |
 | **Weekly VWAP** | `1m`–`1d` (not `1w`) |
 | **Monthly VWAP** | `4h`, `1d` only |
