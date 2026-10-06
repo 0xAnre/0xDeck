@@ -16,7 +16,14 @@ import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
-import { computeSmaLine, SMA_20_PERIOD, SMA_50_PERIOD, SMA_100_PERIOD } from '@/market/sma'
+import {
+  computeLatestSmaPoint,
+  computeSmaLine,
+  SMA_20_PERIOD,
+  SMA_50_PERIOD,
+  SMA_100_PERIOD,
+  SMA_200_PERIOD,
+} from '@/market/sma'
 import { applyLiveCandle } from '@/market/parseMarketCandle'
 import type { MonthlyVwapLineSeriesBundle } from '@/market/monthlyVwapChartSeries'
 import type { QuarterlyVwapLineSeriesBundle } from '@/market/quarterlyVwapChartSeries'
@@ -39,6 +46,7 @@ export type ChartSeriesBundle = {
   sma20: ISeriesApi<'Line'>
   sma50: ISeriesApi<'Line'>
   sma100: ISeriesApi<'Line'>
+  sma200: ISeriesApi<'Line'>
   dailyVwap: DailyVwapLineSeriesBundle
   weeklyVwap: WeeklyVwapLineSeriesBundle
   monthlyVwap: MonthlyVwapLineSeriesBundle
@@ -116,6 +124,14 @@ export function applyChartLiveCandle(
     bundle.sma100.update({
       time: lastSma100.time as UTCTimestamp,
       value: lastSma100.value,
+    })
+  }
+
+  const lastSma200 = computeLatestSmaPoint(candles, SMA_200_PERIOD)
+  if (lastSma200) {
+    bundle.sma200.update({
+      time: lastSma200.time as UTCTimestamp,
+      value: lastSma200.value,
     })
   }
 

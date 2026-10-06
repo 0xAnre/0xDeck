@@ -5,6 +5,7 @@ export const MARKET_INDICATOR_IDS = [
   'sma-20',
   'sma-50',
   'sma-100',
+  'sma-200',
   'daily-vwap',
   'weekly-vwap',
   'monthly-vwap',
@@ -55,6 +56,11 @@ export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndic
   },
   'sma-100': {
     label: 'SMA 100',
+    supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
+    contextLevel: null,
+  },
+  'sma-200': {
+    label: 'SMA 200',
     supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
     contextLevel: null,
   },

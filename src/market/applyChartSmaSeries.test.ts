@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { applyLiveCandle } from './parseMarketCandle.ts'
-import { computeSmaLine, SMA_20_PERIOD, SMA_50_PERIOD, SMA_100_PERIOD } from './sma.ts'
+import {
+  computeLatestSmaPoint,
+  computeSmaLine,
+  SMA_20_PERIOD,
+  SMA_50_PERIOD,
+  SMA_100_PERIOD,
+  SMA_200_PERIOD,
+} from './sma.ts'
 import type { MarketCandle } from './types.ts'
 
 function candle(time: number, close: number): MarketCandle {
@@ -80,6 +87,23 @@ describe('BTC Perp SMA chart series (history)', () => {
     assert.equal(data.length, 3 + 5)
     assert.equal(data[0].time, merged[SMA_100_PERIOD - 1].time)
   })
+
+  it('builds SMA 200 history line starting at candle 200', () => {
+    const candles = candlesWithCloses(Array.from({ length: 202 }, (_, i) => i + 1))
+    const data = smaLineData(candles, SMA_200_PERIOD)
+    assert.equal(data.length, 3)
+    assert.equal(data[0].time, candles[SMA_200_PERIOD - 1].time)
+    assert.equal(data[0].value, (1 + 200) * 200 / 2 / 200)
+  })
+
+  it('recomputes SMA 200 when older history is prepended', () => {
+    const newer = candlesWithCloses(Array.from({ length: 202 }, (_, i) => i + 100))
+    const older = candlesWithCloses(Array.from({ length: 5 }, (_, i) => i + 1))
+    const merged = [...older, ...newer]
+    const data = smaLineData(merged, SMA_200_PERIOD)
+    assert.equal(data.length, 3 + 5)
+    assert.equal(data[0].time, merged[SMA_200_PERIOD - 1].time)
+  })
 })
 
 describe('BTC Perp SMA chart series (live)', () => {
@@ -157,18 +181,60 @@ describe('BTC Perp SMA 100 chart series (live)', () => {
   })
 })
 
-describe('independent SMA 20, SMA 50, and SMA 100 series', () => {
+describe('BTC Perp SMA 200 chart series (live)', () => {
+  it('updates last point when the live candle is replaced', () => {
+    const candles = candlesWithCloses(Array.from({ length: 200 }, () => 10))
+    const live = candle(199, 30)
+    applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_200_PERIOD)
+    const line = computeSmaLine(candles, SMA_200_PERIOD)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 199)
+    assert.equal(latest?.value, (199 * 10 + 30) / 200)
+  })
+
+  it('updates when a new live candle is appended', () => {
+    const candles = candlesWithCloses(Array.from({ length: 200 }, (_, i) => i + 1))
+    const live = candle(200, 400)
+    applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_200_PERIOD)
+    const line = computeSmaLine(candles, SMA_200_PERIOD)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 200)
+    const windowCloses = candles.slice(-SMA_200_PERIOD).map((c) => c.close)
+    const expected =
+      windowCloses.reduce((sum, close) => sum + close, 0) / SMA_200_PERIOD
+    assert.equal(latest?.value, expected)
+  })
+
+  it('uses the latest 200 closes when history is longer than the period', () => {
+    const candles = candlesWithCloses(Array.from({ length: 800 }, (_, i) => i + 1))
+    const live = candle(800, 900)
+    applyLiveCandle(candles, live)
+    const latest = computeLatestSmaPoint(candles, SMA_200_PERIOD)
+    const line = computeSmaLine(candles, SMA_200_PERIOD)
+    assert.equal(line.length, 602)
+    assert.deepEqual(latest, line[line.length - 1])
+    assert.equal(latest?.time, 800)
+  })
+})
+
+describe('independent SMA 20, SMA 50, SMA 100, and SMA 200 series', () => {
   it('produces different point counts and values for the same candles', () => {
-    const candles = candlesWithCloses(Array.from({ length: 110 }, (_, i) => i + 1))
+    const candles = candlesWithCloses(Array.from({ length: 210 }, (_, i) => i + 1))
     const sma20 = computeSmaLine(candles, SMA_20_PERIOD)
     const sma50 = computeSmaLine(candles, SMA_50_PERIOD)
     const sma100 = computeSmaLine(candles, SMA_100_PERIOD)
-    assert.equal(sma20.length, 91)
-    assert.equal(sma50.length, 61)
-    assert.equal(sma100.length, 11)
+    const sma200 = computeSmaLine(candles, SMA_200_PERIOD)
+    assert.equal(sma20.length, 191)
+    assert.equal(sma50.length, 161)
+    assert.equal(sma100.length, 111)
+    assert.equal(sma200.length, 11)
     assert.notEqual(sma20[0].value, sma50[0].value)
     assert.notEqual(sma50[0].value, sma100[0].value)
+    assert.notEqual(sma100[0].value, sma200[0].value)
     assert.notEqual(sma20[sma20.length - 1].value, sma50[sma50.length - 1].value)
     assert.notEqual(sma50[sma50.length - 1].value, sma100[sma100.length - 1].value)
+    assert.notEqual(sma100[sma100.length - 1].value, sma200[sma200.length - 1].value)
   })
 })
