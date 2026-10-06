@@ -2,6 +2,36 @@
 
 Context for AI agents helping users customize this repository.
 
+## Lead → Cursor workflow
+
+This workflow is **unconditional** for every user development/implementation request. It does **not** require a `Lead task:` prefix. A normal request such as "Add a moving average indicator" uses this path automatically. Questions and read-only analysis are not implementation requests and do not create Issues.
+
+Ordered process:
+
+`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
+
+| Role | Responsibility |
+|------|----------------|
+| **User** | Requests work; **only the user** performs the final merge into `main`. |
+| **Codex (Lead Developer)** | Analyze requests; create one implementation-ready GitHub Issue; post the handoff comment; review the resulting pull request. **Must not** implement application code, modify application/project files, commit, push, or merge. |
+| **Cursor** | Implement the Issue; open a pull request **against `main`**; apply Codex review feedback on the **same** branch and pull request. **Must not** merge. |
+
+**Codex** is always the Lead Developer. Codex analyzes the request, creates **exactly one** implementation-ready GitHub Issue, then posts **exactly one** top-level Issue comment whose entire contents are:
+
+```text
+cursor-ready
+```
+
+That comment is the sole Issue handoff signal. Do not require bot mentions or other strings in the handoff.
+
+After Cursor opens a PR, Codex reviews it. Codex must **not** implement the requested change, modify application/project files, commit, or push.
+
+**Cursor** is the implementation agent. Cursor creates the task branch from `main`, modifies files, runs required checks (see Verification), commits, pushes, and opens or updates a PR targeting **`main`**. Codex review fixes are applied by Cursor on the **same** PR/branch.
+
+**Neither Codex nor Cursor merges.** Only the user merges.
+
+Commit permission is role-specific: Codex does not commit implementation work; Cursor commits and pushes its assigned implementation branch as part of this workflow.
+
 ## Read order (bootstrap)
 
 1. This file (`AGENTS.md`)
@@ -72,45 +102,9 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 5. **Imports at top of file** — no inline imports
 6. **`minW`/`minH` in registry `grid`** = minimum and default open size
 7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (57341), backend `uvicorn` (57342)
-8. **Do not commit** unless the user explicitly asks
+8. **Commits** — role-specific; see Lead → Cursor workflow (not a generic "never commit" rule)
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
-
-## Agent development workflow
-
-Ordered process for feature and fix work:
-
-`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
-
-| Role | Responsibility |
-|------|----------------|
-| **User** | Requests work; **only the user** performs the final merge into `main`. |
-| **Codex (Lead Developer)** | Analyze requests; create one implementation-ready GitHub Issue; post the handoff comment; review the resulting pull request. **Must not** implement application code or merge. |
-| **Cursor** | Implement the Issue; open a pull request **against `main`**; apply Codex review feedback on the **same** branch and pull request. **Must not** merge. |
-
-### Issue handoff (`cursor-ready`)
-
-For implementation requests, Codex creates one GitHub Issue (scope, acceptance criteria, verification), then posts **exactly one** top-level Issue comment whose **entire contents** are:
-
-```text
-cursor-ready
-```
-
-That comment is the sole handoff signal. Do not require bot mentions or other strings in the handoff.
-
-### Lead task routing
-
-When a user prompt begins with `Lead task:`, Codex must treat it exclusively as a Lead Developer request:
-
-1. Analyze the request without implementing the feature or modifying application code.
-2. Create exactly one implementation-ready GitHub Issue with clear scope, acceptance criteria, and verification requirements.
-3. Post exactly one top-level Issue comment whose entire contents are:
-
-   ```text
-   cursor-ready
-   ```
-
-Cursor implements from the Issue, opens **one** PR against `main`, and updates that same PR when addressing Codex review. Neither Codex nor Cursor merges.
 
 ## shadcn-first workflow
 

@@ -24,7 +24,7 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 - **Cursor**: implement the Issue, open one PR against `main`, push review fixes to that same PR — no merge.
 - **User**: final merge only.
 
-Details: [AGENTS.md](../AGENTS.md) (Agent development workflow).
+Details: [AGENTS.md](../AGENTS.md) (Lead → Cursor workflow).
 
 ## Typical workflows
 
