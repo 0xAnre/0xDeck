@@ -6,11 +6,23 @@ Context for AI agents helping users customize this repository.
 
 This workflow is **unconditional** for every user development/implementation request. It does **not** require a `Lead task:` prefix. A normal request such as "Add a moving average indicator" uses this path automatically. Questions and read-only analysis are not implementation requests and do not create Issues.
 
+Ordered process:
+
+`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
+
+| Role | Responsibility |
+|------|----------------|
+| **User** | Requests work; **only the user** performs the final merge into `main`. |
+| **Codex (Lead Developer)** | Analyze requests; create one implementation-ready GitHub Issue; post the handoff comment; review the resulting pull request. **Must not** implement application code, modify application/project files, commit, push, or merge. |
+| **Cursor** | Implement the Issue; open a pull request **against `main`**; apply Codex review feedback on the **same** branch and pull request. **Must not** merge. |
+
 **Codex** is always the Lead Developer. Codex analyzes the request, creates **exactly one** implementation-ready GitHub Issue, then posts **exactly one** top-level Issue comment whose entire contents are:
 
 ```text
 cursor-ready
 ```
+
+That comment is the sole Issue handoff signal. Do not require bot mentions or other strings in the handoff.
 
 After Cursor opens a PR, Codex reviews it. Codex must **not** implement the requested change, modify application/project files, commit, or push.
 

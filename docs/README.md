@@ -16,6 +16,16 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [../AGENTS.md](../AGENTS.md) | Architecture + AI agent conventions |
 | [PRODUCT-POSITIONING.md](./PRODUCT-POSITIONING.md) | Product positioning + UX direction |
 
+## Agent workflow (Codex + Cursor)
+
+`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
+
+- **Codex** (Lead Developer): analyze, write the Issue, post a top-level comment containing only `cursor-ready`, review the PR — no application code, no merge.
+- **Cursor**: implement the Issue, open one PR against `main`, push review fixes to that same PR — no merge.
+- **User**: final merge only.
+
+Details: [AGENTS.md](../AGENTS.md) (Lead → Cursor workflow).
+
 ## Typical workflows
 
 **Load your data**
