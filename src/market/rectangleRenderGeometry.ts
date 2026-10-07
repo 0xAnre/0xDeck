@@ -1,3 +1,4 @@
+import type { RectangleTimeEdge } from './rectangleChartTime.ts'
 import type { RectangleHandleKind } from './rectangleHitTest.ts'
 import type { NormalizedRectangleBounds, RectangleInstance } from './rectangleInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
@@ -24,18 +25,18 @@ export type BuildRectangleDrawModelsArgs = {
   handleFillStyle: string
   pointerTime: number | null
   pointerPrice: number | null
-  timeToCoordinate: (time: number) => number | null
+  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null
   priceToY: (price: number) => number | null
   handleRadiusPx: number
 }
 
 function boundsToScreenBox(
   bounds: NormalizedRectangleBounds,
-  timeToCoordinate: (time: number) => number | null,
+  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
   priceToY: (price: number) => number | null,
 ): { left: number; right: number; top: number; bottom: number } | null {
-  const left = timeToCoordinate(bounds.fromTime)
-  const right = timeToCoordinate(bounds.toTime)
+  const left = timeToCoordinate(bounds.fromTime, 'start')
+  const right = timeToCoordinate(bounds.toTime, 'end')
   const top = priceToY(bounds.highPrice)
   const bottom = priceToY(bounds.lowPrice)
   if (left === null || right === null || top === null || bottom === null) return null
@@ -71,7 +72,7 @@ function instanceToDrawModel(
   instance: RectangleInstance,
   selectedId: string | null,
   fillStyle: string,
-  timeToCoordinate: (time: number) => number | null,
+  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
   priceToY: (price: number) => number | null,
 ): RectangleDrawModel | null {
   const box = boundsToScreenBox(instance, timeToCoordinate, priceToY)
@@ -137,7 +138,7 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
 
 export function projectRectangleInstanceToScreenBox(
   instance: RectangleInstance,
-  timeToCoordinate: (time: number) => number | null,
+  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
   priceToY: (price: number) => number | null,
 ): { left: number; right: number; top: number; bottom: number } | null {
   return boundsToScreenBox(instance, timeToCoordinate, priceToY)

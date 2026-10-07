@@ -59,7 +59,7 @@ export function attachRectanglePanePointer(
     if (!series) return null
     return projectRectangleInstanceToScreenBox(
       instance,
-      (time) => resolveRectangleTimeToCoordinate(chart, time),
+      (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge),
       (price) => series.priceToCoordinate(price),
     )
   }

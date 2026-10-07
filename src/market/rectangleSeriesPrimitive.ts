@@ -114,7 +114,7 @@ class RectanglePaneView implements IPrimitivePaneView {
       handleFillStyle: readRectangleHandleFillStyle(),
       pointerTime: context.pointerTime,
       pointerPrice: context.pointerPrice,
-      timeToCoordinate: (time) => resolveRectangleTimeToCoordinate(chart, time),
+      timeToCoordinate: (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge),
       priceToY: (price) => series.priceToCoordinate(price),
       handleRadiusPx: RECTANGLE_HANDLE_DRAW_RADIUS_PX,
     })
