@@ -1,16 +1,19 @@
 import type { CanvasRenderingTarget2D } from 'fancy-canvas'
 import type {
+  AutoscaleInfo,
   IChartApi,
   ISeriesApi,
   ISeriesPrimitive,
   IPrimitivePaneRenderer,
   IPrimitivePaneView,
+  Logical,
   SeriesType,
   Time,
 } from 'lightweight-charts'
 import { readRectangleFillStyle } from './rectangleColors.ts'
 import {
   buildSessionVwapBandDrawModels,
+  sessionVwapBandPriceRange,
   type SessionVwapBandDrawModel,
   type SessionVwapBandPoint,
 } from './sessionVwapBandRenderGeometry.ts'
@@ -18,6 +21,10 @@ import {
 export type SessionVwapBandSeriesPrimitiveContext = {
   points: readonly SessionVwapBandPoint[]
   visible: boolean
+}
+
+function unixTime(time: Time | undefined): number | null {
+  return typeof time === 'number' && Number.isFinite(time) ? time : null
 }
 
 class SessionVwapBandRenderer implements IPrimitivePaneRenderer {
@@ -126,6 +133,24 @@ export class SessionVwapBandSeriesPrimitive implements ISeriesPrimitive<Time> {
 
   paneViews(): readonly IPrimitivePaneView[] {
     return [this._view]
+  }
+
+  autoscaleInfo(startTimePoint: Logical, endTimePoint: Logical): AutoscaleInfo | null {
+    const series = this._series
+    const context = this._getContext()
+    if (!series || !context.visible || context.points.length === 0) return null
+
+    const bars = series.barsInLogicalRange({
+      from: startTimePoint,
+      to: endTimePoint,
+    })
+    const fromTime = unixTime(bars?.from)
+    const toTime = unixTime(bars?.to)
+    if (fromTime === null || toTime === null) return null
+
+    const priceRange = sessionVwapBandPriceRange(context.points, fromTime, toTime)
+    if (!priceRange) return null
+    return { priceRange }
   }
 
   updateAllViews(): void {

@@ -7,9 +7,14 @@ export type SessionVwapBandPoint = {
 }
 
 export type SessionVwapBandDrawModel = {
-  /** Bitmap-space polygon vertices (x, y pairs). */
+  /** Bitmap-space polygon vertices (x, y pairs) for one simple contour. */
   polygon: number[]
   fillStyle: string
+}
+
+export type SessionVwapBandPriceRange = {
+  minValue: number
+  maxValue: number
 }
 
 export type BuildSessionVwapBandDrawModelsParams = {
@@ -20,31 +25,55 @@ export type BuildSessionVwapBandDrawModelsParams = {
   priceToY: (price: number) => number | null
 }
 
+type PlottedBandPoint = {
+  x: number
+  yUpper: number
+  yLower: number
+}
+
 function isFiniteBandValue(value: number | null): value is number {
   return value !== null && Number.isFinite(value)
 }
 
-function appendQuad(
-  polygon: number[],
-  x1: number,
-  yUpper1: number,
-  yLower1: number,
-  x2: number,
-  yUpper2: number,
-  yLower2: number,
-): void {
-  polygon.push(x1, yUpper1, x2, yUpper2, x2, yLower2, x1, yLower1)
+function plotBandPoint(
+  point: SessionVwapBandPoint,
+  timeToCoordinate: (time: UTCTimestamp) => number | null,
+  priceToY: (price: number) => number | null,
+): PlottedBandPoint | null {
+  if (!isFiniteBandValue(point.upper1) || !isFiniteBandValue(point.lower1)) return null
+  const x = timeToCoordinate(point.time as UTCTimestamp)
+  const yUpper = priceToY(point.upper1)
+  const yLower = priceToY(point.lower1)
+  if (x === null || yUpper === null || yLower === null) return null
+  return { x, yUpper, yLower }
 }
 
-function appendSingleBarQuad(
-  polygon: number[],
-  xCenter: number,
-  barSpacing: number,
-  yUpper: number,
-  yLower: number,
-): void {
-  const half = barSpacing / 2
-  appendQuad(polygon, xCenter - half, yUpper, yLower, xCenter + half, yUpper, yLower)
+/** Upper edge left-to-right, then lower edge right-to-left, so the path does not self-intersect. */
+function contourForRun(run: readonly PlottedBandPoint[], barSpacing: number): number[] {
+  if (run.length === 1) {
+    const point = run[0]
+    const half = barSpacing / 2
+    return [
+      point.x - half,
+      point.yUpper,
+      point.x + half,
+      point.yUpper,
+      point.x + half,
+      point.yLower,
+      point.x - half,
+      point.yLower,
+    ]
+  }
+
+  const polygon: number[] = []
+  for (const point of run) {
+    polygon.push(point.x, point.yUpper)
+  }
+  for (let index = run.length - 1; index >= 0; index -= 1) {
+    const point = run[index]
+    polygon.push(point.x, point.yLower)
+  }
+  return polygon
 }
 
 export function buildSessionVwapBandDrawModels(
@@ -53,80 +82,80 @@ export function buildSessionVwapBandDrawModels(
   const { points, barSpacing, fillStyle, timeToCoordinate, priceToY } = params
   if (points.length === 0) return []
 
-  const polygon: number[] = []
-  let runStart = -1
+  const models: SessionVwapBandDrawModel[] = []
+  let run: PlottedBandPoint[] = []
 
-  const flushRun = (runEnd: number) => {
-    if (runStart < 0) return
-    const runLength = runEnd - runStart + 1
-    if (runLength === 1) {
-      const point = points[runStart]
-      if (!isFiniteBandValue(point.upper1) || !isFiniteBandValue(point.lower1)) {
-        runStart = -1
-        return
-      }
-      const x = timeToCoordinate(point.time as UTCTimestamp)
-      const yUpper = priceToY(point.upper1)
-      const yLower = priceToY(point.lower1)
-      if (x === null || yUpper === null || yLower === null) {
-        runStart = -1
-        return
-      }
-      appendSingleBarQuad(polygon, x, barSpacing, yUpper, yLower)
-      runStart = -1
-      return
-    }
-
-    for (let index = runStart; index < runEnd; index += 1) {
-      const left = points[index]
-      const right = points[index + 1]
-      if (
-        !isFiniteBandValue(left.upper1) ||
-        !isFiniteBandValue(left.lower1) ||
-        !isFiniteBandValue(right.upper1) ||
-        !isFiniteBandValue(right.lower1)
-      ) {
-        continue
-      }
-      const x1 = timeToCoordinate(left.time as UTCTimestamp)
-      const x2 = timeToCoordinate(right.time as UTCTimestamp)
-      const yUpper1 = priceToY(left.upper1)
-      const yLower1 = priceToY(left.lower1)
-      const yUpper2 = priceToY(right.upper1)
-      const yLower2 = priceToY(right.lower1)
-      if (
-        x1 === null ||
-        x2 === null ||
-        yUpper1 === null ||
-        yLower1 === null ||
-        yUpper2 === null ||
-        yLower2 === null
-      ) {
-        continue
-      }
-      appendQuad(polygon, x1, yUpper1, yLower1, x2, yUpper2, yLower2)
-    }
-    runStart = -1
+  const flushRun = () => {
+    if (run.length === 0) return
+    models.push({ polygon: contourForRun(run, barSpacing), fillStyle })
+    run = []
   }
 
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index]
-    const valid =
-      isFiniteBandValue(point.upper1) && isFiniteBandValue(point.lower1)
-    if (valid) {
-      if (runStart < 0) runStart = index
+  for (const point of points) {
+    const plotted = plotBandPoint(point, timeToCoordinate, priceToY)
+    if (!plotted) {
+      flushRun()
       continue
     }
-    if (runStart >= 0) {
-      flushRun(index - 1)
-    }
+    run.push(plotted)
   }
-  if (runStart >= 0) {
-    flushRun(points.length - 1)
+  flushRun()
+  return models
+}
+
+function firstIndexAtOrAfter(points: readonly SessionVwapBandPoint[], time: number): number {
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (points[mid].time < time) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
+function firstIndexAfter(points: readonly SessionVwapBandPoint[], time: number): number {
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (points[mid].time <= time) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
+/**
+ * Min/max of current ±1σ samples inside [fromTime, toTime].
+ * Points must be chronological, matching the line series order.
+ * Samples missing either bound are omitted because they are not filled.
+ */
+export function sessionVwapBandPriceRange(
+  points: readonly SessionVwapBandPoint[],
+  fromTime: number,
+  toTime: number,
+): SessionVwapBandPriceRange | null {
+  if (
+    points.length === 0 ||
+    !Number.isFinite(fromTime) ||
+    !Number.isFinite(toTime) ||
+    fromTime > toTime
+  ) {
+    return null
   }
 
-  if (polygon.length === 0) return []
-  return [{ polygon, fillStyle }]
+  const start = firstIndexAtOrAfter(points, fromTime)
+  const end = firstIndexAfter(points, toTime)
+  let minValue = Infinity
+  let maxValue = -Infinity
+  for (let index = start; index < end; index += 1) {
+    const point = points[index]
+    if (!isFiniteBandValue(point.upper1) || !isFiniteBandValue(point.lower1)) continue
+    minValue = Math.min(minValue, point.upper1, point.lower1)
+    maxValue = Math.max(maxValue, point.upper1, point.lower1)
+  }
+  if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return null
+  return { minValue, maxValue }
 }
 
 export function sessionVwapPointsToBandPoints<
