@@ -1,7 +1,7 @@
 import { resolveThemeCssColor, rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
 
 export const RECTANGLE_FILL_SEMANTIC_CSS_VAR = '--muted-foreground'
-export const RECTANGLE_FILL_OPACITY = 0.35
+export const RECTANGLE_FILL_OPACITY = 0.20
 export const RECTANGLE_HANDLE_FILL_OPACITY = 0.85
 
 const RECTANGLE_FILL_FALLBACK_RGB = 'rgb(115, 115, 115)'
