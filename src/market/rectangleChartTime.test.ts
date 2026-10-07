@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { IChartApi } from 'lightweight-charts'
 import {
+  buildRectangleChartTimeContext,
+  latestCandleUnixTime,
   resolveRectangleTimeFromCoordinate,
   resolveRectangleTimeToCoordinate,
   type RectangleChartTimeContext,
@@ -41,6 +43,34 @@ function contextForBars(barTimes: number[], intervalSeconds = 300): RectangleCha
 const fiveMinuteOpen = 1_700_000_000
 const barTimes = [fiveMinuteOpen, fiveMinuteOpen + 300, fiveMinuteOpen + 600]
 const context = contextForBars(barTimes)
+
+describe('latestCandleUnixTime', () => {
+  it('returns the last loaded candle time without walking earlier history', () => {
+    assert.equal(latestCandleUnixTime([]), null)
+    assert.equal(latestCandleUnixTime([{ time: Number.NaN }]), null)
+    assert.equal(
+      latestCandleUnixTime([{ time: fiveMinuteOpen }, { time: fiveMinuteOpen + 600 }]),
+      fiveMinuteOpen + 600,
+    )
+  })
+})
+
+describe('buildRectangleChartTimeContext', () => {
+  it('anchors future projection on the supplied last bar time', () => {
+    const chart = chartWithBars(barTimes)
+    const built = buildRectangleChartTimeContext(chart, barTimes[barTimes.length - 1], 300)
+    assert.equal(built.lastBarUnixTime, barTimes[barTimes.length - 1])
+    assert.equal(built.lastBarLogicalIndex, barTimes.length - 1)
+    assert.equal(built.intervalDurationSeconds, 300)
+  })
+
+  it('leaves the anchor empty when no last bar time is available', () => {
+    const chart = chartWithBars(barTimes)
+    const built = buildRectangleChartTimeContext(chart, null, 300)
+    assert.equal(built.lastBarUnixTime, null)
+    assert.equal(built.lastBarLogicalIndex, null)
+  })
+})
 
 describe('resolveRectangleTimeToCoordinate', () => {
   it('uses the exact candle coordinate when the timestamp exists', () => {

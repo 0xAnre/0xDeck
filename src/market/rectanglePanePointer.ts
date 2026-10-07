@@ -31,6 +31,7 @@ export type RectanglePanePointerCallbacks = {
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<SeriesType, Time> | null
   getIntervalDurationSeconds: () => number
+  getLastBarUnixTime: () => number | null
   onInteractionChange: (state: RectangleInteractionState) => void
   onInstanceCompleted: (instance: RectangleInstance) => void
   onInstanceUpdated: (instance: RectangleInstance) => void
@@ -72,7 +73,7 @@ export function attachRectanglePanePointer(
     if (!series) return null
     return buildRectangleChartTimeContext(
       chart,
-      series,
+      callbacks.getLastBarUnixTime(),
       callbacks.getIntervalDurationSeconds(),
     )
   }

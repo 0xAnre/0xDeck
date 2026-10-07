@@ -6,13 +6,17 @@ import { createRectangleInstance } from './rectangleInstances.ts'
 describe('rectangleSeriesPrimitive lifecycle', () => {
   it('attaches once and updates views without re-attaching', () => {
     let attachCount = 0
+    let seriesDataReads = 0
     const series = {
       attachPrimitive: () => {
         attachCount += 1
       },
       detachPrimitive: () => {},
       priceToCoordinate: (price: number) => 100 - price,
-      data: () => [{ time: 10 }, { time: 20 }],
+      data: () => {
+        seriesDataReads += 1
+        return [{ time: 10 }, { time: 20 }]
+      },
     }
     const chart = {
       timeScale: () => ({
@@ -39,6 +43,7 @@ describe('rectangleSeriesPrimitive lifecycle', () => {
       pointerTime: null,
       pointerPrice: null,
       intervalDurationSeconds: 60,
+      lastBarUnixTime: 20,
     }))
     series.attachPrimitive(primitive)
     primitive.attached({
@@ -50,6 +55,7 @@ describe('rectangleSeriesPrimitive lifecycle', () => {
     const view = primitive.paneViews()[0] as { renderer: () => unknown }
     assert.notEqual(view.renderer(), null)
     assert.equal(attachCount, 1)
+    assert.equal(seriesDataReads, 0)
     primitive.detached()
   })
 
@@ -68,6 +74,7 @@ describe('rectangleSeriesPrimitive lifecycle', () => {
       pointerTime: null,
       pointerPrice: null,
       intervalDurationSeconds: 60,
+      lastBarUnixTime: null,
     }))
     attachment.dispose()
     assert.equal(detached, true)

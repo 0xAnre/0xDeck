@@ -125,6 +125,7 @@ import {
   sanitizeRectangleInstances,
   type RectangleInstance,
 } from '@/market/rectangleInstances'
+import { latestCandleUnixTime } from '@/market/rectangleChartTime'
 import { attachRectangleSeriesPrimitive } from '@/market/rectangleSeriesPrimitive'
 import { EMA_PERIODS } from '@/market/ema'
 import {
@@ -655,6 +656,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getSeries: () => seriesRef.current?.candle ?? null,
       getIntervalDurationSeconds: () =>
         candleIntervalDurationSeconds(activeIntervalRef.current),
+      getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),
       getFixedRangeVolumeProfileInteraction: () =>
         fixedRangeVolumeProfileInteractionRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
@@ -708,6 +710,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       pointerTime: rectanglePointerPreviewRef.current.pointerTime,
       pointerPrice: rectanglePointerPreviewRef.current.pointerPrice,
       intervalDurationSeconds: candleIntervalDurationSeconds(activeIntervalRef.current),
+      lastBarUnixTime: latestCandleUnixTime(candlesRef.current),
     }))
     rectangleSeriesAttachmentRef.current = attachment
 

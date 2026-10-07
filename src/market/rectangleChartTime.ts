@@ -1,4 +1,4 @@
-import type { IChartApi, ISeriesApi, Logical, SeriesType, Time, UTCTimestamp } from 'lightweight-charts'
+import type { IChartApi, Logical, Time, UTCTimestamp } from 'lightweight-charts'
 import { resolveChartEventTime } from './fixedRangeVolumeProfileChartTime.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
 
@@ -88,38 +88,45 @@ function logicalIndexForFutureTimestamp(
   return lastBarLogicalIndex + barsAhead
 }
 
+/** Last loaded candle open time. O(1); does not copy series history. */
+export function latestCandleUnixTime(candles: readonly { time: number }[]): number | null {
+  const last = candles[candles.length - 1]
+  if (!last || !Number.isFinite(last.time)) return null
+  return last.time
+}
+
 export function buildRectangleChartTimeContext(
   chart: IChartApi,
-  series: ISeriesApi<SeriesType, Time>,
+  lastBarUnixTime: number | null,
   intervalDurationSeconds: number,
 ): RectangleChartTimeContext {
-  if (!Number.isFinite(intervalDurationSeconds) || intervalDurationSeconds <= 0) {
+  if (
+    !Number.isFinite(intervalDurationSeconds) ||
+    intervalDurationSeconds <= 0 ||
+    lastBarUnixTime === null ||
+    !Number.isFinite(lastBarUnixTime)
+  ) {
     return {
       intervalDurationSeconds,
       lastBarUnixTime: null,
       lastBarLogicalIndex: null,
     }
   }
-  const data = series.data()
-  if (data.length === 0) {
+  const resolvedLastBarUnixTime = resolveChartEventTime(Math.trunc(lastBarUnixTime) as UTCTimestamp)
+  if (resolvedLastBarUnixTime === null) {
     return {
       intervalDurationSeconds,
       lastBarUnixTime: null,
       lastBarLogicalIndex: null,
     }
   }
-  const lastBarUnixTime = resolveChartEventTime(data[data.length - 1].time)
-  if (lastBarUnixTime === null) {
-    return {
-      intervalDurationSeconds,
-      lastBarUnixTime: null,
-      lastBarLogicalIndex: null,
-    }
-  }
-  const lastBarLogicalIndex = chart.timeScale().timeToIndex(lastBarUnixTime as UTCTimestamp, true)
+  const lastBarLogicalIndex = chart.timeScale().timeToIndex(
+    resolvedLastBarUnixTime as UTCTimestamp,
+    true,
+  )
   return {
     intervalDurationSeconds,
-    lastBarUnixTime,
+    lastBarUnixTime: resolvedLastBarUnixTime,
     lastBarLogicalIndex: lastBarLogicalIndex === null ? null : (lastBarLogicalIndex as number),
   }
 }

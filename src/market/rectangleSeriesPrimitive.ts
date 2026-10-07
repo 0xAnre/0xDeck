@@ -26,6 +26,7 @@ export type RectangleSeriesPrimitiveContext = {
   pointerTime: number | null
   pointerPrice: number | null
   intervalDurationSeconds: number
+  lastBarUnixTime: number | null
 }
 
 const RECTANGLE_HANDLE_DRAW_RADIUS_PX = 4
@@ -113,7 +114,7 @@ class RectanglePaneView implements IPrimitivePaneView {
     const context = this._getContext()
     const timeContext = buildRectangleChartTimeContext(
       chart,
-      series,
+      context.lastBarUnixTime,
       context.intervalDurationSeconds,
     )
     this._models = buildRectangleDrawModels({
@@ -146,6 +147,7 @@ export class RectangleSeriesPrimitive implements ISeriesPrimitive<Time> {
     pointerTime: null,
     pointerPrice: null,
     intervalDurationSeconds: 60,
+    lastBarUnixTime: null,
   })
   private readonly _view: RectanglePaneView
 

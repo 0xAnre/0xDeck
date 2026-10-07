@@ -41,6 +41,7 @@ export type RectangleChartToolCallbacks = {
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<SeriesType, Time> | null
   getIntervalDurationSeconds: () => number
+  getLastBarUnixTime: () => number | null
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
 }
 
@@ -104,6 +105,7 @@ export function attachRectangleChartTool(
     getChart: callbacks.getChart,
     getSeries: callbacks.getSeries,
     getIntervalDurationSeconds: callbacks.getIntervalDurationSeconds,
+    getLastBarUnixTime: callbacks.getLastBarUnixTime,
     onInteractionChange: (state) => {
       commitInteraction(state)
     },
