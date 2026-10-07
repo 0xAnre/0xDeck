@@ -336,6 +336,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
 
   const handleRectangleArm = useCallback(() => {
+    claimRectangleKeyboardPanel(panelId)
     const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
       fixedRangeVolumeProfileInteractionRef.current,
     )
@@ -349,7 +350,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     setRectangleInteraction(armed)
     rectangleToolControllerRef.current?.sync()
     rectangleSeriesAttachmentRef.current?.update()
-  }, [])
+  }, [panelId])
 
   const handleRectangleDelete = useCallback(
     (instanceId: string) => {

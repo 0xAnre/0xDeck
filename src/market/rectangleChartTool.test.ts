@@ -6,7 +6,6 @@ import {
 } from './rectangleChartTool.ts'
 import { INITIAL_RECTANGLE_INTERACTION_STATE, startRectangleCreateDraft, armRectangleTool } from './rectangleInteraction.ts'
 import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
-
 describe('rectangleChartTool', () => {
   it('locks chart navigation only while creating or resizing', () => {
     const options: Array<{ handleScroll: { pressedMouseMove: boolean } }> = []

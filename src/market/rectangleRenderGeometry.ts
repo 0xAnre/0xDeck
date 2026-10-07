@@ -83,10 +83,21 @@ function instanceToDrawModel(
   }
 }
 
+export function getRectangleInstanceOmittedDuringInteraction(
+  interaction: RectangleInteractionState,
+): string | null {
+  if (interaction.phase === 'resizing' && interaction.draft?.kind === 'resize') {
+    return interaction.draft.instanceId
+  }
+  return null
+}
+
 export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): RectangleDrawModel[] {
   const models: RectangleDrawModel[] = []
+  const omittedInstanceId = getRectangleInstanceOmittedDuringInteraction(args.interaction)
 
   for (const instance of args.instances) {
+    if (omittedInstanceId !== null && instance.id === omittedInstanceId) continue
     const model = instanceToDrawModel(
       instance,
       args.interaction.selectedId,
@@ -113,7 +124,8 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
           models.push({
             ...box,
             fillStyle: args.fillStyle,
-            handles: [],
+            handles:
+              args.interaction.phase === 'resizing' ? buildHandlePoints(box) : [],
           })
         }
       }
