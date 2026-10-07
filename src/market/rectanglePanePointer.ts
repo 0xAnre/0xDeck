@@ -37,6 +37,12 @@ export type RectanglePanePointerController = {
   dispose: () => void
 }
 
+function focusRectangleInteractionPane(paneElement: HTMLElement): void {
+  if (typeof paneElement.focus !== 'function') return
+  if (paneElement.tabIndex < 0) paneElement.tabIndex = -1
+  paneElement.focus()
+}
+
 export function attachRectanglePanePointer(
   chart: IChartApi,
   callbacks: RectanglePanePointerCallbacks,
@@ -96,6 +102,7 @@ export function attachRectanglePanePointer(
       if (!point) return
       event.preventDefault()
       event.stopPropagation()
+      focusRectangleInteractionPane(paneElement)
       const next = startRectangleCreateDraft(interaction, point.time, point.price)
       if (next === interaction) return
       activePointerId = event.pointerId
@@ -123,6 +130,7 @@ export function attachRectanglePanePointer(
       }
       event.preventDefault()
       event.stopPropagation()
+      focusRectangleInteractionPane(paneElement)
       if (hit.kind !== 'interior') {
         const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
         if (!instance) return

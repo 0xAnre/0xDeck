@@ -156,4 +156,54 @@ describe('rectanglePanePointer', () => {
 
     assert.equal(selectionChanged, false)
   })
+
+  it('focuses the pane when a chart pointerdown suppresses the default focus move', () => {
+    const { listeners, paneElement, chart } = createPaneHarness()
+    let focused = 0
+    let tabIndex = -1
+    Object.assign(paneElement, {
+      focus: () => {
+        focused += 1
+      },
+    })
+    Object.defineProperty(paneElement, 'tabIndex', {
+      configurable: true,
+      get: () => tabIndex,
+      set: (value: number) => {
+        tabIndex = value
+      },
+    })
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction: armRectangleTool(INITIAL_RECTANGLE_INTERACTION_STATE),
+        instances: [],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: () => 10,
+          priceToCoordinate: () => 50,
+        }) as never,
+      onInteractionChange: () => {},
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+    })
+
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerId: 3,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+
+    assert.equal(focused, 1)
+    assert.equal(tabIndex, -1)
+  })
 })
