@@ -394,7 +394,7 @@ export function LwcChart({ data }: { data: LineData<Time>[] }) {
 import { LwcChart } from './LwcChart';
 
 export default function Page() {
-    return <LwcChart data={data} />;
+    return <LwcChart data={[]} />;
 }
 ```
 
