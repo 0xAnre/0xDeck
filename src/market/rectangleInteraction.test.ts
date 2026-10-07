@@ -5,10 +5,14 @@ import {
   armRectangleTool,
   cancelRectangleInteraction,
   commitRectangleCreate,
+  commitRectangleMove,
   commitRectangleResize,
   INITIAL_RECTANGLE_INTERACTION_STATE,
+  isRectangleChartNavigationLocked,
+  previewBoundsFromInteraction,
   removeSelectedRectangle,
   startRectangleCreateDraft,
+  startRectangleMoveDraft,
   updateRectangleCreatePreview,
 } from './rectangleInteraction.ts'
 import { createRectangleInstance } from './rectangleInstances.ts'
@@ -68,6 +72,52 @@ describe('rectangleInteraction', () => {
     const result = commitRectangleCreate(flat, [])
     assert.equal(result.completedInstance, null)
     assert.equal(result.state.phase, 'armed')
+  })
+
+  it('moves a box by translating both time and price while preserving size', () => {
+    const instance = createRectangleInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_600,
+      lowPrice: 10,
+      highPrice: 20,
+    })!
+    const moving = startRectangleMoveDraft(
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      instance,
+      1_700_000_300,
+      15,
+    )
+    assert.equal(moving.phase, 'moving')
+    const preview = previewBoundsFromInteraction(moving, 1_700_000_480, 18)
+    assert.deepEqual(preview, {
+      fromTime: 1_700_000_180,
+      toTime: 1_700_000_780,
+      lowPrice: 13,
+      highPrice: 23,
+    })
+    const result = commitRectangleMove(moving, [instance], 1_700_000_480, 18)
+    assert.equal(result.updatedInstance?.fromTime, 1_700_000_180)
+    assert.equal(result.updatedInstance?.toTime, 1_700_000_780)
+    assert.equal(result.updatedInstance?.toTime - result.updatedInstance!.fromTime, 600)
+    assert.equal(result.updatedInstance!.highPrice - result.updatedInstance!.lowPrice, 10)
+    assert.equal(isRectangleChartNavigationLocked(moving), true)
+  })
+
+  it('commits an unchanged move when the pointer does not shift', () => {
+    const instance = createRectangleInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_600,
+      lowPrice: 10,
+      highPrice: 20,
+    })!
+    const moving = startRectangleMoveDraft(
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      instance,
+      1_700_000_300,
+      15,
+    )
+    const result = commitRectangleMove(moving, [instance], 1_700_000_300, 15)
+    assert.deepEqual(result.updatedInstance, instance)
   })
 
   it('resizes edges on one axis only', () => {

@@ -6,7 +6,12 @@ import {
   type RectangleInstance,
 } from './rectangleInstances.ts'
 
-export type RectangleInteractionPhase = 'inactive' | 'armed' | 'creating' | 'resizing'
+export type RectangleInteractionPhase =
+  | 'inactive'
+  | 'armed'
+  | 'creating'
+  | 'resizing'
+  | 'moving'
 
 export type RectangleCreateDraft = {
   kind: 'create'
@@ -23,7 +28,15 @@ export type RectangleResizeDraft = {
   initialBounds: NormalizedRectangleBounds
 }
 
-export type RectangleDraft = RectangleCreateDraft | RectangleResizeDraft
+export type RectangleMoveDraft = {
+  kind: 'move'
+  instanceId: string
+  initialBounds: NormalizedRectangleBounds
+  anchorTime: number
+  anchorPrice: number
+}
+
+export type RectangleDraft = RectangleCreateDraft | RectangleResizeDraft | RectangleMoveDraft
 
 export type RectangleInteractionState = {
   phase: RectangleInteractionPhase
@@ -38,7 +51,7 @@ export const INITIAL_RECTANGLE_INTERACTION_STATE: RectangleInteractionState = {
 }
 
 export function isRectangleChartNavigationLocked(state: RectangleInteractionState): boolean {
-  return state.phase === 'creating' || state.phase === 'resizing'
+  return state.phase === 'creating' || state.phase === 'resizing' || state.phase === 'moving'
 }
 
 export function armRectangleTool(state: RectangleInteractionState): RectangleInteractionState {
@@ -70,7 +83,9 @@ export function applyRectangleSelection(
   state: RectangleInteractionState,
   selectedId: string | null,
 ): RectangleInteractionState {
-  if (state.phase === 'creating' || state.phase === 'resizing') return state
+  if (state.phase === 'creating' || state.phase === 'resizing' || state.phase === 'moving') {
+    return state
+  }
   if (state.selectedId === selectedId) return state
   return { ...state, selectedId }
 }
@@ -123,6 +138,32 @@ export function startRectangleResizeDraft(
       kind: 'resize',
       instanceId: instance.id,
       handle,
+      initialBounds: {
+        fromTime: instance.fromTime,
+        toTime: instance.toTime,
+        lowPrice: instance.lowPrice,
+        highPrice: instance.highPrice,
+      },
+    },
+  }
+}
+
+export function startRectangleMoveDraft(
+  state: RectangleInteractionState,
+  instance: RectangleInstance,
+  anchorTime: number,
+  anchorPrice: number,
+): RectangleInteractionState {
+  if (state.phase !== 'inactive') return state
+  if (!Number.isFinite(anchorTime) || !Number.isFinite(anchorPrice)) return state
+  return {
+    phase: 'moving',
+    selectedId: instance.id,
+    draft: {
+      kind: 'move',
+      instanceId: instance.id,
+      anchorTime,
+      anchorPrice,
       initialBounds: {
         fromTime: instance.fromTime,
         toTime: instance.toTime,
@@ -191,6 +232,17 @@ export function previewBoundsFromInteraction(
       pointerPrice,
     )
   }
+  if (state.draft.kind === 'move') {
+    const deltaTime = pointerTime - state.draft.anchorTime
+    const deltaPrice = pointerPrice - state.draft.anchorPrice
+    const initial = state.draft.initialBounds
+    return normalizeRectangleBounds(
+      initial.fromTime + deltaTime,
+      initial.toTime + deltaTime,
+      initial.lowPrice + deltaPrice,
+      initial.highPrice + deltaPrice,
+    )
+  }
   return applyResizeHandleToBounds(
     state.draft.initialBounds,
     state.draft.handle,
@@ -234,6 +286,42 @@ export function commitRectangleCreate(
 export type RectangleResizeCommitResult = {
   state: RectangleInteractionState
   updatedInstance: RectangleInstance | null
+}
+
+export type RectangleMoveCommitResult = {
+  state: RectangleInteractionState
+  updatedInstance: RectangleInstance | null
+}
+
+export function commitRectangleMove(
+  state: RectangleInteractionState,
+  instances: readonly RectangleInstance[],
+  pointerTime: number,
+  pointerPrice: number,
+): RectangleMoveCommitResult {
+  if (state.phase !== 'moving' || state.draft?.kind !== 'move') {
+    return { state, updatedInstance: null }
+  }
+  const bounds = previewBoundsFromInteraction(state, pointerTime, pointerPrice)
+  if (!bounds) {
+    return {
+      state: { phase: 'inactive', selectedId: state.selectedId, draft: null },
+      updatedInstance: null,
+    }
+  }
+  const draft = state.draft
+  const existing = instances.find((item) => item.id === draft.instanceId)
+  if (!existing) {
+    return {
+      state: { phase: 'inactive', selectedId: null, draft: null },
+      updatedInstance: null,
+    }
+  }
+  const updatedInstance = { ...existing, ...bounds }
+  return {
+    state: { phase: 'inactive', selectedId: updatedInstance.id, draft: null },
+    updatedInstance,
+  }
 }
 
 export function commitRectangleResize(

@@ -137,6 +137,7 @@ import {
   mergeHistoryWithStreamBuffer,
 } from '@/market/mergeCandleHistoryBuffer'
 import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
+import { candleIntervalDurationSeconds } from '@/market/candleIntervalDuration'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 import { klineChannelForInterval } from '@/market/types'
 import { saveWidgetMarketIndicators } from '@/marketIndicatorStorage'
@@ -652,6 +653,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       },
       getChart: () => chartRef.current,
       getSeries: () => seriesRef.current?.candle ?? null,
+      getIntervalDurationSeconds: () =>
+        candleIntervalDurationSeconds(activeIntervalRef.current),
       getFixedRangeVolumeProfileInteraction: () =>
         fixedRangeVolumeProfileInteractionRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
@@ -704,6 +707,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       interaction: rectangleInteractionRef.current,
       pointerTime: rectanglePointerPreviewRef.current.pointerTime,
       pointerPrice: rectanglePointerPreviewRef.current.pointerPrice,
+      intervalDurationSeconds: candleIntervalDurationSeconds(activeIntervalRef.current),
     }))
     rectangleSeriesAttachmentRef.current = attachment
 

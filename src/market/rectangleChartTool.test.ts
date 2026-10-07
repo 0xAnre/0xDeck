@@ -60,6 +60,7 @@ describe('rectangleChartTool', () => {
       onRequestRender: () => {},
       getChart: () => chart as never,
       getSeries: () => null,
+      getIntervalDurationSeconds: () => 300,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
       shouldHandleKeyboardShortcut: () => true,
     })
@@ -135,6 +136,7 @@ describe('rectangleChartTool', () => {
       onRequestRender: () => {},
       getChart: () => chart as never,
       getSeries: () => null,
+      getIntervalDurationSeconds: () => 300,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
       shouldHandleKeyboardShortcut: () => true,
     })

@@ -40,6 +40,7 @@ export type RectangleChartToolCallbacks = {
   onRequestRender: () => void
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<SeriesType, Time> | null
+  getIntervalDurationSeconds: () => number
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
 }
 
@@ -102,6 +103,7 @@ export function attachRectangleChartTool(
     getSnapshot: () => callbacks.getSnapshot(),
     getChart: callbacks.getChart,
     getSeries: callbacks.getSeries,
+    getIntervalDurationSeconds: callbacks.getIntervalDurationSeconds,
     onInteractionChange: (state) => {
       commitInteraction(state)
     },
@@ -143,7 +145,11 @@ export function attachRectangleChartTool(
       const chartRoot = chart.panes()[0]?.getHTMLElement() ?? null
       if (isRectangleKeyboardFocusOnOutsideControl(event.target, chartRoot)) return
       if (!snapshot.interaction.selectedId) return
-      if (snapshot.interaction.phase === 'creating' || snapshot.interaction.phase === 'resizing') {
+      if (
+        snapshot.interaction.phase === 'creating' ||
+        snapshot.interaction.phase === 'resizing' ||
+        snapshot.interaction.phase === 'moving'
+      ) {
         return
       }
       event.preventDefault()
