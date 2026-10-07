@@ -4,9 +4,11 @@ import {
   applyRectangleSelection,
   cancelRectangleInteraction,
   commitRectangleCreate,
+  commitRectangleMove,
   commitRectangleResize,
   isRectangleChartNavigationLocked,
   startRectangleCreateDraft,
+  startRectangleMoveDraft,
   startRectangleResizeDraft,
   updateRectangleCreatePreview,
   type RectangleInteractionState,
@@ -15,7 +17,11 @@ import type { RectangleInstance } from './rectangleInstances.ts'
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
-import { resolveRectangleTimeToCoordinate } from './rectangleChartTime.ts'
+import {
+  buildRectangleChartTimeContext,
+  resolveRectangleTimeToCoordinate,
+  type RectangleChartTimeContext,
+} from './rectangleChartTime.ts'
 
 export type RectanglePanePointerCallbacks = {
   getSnapshot: () => {
@@ -24,6 +30,8 @@ export type RectanglePanePointerCallbacks = {
   }
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<SeriesType, Time> | null
+  getIntervalDurationSeconds: () => number
+  getLastBarUnixTime: () => number | null
   onInteractionChange: (state: RectangleInteractionState) => void
   onInstanceCompleted: (instance: RectangleInstance) => void
   onInstanceUpdated: (instance: RectangleInstance) => void
@@ -60,12 +68,23 @@ export function attachRectanglePanePointer(
     return event.clientY - rect.top
   }
 
+  const resolveTimeContext = (): RectangleChartTimeContext | null => {
+    const series = callbacks.getSeries()
+    if (!series) return null
+    return buildRectangleChartTimeContext(
+      chart,
+      callbacks.getLastBarUnixTime(),
+      callbacks.getIntervalDurationSeconds(),
+    )
+  }
+
   const projectInstance = (instance: RectangleInstance) => {
     const series = callbacks.getSeries()
     if (!series) return null
+    const timeContext = resolveTimeContext()
     return projectRectangleInstanceToScreenBox(
       instance,
-      (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge),
+      (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge, timeContext),
       (price) => series.priceToCoordinate(price),
     )
   }
@@ -73,7 +92,7 @@ export function attachRectanglePanePointer(
   const syncPointerPreview = (paneX: number, paneY: number) => {
     const series = callbacks.getSeries()
     if (!series) return
-    const point = resolvePointerChartPoint(chart, series, paneX, paneY)
+    const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
     if (!point) return
     callbacks.onPointerPreviewChange(point.time, point.price)
     const snapshot = callbacks.getSnapshot()
@@ -98,7 +117,7 @@ export function attachRectanglePanePointer(
     if (interaction.phase === 'armed') {
       const series = callbacks.getSeries()
       if (!series) return
-      const point = resolvePointerChartPoint(chart, series, paneX, paneY)
+      const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
       if (!point) return
       event.preventDefault()
       event.stopPropagation()
@@ -142,8 +161,18 @@ export function attachRectanglePanePointer(
         callbacks.onInteractionChange(next)
         return
       }
-      callbacks.onInteractionChange(applyRectangleSelection(interaction, hit.instanceId))
-      callbacks.onRequestRender()
+      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+      if (!instance) return
+      const series = callbacks.getSeries()
+      if (!series) return
+      const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
+      if (!point) return
+      const next = startRectangleMoveDraft(interaction, instance, point.time, point.price)
+      if (next === interaction) return
+      activePointerId = event.pointerId
+      paneElement.setPointerCapture(event.pointerId)
+      syncPointerPreview(paneX, paneY)
+      callbacks.onInteractionChange(next)
     }
   }
 
@@ -171,7 +200,9 @@ export function attachRectanglePanePointer(
     const series = callbacks.getSeries()
     const paneX = resolvePaneRelativePointerX(event, paneElement)
     const paneY = resolvePaneY(event)
-    const point = series ? resolvePointerChartPoint(chart, series, paneX, paneY) : null
+    const point = series
+      ? resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
+      : null
 
     if (snapshot.interaction.phase === 'creating') {
       let interaction = snapshot.interaction
@@ -195,6 +226,30 @@ export function attachRectanglePanePointer(
       const commitPrice = point?.price ?? preview.price
       if (commitTime !== null && commitPrice !== null) {
         const result = commitRectangleResize(
+          snapshot.interaction,
+          snapshot.instances,
+          commitTime,
+          commitPrice,
+        )
+        callbacks.onInteractionChange(result.state)
+        if (result.updatedInstance) {
+          callbacks.onInstanceUpdated(result.updatedInstance)
+        }
+      } else {
+        callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
+      }
+      callbacks.onPointerPreviewChange(null, null)
+      releasePointer(event)
+      callbacks.onRequestRender()
+      return
+    }
+
+    if (snapshot.interaction.phase === 'moving') {
+      const preview = callbacks.getPointerPreview()
+      const commitTime = point?.time ?? preview.time
+      const commitPrice = point?.price ?? preview.price
+      if (commitTime !== null && commitPrice !== null) {
+        const result = commitRectangleMove(
           snapshot.interaction,
           snapshot.instances,
           commitTime,

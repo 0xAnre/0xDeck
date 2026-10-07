@@ -1,5 +1,8 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
-import { resolveChartTimeFromCoordinate } from './fixedRangeVolumeProfileChartTime.ts'
+import {
+  resolveRectangleTimeFromCoordinate,
+  type RectangleChartTimeContext,
+} from './rectangleChartTime.ts'
 
 export function resolveChartPriceFromCoordinate(
   series: ISeriesApi<SeriesType, Time>,
@@ -16,8 +19,9 @@ export function resolvePointerChartPoint(
   series: ISeriesApi<SeriesType, Time>,
   paneX: number,
   paneY: number,
+  timeContext: RectangleChartTimeContext | null,
 ): { time: number; price: number } | null {
-  const time = resolveChartTimeFromCoordinate(chart, paneX)
+  const time = resolveRectangleTimeFromCoordinate(chart, paneX, timeContext)
   const price = resolveChartPriceFromCoordinate(series, paneY)
   if (time === null || price === null) return null
   return { time, price }

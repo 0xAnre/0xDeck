@@ -90,6 +90,9 @@ export function getRectangleInstanceOmittedDuringInteraction(
   if (interaction.phase === 'resizing' && interaction.draft?.kind === 'resize') {
     return interaction.draft.instanceId
   }
+  if (interaction.phase === 'moving' && interaction.draft?.kind === 'move') {
+    return interaction.draft.instanceId
+  }
   return null
 }
 
@@ -111,7 +114,8 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
 
   if (
     args.interaction.phase === 'creating' ||
-    args.interaction.phase === 'resizing'
+    args.interaction.phase === 'resizing' ||
+    args.interaction.phase === 'moving'
   ) {
     if (args.pointerTime !== null && args.pointerPrice !== null) {
       const preview = previewBoundsFromInteraction(
@@ -126,7 +130,9 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
             ...box,
             fillStyle: args.fillStyle,
             handles:
-              args.interaction.phase === 'resizing' ? buildHandlePoints(box) : [],
+              args.interaction.phase === 'resizing' || args.interaction.phase === 'moving'
+                ? buildHandlePoints(box)
+                : [],
           })
         }
       }

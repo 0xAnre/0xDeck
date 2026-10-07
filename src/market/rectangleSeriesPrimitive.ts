@@ -8,7 +8,10 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts'
-import { resolveRectangleTimeToCoordinate } from './rectangleChartTime.ts'
+import {
+  buildRectangleChartTimeContext,
+  resolveRectangleTimeToCoordinate,
+} from './rectangleChartTime.ts'
 import { readRectangleFillStyle, readRectangleHandleFillStyle } from './rectangleColors.ts'
 import {
   buildRectangleDrawModels,
@@ -22,6 +25,8 @@ export type RectangleSeriesPrimitiveContext = {
   interaction: RectangleInteractionState
   pointerTime: number | null
   pointerPrice: number | null
+  intervalDurationSeconds: number
+  lastBarUnixTime: number | null
 }
 
 const RECTANGLE_HANDLE_DRAW_RADIUS_PX = 4
@@ -107,6 +112,11 @@ class RectanglePaneView implements IPrimitivePaneView {
     }
 
     const context = this._getContext()
+    const timeContext = buildRectangleChartTimeContext(
+      chart,
+      context.lastBarUnixTime,
+      context.intervalDurationSeconds,
+    )
     this._models = buildRectangleDrawModels({
       instances: context.instances,
       interaction: context.interaction,
@@ -114,7 +124,8 @@ class RectanglePaneView implements IPrimitivePaneView {
       handleFillStyle: readRectangleHandleFillStyle(),
       pointerTime: context.pointerTime,
       pointerPrice: context.pointerPrice,
-      timeToCoordinate: (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge),
+      timeToCoordinate: (time, edge) =>
+        resolveRectangleTimeToCoordinate(chart, time, edge, timeContext),
       priceToY: (price) => series.priceToCoordinate(price),
       handleRadiusPx: RECTANGLE_HANDLE_DRAW_RADIUS_PX,
     })
@@ -135,6 +146,8 @@ export class RectangleSeriesPrimitive implements ISeriesPrimitive<Time> {
     interaction: { phase: 'inactive', selectedId: null, draft: null },
     pointerTime: null,
     pointerPrice: null,
+    intervalDurationSeconds: 60,
+    lastBarUnixTime: null,
   })
   private readonly _view: RectanglePaneView
 

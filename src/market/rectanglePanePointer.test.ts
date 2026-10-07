@@ -33,6 +33,9 @@ function createPaneHarness() {
     panes: () => [{ getHTMLElement: () => paneElement }],
     timeScale: () => ({
       coordinateToTime: () => 120,
+      coordinateToLogical: (x: number) => x,
+      timeToIndex: () => 1,
+      logicalToCoordinate: (logical: number) => logical,
     }),
   }
 
@@ -67,6 +70,7 @@ describe('rectanglePanePointer', () => {
         ({
           coordinateToPrice: () => 10,
           priceToCoordinate: () => 50,
+          data: () => [{ time: 100 }, { time: 120 }],
         }) as never,
       onInteractionChange: () => {},
       onInstanceCompleted: () => {},
@@ -75,6 +79,8 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 120,
     })
 
     assert.ok(listeners.has('pointerdown'))
@@ -85,9 +91,14 @@ describe('rectanglePanePointer', () => {
   it('cancels create interaction on pointercancel', () => {
     const { listeners, chart } = createPaneHarness()
     let interaction = armRectangleTool(INITIAL_RECTANGLE_INTERACTION_STATE)
+    let seriesDataReads = 0
     const series = {
       coordinateToPrice: () => 10,
       priceToCoordinate: () => 50,
+      data: () => {
+        seriesDataReads += 1
+        return [{ time: 100 }, { time: 120 }]
+      },
     }
 
     attachRectanglePanePointer(chart as never, {
@@ -103,6 +114,8 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 120,
     })
 
     listeners.get('pointerdown')?.({
@@ -118,6 +131,7 @@ describe('rectanglePanePointer', () => {
     listeners.get('pointercancel')?.({ pointerId: 7 } as PointerEvent)
     assert.equal(interaction.phase, 'inactive')
     assert.equal(interaction.draft, null)
+    assert.equal(seriesDataReads, 0)
   })
 
   it('ignores rectangle pointer handling while alternate tool is active', () => {
@@ -133,6 +147,7 @@ describe('rectanglePanePointer', () => {
       getSeries: () =>
         ({
           priceToCoordinate: () => 50,
+          data: () => [{ time: 1 }, { time: 2 }],
         }) as never,
       onInteractionChange: () => {
         selectionChanged = true
@@ -143,6 +158,8 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => true,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 120,
     })
 
     listeners.get('pointerdown')?.({
@@ -184,6 +201,7 @@ describe('rectanglePanePointer', () => {
         ({
           coordinateToPrice: () => 10,
           priceToCoordinate: () => 50,
+          data: () => [{ time: 100 }, { time: 120 }],
         }) as never,
       onInteractionChange: () => {},
       onInstanceCompleted: () => {},
@@ -192,6 +210,8 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 120,
     })
 
     listeners.get('pointerdown')?.({
