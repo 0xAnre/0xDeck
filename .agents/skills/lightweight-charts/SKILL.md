@@ -12,6 +12,8 @@ description: >-
 
 # Lightweight Charts skill
 
+These instructions started from TradingView's Lightweight Charts agent skill and include corrections for lightweight-charts 5.2. The upstream work is Apache-2.0. This directory includes that `LICENSE` and `NOTICE`. They apply to these skill files and do not replace the 0xDeck project license.
+
 Works the same whether the project is a downstream npm consumer app or an upstream `lightweight-charts` source checkout. Detect which one you are in (below) and resolve every API name from whatever typings are locally available.
 
 ## Source lookup order
@@ -155,7 +157,7 @@ If these repo paths do not exist in the user's project, do not ask them to creat
 ### Markers and interaction
 
 - **v5 markers are a primitive.** `const m = createSeriesMarkers(series, [...]); m.setMarkers([...])`. `series.setMarkers` does not exist on `ISeriesApi` in v5.
-- **Marker `time` must match an existing data point's `time`** for that series. Misaligned markers are dropped silently.
+- **In lightweight-charts 5.2, marker `time` does not have to equal a series point, and misaligned markers are not dropped.** The marker primitive resolves the requested time, then selects the nearest series datum: nearest-right when that time is before the series starts, otherwise nearest-left. Do not reject off-grid times or pre-snap them to bar timestamps before `setMarkers`.
 - **`subscribeCrosshairMove`** fires with `param.time === undefined` outside the data range. Always null-check before reading.
 - **`param.seriesData.get(series)`** returns `undefined` between bars or before the first bar.
 - **Click/crosshair coordinates need API conversion.** Use `series.coordinateToPrice(y)` / `series.priceToCoordinate(price)` and `chart.timeScale().coordinateToLogical(x)` / `logicalToCoordinate(logical)` / `timeToCoordinate(time)`; do not infer price/time from canvas DOM geometry.
@@ -175,8 +177,8 @@ If these repo paths do not exist in the user's project, do not ask them to creat
 - **Create the chart once** in `useEffect` / `onMounted` and destroy it in cleanup with `chart.remove()`. Recreating on every render duplicates DOM and leaks listeners.
 - **Resize can be automatic in v5** with `autoSize: true` when `ResizeObserver` is available. If you need manual control, subscribe a `ResizeObserver` to the container and call `chart.resize(width, height)` (or `applyOptions({ width, height })`).
 - **Don't drive `setData` from props on every render.** Use `series.update(...)` for incremental changes; only call `setData` when the dataset truly replaces.
-- **`undefined` in `applyOptions` means "not specified", not "reset".** `{ priceFormatter: custom ? fmt : undefined }` leaves the current formatter in place. To clear a `localization` formatter or `autoscaleInfoProvider`, pass `null`. Other options have no reset value: pass the default explicitly.
-- **Next.js/SSR must be client-only.** Put chart code in a `'use client'` component, create it in `useEffect`, and import that component with `next/dynamic(..., { ssr: false })` from server-rendered pages when needed.
+- **`undefined` in `applyOptions` means "not specified", not "reset".** `{ priceFormatter: custom ? fmt : undefined }` leaves the current formatter in place. In lightweight-charts 5.2, `localization.priceFormatter` and `autoscaleInfoProvider` are `T | undefined`, not nullable, and `applyOptions` accepts `DeepPartial` of those options, so `null` is a type error (TS2322). The 5.2 options merge also skips `undefined` and does not treat `null` as a reset: an existing function stays in place, and an unset option becomes `null` rather than the built-in default. This version has no type-safe clear. Keep an explicit formatter or `autoscaleInfoProvider`, or recreate the chart or series. Other options have no reset value either: pass the default explicitly.
+- **Next.js/SSR must be client-only.** Put chart code in a `'use client'` component and create the chart in `useEffect`. A Server Component can render that client component with a static import. App Router rejects `next/dynamic(..., { ssr: false })` in a Server Component; that call has to live in its own `'use client'` module.
 - **Plain HTML is not npm resolution.** The standalone `.js` build exposes `window.LightweightCharts`; ESM in the browser must import an actual `.mjs` URL or use an import map. `import { createChart } from 'lightweight-charts'` only works when a bundler/runtime resolves the package name.
 
 ## Canonical recipes
@@ -386,15 +388,30 @@ export function LwcChart({ data }: { data: LineData<Time>[] }) {
 }
 ```
 
-From a server-rendered Next.js page, import the component with:
+`LwcChart` is already a Client Component, and the chart is created in `useEffect`. A Server Component page can render it with a static import:
 
 ```tsx
+import { LwcChart } from './LwcChart';
+
+export default function Page() {
+    return <LwcChart data={data} />;
+}
+```
+
+`next/dynamic(..., { ssr: false })` is rejected in a Server Component. Next.js only allows `ssr: false` inside a Client Component. Use that wrapper only when the client component itself must be omitted from the server render:
+
+```tsx
+'use client';
+
 import dynamic from 'next/dynamic';
 
-const LwcChart = dynamic(() => import('./LwcChart').then((m) => m.LwcChart), {
-    ssr: false,
-});
+export const LwcChartNoSsr = dynamic(
+    () => import('./LwcChart').then((m) => m.LwcChart),
+    { ssr: false },
+);
 ```
+
+Import `LwcChartNoSsr` from the server page. Do not call `dynamic(..., { ssr: false })` directly in a Server Component.
 
 ### Plain HTML loading
 
@@ -455,7 +472,13 @@ chart.applyOptions({
 
 For per-series formatting, set `priceFormat: { type: 'custom', formatter, minMove }` in the series options — the chart-level `priceFormatter` is the fallback.
 
-To go back to the built-in formatting, pass `null`: `chart.applyOptions({ localization: { priceFormatter: null } })`. Passing `undefined` leaves the current formatter in place.
+In lightweight-charts 5.2.0, `LocalizationOptionsBase.priceFormatter` is `PriceFormatterFn | undefined`. `chart.applyOptions` accepts `DeepPartial` of the chart options, so this does not type-check:
+
+```ts
+chart.applyOptions({ localization: { priceFormatter: null } }); // TS2322
+```
+
+Do not cast `null` to hide that error. Passing `undefined` leaves the current formatter in place, because the options merge skips `undefined`. `null` is not a runtime reset either: an existing formatter function is left unchanged, and an unset formatter is stored as `null` instead of the built-in formatter. This version has no type-safe way to clear `priceFormatter`. Keep an explicit formatter, or recreate the chart to return to built-in formatting.
 
 ### Minimal pane primitive
 
