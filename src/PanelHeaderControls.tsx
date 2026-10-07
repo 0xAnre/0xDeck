@@ -144,13 +144,19 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
       {settings.fields.tools === true &&
         settings.fixedRangeVolumeProfileInstances &&
         settings.onFixedRangeVolumeProfileArm &&
-        settings.onFixedRangeVolumeProfileDelete && (
+        settings.onFixedRangeVolumeProfileDelete &&
+        settings.rectangleInstances &&
+        settings.onRectangleArm &&
+        settings.onRectangleDelete && (
           <HeaderToolsMenu
             id={`${panelId}-tools`}
             disabled={settings.disabled}
             fixedRangeVolumeProfileInstances={settings.fixedRangeVolumeProfileInstances}
             onFixedRangeVolumeProfileArm={settings.onFixedRangeVolumeProfileArm}
             onFixedRangeVolumeProfileDelete={settings.onFixedRangeVolumeProfileDelete}
+            rectangleInstances={settings.rectangleInstances}
+            onRectangleArm={settings.onRectangleArm}
+            onRectangleDelete={settings.onRectangleDelete}
           />
         )}
     </div>

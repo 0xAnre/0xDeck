@@ -10,6 +10,8 @@ import {
 import { cn } from '@/lib/utils'
 import { formatFixedRangeVolumeProfileInstanceLabel } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import { formatRectangleInstanceLabel } from '@/market/rectangleInstances'
+import type { RectangleInstance } from '@/market/rectangleInstances'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 
 type HeaderToolsMenuProps = {
@@ -18,6 +20,9 @@ type HeaderToolsMenuProps = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  rectangleInstances: RectangleInstance[]
+  onRectangleArm?: () => void
+  onRectangleDelete?: (instanceId: string) => void
 }
 
 export function HeaderToolsMenu({
@@ -26,11 +31,19 @@ export function HeaderToolsMenu({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  rectangleInstances,
+  onRectangleArm,
+  onRectangleDelete,
 }: HeaderToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const armTool = () => {
+  const armFixedRangeVolumeProfile = () => {
     onFixedRangeVolumeProfileArm?.()
+    setMenuOpen(false)
+  }
+
+  const armRectangle = () => {
+    onRectangleArm?.()
     setMenuOpen(false)
   }
 
@@ -50,8 +63,11 @@ export function HeaderToolsMenu({
         <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[16rem]">
-        <DropdownMenuItem disabled={disabled} onSelect={armTool}>
+        <DropdownMenuItem disabled={disabled} onSelect={armFixedRangeVolumeProfile}>
           Fixed Range Volume Profile
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={disabled} onSelect={armRectangle}>
+          Rectangle / Box
         </DropdownMenuItem>
         {fixedRangeVolumeProfileInstances.length > 0 && (
           <>
@@ -73,6 +89,32 @@ export function HeaderToolsMenu({
                   onClick={(event) => {
                     event.stopPropagation()
                     onFixedRangeVolumeProfileDelete?.(instance.id)
+                  }}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </button>
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+        {rectangleInstances.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            {rectangleInstances.map((instance) => (
+              <DropdownMenuItem
+                key={instance.id}
+                className="flex items-center justify-between gap-2"
+                onSelect={(event) => event.preventDefault()}
+              >
+                <span className="min-w-0 truncate text-xs">{formatRectangleInstanceLabel(instance)}</span>
+                <button
+                  type="button"
+                  aria-label="Delete rectangle"
+                  className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onRectangleDelete?.(instance.id)
                   }}
                 >
                   <Trash2Icon className="size-3.5" />

@@ -101,6 +101,31 @@ import {
 import { useFixedRangeVolumeProfileRuntime } from '@/hooks/useFixedRangeVolumeProfileRuntime'
 import { attachFixedRangeVolumeProfileSeriesPrimitive } from '@/market/fixedRangeVolumeProfileSeriesPrimitive'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from '@/market/fixedRangeVolumeProfileRuntimeTypes'
+import {
+  loadWidgetRectangleInstances,
+  saveWidgetRectangleInstances,
+} from '@/rectangleInstancesStorage'
+import {
+  attachRectangleChartTool,
+  type RectangleChartToolController,
+} from '@/market/rectangleChartTool'
+import {
+  applyRectangleSelection,
+  armRectangleTool,
+  cancelRectangleInteraction,
+  INITIAL_RECTANGLE_INTERACTION_STATE,
+  type RectangleInteractionState,
+} from '@/market/rectangleInteraction'
+import {
+  claimRectangleKeyboardPanel,
+  isActiveRectangleKeyboardPanel,
+  isRectangleKeyboardFocusOnOutsideControl,
+} from '@/market/rectangleKeyboardScope'
+import {
+  sanitizeRectangleInstances,
+  type RectangleInstance,
+} from '@/market/rectangleInstances'
+import { attachRectangleSeriesPrimitive } from '@/market/rectangleSeriesPrimitive'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   requiredVwapContextLevel,
@@ -190,6 +215,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [fixedRangeVolumeProfileInteraction, setFixedRangeVolumeProfileInteraction] =
     useState<FixedRangeVolumeProfileInteractionState>(INITIAL_FIXED_RANGE_VP_INTERACTION_STATE)
+  const [rectangleInstances, setRectangleInstances] = useState<RectangleInstance[]>(() =>
+    loadWidgetRectangleInstances(panelId),
+  )
+  const [rectangleInteraction, setRectangleInteraction] = useState<RectangleInteractionState>(
+    INITIAL_RECTANGLE_INTERACTION_STATE,
+  )
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -220,6 +251,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     update: () => void
     dispose: () => void
   } | null>(null)
+  const rectangleInstancesRef = useRef(rectangleInstances)
+  const rectangleInteractionRef = useRef(rectangleInteraction)
+  const rectangleToolControllerRef = useRef<RectangleChartToolController | null>(null)
+  const rectangleSeriesAttachmentRef = useRef<{
+    update: () => void
+    dispose: () => void
+  } | null>(null)
+  const rectanglePointerPreviewRef = useRef<{ pointerTime: number | null; pointerPrice: number | null }>({
+    pointerTime: null,
+    pointerPrice: null,
+  })
+  const rectangleArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -232,6 +275,58 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileInteractionRef.current = fixedRangeVolumeProfileInteraction
   }, [fixedRangeVolumeProfileInteraction])
+
+  useEffect(() => {
+    rectangleInstancesRef.current = rectangleInstances
+  }, [rectangleInstances])
+
+  useEffect(() => {
+    rectangleInteractionRef.current = rectangleInteraction
+  }, [rectangleInteraction])
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const container = containerRef.current
+      if (!container) return
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (container.contains(target)) {
+        claimRectangleKeyboardPanel(panelId)
+        return
+      }
+      if (isActiveRectangleKeyboardPanel(panelId)) {
+        claimRectangleKeyboardPanel(null)
+      }
+      if (rectangleInteractionRef.current.selectedId === null) return
+      const next = applyRectangleSelection(rectangleInteractionRef.current, null)
+      rectangleInteractionRef.current = next
+      setRectangleInteraction(next)
+      rectangleSeriesAttachmentRef.current?.update()
+    }
+
+    const onFocusIn = (event: FocusEvent) => {
+      const container = containerRef.current
+      if (!container) return
+      if (!isRectangleKeyboardFocusOnOutsideControl(event.target, container)) return
+      if (isActiveRectangleKeyboardPanel(panelId)) {
+        claimRectangleKeyboardPanel(null)
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('focusin', onFocusIn, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('focusin', onFocusIn, true)
+      if (rectangleArmClaimTimerRef.current !== null) {
+        window.clearTimeout(rectangleArmClaimTimerRef.current)
+        rectangleArmClaimTimerRef.current = null
+      }
+      if (isActiveRectangleKeyboardPanel(panelId)) {
+        claimRectangleKeyboardPanel(null)
+      }
+    }
+  }, [panelId])
 
   useEffect(() => {
     fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
@@ -250,7 +345,62 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  const persistRectangleInstances = useCallback(
+    (next: RectangleInstance[]) => {
+      const sanitized = sanitizeRectangleInstances(next)
+      rectangleInstancesRef.current = sanitized
+      setRectangleInstances(sanitized)
+      saveWidgetRectangleInstances(panelId, sanitized)
+      rectangleToolControllerRef.current?.sync()
+      rectangleSeriesAttachmentRef.current?.update()
+      return sanitized
+    },
+    [panelId],
+  )
+
+  const handleRectangleArm = useCallback(() => {
+    claimRectangleKeyboardPanel(panelId)
+    if (rectangleArmClaimTimerRef.current !== null) {
+      window.clearTimeout(rectangleArmClaimTimerRef.current)
+    }
+    // The portalled menu returns focus to the header trigger after this runs,
+    // which releases the claim. Restore it once that focus move has settled.
+    rectangleArmClaimTimerRef.current = window.setTimeout(() => {
+      rectangleArmClaimTimerRef.current = null
+      claimRectangleKeyboardPanel(panelId)
+    }, 0)
+    const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
+      fixedRangeVolumeProfileInteractionRef.current,
+    )
+    if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+      fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
+      setFixedRangeVolumeProfileInteraction(cancelledFrvp)
+      fixedRangeVolumeProfileToolControllerRef.current?.sync()
+    }
+    const armed = armRectangleTool(rectangleInteractionRef.current)
+    rectangleInteractionRef.current = armed
+    setRectangleInteraction(armed)
+    rectangleToolControllerRef.current?.sync()
+    rectangleSeriesAttachmentRef.current?.update()
+  }, [panelId])
+
+  const handleRectangleDelete = useCallback(
+    (instanceId: string) => {
+      persistRectangleInstances(
+        rectangleInstancesRef.current.filter((item) => item.id !== instanceId),
+      )
+    },
+    [persistRectangleInstances],
+  )
+
   const handleFixedRangeVolumeProfileArm = useCallback(() => {
+    const cancelledRectangle = cancelRectangleInteraction(rectangleInteractionRef.current)
+    if (cancelledRectangle !== rectangleInteractionRef.current) {
+      rectangleInteractionRef.current = cancelledRectangle
+      setRectangleInteraction(cancelledRectangle)
+      rectangleToolControllerRef.current?.sync()
+      rectangleSeriesAttachmentRef.current?.update()
+    }
     const armed = armFixedRangeVolumeProfileTool()
     fixedRangeVolumeProfileInteractionRef.current = armed
     setFixedRangeVolumeProfileInteraction(armed)
@@ -400,6 +550,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         setFixedRangeVolumeProfileInteraction(cancelled)
         fixedRangeVolumeProfileToolControllerRef.current?.sync()
       }
+      const cancelledRectangle = cancelRectangleInteraction(rectangleInteractionRef.current)
+      if (cancelledRectangle !== rectangleInteractionRef.current) {
+        rectangleInteractionRef.current = cancelledRectangle
+        setRectangleInteraction(cancelledRectangle)
+        rectanglePointerPreviewRef.current = { pointerTime: null, pointerPrice: null }
+        rectangleToolControllerRef.current?.sync()
+        rectangleSeriesAttachmentRef.current?.update()
+      }
       saveWidgetMarketInterval(panelId, next)
       setDataState({ status: 'loading' })
       setChartReady(false)
@@ -424,6 +582,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileInstances,
     onFixedRangeVolumeProfileArm: handleFixedRangeVolumeProfileArm,
     onFixedRangeVolumeProfileDelete: handleFixedRangeVolumeProfileDelete,
+    rectangleInstances,
+    onRectangleArm: handleRectangleArm,
+    onRectangleDelete: handleRectangleDelete,
     disabled: !chartReady && dataState.status === 'loading',
   })
 
@@ -458,6 +619,53 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   useEffect(() => {
     const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const controller = attachRectangleChartTool(chart, {
+      getSnapshot: () => ({
+        interaction: rectangleInteractionRef.current,
+        instances: rectangleInstancesRef.current,
+      }),
+      getPointerPreview: () => rectanglePointerPreviewRef.current,
+      setPointerPreview: (pointerTime, pointerPrice) => {
+        rectanglePointerPreviewRef.current = { pointerTime, pointerPrice }
+      },
+      onInteractionChange: (state) => {
+        rectangleInteractionRef.current = state
+        setRectangleInteraction(state)
+      },
+      onInstancesChange: (instances) => {
+        persistRectangleInstances(instances)
+      },
+      onInstanceCompleted: (instance) => {
+        persistRectangleInstances([...rectangleInstancesRef.current, instance])
+      },
+      onInstanceUpdated: (instance) => {
+        persistRectangleInstances(
+          rectangleInstancesRef.current.map((item) =>
+            item.id === instance.id ? instance : item,
+          ),
+        )
+      },
+      onRequestRender: () => {
+        rectangleSeriesAttachmentRef.current?.update()
+      },
+      getChart: () => chartRef.current,
+      getSeries: () => seriesRef.current?.candle ?? null,
+      getFixedRangeVolumeProfileInteraction: () =>
+        fixedRangeVolumeProfileInteractionRef.current,
+      shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
+    })
+    rectangleToolControllerRef.current = controller
+    controller.sync()
+    return () => {
+      controller.dispose()
+      rectangleToolControllerRef.current = null
+    }
+  }, [chartReady, panelId, persistRectangleInstances])
+
+  useEffect(() => {
+    const chart = chartRef.current
     const bundle = seriesRef.current
     if (!chart || !bundle || !chartReady) return
 
@@ -485,6 +693,38 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
   }, [fixedRangeVolumeProfileInstances])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    const bundle = seriesRef.current
+    if (!chart || !bundle || !chartReady) return
+
+    const attachment = attachRectangleSeriesPrimitive(bundle.candle, () => ({
+      instances: rectangleInstancesRef.current,
+      interaction: rectangleInteractionRef.current,
+      pointerTime: rectanglePointerPreviewRef.current.pointerTime,
+      pointerPrice: rectanglePointerPreviewRef.current.pointerPrice,
+    }))
+    rectangleSeriesAttachmentRef.current = attachment
+
+    const onVisibleRangeChange = () => {
+      attachment.update()
+    }
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+    chart.timeScale().subscribeVisibleTimeRangeChange(onVisibleRangeChange)
+    attachment.update()
+
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(onVisibleRangeChange)
+      attachment.dispose()
+      rectangleSeriesAttachmentRef.current = null
+    }
+  }, [chartReady])
+
+  useEffect(() => {
+    rectangleSeriesAttachmentRef.current?.update()
+  }, [rectangleInstances, rectangleInteraction])
 
   useEffect(() => {
     activeIndicatorsRef.current = activeIndicators
