@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { IChartApi } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import {
+  applyRollingVwapInstanceSettingsToChart,
   applyRollingVwapInstancesHistory,
   applyRollingVwapInstancesLive,
   reconcileRollingVwapChartBundles,
@@ -51,6 +52,7 @@ function trackChartBundle() {
   const bundle: ChartSeriesBundle = {
     candle: makeLine() as ChartSeriesBundle['candle'],
     emas: [],
+    ema200: makeLine() as ChartSeriesBundle['ema200'],
     dailyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['dailyVwap'],
     weeklyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['weeklyVwap'],
     monthlyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['monthlyVwap'],
@@ -61,6 +63,38 @@ function trackChartBundle() {
 
   return { chart, bundle, counters }
 }
+
+describe('applyRollingVwapInstanceSettingsToChart', () => {
+  it('reapplies line width on save without recreating series', () => {
+    const lineWidths: number[] = []
+    const makeLine = () => ({
+      setData: () => {},
+      update: () => {},
+      applyOptions: (opts: { lineWidth?: number }) => {
+        if (typeof opts.lineWidth === 'number') lineWidths.push(opts.lineWidth)
+      },
+    })
+    const center = makeLine()
+    const bands = {
+      upper1: makeLine(),
+      lower1: makeLine(),
+      upper2: makeLine(),
+      lower2: makeLine(),
+      upper3: makeLine(),
+      lower3: makeLine(),
+    }
+    const chartBundle = {
+      center,
+      bands,
+      ordered: [center, ...Object.values(bands)],
+    }
+    const instance = createRollingVwapInstance({ id: 'a', randomId: () => 'a' })
+    instance.settings.lineWidth = 2
+    applyRollingVwapInstanceSettingsToChart(chartBundle, instance, '1m')
+    assert.ok(lineWidths.includes(2))
+    assert.equal(lineWidths.filter((width) => width === 2).length, 7)
+  })
+})
 
 describe('reconcileRollingVwapChartBundles', () => {
   it('creates seven series per instance and removes deleted instance series', () => {

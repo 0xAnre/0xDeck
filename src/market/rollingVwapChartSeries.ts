@@ -4,7 +4,9 @@ import { rollingVwapInstancePeriodLabel, type RollingVwapInstance } from './roll
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import {
   computeRollingVwapPointsForSettings,
+  DEFAULT_ROLLING_VWAP_LINE_WIDTH,
   type RollingVwapBandColors,
+  type RollingVwapLineWidth,
   type RollingVwapSettings,
 } from './rollingVwapSettings.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
@@ -12,24 +14,32 @@ import type { CandleInterval, MarketCandle } from './types.ts'
 /** Same gray as anchored Daily/Weekly VWAP center lines. */
 export const ROLLING_VWAP_LINE_COLOR = '#9e9e9e'
 
-export const ROLLING_VWAP_CENTER_LINE_OPTIONS = {
-  color: ROLLING_VWAP_LINE_COLOR,
-  lineWidth: 1 as const,
-  priceLineVisible: false,
-  lastValueVisible: true,
-  crosshairMarkerVisible: false,
-  pointMarkersVisible: false,
+export function rollingVwapCenterLineOptions(
+  lineWidth: RollingVwapLineWidth = DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+) {
+  return {
+    color: ROLLING_VWAP_LINE_COLOR,
+    lineWidth,
+    priceLineVisible: false,
+    lastValueVisible: true,
+    crosshairMarkerVisible: false,
+    pointMarkersVisible: false,
+  }
 }
+
+export const ROLLING_VWAP_CENTER_LINE_OPTIONS = rollingVwapCenterLineOptions()
 
 export const ROLLING_VWAP_LINE_CHART_OPTIONS = ROLLING_VWAP_CENTER_LINE_OPTIONS
 
-const ROLLING_VWAP_BAND_LINE_OPTIONS = {
-  lineWidth: 1 as const,
-  priceLineVisible: false,
-  lastValueVisible: false,
-  title: '',
-  crosshairMarkerVisible: false,
-  pointMarkersVisible: false,
+function rollingVwapBandLineOptions(lineWidth: RollingVwapLineWidth = DEFAULT_ROLLING_VWAP_LINE_WIDTH) {
+  return {
+    lineWidth,
+    priceLineVisible: false,
+    lastValueVisible: false,
+    title: '',
+    crosshairMarkerVisible: false,
+    pointMarkersVisible: false,
+  }
 }
 
 export const ROLLING_VWAP_BAND_SERIES_KEYS = [
@@ -86,14 +96,25 @@ export function rollingVwapPointsToLineData(
   return points.map((point) => rollingVwapPointToLinePoint(point, key))
 }
 
+export function applyRollingVwapChartLineWidth(
+  bundle: RollingVwapChartSeriesBundle,
+  lineWidth: RollingVwapLineWidth,
+): void {
+  bundle.center.applyOptions({ lineWidth })
+  for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+    bundle.bands[key].applyOptions({ lineWidth })
+  }
+}
+
 export function createRollingVwapChartSeriesBundle(
   chart: IChartApi,
   bandColors: RollingVwapBandColors,
-  centerPresentation?: { title: string },
+  options?: { title?: string; lineWidth?: RollingVwapLineWidth },
 ): RollingVwapChartSeriesBundle {
+  const lineWidth = options?.lineWidth ?? DEFAULT_ROLLING_VWAP_LINE_WIDTH
   const center = chart.addSeries(LineSeries, {
-    ...ROLLING_VWAP_CENTER_LINE_OPTIONS,
-    title: centerPresentation?.title ?? '',
+    ...rollingVwapCenterLineOptions(lineWidth),
+    title: options?.title ?? '',
     visible: false,
   })
 
@@ -103,7 +124,7 @@ export function createRollingVwapChartSeriesBundle(
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
     const colorKey = BAND_COLOR_KEYS[key]
     const series = chart.addSeries(LineSeries, {
-      ...ROLLING_VWAP_BAND_LINE_OPTIONS,
+      ...rollingVwapBandLineOptions(lineWidth),
       color: bandColors[colorKey],
       visible: false,
     })
@@ -139,6 +160,7 @@ export function applyRollingVwapChartInstancePresentation(
   interval: CandleInterval,
 ): void {
   applyRollingVwapChartBandColors(bundle, instance.settings.bandColors)
+  applyRollingVwapChartLineWidth(bundle, instance.settings.lineWidth)
   bundle.center.applyOptions({
     title: rollingVwapInstancePeriodLabel(instance, interval),
     lastValueVisible: true,

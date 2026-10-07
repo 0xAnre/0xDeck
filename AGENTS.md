@@ -2,6 +2,36 @@
 
 Context for AI agents helping users customize this repository.
 
+## Lead → Cursor workflow
+
+This workflow is **unconditional** for every user development/implementation request. It does **not** require a `Lead task:` prefix. A normal request such as "Add a moving average indicator" uses this path automatically. Questions and read-only analysis are not implementation requests and do not create Issues.
+
+Ordered process:
+
+`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
+
+| Role | Responsibility |
+|------|----------------|
+| **User** | Requests work; **only the user** performs the final merge into `main`. |
+| **Codex (Lead Developer)** | Analyze requests; create one implementation-ready GitHub Issue; post the handoff comment; review the resulting pull request. **Must not** implement application code, modify application/project files, commit, push, or merge. |
+| **Cursor** | Implement the Issue; open a pull request **against `main`**; apply Codex review feedback on the **same** branch and pull request. **Must not** merge. |
+
+**Codex** is always the Lead Developer. Codex analyzes the request, creates **exactly one** implementation-ready GitHub Issue, then posts **exactly one** top-level Issue comment whose entire contents are:
+
+```text
+cursor-ready
+```
+
+That comment is the sole Issue handoff signal. Do not require bot mentions or other strings in the handoff.
+
+After Cursor opens a PR, Codex reviews it. Codex must **not** implement the requested change, modify application/project files, commit, or push.
+
+**Cursor** is the implementation agent. Cursor creates the task branch from `main`, modifies files, runs required checks (see Verification), commits, pushes, and opens or updates a PR targeting **`main`**. Codex review fixes are applied by Cursor on the **same** PR/branch.
+
+**Neither Codex nor Cursor merges.** Only the user merges.
+
+Commit permission is role-specific: Codex does not commit implementation work; Cursor commits and pushes its assigned implementation branch as part of this workflow.
+
 ## Read order (bootstrap)
 
 1. This file (`AGENTS.md`)
@@ -72,52 +102,9 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 5. **Imports at top of file** — no inline imports
 6. **`minW`/`minH` in registry `grid`** = minimum and default open size
 7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (57341), backend `uvicorn` (57342)
-8. **Do not commit** unless the user explicitly asks
+8. **Commits** — role-specific; see Lead → Cursor workflow (not a generic "never commit" rule)
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
-
-## Agent Handoff Protocol
-
-This is the standard GitHub workflow for agent-assisted changes:
-
-- **Codex** is the Lead Developer and Reviewer. Codex turns approved work into implementation-ready GitHub Issues, reviews the resulting pull requests, and decides whether feedback is actionable.
-- **Cursor Cloud** is the implementation/coding agent. Cursor implements the Issue and addresses actionable review feedback on the same pull request.
-- **The user** is the final merge authority. Agents must never merge automatically.
-
-### Start implementation: Codex to Cursor
-
-After Codex creates an implementation-ready GitHub Issue, Codex must add a **separate top-level Issue comment** that mentions `@cursor`. A mention only inside the Issue body is not a valid handoff.
-
-Use an instruction equivalent to:
-
-```text
-@cursor Read AGENTS.md, implement this issue on a dedicated branch, run all required tests, and open a pull request. Never merge the pull request.
-```
-
-The Issue must contain enough acceptance criteria and verification guidance for Cursor to implement without guessing. The handoff comment must instruct Cursor to:
-
-1. Read `AGENTS.md` before making changes.
-2. Implement the Issue without expanding its scope.
-3. Create or use a dedicated branch for the work.
-4. Run the required tests documented in the Issue and this repository.
-5. Open a pull request linked to the Issue.
-6. Never merge the pull request.
-
-When Cursor completes the implementation, its GitHub-visible response must end with this exact line:
-
-```text
-@codex review
-```
-
-### Review loop: Codex and Cursor
-
-Codex reviews the existing pull request as Lead Developer and Reviewer.
-
-- If Codex finds actionable problems, Codex must leave a GitHub-visible instruction mentioning `@cursor` and describing the required fixes. Cursor must update the **existing branch and pull request**, run the required tests, push the changes, and post a GitHub-visible response ending with `@codex review`.
-- Review fixes must not create a new Issue or pull request.
-- If Codex finds no actionable problems, Codex must not mention Cursor again. Leave the pull request ready for the user to evaluate and merge.
-- Keep the loop proportional to risk. Do not create repeated review cycles for cosmetic preferences or other low-risk, non-actionable observations.
-- Neither Codex nor Cursor may merge. The user remains responsible for the final merge.
 
 ## shadcn-first workflow
 
@@ -178,7 +165,7 @@ Before any new UI work:
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP), fixed-range volume profile tool; REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, EMA 200, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP), fixed-range volume profile tool; REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 

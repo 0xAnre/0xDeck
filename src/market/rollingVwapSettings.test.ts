@@ -4,6 +4,7 @@ import {
   createDefaultRollingVwapSettings,
   DEFAULT_ROLLING_VWAP_BAND_COLORS,
   DEFAULT_ROLLING_VWAP_INFO_BOX,
+  DEFAULT_ROLLING_VWAP_LINE_WIDTH,
   sanitizeRollingVwapSettings,
 } from './rollingVwapSettings.ts'
 import {
@@ -20,6 +21,7 @@ describe('createDefaultRollingVwapSettings', () => {
     assert.deepEqual(settings.multipliers, DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS)
     assert.deepEqual(settings.bandColors, DEFAULT_ROLLING_VWAP_BAND_COLORS)
     assert.deepEqual(settings.infoBox, DEFAULT_ROLLING_VWAP_INFO_BOX)
+    assert.equal(settings.lineWidth, DEFAULT_ROLLING_VWAP_LINE_WIDTH)
   })
 
   it('returns independent object instances', () => {
@@ -87,5 +89,24 @@ describe('sanitizeRollingVwapSettings', () => {
     first.minBars = 77
     const second = sanitizeRollingVwapSettings(undefined)
     assert.equal(second.minBars, DEFAULT_ROLLING_VWAP_MIN_BARS)
+  })
+
+  it('defaults lineWidth to 1 when missing from stored settings', () => {
+    const result = sanitizeRollingVwapSettings({ minBars: 12 })
+    assert.equal(result.lineWidth, 1)
+  })
+
+  it('persists valid lineWidth values', () => {
+    for (const lineWidth of [1, 2, 3, 4] as const) {
+      const result = sanitizeRollingVwapSettings({ lineWidth })
+      assert.equal(result.lineWidth, lineWidth)
+    }
+  })
+
+  it('falls back to width 1 for invalid lineWidth values', () => {
+    for (const lineWidth of [0, 5, 1.5, '2', null, Number.NaN]) {
+      const result = sanitizeRollingVwapSettings({ lineWidth })
+      assert.equal(result.lineWidth, 1)
+    }
   })
 })

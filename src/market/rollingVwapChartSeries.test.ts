@@ -10,6 +10,7 @@ import type { IChartApi } from 'lightweight-charts'
 import {
   ROLLING_VWAP_BAND_SERIES_KEYS,
   ROLLING_VWAP_LINE_CHART_OPTIONS,
+  applyRollingVwapChartInstancePresentation,
   applyRollingVwapLiveFromCandles,
   createRollingVwapChartSeriesBundle,
   rollingVwapPointToLinePoint,
@@ -18,6 +19,7 @@ import {
   setRollingVwapInstanceSeriesVisibility,
   type RollingVwapChartSeriesBundle,
 } from './rollingVwapChartSeries.ts'
+import { createRollingVwapInstance } from './rollingVwapInstances.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import type { MarketCandle } from './types.ts'
 
@@ -115,6 +117,122 @@ describe('rollingVwap chart series defaults', () => {
       assert.equal(options.crosshairMarkerVisible, false)
       assert.equal(options.pointMarkersVisible, false)
     }
+  })
+
+  it('applies instance lineWidth to all seven series at creation', () => {
+    const createdOptions: Record<string, unknown>[] = []
+    const chart = {
+      addSeries: (_type: unknown, options: Record<string, unknown>) => {
+        createdOptions.push(options)
+        return {
+          setData: () => {},
+          update: () => {},
+          applyOptions: () => {},
+        }
+      },
+    } as IChartApi
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineWidth = 3
+    createRollingVwapChartSeriesBundle(chart, settings.bandColors, { lineWidth: settings.lineWidth })
+    assert.equal(createdOptions.length, 7)
+    for (const options of createdOptions) {
+      assert.equal(options.lineWidth, 3)
+    }
+  })
+})
+
+describe('applyRollingVwapChartInstancePresentation line width', () => {
+  it('updates all seven series when settings are saved', () => {
+    const lineWidths: number[] = []
+    const makeLine = () => ({
+      setData: () => {},
+      update: () => {},
+      applyOptions: (opts: { lineWidth?: number }) => {
+        if (typeof opts.lineWidth === 'number') lineWidths.push(opts.lineWidth)
+      },
+    })
+    const center = makeLine()
+    const bands = {} as RollingVwapChartSeriesBundle['bands']
+    const ordered = [center]
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      const series = makeLine()
+      bands[key] = series
+      ordered.push(series)
+    }
+    const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
+
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineWidth = 4
+    const instance = createRollingVwapInstance({
+      id: 'rvwap-a',
+      settings,
+      randomId: () => 'rvwap-a',
+    })
+    applyRollingVwapChartInstancePresentation(bundle, instance, '1m')
+    assert.equal(lineWidths.length, 7)
+    assert.ok(lineWidths.every((width) => width === 4))
+  })
+
+  it('keeps line widths independent between instances', () => {
+    const widthsBySeries = new Map<object, number>()
+    const makeLine = () => {
+      const series = {
+        setData: () => {},
+        update: () => {},
+        applyOptions: (opts: { lineWidth?: number }) => {
+          if (typeof opts.lineWidth === 'number') widthsBySeries.set(series, opts.lineWidth)
+        },
+      }
+      return series
+    }
+
+    const bundleA = (() => {
+      const center = makeLine()
+      const bands = {} as RollingVwapChartSeriesBundle['bands']
+      const ordered = [center]
+      for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+        const series = makeLine()
+        bands[key] = series
+        ordered.push(series)
+      }
+      return { center, bands, ordered }
+    })()
+
+    const bundleB = (() => {
+      const center = makeLine()
+      const bands = {} as RollingVwapChartSeriesBundle['bands']
+      const ordered = [center]
+      for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+        const series = makeLine()
+        bands[key] = series
+        ordered.push(series)
+      }
+      return { center, bands, ordered }
+    })()
+
+    const settingsA = createDefaultRollingVwapSettings()
+    settingsA.lineWidth = 2
+    const settingsB = createDefaultRollingVwapSettings()
+    settingsB.lineWidth = 3
+
+    applyRollingVwapChartInstancePresentation(
+      bundleA,
+      createRollingVwapInstance({ id: 'a', settings: settingsA, randomId: () => 'a' }),
+      '1m',
+    )
+    applyRollingVwapChartInstancePresentation(
+      bundleB,
+      createRollingVwapInstance({ id: 'b', settings: settingsB, randomId: () => 'b' }),
+      '1m',
+    )
+
+    for (const width of widthsBySeries.values()) {
+      assert.ok(width === 2 || width === 3)
+    }
+    const widthsA = [...bundleA.ordered].map((series) => widthsBySeries.get(series))
+    const widthsB = [...bundleB.ordered].map((series) => widthsBySeries.get(series))
+    assert.deepEqual(widthsA, [2, 2, 2, 2, 2, 2, 2])
+    assert.deepEqual(widthsB, [3, 3, 3, 3, 3, 3, 3])
   })
 })
 

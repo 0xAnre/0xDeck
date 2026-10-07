@@ -2,7 +2,7 @@ import {
   DEFAULT_MARKET_INDICATORS,
   isMarketIndicatorId,
   type MarketIndicatorId,
-} from '@/market/indicators'
+} from './market/indicators.ts'
 
 export const WIDGET_MARKET_INDICATORS_STORAGE_KEY = '0xdeck-widget-market-indicators'
 

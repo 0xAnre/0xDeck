@@ -70,4 +70,28 @@ describe('rollingVwapSettingsStorage', () => {
     assert.equal(loadWidgetRollingVwapSettings('panel-a').minBars, 10)
     assert.equal(loadWidgetRollingVwapSettings('panel-a').infoBox.visible, true)
   })
+
+  it('round-trips lineWidth through panel storage', () => {
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineWidth = 3
+    saveWidgetRollingVwapSettings('panel-a', settings)
+    assert.equal(loadWidgetRollingVwapSettings('panel-a').lineWidth, 3)
+  })
+
+  it('loads legacy settings without lineWidth at width 1', () => {
+    const legacy = createDefaultRollingVwapSettings()
+    memory.set(
+      WIDGET_ROLLING_VWAP_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        'panel-a': {
+          fixedTimePeriod: legacy.fixedTimePeriod,
+          minBars: legacy.minBars,
+          multipliers: legacy.multipliers,
+          bandColors: legacy.bandColors,
+          infoBox: legacy.infoBox,
+        },
+      }),
+    )
+    assert.equal(loadWidgetRollingVwapSettings('panel-a').lineWidth, 1)
+  })
 })
