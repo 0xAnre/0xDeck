@@ -4,10 +4,12 @@ import { BTC_PERPETUAL_CANDLESTICK_COLORS } from './btcPerpetualCandleColors.ts'
 
 describe('BTC_PERPETUAL_CANDLESTICK_COLORS', () => {
   it('matches reference candle palette', () => {
-    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.upColor, '#818DAD')
-    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.wickUpColor, '#818DAD')
-    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.downColor, '#8F6460')
-    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.wickDownColor, '#8F6460')
+    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.upColor, '#DBDBDB')
+    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.borderUpColor, '#DBDBDB')
+    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.wickUpColor, '#DBDBDB')
+    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.downColor, '#808080')
+    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.borderDownColor, '#808080')
+    assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.wickDownColor, '#808080')
     assert.equal(BTC_PERPETUAL_CANDLESTICK_COLORS.borderVisible, false)
   })
 })

@@ -1,7 +1,9 @@
 export const BTC_PERPETUAL_CANDLESTICK_COLORS = {
-  upColor: '#818DAD',
-  downColor: '#8F6460',
-  wickUpColor: '#818DAD',
-  wickDownColor: '#8F6460',
+  upColor: '#DBDBDB',
+  downColor: '#808080',
+  wickUpColor: '#DBDBDB',
+  wickDownColor: '#808080',
+  borderUpColor: '#DBDBDB',
+  borderDownColor: '#808080',
   borderVisible: false,
 } as const
