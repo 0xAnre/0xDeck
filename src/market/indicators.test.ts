@@ -7,6 +7,7 @@ import {
   isIndicatorSupportedOnInterval,
   isMarketIndicatorId,
   MARKET_INDICATOR_DEFINITIONS,
+  MARKET_INDICATOR_IDS,
   requiredVwapContextLevel,
 } from './indicators.ts'
 import { CANDLE_INTERVALS } from './types.ts'
@@ -28,11 +29,37 @@ describe('market indicator ids', () => {
     assert.equal(isMarketIndicatorId('rolling-vwap'), true)
   })
 
+  it('accepts ema-200', () => {
+    assert.equal(isMarketIndicatorId('ema-200'), true)
+  })
+
   it('rejects removed sma indicator ids', () => {
     assert.equal(isMarketIndicatorId('sma-20'), false)
     assert.equal(isMarketIndicatorId('sma-50'), false)
     assert.equal(isMarketIndicatorId('sma-100'), false)
     assert.equal(isMarketIndicatorId('sma-200'), false)
+  })
+})
+
+describe('ema-200 registry', () => {
+  it('lists EMA 200 after 3 EMA with all-interval support', () => {
+    const tripleIndex = MARKET_INDICATOR_IDS.indexOf('triple-ema')
+    const ema200Index = MARKET_INDICATOR_IDS.indexOf('ema-200')
+    assert.equal(tripleIndex >= 0, true)
+    assert.equal(ema200Index, tripleIndex + 1)
+    const def = MARKET_INDICATOR_DEFINITIONS['ema-200']
+    assert.equal(def.label, 'EMA 200')
+    assert.equal(def.contextLevel, null)
+    for (const interval of CANDLE_INTERVALS) {
+      assert.equal(isIndicatorSupportedOnInterval('ema-200', interval), true)
+    }
+  })
+
+  it('exposes EMA 200 in indicator menu options', () => {
+    const options = buildMarketIndicatorOptions('1m')
+    const ema200 = options.find((o) => o.value === 'ema-200')
+    assert.equal(ema200?.label, 'EMA 200')
+    assert.equal(ema200?.disabled, false)
   })
 })
 
