@@ -7,7 +7,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
+  isRollingVwapLineWidth,
+  ROLLING_VWAP_LINE_WIDTHS,
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
 } from '@/market/rollingVwapSettings'
@@ -147,6 +150,40 @@ function RollingVwapSettingsDialogBody({
                 }
               />
             </label>
+          </section>
+
+          <section className="space-y-2">
+            <p className="font-medium text-foreground" id="rolling-vwap-line-width-label">
+              Line width
+            </p>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              className="grid w-full grid-cols-4"
+              aria-labelledby="rolling-vwap-line-width-label"
+              value={String(draft.lineWidth)}
+              onValueChange={(value) => {
+                if (!value) return
+                const parsed = Number(value)
+                if (!isRollingVwapLineWidth(parsed)) return
+                setDraft((current) => ({
+                  ...current,
+                  lineWidth: parsed,
+                }))
+              }}
+            >
+              {ROLLING_VWAP_LINE_WIDTHS.map((width) => (
+                <ToggleGroupItem
+                  key={width}
+                  value={String(width)}
+                  aria-label={`Line width ${width}`}
+                  className="w-full"
+                >
+                  {width}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </section>
 
           <section className="space-y-3">
