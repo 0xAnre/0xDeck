@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import {
+  applyEmaIndicatorSeriesVisibility,
+  type EmaIndicatorSeriesBundle,
+} from './chartEmaIndicatorVisibility.ts'
 import { setEma200HistoryData, updateEma200Live } from './chartEma200Series.ts'
 import { computeEmaLine, EMA_200_PERIOD } from './ema.ts'
 import type { MarketCandle } from './types.ts'
@@ -82,13 +86,70 @@ describe('updateEma200Live', () => {
   })
 })
 
-describe('indicator visibility independence', () => {
-  it('triple-ema and ema-200 are separate indicator ids', () => {
-    const tripleOnly = ['triple-ema'] as const
-    const ema200Only = ['ema-200'] as const
-    assert.equal(tripleOnly.includes('triple-ema'), true)
-    assert.equal(tripleOnly.includes('ema-200'), false)
-    assert.equal(ema200Only.includes('ema-200'), true)
-    assert.equal(ema200Only.includes('triple-ema'), false)
+function trackEmaVisibilityBundle(emaCount = 3) {
+  const tripleEmaVisibility: boolean[] = []
+  const ema200Visibility: boolean[] = []
+
+  const makeLine = (log: boolean[]) =>
+    ({
+      applyOptions: (opts: { visible?: boolean }) => {
+        if (typeof opts.visible === 'boolean') log.push(opts.visible)
+      },
+    }) as EmaIndicatorSeriesBundle['ema200']
+
+  const bundle: EmaIndicatorSeriesBundle = {
+    emas: Array.from({ length: emaCount }, () => makeLine(tripleEmaVisibility)),
+    ema200: makeLine(ema200Visibility),
+  }
+
+  return { bundle, tripleEmaVisibility, ema200Visibility }
+}
+
+function lastTripleEmaVisibility(tripleEmaVisibility: boolean[], emaCount: number) {
+  assert.equal(tripleEmaVisibility.length % emaCount, 0)
+  const start = tripleEmaVisibility.length - emaCount
+  return tripleEmaVisibility.slice(start)
+}
+
+describe('applyEmaIndicatorSeriesVisibility', () => {
+  const emaCount = 3
+
+  it('shows triple EMA lines and hides EMA 200 when only triple-ema is selected', () => {
+    const { bundle, tripleEmaVisibility, ema200Visibility } = trackEmaVisibilityBundle(emaCount)
+    applyEmaIndicatorSeriesVisibility(bundle, ['triple-ema'])
+    assert.deepEqual(lastTripleEmaVisibility(tripleEmaVisibility, emaCount), [true, true, true])
+    assert.deepEqual(ema200Visibility, [false])
+  })
+
+  it('hides triple EMA lines and shows EMA 200 when only ema-200 is selected', () => {
+    const { bundle, tripleEmaVisibility, ema200Visibility } = trackEmaVisibilityBundle(emaCount)
+    applyEmaIndicatorSeriesVisibility(bundle, ['ema-200'])
+    assert.deepEqual(lastTripleEmaVisibility(tripleEmaVisibility, emaCount), [false, false, false])
+    assert.deepEqual(ema200Visibility, [true])
+  })
+
+  it('shows both bundles when both indicators are selected', () => {
+    const { bundle, tripleEmaVisibility, ema200Visibility } = trackEmaVisibilityBundle(emaCount)
+    applyEmaIndicatorSeriesVisibility(bundle, ['triple-ema', 'ema-200'])
+    assert.deepEqual(lastTripleEmaVisibility(tripleEmaVisibility, emaCount), [true, true, true])
+    assert.deepEqual(ema200Visibility, [true])
+  })
+
+  it('leaves EMA 200 visibility unchanged when toggling triple-ema', () => {
+    const { bundle, tripleEmaVisibility, ema200Visibility } = trackEmaVisibilityBundle(emaCount)
+    applyEmaIndicatorSeriesVisibility(bundle, ['ema-200'])
+    applyEmaIndicatorSeriesVisibility(bundle, ['triple-ema', 'ema-200'])
+    applyEmaIndicatorSeriesVisibility(bundle, ['ema-200'])
+    assert.deepEqual(ema200Visibility, [true, true, true])
+    assert.deepEqual(lastTripleEmaVisibility(tripleEmaVisibility, emaCount), [false, false, false])
+  })
+
+  it('leaves triple EMA visibility unchanged when toggling ema-200', () => {
+    const { bundle, tripleEmaVisibility, ema200Visibility } = trackEmaVisibilityBundle(emaCount)
+    applyEmaIndicatorSeriesVisibility(bundle, ['triple-ema'])
+    applyEmaIndicatorSeriesVisibility(bundle, ['triple-ema', 'ema-200'])
+    applyEmaIndicatorSeriesVisibility(bundle, ['triple-ema'])
+    assert.deepEqual(lastTripleEmaVisibility(tripleEmaVisibility, emaCount), [true, true, true])
+    assert.deepEqual(ema200Visibility, [false, true, false])
   })
 })

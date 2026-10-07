@@ -27,6 +27,10 @@ import {
   releaseOwnedVwapContextRequest,
 } from '@/market/btcPerpetualVwapContextRequest'
 import { hideAllAnchoredVwapSeries, syncVwapSeriesVisibility } from '@/market/btcPerpetualChartVwapSync'
+import {
+  applyEmaIndicatorSeriesVisibility,
+  getEmaIndicatorSeriesVisibility,
+} from '@/market/chartEmaIndicatorVisibility'
 import { computeInitialVisibleLogicalRange } from '@/market/chartInitialVisibleRange'
 import {
   createInfiniteHistoryState,
@@ -126,7 +130,7 @@ import type { ServerEventMessage } from '@/widgets/stream/messages'
 import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
-const EMA_200_COLOR_VAR = '--chart-5'
+const EMA_200_COLOR_VAR = '--chart-1'
 
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
@@ -136,7 +140,7 @@ function readThemeColors() {
     ema: EMA_COLOR_VARS.map((token, index) =>
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
-    ema200: resolveCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#404040'),
+    ema200: resolveCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#dedede'),
   }
 }
 
@@ -482,9 +486,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
   }, [fixedRangeVolumeProfileInstances])
 
-  const tripleEmaVisible = activeIndicators.includes('triple-ema')
-  const ema200Visible = activeIndicators.includes('ema-200')
-
   useEffect(() => {
     activeIndicatorsRef.current = activeIndicators
   }, [activeIndicators])
@@ -492,17 +493,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     const bundle = seriesRef.current
     if (!bundle) return
-    bundle.emas.forEach((series) => {
-      series.applyOptions({ visible: tripleEmaVisible })
-    })
+    applyEmaIndicatorSeriesVisibility(bundle, activeIndicators)
     syncAllVwapVisibility(bundle)
-  }, [tripleEmaVisible, activeIndicators, chartReady, interval, rollingVwapInstances, syncAllVwapVisibility])
-
-  useEffect(() => {
-    const bundle = seriesRef.current
-    if (!bundle) return
-    bundle.ema200.applyOptions({ visible: ema200Visible })
-  }, [ema200Visible, chartReady])
+  }, [activeIndicators, chartReady, interval, rollingVwapInstances, syncAllVwapVisibility])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -605,8 +598,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       const candleSeries = chart.addSeries(CandlestickSeries, BTC_PERPETUAL_CANDLESTICK_COLORS)
 
-      const emaVisible = activeIndicatorsRef.current.includes('triple-ema')
-      const ema200SeriesVisible = activeIndicatorsRef.current.includes('ema-200')
+      const { tripleEma: emaVisible, ema200: ema200SeriesVisible } =
+        getEmaIndicatorSeriesVisibility(activeIndicatorsRef.current)
       const emaSeries = EMA_PERIODS.map((_, index) =>
         chart!.addSeries(LineSeries, {
           color: colors.ema[index] ?? colors.ema[0],
