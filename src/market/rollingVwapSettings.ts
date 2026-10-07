@@ -48,12 +48,29 @@ export type RollingVwapInfoBoxSettings = {
   textColor: string
 }
 
+export const ROLLING_VWAP_LINE_WIDTHS = [1, 2, 3, 4] as const
+
+export type RollingVwapLineWidth = (typeof ROLLING_VWAP_LINE_WIDTHS)[number]
+
+export const DEFAULT_ROLLING_VWAP_LINE_WIDTH: RollingVwapLineWidth = 1
+
+const ROLLING_VWAP_LINE_WIDTH_SET = new Set<number>(ROLLING_VWAP_LINE_WIDTHS)
+
+export function isRollingVwapLineWidth(value: unknown): value is RollingVwapLineWidth {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    ROLLING_VWAP_LINE_WIDTH_SET.has(value)
+  )
+}
+
 export type RollingVwapSettings = {
   fixedTimePeriod: RollingVwapFixedTimePeriod
   minBars: number
   multipliers: RollingVwapStdevMultipliers
   bandColors: RollingVwapBandColors
   infoBox: RollingVwapInfoBoxSettings
+  lineWidth: RollingVwapLineWidth
 }
 
 const DEFAULT_BAND_COLORS: RollingVwapBandColors = {
@@ -126,6 +143,7 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
     multipliers: { ...DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS },
     bandColors: { ...DEFAULT_BAND_COLORS },
     infoBox: { ...DEFAULT_INFO_BOX },
+    lineWidth: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
   }
 }
 
@@ -155,5 +173,6 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     multipliers: sanitizeRollingVwapStdevMultipliers(record.multipliers, defaults.multipliers),
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     infoBox: sanitizeInfoBox(record.infoBox, defaults.infoBox),
+    lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
   }
 }
