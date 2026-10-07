@@ -1,9 +1,18 @@
-import { LineSeries, type IChartApi, type ISeriesApi } from 'lightweight-charts'
+import type { IChartApi } from 'lightweight-charts'
 import type { AnchoredVwapPoint } from './anchoredVwap.ts'
 import {
   anchoredVwapPointToLinePoint,
   anchoredVwapPointsToLineData,
 } from './anchoredVwapLineData.ts'
+import {
+  createSessionVwapLineSeries,
+  clearSessionVwapLineSeriesData,
+  setSessionVwapLineSeriesData,
+  setSessionVwapLineSeriesVisible,
+  updateSessionVwapLineSeriesLast,
+  type SessionVwapChartSeriesAdapter,
+  type SessionVwapLineSeriesBundle,
+} from './sessionVwapChartSeries.ts'
 import {
   VWAP_CHART_SERIES_KEYS,
   VWAP_CHART_SERIES_STYLES,
@@ -13,81 +22,49 @@ import type { MarketCandle } from './types.ts'
 
 export { VWAP_CHART_SERIES_KEYS as ANCHORED_VWAP_CHART_SERIES_KEYS }
 
-type SeriesSpec = {
-  key: VwapChartSeriesKey
-  color: string
-  lineWidth: 1
-}
+export type AnchoredVwapLineSeriesBundle = SessionVwapLineSeriesBundle<VwapChartSeriesKey>
 
-const SERIES_SPECS: SeriesSpec[] = VWAP_CHART_SERIES_KEYS.map((key) => ({
-  key,
-  ...VWAP_CHART_SERIES_STYLES[key],
-}))
-
-export type AnchoredVwapLineSeriesBundle = {
-  byKey: Record<VwapChartSeriesKey, ISeriesApi<'Line'>>
-  ordered: ISeriesApi<'Line'>[]
-}
-
-const SHARED_LINE_OPTIONS = {
-  priceLineVisible: false,
-  lastValueVisible: false,
-  crosshairMarkerVisible: false,
-  pointMarkersVisible: false,
+const ANCHORED_VWAP_CHART_ADAPTER: SessionVwapChartSeriesAdapter<
+  AnchoredVwapPoint,
+  VwapChartSeriesKey
+> = {
+  seriesKeys: VWAP_CHART_SERIES_KEYS,
+  seriesStyles: VWAP_CHART_SERIES_STYLES,
+  pointsToLineData: anchoredVwapPointsToLineData,
+  pointToLinePoint: anchoredVwapPointToLinePoint,
 }
 
 export function createAnchoredVwapLineSeries(
   chart: IChartApi,
   visible: boolean,
 ): AnchoredVwapLineSeriesBundle {
-  const byKey = {} as Record<VwapChartSeriesKey, ISeriesApi<'Line'>>
-  const ordered: ISeriesApi<'Line'>[] = []
-
-  for (const spec of SERIES_SPECS) {
-    const series = chart.addSeries(LineSeries, {
-      ...SHARED_LINE_OPTIONS,
-      color: spec.color,
-      lineWidth: spec.lineWidth,
-      visible,
-    })
-    byKey[spec.key] = series
-    ordered.push(series)
-  }
-
-  return { byKey, ordered }
+  return createSessionVwapLineSeries(chart, visible, ANCHORED_VWAP_CHART_ADAPTER)
 }
 
 export function setAnchoredVwapLineSeriesData(
   bundle: AnchoredVwapLineSeriesBundle,
   points: readonly AnchoredVwapPoint[],
 ): void {
-  for (const spec of SERIES_SPECS) {
-    bundle.byKey[spec.key].setData(anchoredVwapPointsToLineData(points, spec.key))
-  }
+  setSessionVwapLineSeriesData(bundle, points, ANCHORED_VWAP_CHART_ADAPTER)
 }
 
 export function clearAnchoredVwapLineSeriesData(bundle: AnchoredVwapLineSeriesBundle): void {
-  for (const series of bundle.ordered) {
-    series.setData([])
-  }
+  clearSessionVwapLineSeriesData(bundle)
 }
 
 export function setAnchoredVwapLineSeriesVisible(
   bundle: AnchoredVwapLineSeriesBundle,
   visible: boolean,
 ): void {
-  for (const series of bundle.ordered) {
-    series.applyOptions({ visible })
-  }
+  setSessionVwapLineSeriesVisible(bundle, visible)
 }
 
 export function updateAnchoredVwapLineSeriesLast(
   bundle: AnchoredVwapLineSeriesBundle,
   point: AnchoredVwapPoint,
+  allPoints: readonly AnchoredVwapPoint[],
 ): void {
-  for (const spec of SERIES_SPECS) {
-    bundle.byKey[spec.key].update(anchoredVwapPointToLinePoint(point, spec.key))
-  }
+  updateSessionVwapLineSeriesLast(bundle, allPoints, point, ANCHORED_VWAP_CHART_ADAPTER)
 }
 
 export function applyAnchoredVwapLiveFromCandles(
@@ -97,5 +74,5 @@ export function applyAnchoredVwapLiveFromCandles(
 ): void {
   const points = compute(candles)
   if (points.length === 0) return
-  updateAnchoredVwapLineSeriesLast(bundle, points[points.length - 1])
+  updateAnchoredVwapLineSeriesLast(bundle, points[points.length - 1], points)
 }

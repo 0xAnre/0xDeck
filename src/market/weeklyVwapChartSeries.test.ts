@@ -5,7 +5,6 @@ import {
   WEEKLY_VWAP_CHART_LINE_STYLE,
   WEEKLY_VWAP_CHART_SERIES_KEYS,
   WEEKLY_VWAP_CHART_SERIES_STYLES,
-  WEEKLY_VWAP_PREVIOUS_VWAP_LINE_STYLE,
   weeklyVwapPointToLinePoint,
   weeklyVwapPointsToLineData,
 } from './weeklyVwapLineData.ts'
@@ -27,35 +26,29 @@ function point(overrides: Partial<WeeklyVwapPoint>): WeeklyVwapPoint {
   }
 }
 
-const OUTER_BAND_KEYS = ['upper2', 'lower2', 'previousUpper2', 'previousLower2'] as const
-
 describe('weeklyVwapPointsToLineData', () => {
   it('uses whitespace when value is null', () => {
-    const data = weeklyVwapPointsToLineData([point({ previousVwap: null })], 'previousVwap')
+    const data = weeklyVwapPointsToLineData([point({ previousLower1: null })], 'previousLower1')
     assert.equal('value' in data[0], false)
   })
 })
 
 describe('WEEKLY_VWAP_CHART_SERIES_STYLES', () => {
-  it('defines six chart keys with gray bands and faded previousVwap', () => {
-    assert.equal(WEEKLY_VWAP_CHART_SERIES_KEYS.length, 6)
-    for (const key of OUTER_BAND_KEYS) {
-      assert.equal((WEEKLY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)
-    }
+  it('defines three chart keys with gray strokes', () => {
+    assert.equal(WEEKLY_VWAP_CHART_SERIES_KEYS.length, 3)
     for (const key of WEEKLY_VWAP_CHART_SERIES_KEYS) {
       const style = WEEKLY_VWAP_CHART_SERIES_STYLES[key]
       assert.equal(style.lineWidth, 1)
-      if (key === 'previousVwap') {
-        assert.deepEqual(style, WEEKLY_VWAP_PREVIOUS_VWAP_LINE_STYLE)
-      } else {
-        assert.deepEqual(style, WEEKLY_VWAP_CHART_LINE_STYLE)
-      }
+      assert.deepEqual(style, WEEKLY_VWAP_CHART_LINE_STYLE)
+    }
+    for (const key of ['upper1', 'lower1', 'previousVwap']) {
+      assert.equal((WEEKLY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)
     }
   })
 })
 
 describe('weekly vwap chart live update keys', () => {
-  it('updates only the six remaining chart series', () => {
+  it('updates only the three remaining chart series', () => {
     const last = point({ vwap: 99 })
     const keys: string[] = []
     for (const key of WEEKLY_VWAP_CHART_SERIES_KEYS) {

@@ -7,36 +7,34 @@ import {
   VWAP_CHART_LINE_STYLE,
   VWAP_CHART_SERIES_KEYS,
   VWAP_CHART_SERIES_STYLES,
-  VWAP_PREVIOUS_VWAP_LINE_STYLE,
 } from './vwapChartLineStyles.ts'
 import { shouldShowVwapIndicatorSeries } from './indicators.ts'
 
 const OUTER_BAND_KEYS = ['upper2', 'lower2', 'previousUpper2', 'previousLower2'] as const
 
-function assertSixSeriesStyles(keys: readonly string[]) {
-  assert.equal(keys.length, 6)
+function assertThreeSeriesStyles(keys: readonly string[]) {
+  assert.equal(keys.length, 3)
   for (const key of OUTER_BAND_KEYS) {
+    assert.equal(keys.includes(key), false)
+  }
+  for (const key of ['upper1', 'lower1', 'previousVwap']) {
     assert.equal(keys.includes(key), false)
   }
   for (const key of keys) {
     const style = VWAP_CHART_SERIES_STYLES[key as keyof typeof VWAP_CHART_SERIES_STYLES]
     assert.equal(style.lineWidth, 1)
-    if (key === 'previousVwap') {
-      assert.deepEqual(style, VWAP_PREVIOUS_VWAP_LINE_STYLE)
-    } else {
-      assert.deepEqual(style, VWAP_CHART_LINE_STYLE)
-    }
+    assert.deepEqual(style, VWAP_CHART_LINE_STYLE)
   }
 }
 
 describe('long-horizon VWAP chart series keys', () => {
-  it('monthly quarterly yearly each expose six series keys', () => {
+  it('monthly quarterly yearly each expose three series keys', () => {
     assert.deepEqual([...MONTHLY_VWAP_CHART_SERIES_KEYS], [...VWAP_CHART_SERIES_KEYS])
     assert.deepEqual([...QUARTERLY_VWAP_CHART_SERIES_KEYS], [...VWAP_CHART_SERIES_KEYS])
     assert.deepEqual([...YEARLY_VWAP_CHART_SERIES_KEYS], [...VWAP_CHART_SERIES_KEYS])
-    assertSixSeriesStyles(MONTHLY_VWAP_CHART_SERIES_KEYS)
-    assertSixSeriesStyles(QUARTERLY_VWAP_CHART_SERIES_KEYS)
-    assertSixSeriesStyles(YEARLY_VWAP_CHART_SERIES_KEYS)
+    assertThreeSeriesStyles(MONTHLY_VWAP_CHART_SERIES_KEYS)
+    assertThreeSeriesStyles(QUARTERLY_VWAP_CHART_SERIES_KEYS)
+    assertThreeSeriesStyles(YEARLY_VWAP_CHART_SERIES_KEYS)
   })
 })
 

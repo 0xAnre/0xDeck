@@ -1,5 +1,11 @@
 import type { UTCTimestamp } from 'lightweight-charts'
-import type { DailyVwapPoint } from '@/market/dailyVwap'
+import type { DailyVwapPoint } from './dailyVwap.ts'
+import {
+  VWAP_CHART_LINE_STYLE,
+  VWAP_CHART_SERIES_KEYS,
+  VWAP_CHART_SERIES_STYLES,
+  type VwapChartSeriesKey,
+} from './vwapChartLineStyles.ts'
 
 export type DailyVwapValueKey =
   | 'vwap'
@@ -13,47 +19,21 @@ export type DailyVwapValueKey =
   | 'previousUpper2'
   | 'previousLower2'
 
-/** Keys rendered as Lightweight Charts line series (excludes ±2σ bands). */
-export type DailyVwapChartSeriesKey = Extract<
-  DailyVwapValueKey,
-  'vwap' | 'upper1' | 'lower1' | 'previousVwap' | 'previousUpper1' | 'previousLower1'
->
+export type DailyVwapChartSeriesKey = VwapChartSeriesKey
 
-export const DAILY_VWAP_CHART_SERIES_KEYS: readonly DailyVwapChartSeriesKey[] = [
-  'previousLower1',
-  'previousUpper1',
-  'previousVwap',
-  'lower1',
-  'upper1',
-  'vwap',
-]
+export const DAILY_VWAP_CHART_SERIES_KEYS: readonly DailyVwapChartSeriesKey[] = VWAP_CHART_SERIES_KEYS
 
 export type DailyVwapChartLineStyle = {
   color: string
   lineWidth: 1
 }
 
-export const DAILY_VWAP_CHART_LINE_STYLE: DailyVwapChartLineStyle = {
-  color: '#9e9e9e',
-  lineWidth: 1,
-}
-
-export const DAILY_VWAP_PREVIOUS_VWAP_LINE_STYLE: DailyVwapChartLineStyle = {
-  color: 'rgba(158, 158, 158, 0.5)',
-  lineWidth: 1,
-}
+export const DAILY_VWAP_CHART_LINE_STYLE: DailyVwapChartLineStyle = VWAP_CHART_LINE_STYLE
 
 export const DAILY_VWAP_CHART_SERIES_STYLES: Record<
   DailyVwapChartSeriesKey,
   DailyVwapChartLineStyle
-> = {
-  previousLower1: DAILY_VWAP_CHART_LINE_STYLE,
-  previousUpper1: DAILY_VWAP_CHART_LINE_STYLE,
-  previousVwap: DAILY_VWAP_PREVIOUS_VWAP_LINE_STYLE,
-  lower1: DAILY_VWAP_CHART_LINE_STYLE,
-  upper1: DAILY_VWAP_CHART_LINE_STYLE,
-  vwap: DAILY_VWAP_CHART_LINE_STYLE,
-}
+> = VWAP_CHART_SERIES_STYLES
 
 export type DailyVwapLinePoint =
   | { time: UTCTimestamp; value: number }

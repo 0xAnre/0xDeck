@@ -43,23 +43,28 @@ function fakeBundle(): ChartSeriesBundle {
     ema200: line as ChartSeriesBundle['ema200'],
     dailyVwap: {
       byKey: {} as ChartSeriesBundle['dailyVwap']['byKey'],
-      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['dailyVwap']['ordered'],
+      ordered: [line, line, line] as ChartSeriesBundle['dailyVwap']['ordered'],
+      band: { updateBandData: () => {}, setBandVisible: () => {}, update: () => {}, dispose: () => {} },
     },
     weeklyVwap: {
       byKey: {} as ChartSeriesBundle['weeklyVwap']['byKey'],
-      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['weeklyVwap']['ordered'],
+      ordered: [line, line, line] as ChartSeriesBundle['weeklyVwap']['ordered'],
+      band: { updateBandData: () => {}, setBandVisible: () => {}, update: () => {}, dispose: () => {} },
     },
     monthlyVwap: {
       byKey: {} as ChartSeriesBundle['monthlyVwap']['byKey'],
-      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['monthlyVwap']['ordered'],
+      ordered: [line, line, line] as ChartSeriesBundle['monthlyVwap']['ordered'],
+      band: { updateBandData: () => {}, setBandVisible: () => {}, update: () => {}, dispose: () => {} },
     },
     quarterlyVwap: {
       byKey: {} as ChartSeriesBundle['quarterlyVwap']['byKey'],
-      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['quarterlyVwap']['ordered'],
+      ordered: [line, line, line] as ChartSeriesBundle['quarterlyVwap']['ordered'],
+      band: { updateBandData: () => {}, setBandVisible: () => {}, update: () => {}, dispose: () => {} },
     },
     yearlyVwap: {
       byKey: {} as ChartSeriesBundle['yearlyVwap']['byKey'],
-      ordered: [line, line, line, line, line, line] as ChartSeriesBundle['yearlyVwap']['ordered'],
+      ordered: [line, line, line] as ChartSeriesBundle['yearlyVwap']['ordered'],
+      band: { updateBandData: () => {}, setBandVisible: () => {}, update: () => {}, dispose: () => {} },
     },
     rollingVwaps: new Map(),
   }

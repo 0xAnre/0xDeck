@@ -12,14 +12,7 @@ import type { MarketCandle } from './types.ts'
 
 export type QuarterlyVwapLineSeriesBundle = AnchoredVwapLineSeriesBundle
 
-export const QUARTERLY_VWAP_CHART_SERIES_KEYS = [
-  'previousLower1',
-  'previousUpper1',
-  'previousVwap',
-  'lower1',
-  'upper1',
-  'vwap',
-] as const
+export { ANCHORED_VWAP_CHART_SERIES_KEYS as QUARTERLY_VWAP_CHART_SERIES_KEYS } from './anchoredVwapChartSeries.ts'
 
 export function createQuarterlyVwapLineSeries(
   chart: IChartApi,

@@ -1,4 +1,4 @@
-import { LineSeries, type IChartApi, type ISeriesApi } from 'lightweight-charts'
+import type { IChartApi } from 'lightweight-charts'
 import { computeDailyVwap, type DailyVwapPoint } from '@/market/dailyVwap'
 import {
   DAILY_VWAP_CHART_SERIES_KEYS,
@@ -7,87 +7,62 @@ import {
   dailyVwapPointsToLineData,
   type DailyVwapChartSeriesKey,
 } from '@/market/dailyVwapLineData'
+import {
+  createSessionVwapLineSeries,
+  clearSessionVwapLineSeriesData,
+  setSessionVwapLineSeriesData,
+  setSessionVwapLineSeriesVisible,
+  updateSessionVwapLineSeriesLast,
+  type SessionVwapChartSeriesAdapter,
+  type SessionVwapLineSeriesBundle,
+} from '@/market/sessionVwapChartSeries'
 import type { MarketCandle } from '@/market/types'
 
 export { DAILY_VWAP_CHART_SERIES_KEYS }
 
-type DailyVwapSeriesSpec = {
-  key: DailyVwapChartSeriesKey
-  color: string
-  lineWidth: 1
-}
+export type DailyVwapLineSeriesBundle = SessionVwapLineSeriesBundle<DailyVwapChartSeriesKey>
 
-const DAILY_VWAP_SERIES_SPECS: DailyVwapSeriesSpec[] = DAILY_VWAP_CHART_SERIES_KEYS.map(
-  (key) => ({
-    key,
-    ...DAILY_VWAP_CHART_SERIES_STYLES[key],
-  }),
-)
-
-export type DailyVwapLineSeriesBundle = {
-  byKey: Record<DailyVwapChartSeriesKey, ISeriesApi<'Line'>>
-  ordered: ISeriesApi<'Line'>[]
-}
-
-const SHARED_LINE_OPTIONS = {
-  priceLineVisible: false,
-  lastValueVisible: false,
-  crosshairMarkerVisible: false,
-  pointMarkersVisible: false,
+const DAILY_VWAP_CHART_ADAPTER: SessionVwapChartSeriesAdapter<
+  DailyVwapPoint,
+  DailyVwapChartSeriesKey
+> = {
+  seriesKeys: DAILY_VWAP_CHART_SERIES_KEYS,
+  seriesStyles: DAILY_VWAP_CHART_SERIES_STYLES,
+  pointsToLineData: (points, key) => dailyVwapPointsToLineData(points, key),
+  pointToLinePoint: (point, key) => dailyVwapPointToLinePoint(point, key),
 }
 
 export function createDailyVwapLineSeries(
   chart: IChartApi,
   visible: boolean,
 ): DailyVwapLineSeriesBundle {
-  const byKey = {} as Record<DailyVwapChartSeriesKey, ISeriesApi<'Line'>>
-  const ordered: ISeriesApi<'Line'>[] = []
-
-  for (const spec of DAILY_VWAP_SERIES_SPECS) {
-    const series = chart.addSeries(LineSeries, {
-      ...SHARED_LINE_OPTIONS,
-      color: spec.color,
-      lineWidth: spec.lineWidth,
-      visible,
-    })
-    byKey[spec.key] = series
-    ordered.push(series)
-  }
-
-  return { byKey, ordered }
+  return createSessionVwapLineSeries(chart, visible, DAILY_VWAP_CHART_ADAPTER)
 }
 
 export function setDailyVwapLineSeriesData(
   bundle: DailyVwapLineSeriesBundle,
   points: readonly DailyVwapPoint[],
 ): void {
-  for (const spec of DAILY_VWAP_SERIES_SPECS) {
-    bundle.byKey[spec.key].setData(dailyVwapPointsToLineData(points, spec.key))
-  }
+  setSessionVwapLineSeriesData(bundle, points, DAILY_VWAP_CHART_ADAPTER)
 }
 
 export function clearDailyVwapLineSeriesData(bundle: DailyVwapLineSeriesBundle): void {
-  for (const series of bundle.ordered) {
-    series.setData([])
-  }
+  clearSessionVwapLineSeriesData(bundle)
 }
 
 export function setDailyVwapLineSeriesVisible(
   bundle: DailyVwapLineSeriesBundle,
   visible: boolean,
 ): void {
-  for (const series of bundle.ordered) {
-    series.applyOptions({ visible })
-  }
+  setSessionVwapLineSeriesVisible(bundle, visible)
 }
 
 export function updateDailyVwapLineSeriesLast(
   bundle: DailyVwapLineSeriesBundle,
   point: DailyVwapPoint,
+  allPoints: readonly DailyVwapPoint[],
 ): void {
-  for (const spec of DAILY_VWAP_SERIES_SPECS) {
-    bundle.byKey[spec.key].update(dailyVwapPointToLinePoint(point, spec.key))
-  }
+  updateSessionVwapLineSeriesLast(bundle, allPoints, point, DAILY_VWAP_CHART_ADAPTER)
 }
 
 /** Recompute daily VWAP from candles and patch only the latest point on each line series. */
@@ -97,5 +72,5 @@ export function applyDailyVwapLiveFromCandles(
 ): void {
   const points = computeDailyVwap(candles)
   if (points.length === 0) return
-  updateDailyVwapLineSeriesLast(bundle, points[points.length - 1])
+  updateDailyVwapLineSeriesLast(bundle, points[points.length - 1], points)
 }
