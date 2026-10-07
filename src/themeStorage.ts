@@ -1,4 +1,4 @@
-export const THEMES = ['neutral', 'stone', 'mauve', 'taupe', 'olive'] as const
+export const THEMES = ['neutral', 'stone', 'mauve', 'taupe', 'olive', 'black'] as const
 
 export type Theme = (typeof THEMES)[number]
 
@@ -10,6 +10,7 @@ export const THEME_LABELS: Record<Theme, string> = {
   mauve: 'Mauve',
   taupe: 'Taupe',
   olive: 'Olive',
+  black: 'Black',
 }
 
 export const THEME_STORAGE_KEY = '0xdeck-theme'

@@ -30,6 +30,7 @@ Theme is applied via `document.documentElement.dataset.theme` and `.dark` class.
 | `mauve` | Mauve | `b6ZjlcKFk` |
 | `taupe` | Taupe | `blTaKtCok` |
 | `olive` | Olive | `b6t6ENHec` |
+| `black` | Black | Neutral-derived custom palette (`#0F0F0F` background) |
 
 ### Core variables
 
@@ -72,7 +73,7 @@ Include market tokens (`--bid`, `--ask`, etc.) and `--chart-glow`.
 ### 3. Register in `src/themeStorage.ts`
 
 ```ts
-export const THEMES = ['neutral', 'stone', 'mauve', 'taupe', 'olive', 'my-theme'] as const
+export const THEMES = ['neutral', 'stone', 'mauve', 'taupe', 'olive', 'black', 'my-theme'] as const
 
 export const THEME_LABELS: Record<Theme, string> = {
   // ...
