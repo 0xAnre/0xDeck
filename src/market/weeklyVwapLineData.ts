@@ -1,5 +1,11 @@
 import type { UTCTimestamp } from 'lightweight-charts'
-import type { WeeklyVwapPoint } from '@/market/weeklyVwap'
+import type { WeeklyVwapPoint } from './weeklyVwap.ts'
+import {
+  VWAP_CHART_LINE_STYLE,
+  VWAP_CHART_SERIES_KEYS,
+  VWAP_CHART_SERIES_STYLES,
+  type VwapChartSeriesKey,
+} from './vwapChartLineStyles.ts'
 
 export type WeeklyVwapValueKey =
   | 'vwap'
@@ -13,46 +19,22 @@ export type WeeklyVwapValueKey =
   | 'previousUpper2'
   | 'previousLower2'
 
-export type WeeklyVwapChartSeriesKey = Extract<
-  WeeklyVwapValueKey,
-  'vwap' | 'upper1' | 'lower1' | 'previousVwap' | 'previousUpper1' | 'previousLower1'
->
+export type WeeklyVwapChartSeriesKey = VwapChartSeriesKey
 
-export const WEEKLY_VWAP_CHART_SERIES_KEYS: readonly WeeklyVwapChartSeriesKey[] = [
-  'previousLower1',
-  'previousUpper1',
-  'previousVwap',
-  'lower1',
-  'upper1',
-  'vwap',
-]
+export const WEEKLY_VWAP_CHART_SERIES_KEYS: readonly WeeklyVwapChartSeriesKey[] =
+  VWAP_CHART_SERIES_KEYS
 
 export type WeeklyVwapChartLineStyle = {
   color: string
   lineWidth: 1
 }
 
-export const WEEKLY_VWAP_CHART_LINE_STYLE: WeeklyVwapChartLineStyle = {
-  color: '#9e9e9e',
-  lineWidth: 1,
-}
-
-export const WEEKLY_VWAP_PREVIOUS_VWAP_LINE_STYLE: WeeklyVwapChartLineStyle = {
-  color: 'rgba(158, 158, 158, 0.5)',
-  lineWidth: 1,
-}
+export const WEEKLY_VWAP_CHART_LINE_STYLE: WeeklyVwapChartLineStyle = VWAP_CHART_LINE_STYLE
 
 export const WEEKLY_VWAP_CHART_SERIES_STYLES: Record<
   WeeklyVwapChartSeriesKey,
   WeeklyVwapChartLineStyle
-> = {
-  previousLower1: WEEKLY_VWAP_CHART_LINE_STYLE,
-  previousUpper1: WEEKLY_VWAP_CHART_LINE_STYLE,
-  previousVwap: WEEKLY_VWAP_PREVIOUS_VWAP_LINE_STYLE,
-  lower1: WEEKLY_VWAP_CHART_LINE_STYLE,
-  upper1: WEEKLY_VWAP_CHART_LINE_STYLE,
-  vwap: WEEKLY_VWAP_CHART_LINE_STYLE,
-}
+> = VWAP_CHART_SERIES_STYLES
 
 export type WeeklyVwapLinePoint =
   | { time: UTCTimestamp; value: number }
@@ -68,14 +50,14 @@ function toLinePoint(time: number, value: number | null): WeeklyVwapLinePoint {
 
 export function weeklyVwapPointsToLineData(
   points: readonly WeeklyVwapPoint[],
-  key: WeeklyVwapChartSeriesKey,
+  key: WeeklyVwapValueKey,
 ): WeeklyVwapLinePoint[] {
   return points.map((point) => toLinePoint(point.time, point[key]))
 }
 
 export function weeklyVwapPointToLinePoint(
   point: WeeklyVwapPoint,
-  key: WeeklyVwapChartSeriesKey,
+  key: WeeklyVwapValueKey,
 ): WeeklyVwapLinePoint {
   return toLinePoint(point.time, point[key])
 }
