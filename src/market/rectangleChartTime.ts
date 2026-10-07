@@ -52,9 +52,14 @@ export function resolveRectangleTimeToCoordinate(
 
   const ceilIndex = timeScale.timeToIndex(unixTime as Time, true)
   if (ceilIndex === null) return null
+  const ceilIndexNumber = ceilIndex as number
+  const barTime = snappedBarUnixTime(timeScale, ceilIndexNumber)
+  // Index 0 with a later bar time means the timestamp is before the loaded
+  // history, not in the gap ahead of the first candle.
+  if (barTime !== null && ceilIndexNumber === 0 && barTime > unixTime) return null
   const logicalIndex = projectedLogicalIndex(
-    ceilIndex as number,
-    snappedBarUnixTime(timeScale, ceilIndex as number),
+    ceilIndexNumber,
+    barTime,
     unixTime,
     edge,
   )

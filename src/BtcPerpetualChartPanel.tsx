@@ -119,6 +119,7 @@ import {
 import {
   claimRectangleKeyboardPanel,
   isActiveRectangleKeyboardPanel,
+  isRectangleKeyboardFocusOnOutsideControl,
 } from '@/market/rectangleKeyboardScope'
 import {
   sanitizeRectangleInstances,
@@ -261,6 +262,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     pointerTime: null,
     pointerPrice: null,
   })
+  const rectangleArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -302,9 +304,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       rectangleSeriesAttachmentRef.current?.update()
     }
 
+    const onFocusIn = (event: FocusEvent) => {
+      const container = containerRef.current
+      if (!container) return
+      if (!isRectangleKeyboardFocusOnOutsideControl(event.target, container)) return
+      if (isActiveRectangleKeyboardPanel(panelId)) {
+        claimRectangleKeyboardPanel(null)
+      }
+    }
+
     document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('focusin', onFocusIn, true)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('focusin', onFocusIn, true)
+      if (rectangleArmClaimTimerRef.current !== null) {
+        window.clearTimeout(rectangleArmClaimTimerRef.current)
+        rectangleArmClaimTimerRef.current = null
+      }
       if (isActiveRectangleKeyboardPanel(panelId)) {
         claimRectangleKeyboardPanel(null)
       }
@@ -343,6 +360,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleRectangleArm = useCallback(() => {
     claimRectangleKeyboardPanel(panelId)
+    if (rectangleArmClaimTimerRef.current !== null) {
+      window.clearTimeout(rectangleArmClaimTimerRef.current)
+    }
+    // The portalled menu returns focus to the header trigger after this runs,
+    // which releases the claim. Restore it once that focus move has settled.
+    rectangleArmClaimTimerRef.current = window.setTimeout(() => {
+      rectangleArmClaimTimerRef.current = null
+      claimRectangleKeyboardPanel(panelId)
+    }, 0)
     const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
       fixedRangeVolumeProfileInteractionRef.current,
     )

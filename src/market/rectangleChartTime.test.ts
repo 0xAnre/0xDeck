@@ -46,6 +46,12 @@ describe('resolveRectangleTimeToCoordinate', () => {
     assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen + 420, 'end'), 20)
   })
 
+  it('does not project timestamps that precede the loaded history', () => {
+    const chart = chartWithBars([fiveMinuteOpen, fiveMinuteOpen + 300, fiveMinuteOpen + 600])
+    assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen - 240, 'start'), null)
+    assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen - 60, 'end'), null)
+  })
+
   it('extends a range past the last candle by one logical bar', () => {
     const chart = chartWithBars([fiveMinuteOpen, fiveMinuteOpen + 300, fiveMinuteOpen + 600])
     assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen + 700, 'start'), 20)

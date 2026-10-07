@@ -15,6 +15,7 @@ import {
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
+import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import {
   attachRectanglePanePointer,
   type RectanglePanePointerController,
@@ -139,6 +140,8 @@ export function attachRectangleChartTool(
       return
     }
     if (event.key === 'Delete' || event.key === 'Backspace') {
+      const chartRoot = chart.panes()[0]?.getHTMLElement() ?? null
+      if (isRectangleKeyboardFocusOnOutsideControl(event.target, chartRoot)) return
       if (!snapshot.interaction.selectedId) return
       if (snapshot.interaction.phase === 'creating' || snapshot.interaction.phase === 'resizing') {
         return
