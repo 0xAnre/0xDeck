@@ -49,11 +49,11 @@ function RollingVwapSettingsDialogBody({
 
   return (
     <>
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Rolling VWAP settings</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 text-xs">
+        <div className="min-h-0 space-y-4 overflow-y-auto overscroll-y-contain text-xs">
           <section className="space-y-2">
             <p className="font-medium text-foreground">Time period</p>
             <label className="flex items-center gap-2">
@@ -303,7 +303,7 @@ function RollingVwapSettingsDialogBody({
           </section>
         </div>
 
-      <DialogFooter>
+      <DialogFooter className="shrink-0">
         <Button type="button" variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
@@ -323,7 +323,10 @@ export function RollingVwapSettingsDialog({
 }: RollingVwapSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" onClick={(event) => event.stopPropagation()}>
+      <DialogContent
+        className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
+      >
         {open ? (
           <RollingVwapSettingsDialogBody
             savedSettings={savedSettings}
