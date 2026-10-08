@@ -5,7 +5,9 @@ import {
   RECTANGLE_HANDLE_FILL_OPACITY,
   readRectangleFillStyle,
   readRectangleHandleFillStyle,
+  resolveRectangleInstanceFillStyle,
 } from './rectangleColors.ts'
+import { createRectangleInstance } from './rectangleInstances.ts'
 
 describe('rectangleColors', () => {
   it('uses 20% fill opacity and 85% handle opacity constants', () => {
@@ -16,5 +18,29 @@ describe('rectangleColors', () => {
   it('applies fill and handle alpha in resolved styles (no document)', () => {
     assert.equal(readRectangleFillStyle(), 'rgba(115, 115, 115, 0.2)')
     assert.equal(readRectangleHandleFillStyle(), 'rgba(115, 115, 115, 0.85)')
+  })
+
+  it('preserves legacy appearance when color and opacity are unset', () => {
+    const instance = createRectangleInstance({
+      fromTime: 1,
+      toTime: 2,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    assert.equal(resolveRectangleInstanceFillStyle(instance), readRectangleFillStyle())
+  })
+
+  it('applies per-instance hex color and opacity for rendering', () => {
+    const instance = {
+      ...createRectangleInstance({
+        fromTime: 1,
+        toTime: 2,
+        lowPrice: 1,
+        highPrice: 2,
+      })!,
+      fillColor: '#112233',
+      fillOpacity: 40,
+    }
+    assert.equal(resolveRectangleInstanceFillStyle(instance), 'rgba(17, 34, 51, 0.4)')
   })
 })

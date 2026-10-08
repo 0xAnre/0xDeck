@@ -148,6 +148,9 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
         settings.rectangleInstances &&
         settings.onRectangleArm &&
         settings.onRectangleDelete &&
+        settings.onRectangleLockToggle &&
+        settings.onRectangleFillColorChange &&
+        settings.onRectangleFillOpacityChange &&
         settings.lineInstances &&
         settings.onLineArm &&
         settings.onLineDelete && (
@@ -160,6 +163,9 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             rectangleInstances={settings.rectangleInstances}
             onRectangleArm={settings.onRectangleArm}
             onRectangleDelete={settings.onRectangleDelete}
+            onRectangleLockToggle={settings.onRectangleLockToggle}
+            onRectangleFillColorChange={settings.onRectangleFillColorChange}
+            onRectangleFillOpacityChange={settings.onRectangleFillOpacityChange}
             lineInstances={settings.lineInstances}
             onLineArm={settings.onLineArm}
             onLineDelete={settings.onLineDelete}

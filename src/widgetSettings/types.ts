@@ -55,6 +55,9 @@ export type WidgetSettingsRegistration = {
   rectangleInstances?: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
+  onRectangleLockToggle?: (instanceId: string, locked: boolean) => void
+  onRectangleFillColorChange?: (instanceId: string, fillColor: string) => void
+  onRectangleFillOpacityChange?: (instanceId: string, fillOpacity: number) => void
   lineInstances?: LineInstance[]
   onLineArm?: () => void
   onLineDelete?: (instanceId: string) => void

@@ -31,6 +31,9 @@ type UseMarketWidgetSettingsArgs = {
   rectangleInstances: RectangleInstance[]
   onRectangleArm: () => void
   onRectangleDelete: (instanceId: string) => void
+  onRectangleLockToggle: (instanceId: string, locked: boolean) => void
+  onRectangleFillColorChange: (instanceId: string, fillColor: string) => void
+  onRectangleFillOpacityChange: (instanceId: string, fillOpacity: number) => void
   lineInstances: LineInstance[]
   onLineArm: () => void
   onLineDelete: (instanceId: string) => void
@@ -57,6 +60,9 @@ export function useMarketWidgetSettings({
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
+  onRectangleLockToggle,
+  onRectangleFillColorChange,
+  onRectangleFillOpacityChange,
   lineInstances,
   onLineArm,
   onLineDelete,
@@ -98,6 +104,11 @@ export function useMarketWidgetSettings({
       rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
       onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
       onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
+      onRectangleLockToggle: headerSettings.tools === true ? onRectangleLockToggle : undefined,
+      onRectangleFillColorChange:
+        headerSettings.tools === true ? onRectangleFillColorChange : undefined,
+      onRectangleFillOpacityChange:
+        headerSettings.tools === true ? onRectangleFillOpacityChange : undefined,
       lineInstances: headerSettings.tools === true ? lineInstances : undefined,
       onLineArm: headerSettings.tools === true ? onLineArm : undefined,
       onLineDelete: headerSettings.tools === true ? onLineDelete : undefined,
@@ -114,6 +125,9 @@ export function useMarketWidgetSettings({
       onFixedRangeVolumeProfileDelete,
       onRectangleArm,
       onRectangleDelete,
+      onRectangleLockToggle,
+      onRectangleFillColorChange,
+      onRectangleFillOpacityChange,
       onLineArm,
       onLineDelete,
       onMarketIndicatorsChange,

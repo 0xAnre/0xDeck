@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDownIcon, Trash2Icon } from 'lucide-react'
+import { ChevronDownIcon, LockIcon, LockOpenIcon, Trash2Icon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,12 @@ import { formatFixedRangeVolumeProfileInstanceLabel } from '@/market/fixedRangeV
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import { formatLineInstanceLabel } from '@/market/lineInstances'
 import type { LineInstance } from '@/market/lineInstances'
-import { formatRectangleInstanceLabel } from '@/market/rectangleInstances'
+import {
+  formatRectangleInstanceLabel,
+  isRectangleInstanceLocked,
+  rectangleInstanceFillColorHex,
+  rectangleInstanceFillOpacityPercent,
+} from '@/market/rectangleInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 
@@ -25,6 +30,9 @@ type HeaderToolsMenuProps = {
   rectangleInstances: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
+  onRectangleLockToggle?: (instanceId: string, locked: boolean) => void
+  onRectangleFillColorChange?: (instanceId: string, fillColor: string) => void
+  onRectangleFillOpacityChange?: (instanceId: string, fillOpacity: number) => void
   lineInstances: LineInstance[]
   onLineArm?: () => void
   onLineDelete?: (instanceId: string) => void
@@ -39,6 +47,9 @@ export function HeaderToolsMenu({
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
+  onRectangleLockToggle,
+  onRectangleFillColorChange,
+  onRectangleFillOpacityChange,
   lineInstances,
   onLineArm,
   onLineDelete,
@@ -142,27 +153,87 @@ export function HeaderToolsMenu({
         {rectangleInstances.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            {rectangleInstances.map((instance) => (
-              <DropdownMenuItem
-                key={instance.id}
-                className="flex items-center justify-between gap-2"
-                onSelect={(event) => event.preventDefault()}
-              >
-                <span className="min-w-0 truncate text-xs">{formatRectangleInstanceLabel(instance)}</span>
-                <button
-                  type="button"
-                  aria-label="Delete rectangle"
-                  className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onRectangleDelete?.(instance.id)
-                  }}
+            {rectangleInstances.map((instance) => {
+              const locked = isRectangleInstanceLocked(instance)
+              return (
+                <DropdownMenuItem
+                  key={instance.id}
+                  className="flex flex-col items-stretch gap-1.5 py-2"
+                  onSelect={(event) => event.preventDefault()}
                 >
-                  <Trash2Icon className="size-3.5" />
-                </button>
-              </DropdownMenuItem>
-            ))}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-xs">
+                      {formatRectangleInstanceLabel(instance)}
+                      {locked ? ' (locked)' : ''}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={locked ? 'Unlock rectangle' : 'Lock rectangle'}
+                        className="inline-flex rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onRectangleLockToggle?.(instance.id, !locked)
+                        }}
+                      >
+                        {locked ? (
+                          <LockIcon className="size-3.5" />
+                        ) : (
+                          <LockOpenIcon className="size-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Delete rectangle"
+                        className="inline-flex rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onRectangleDelete?.(instance.id)
+                        }}
+                      >
+                        <Trash2Icon className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      aria-label="Rectangle fill color"
+                      className="h-6 w-8 shrink-0 cursor-pointer rounded-sm border border-input bg-transparent p-0"
+                      value={rectangleInstanceFillColorHex(instance)}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        event.stopPropagation()
+                        onRectangleFillColorChange?.(instance.id, event.target.value)
+                      }}
+                    />
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      aria-label="Rectangle fill opacity"
+                      className="h-4 min-w-0 flex-1 accent-foreground"
+                      value={rectangleInstanceFillOpacityPercent(instance)}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        event.stopPropagation()
+                        onRectangleFillOpacityChange?.(
+                          instance.id,
+                          Number(event.target.value),
+                        )
+                      }}
+                    />
+                    <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+                      {rectangleInstanceFillOpacityPercent(instance)}%
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              )
+            })}
           </>
         )}
       </DropdownMenuContent>

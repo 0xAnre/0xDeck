@@ -5,7 +5,8 @@ import {
   getRectangleInstanceOmittedDuringInteraction,
 } from './rectangleRenderGeometry.ts'
 import { armRectangleTool, startRectangleCreateDraft } from './rectangleInteraction.ts'
-import { createRectangleInstance } from './rectangleInstances.ts'
+import { createRectangleInstance, setRectangleInstanceLocked } from './rectangleInstances.ts'
+import { resolveRectangleInstanceFillStyle } from './rectangleColors.ts'
 
 describe('rectangleRenderGeometry', () => {
   it('builds draw models for instances, selection handles, and preview', () => {
@@ -19,7 +20,8 @@ describe('rectangleRenderGeometry', () => {
     const models = buildRectangleDrawModels({
       instances: [instance],
       interaction,
-      fillStyle: 'rgba(0,0,0,0.3)',
+      resolveInstanceFillStyle: () => 'rgba(0,0,0,0.3)',
+      previewFillStyle: 'rgba(0,0,0,0.3)',
       handleFillStyle: 'rgba(0,0,0,0.8)',
       pointerTime: 150,
       pointerPrice: 15,
@@ -80,7 +82,8 @@ describe('rectangleRenderGeometry', () => {
           },
         },
       },
-      fillStyle: 'rgba(0,0,0,0.3)',
+      resolveInstanceFillStyle: () => 'rgba(0,0,0,0.3)',
+      previewFillStyle: 'rgba(0,0,0,0.3)',
       handleFillStyle: 'rgba(0,0,0,0.8)',
       pointerTime: 250,
       pointerPrice: 5,
@@ -92,5 +95,42 @@ describe('rectangleRenderGeometry', () => {
     assert.equal(models[0].right, 250)
     assert.equal(models[0].bottom, 95)
     assert.equal(models[0].handles.length, 8)
+  })
+
+  it('uses per-instance fill styles and hides handles on locked selections', () => {
+    const styled = {
+      ...createRectangleInstance({
+        fromTime: 100,
+        toTime: 200,
+        lowPrice: 10,
+        highPrice: 20,
+      })!,
+      fillColor: '#ff0000',
+      fillOpacity: 50,
+    }
+    const locked = setRectangleInstanceLocked(
+      createRectangleInstance({
+        fromTime: 300,
+        toTime: 400,
+        lowPrice: 10,
+        highPrice: 20,
+      })!,
+      true,
+    )
+    const models = buildRectangleDrawModels({
+      instances: [styled, locked],
+      interaction: { phase: 'inactive', selectedId: locked.id, draft: null },
+      resolveInstanceFillStyle: resolveRectangleInstanceFillStyle,
+      previewFillStyle: 'rgba(0,0,0,0.2)',
+      handleFillStyle: 'rgba(0,0,0,0.8)',
+      pointerTime: null,
+      pointerPrice: null,
+      timeToCoordinate: (time) => time,
+      priceToY: (price) => 100 - price,
+      handleRadiusPx: 4,
+    })
+    assert.equal(models.length, 2)
+    assert.equal(models[0].fillStyle, 'rgba(255, 0, 0, 0.5)')
+    assert.equal(models[1].handles.length, 0)
   })
 })
