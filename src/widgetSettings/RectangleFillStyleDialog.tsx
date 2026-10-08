@@ -16,7 +16,7 @@ import {
 import type { RectangleInstance } from '@/market/rectangleInstances'
 
 const COLOR_INPUT_ID = 'rectangle-fill-color'
-const OPACITY_INPUT_ID = 'rectangle-fill-opacity'
+const OPACITY_LABEL_ID = 'rectangle-fill-opacity-label'
 
 type RectangleFillStyleDialogProps = {
   instance: RectangleInstance | null
@@ -70,9 +70,9 @@ export function RectangleFillStyleDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor={OPACITY_INPUT_ID}>Fill opacity</FieldLabel>
+              <FieldLabel id={OPACITY_LABEL_ID}>Fill opacity</FieldLabel>
               <Slider
-                id={OPACITY_INPUT_ID}
+                aria-labelledby={OPACITY_LABEL_ID}
                 min={0}
                 max={100}
                 step={1}
