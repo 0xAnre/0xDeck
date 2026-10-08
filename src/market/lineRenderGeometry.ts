@@ -28,13 +28,18 @@ export type BuildLineDrawModelsArgs = {
   priceToY: (price: number) => number | null
 }
 
+/** Earlier endpoint floors (`start`); later endpoint ceils (`end`). */
+function lineTimeEdge(time: number, otherTime: number): LineTimeEdge {
+  return time <= otherTime ? 'start' : 'end'
+}
+
 function endpointsToScreenSegment(
   instance: Pick<LineInstance, 'timeA' | 'priceA' | 'timeB' | 'priceB'>,
   timeToCoordinate: (time: number, edge: LineTimeEdge) => number | null,
   priceToY: (price: number) => number | null,
 ): { ax: number; ay: number; bx: number; by: number } | null {
-  const ax = timeToCoordinate(instance.timeA, 'start')
-  const bx = timeToCoordinate(instance.timeB, 'end')
+  const ax = timeToCoordinate(instance.timeA, lineTimeEdge(instance.timeA, instance.timeB))
+  const bx = timeToCoordinate(instance.timeB, lineTimeEdge(instance.timeB, instance.timeA))
   const ay = priceToY(instance.priceA)
   const by = priceToY(instance.priceB)
   if (ax === null || bx === null || ay === null || by === null) return null
