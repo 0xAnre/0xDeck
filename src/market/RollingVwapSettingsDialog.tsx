@@ -9,7 +9,9 @@ import {
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
+  isRollingVwapLineStyle,
   isRollingVwapLineWidth,
+  ROLLING_VWAP_LINE_STYLES,
   ROLLING_VWAP_LINE_WIDTHS,
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
@@ -47,11 +49,11 @@ function RollingVwapSettingsDialogBody({
 
   return (
     <>
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Rolling VWAP settings</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 text-xs">
+        <div className="min-h-0 space-y-4 overflow-y-auto overscroll-y-contain text-xs">
           <section className="space-y-2">
             <p className="font-medium text-foreground">Time period</p>
             <label className="flex items-center gap-2">
@@ -186,6 +188,71 @@ function RollingVwapSettingsDialogBody({
             </ToggleGroup>
           </section>
 
+          <section className="space-y-2">
+            <p className="font-medium text-foreground">Center line</p>
+            <div className="grid grid-cols-[1fr_5rem] items-end gap-2">
+              <label className="space-y-1">
+                <span className="text-muted-foreground">Opacity (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className={inputClassName}
+                  value={draft.lineOpacity}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      lineOpacity: Number(event.target.value),
+                    }))
+                  }
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-muted-foreground">Color</span>
+                <input
+                  type="color"
+                  className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+                  value={draft.lineColor}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      lineColor: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <p className="font-medium text-foreground" id="rolling-vwap-line-style-label">
+              Line style
+            </p>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              className="grid w-full grid-cols-2"
+              aria-labelledby="rolling-vwap-line-style-label"
+              value={draft.lineStyle}
+              onValueChange={(value) => {
+                if (!value || !isRollingVwapLineStyle(value)) return
+                setDraft((current) => ({
+                  ...current,
+                  lineStyle: value,
+                }))
+              }}
+            >
+              {ROLLING_VWAP_LINE_STYLES.map((style) => (
+                <ToggleGroupItem
+                  key={style}
+                  value={style}
+                  aria-label={`Line style ${style}`}
+                  className="w-full capitalize"
+                >
+                  {style}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </section>
+
           <section className="space-y-3">
             <p className="font-medium text-foreground">Deviation bands</p>
             {(['Band 1', 'Band 2', 'Band 3'] as const).map((label, index) => {
@@ -236,7 +303,7 @@ function RollingVwapSettingsDialogBody({
           </section>
         </div>
 
-      <DialogFooter>
+      <DialogFooter className="shrink-0">
         <Button type="button" variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
@@ -256,7 +323,10 @@ export function RollingVwapSettingsDialog({
 }: RollingVwapSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" onClick={(event) => event.stopPropagation()}>
+      <DialogContent
+        className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
+      >
         {open ? (
           <RollingVwapSettingsDialogBody
             savedSettings={savedSettings}

@@ -1,25 +1,61 @@
-import { LineSeries, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts'
+import {
+  LineSeries,
+  LineStyle,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from 'lightweight-charts'
 import { isIndicatorSupportedOnInterval } from './indicators.ts'
 import { rollingVwapInstancePeriodLabel, type RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import {
   computeRollingVwapPointsForSettings,
+  DEFAULT_ROLLING_VWAP_LINE_COLOR,
+  DEFAULT_ROLLING_VWAP_LINE_OPACITY,
+  DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  rollingVwapCenterLineRgbaColor,
   type RollingVwapBandColors,
+  type RollingVwapLineStyle,
   type RollingVwapLineWidth,
   type RollingVwapSettings,
 } from './rollingVwapSettings.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 
 /** Same gray as anchored Daily/Weekly VWAP center lines. */
-export const ROLLING_VWAP_LINE_COLOR = '#9e9e9e'
+export const ROLLING_VWAP_LINE_COLOR = DEFAULT_ROLLING_VWAP_LINE_COLOR
+
+export type RollingVwapCenterLinePresentation = {
+  lineWidth?: RollingVwapLineWidth
+  lineColor?: string
+  lineOpacity?: number
+  lineStyle?: RollingVwapLineStyle
+}
+
+function rollingVwapLineStyleToChart(style: RollingVwapLineStyle): LineStyle {
+  switch (style) {
+    case 'solid':
+      return LineStyle.Solid
+    case 'dotted':
+      return LineStyle.Dotted
+    default: {
+      const unreachable: never = style
+      return unreachable
+    }
+  }
+}
 
 export function rollingVwapCenterLineOptions(
-  lineWidth: RollingVwapLineWidth = DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  presentation: RollingVwapCenterLinePresentation = {},
 ) {
+  const lineWidth = presentation.lineWidth ?? DEFAULT_ROLLING_VWAP_LINE_WIDTH
+  const lineColor = presentation.lineColor ?? DEFAULT_ROLLING_VWAP_LINE_COLOR
+  const lineOpacity = presentation.lineOpacity ?? DEFAULT_ROLLING_VWAP_LINE_OPACITY
+  const lineStyle = presentation.lineStyle ?? DEFAULT_ROLLING_VWAP_LINE_STYLE
   return {
-    color: ROLLING_VWAP_LINE_COLOR,
+    color: rollingVwapCenterLineRgbaColor(lineColor, lineOpacity),
     lineWidth,
+    lineStyle: rollingVwapLineStyleToChart(lineStyle),
     priceLineVisible: false,
     lastValueVisible: true,
     crosshairMarkerVisible: false,
@@ -106,14 +142,35 @@ export function applyRollingVwapChartLineWidth(
   }
 }
 
+export function applyRollingVwapCenterLinePresentation(
+  center: ISeriesApi<'Line'>,
+  settings: Pick<RollingVwapSettings, 'lineColor' | 'lineOpacity' | 'lineStyle'>,
+): void {
+  center.applyOptions({
+    color: rollingVwapCenterLineRgbaColor(settings.lineColor, settings.lineOpacity),
+    lineStyle: rollingVwapLineStyleToChart(settings.lineStyle),
+  })
+}
+
 export function createRollingVwapChartSeriesBundle(
   chart: IChartApi,
   bandColors: RollingVwapBandColors,
-  options?: { title?: string; lineWidth?: RollingVwapLineWidth },
+  options?: {
+    title?: string
+    lineWidth?: RollingVwapLineWidth
+    lineColor?: string
+    lineOpacity?: number
+    lineStyle?: RollingVwapLineStyle
+  },
 ): RollingVwapChartSeriesBundle {
   const lineWidth = options?.lineWidth ?? DEFAULT_ROLLING_VWAP_LINE_WIDTH
   const center = chart.addSeries(LineSeries, {
-    ...rollingVwapCenterLineOptions(lineWidth),
+    ...rollingVwapCenterLineOptions({
+      lineWidth,
+      lineColor: options?.lineColor,
+      lineOpacity: options?.lineOpacity,
+      lineStyle: options?.lineStyle,
+    }),
     title: options?.title ?? '',
     visible: false,
   })
@@ -161,6 +218,7 @@ export function applyRollingVwapChartInstancePresentation(
 ): void {
   applyRollingVwapChartBandColors(bundle, instance.settings.bandColors)
   applyRollingVwapChartLineWidth(bundle, instance.settings.lineWidth)
+  applyRollingVwapCenterLinePresentation(bundle.center, instance.settings)
   bundle.center.applyOptions({
     title: rollingVwapInstancePeriodLabel(instance, interval),
     lastValueVisible: true,

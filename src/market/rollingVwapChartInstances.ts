@@ -48,6 +48,9 @@ export function reconcileRollingVwapChartBundles(
       bundle = createRollingVwapChartSeriesBundle(chart, instance.settings.bandColors, {
         title: rollingVwapInstancePeriodLabel(instance, interval),
         lineWidth: instance.settings.lineWidth,
+        lineColor: instance.settings.lineColor,
+        lineOpacity: instance.settings.lineOpacity,
+        lineStyle: instance.settings.lineStyle,
       })
       map.set(instance.id, bundle)
     } else {
