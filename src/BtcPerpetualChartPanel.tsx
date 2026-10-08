@@ -129,6 +129,10 @@ import {
 } from '@/market/rectangleKeyboardScope'
 import {
   sanitizeRectangleInstances,
+  setRectangleInstanceFillColor,
+  setRectangleInstanceFillOpacity,
+  setRectangleInstanceLocked,
+  updateRectangleInstancesById,
   type RectangleInstance,
 } from '@/market/rectangleInstances'
 import { latestCandleUnixTime } from '@/market/rectangleChartTime'
@@ -475,6 +479,39 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistRectangleInstances],
   )
 
+  const handleRectangleLockToggle = useCallback(
+    (instanceId: string, locked: boolean) => {
+      persistRectangleInstances(
+        updateRectangleInstancesById(rectangleInstancesRef.current, instanceId, (instance) =>
+          setRectangleInstanceLocked(instance, locked),
+        ),
+      )
+    },
+    [persistRectangleInstances],
+  )
+
+  const handleRectangleFillColorChange = useCallback(
+    (instanceId: string, fillColor: string) => {
+      persistRectangleInstances(
+        updateRectangleInstancesById(rectangleInstancesRef.current, instanceId, (instance) =>
+          setRectangleInstanceFillColor(instance, fillColor),
+        ),
+      )
+    },
+    [persistRectangleInstances],
+  )
+
+  const handleRectangleFillOpacityChange = useCallback(
+    (instanceId: string, fillOpacity: number) => {
+      persistRectangleInstances(
+        updateRectangleInstancesById(rectangleInstancesRef.current, instanceId, (instance) =>
+          setRectangleInstanceFillOpacity(instance, fillOpacity),
+        ),
+      )
+    },
+    [persistRectangleInstances],
+  )
+
   const handleLineArm = useCallback(() => {
     claimRectangleKeyboardPanel(panelId)
     if (lineArmClaimTimerRef.current !== null) {
@@ -722,6 +759,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     rectangleInstances,
     onRectangleArm: handleRectangleArm,
     onRectangleDelete: handleRectangleDelete,
+    onRectangleLockToggle: handleRectangleLockToggle,
+    onRectangleFillColorChange: handleRectangleFillColorChange,
+    onRectangleFillOpacityChange: handleRectangleFillOpacityChange,
     lineInstances,
     onLineArm: handleLineArm,
     onLineDelete: handleLineDelete,

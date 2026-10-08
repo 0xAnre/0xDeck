@@ -6,6 +6,31 @@ export type RectangleInstance = {
   toTime: number
   lowPrice: number
   highPrice: number
+  locked?: boolean
+  fillColor?: string
+  fillOpacity?: number
+}
+
+const RECTANGLE_HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
+
+export const DEFAULT_RECTANGLE_FILL_HEX = '#737373'
+
+export const DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT = 20
+
+export function isRectangleHexColor(value: unknown): value is string {
+  return typeof value === 'string' && RECTANGLE_HEX_COLOR_PATTERN.test(value)
+}
+
+export function isRectangleFillOpacityPercent(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+}
+
+export function isRectangleInstanceLocked(instance: RectangleInstance): boolean {
+  return instance.locked === true
+}
+
+export function isRectangleInstanceTransformable(instance: RectangleInstance): boolean {
+  return !isRectangleInstanceLocked(instance)
 }
 
 export type NormalizedRectangleBounds = {
@@ -68,13 +93,23 @@ export function sanitizeRectangleInstance(value: unknown): RectangleInstance | n
   )
   if (!normalized) return null
 
-  return {
+  const instance: RectangleInstance = {
     id: record.id.trim(),
     fromTime: normalized.fromTime,
     toTime: normalized.toTime,
     lowPrice: normalized.lowPrice,
     highPrice: normalized.highPrice,
   }
+  if (record.locked === true) {
+    instance.locked = true
+  }
+  if (isRectangleHexColor(record.fillColor)) {
+    instance.fillColor = record.fillColor
+  }
+  if (isRectangleFillOpacityPercent(record.fillOpacity)) {
+    instance.fillOpacity = record.fillOpacity
+  }
+  return instance
 }
 
 export function sanitizeRectangleInstances(value: unknown): RectangleInstance[] {
@@ -120,4 +155,49 @@ export function updateRectangleInstanceBounds(
   bounds: NormalizedRectangleBounds,
 ): RectangleInstance {
   return { ...instance, ...bounds }
+}
+
+export function updateRectangleInstancesById(
+  instances: readonly RectangleInstance[],
+  instanceId: string,
+  updater: (instance: RectangleInstance) => RectangleInstance,
+): RectangleInstance[] {
+  return instances.map((item) => (item.id === instanceId ? updater(item) : item))
+}
+
+export function setRectangleInstanceLocked(
+  instance: RectangleInstance,
+  locked: boolean,
+): RectangleInstance {
+  if (!locked) {
+    const next = { ...instance }
+    delete next.locked
+    return next
+  }
+  return { ...instance, locked: true }
+}
+
+export function setRectangleInstanceFillColor(
+  instance: RectangleInstance,
+  fillColor: string,
+): RectangleInstance {
+  if (!isRectangleHexColor(fillColor)) return instance
+  return { ...instance, fillColor }
+}
+
+export function setRectangleInstanceFillOpacity(
+  instance: RectangleInstance,
+  fillOpacity: number,
+): RectangleInstance {
+  if (!isRectangleFillOpacityPercent(fillOpacity)) return instance
+  if (fillOpacity === DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT) {
+    const next = { ...instance }
+    delete next.fillOpacity
+    return next
+  }
+  return { ...instance, fillOpacity }
+}
+
+export function rectangleInstanceFillOpacityPercent(instance: RectangleInstance): number {
+  return instance.fillOpacity ?? DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT
 }

@@ -1,6 +1,7 @@
 import type { RectangleHandleKind } from './rectangleHitTest.ts'
 import {
   createRectangleInstance,
+  isRectangleInstanceTransformable,
   normalizeRectangleBounds,
   type NormalizedRectangleBounds,
   type RectangleInstance,
@@ -135,6 +136,7 @@ export function startRectangleResizeDraft(
   handle: Exclude<RectangleHandleKind, 'interior'>,
 ): RectangleInteractionState {
   if (state.phase !== 'inactive') return state
+  if (!isRectangleInstanceTransformable(instance)) return state
   return {
     phase: 'resizing',
     selectedId: instance.id,
@@ -159,6 +161,7 @@ export function startRectangleMoveDraft(
   anchorPrice: number,
 ): RectangleInteractionState {
   if (state.phase !== 'inactive') return state
+  if (!isRectangleInstanceTransformable(instance)) return state
   if (!Number.isFinite(anchorTime) || !Number.isFinite(anchorPrice)) return state
   return {
     phase: 'moving',

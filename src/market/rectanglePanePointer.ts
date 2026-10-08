@@ -15,7 +15,7 @@ import {
   updateRectangleCreatePreview,
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
-import type { RectangleInstance } from './rectangleInstances.ts'
+import { isRectangleInstanceLocked, type RectangleInstance } from './rectangleInstances.ts'
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
@@ -159,9 +159,17 @@ export function attachRectanglePanePointer(
       event.preventDefault()
       event.stopPropagation()
       focusRectangleInteractionPane(paneElement)
+      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+      if (!instance) return
+      if (isRectangleInstanceLocked(instance)) {
+        const next = applyRectangleSelection(interaction, hit.instanceId)
+        if (next !== interaction) {
+          callbacks.onInteractionChange(next)
+          callbacks.onRequestRender()
+        }
+        return
+      }
       if (hit.kind !== 'interior') {
-        const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
-        if (!instance) return
         const next = startRectangleResizeDraft(interaction, instance, hit.kind)
         if (next === interaction) return
         activePointerId = event.pointerId
@@ -170,8 +178,6 @@ export function attachRectanglePanePointer(
         callbacks.onInteractionChange(next)
         return
       }
-      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
-      if (!instance) return
       const series = callbacks.getSeries()
       if (!series) return
       const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())

@@ -12,7 +12,11 @@ import {
   buildRectangleChartTimeContext,
   resolveRectangleTimeToCoordinate,
 } from './rectangleChartTime.ts'
-import { readRectangleFillStyle, readRectangleHandleFillStyle } from './rectangleColors.ts'
+import {
+  readRectangleFillStyle,
+  readRectangleHandleFillStyle,
+  resolveRectangleInstanceFillStyle,
+} from './rectangleColors.ts'
 import {
   buildRectangleDrawModels,
   type RectangleDrawModel,
@@ -120,7 +124,8 @@ class RectanglePaneView implements IPrimitivePaneView {
     this._models = buildRectangleDrawModels({
       instances: context.instances,
       interaction: context.interaction,
-      fillStyle: readRectangleFillStyle(),
+      resolveInstanceFillStyle: resolveRectangleInstanceFillStyle,
+      previewFillStyle: readRectangleFillStyle(),
       handleFillStyle: readRectangleHandleFillStyle(),
       pointerTime: context.pointerTime,
       pointerPrice: context.pointerPrice,

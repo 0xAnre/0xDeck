@@ -13,9 +13,10 @@ import {
   removeSelectedRectangle,
   startRectangleCreateDraft,
   startRectangleMoveDraft,
+  startRectangleResizeDraft,
   updateRectangleCreatePreview,
 } from './rectangleInteraction.ts'
-import { createRectangleInstance } from './rectangleInstances.ts'
+import { createRectangleInstance, setRectangleInstanceLocked } from './rectangleInstances.ts'
 
 describe('rectangleInteraction', () => {
   it('creates, cancels, and deletes rectangles', () => {
@@ -118,6 +119,57 @@ describe('rectangleInteraction', () => {
     )
     const result = commitRectangleMove(moving, [instance], 1_700_000_300, 15)
     assert.deepEqual(result.updatedInstance, instance)
+  })
+
+  it('blocks move and resize drafts for locked rectangles', () => {
+    const instance = setRectangleInstanceLocked(
+      createRectangleInstance({
+        fromTime: 100,
+        toTime: 200,
+        lowPrice: 10,
+        highPrice: 20,
+      })!,
+      true,
+    )
+    const move = startRectangleMoveDraft(
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      instance,
+      150,
+      15,
+    )
+    assert.equal(move, INITIAL_RECTANGLE_INTERACTION_STATE)
+    const resize = startRectangleResizeDraft(
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      instance,
+      'corner-se',
+    )
+    assert.equal(resize, INITIAL_RECTANGLE_INTERACTION_STATE)
+  })
+
+  it('allows move and resize after unlocking', () => {
+    const locked = setRectangleInstanceLocked(
+      createRectangleInstance({
+        fromTime: 100,
+        toTime: 200,
+        lowPrice: 10,
+        highPrice: 20,
+      })!,
+      true,
+    )
+    const unlocked = { ...locked, locked: undefined }
+    const move = startRectangleMoveDraft(
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      unlocked,
+      150,
+      15,
+    )
+    assert.equal(move.phase, 'moving')
+    const resize = startRectangleResizeDraft(
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      unlocked,
+      'edge-e',
+    )
+    assert.equal(resize.phase, 'resizing')
   })
 
   it('resizes edges on one axis only', () => {

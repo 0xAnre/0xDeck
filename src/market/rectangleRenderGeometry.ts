@@ -1,6 +1,6 @@
 import type { RectangleTimeEdge } from './rectangleChartTime.ts'
 import type { RectangleHandleKind } from './rectangleHitTest.ts'
-import type { NormalizedRectangleBounds, RectangleInstance } from './rectangleInstances.ts'
+import { isRectangleInstanceLocked, type NormalizedRectangleBounds, type RectangleInstance } from './rectangleInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
 import { previewBoundsFromInteraction } from './rectangleInteraction.ts'
 
@@ -21,7 +21,8 @@ export type RectangleDrawModel = {
 export type BuildRectangleDrawModelsArgs = {
   instances: readonly RectangleInstance[]
   interaction: RectangleInteractionState
-  fillStyle: string
+  resolveInstanceFillStyle: (instance: RectangleInstance) => string
+  previewFillStyle: string
   handleFillStyle: string
   pointerTime: number | null
   pointerPrice: number | null
@@ -71,16 +72,18 @@ function buildHandlePoints(box: {
 function instanceToDrawModel(
   instance: RectangleInstance,
   selectedId: string | null,
-  fillStyle: string,
+  resolveInstanceFillStyle: (instance: RectangleInstance) => string,
   timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
   priceToY: (price: number) => number | null,
 ): RectangleDrawModel | null {
   const box = boundsToScreenBox(instance, timeToCoordinate, priceToY)
   if (!box) return null
+  const showHandles =
+    selectedId === instance.id && !isRectangleInstanceLocked(instance)
   return {
     ...box,
-    fillStyle,
-    handles: selectedId === instance.id ? buildHandlePoints(box) : [],
+    fillStyle: resolveInstanceFillStyle(instance),
+    handles: showHandles ? buildHandlePoints(box) : [],
   }
 }
 
@@ -96,6 +99,25 @@ export function getRectangleInstanceOmittedDuringInteraction(
   return null
 }
 
+function previewFillStyleForInteraction(args: BuildRectangleDrawModelsArgs): string {
+  const { interaction } = args
+  if (interaction.phase !== 'resizing' && interaction.phase !== 'moving') {
+    return args.previewFillStyle
+  }
+
+  const draft = interaction.draft
+  if (draft === null || draft.kind === 'create') {
+    return args.previewFillStyle
+  }
+  if (draft.kind === 'resize' || draft.kind === 'move') {
+    const instance = args.instances.find((item) => item.id === draft.instanceId)
+    return instance ? args.resolveInstanceFillStyle(instance) : args.previewFillStyle
+  }
+
+  const _exhaustive: never = draft
+  return _exhaustive
+}
+
 export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): RectangleDrawModel[] {
   const models: RectangleDrawModel[] = []
   const omittedInstanceId = getRectangleInstanceOmittedDuringInteraction(args.interaction)
@@ -105,7 +127,7 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
     const model = instanceToDrawModel(
       instance,
       args.interaction.selectedId,
-      args.fillStyle,
+      args.resolveInstanceFillStyle,
       args.timeToCoordinate,
       args.priceToY,
     )
@@ -128,7 +150,7 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
         if (box) {
           models.push({
             ...box,
-            fillStyle: args.fillStyle,
+            fillStyle: previewFillStyleForInteraction(args),
             handles:
               args.interaction.phase === 'resizing' || args.interaction.phase === 'moving'
                 ? buildHandlePoints(box)

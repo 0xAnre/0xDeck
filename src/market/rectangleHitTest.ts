@@ -1,4 +1,4 @@
-import type { RectangleInstance } from './rectangleInstances.ts'
+import { isRectangleInstanceLocked, type RectangleInstance } from './rectangleInstances.ts'
 
 export type RectangleHandleKind =
   | 'corner-nw'
@@ -131,7 +131,8 @@ export function hitTestRectangles(
     const instance = instances[index]
     const box = project(instance)
     if (!box) continue
-    const allowHandles = selectedId === instance.id
+    const allowHandles =
+      selectedId === instance.id && !isRectangleInstanceLocked(instance)
     const hit = hitTestSingleRectangleBox(
       instance.id,
       index,

@@ -4,6 +4,10 @@ import {
   createRectangleInstance,
   normalizeRectangleBounds,
   sanitizeRectangleInstances,
+  setRectangleInstanceFillColor,
+  setRectangleInstanceFillOpacity,
+  setRectangleInstanceLocked,
+  updateRectangleInstancesById,
 } from './rectangleInstances.ts'
 import {
   loadWidgetRectangleInstances,
@@ -48,6 +52,63 @@ describe('rectangleInstances', () => {
     assert.equal(sanitized.length, 3)
   })
 
+  it('sanitizes lock, color, and opacity with legacy defaults', () => {
+    const legacy = createRectangleInstance({
+      fromTime: 10,
+      toTime: 20,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    const sanitizedLegacy = sanitizeRectangleInstances([legacy])[0]
+    assert.equal(sanitizedLegacy.locked, undefined)
+    assert.equal(sanitizedLegacy.fillColor, undefined)
+    assert.equal(sanitizedLegacy.fillOpacity, undefined)
+
+    const styled = sanitizeRectangleInstances([
+      {
+        ...legacy,
+        locked: true,
+        fillColor: '#aabbcc',
+        fillOpacity: 35,
+        fillColorBad: '#abc',
+      },
+    ])[0]
+    assert.equal(styled.locked, true)
+    assert.equal(styled.fillColor, '#aabbcc')
+    assert.equal(styled.fillOpacity, 35)
+  })
+
+  it('updates lock and style fields per instance id', () => {
+    const first = createRectangleInstance({
+      fromTime: 10,
+      toTime: 20,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    const second = createRectangleInstance({
+      fromTime: 30,
+      toTime: 40,
+      lowPrice: 3,
+      highPrice: 4,
+      existingIds: new Set([first.id]),
+    })!
+    const locked = updateRectangleInstancesById([first, second], first.id, (instance) =>
+      setRectangleInstanceLocked(instance, true),
+    )
+    assert.equal(locked[0].locked, true)
+    assert.equal(locked[1].locked, undefined)
+
+    const colored = updateRectangleInstancesById(locked, second.id, (instance) =>
+      setRectangleInstanceFillColor(instance, '#ff00ff'),
+    )
+    assert.equal(colored[1].fillColor, '#ff00ff')
+
+    const opacity = updateRectangleInstancesById(colored, second.id, (instance) =>
+      setRectangleInstanceFillOpacity(instance, 20),
+    )
+    assert.equal(opacity[1].fillOpacity, undefined)
+  })
+
   it('persists per panel in localStorage', () => {
     const storage = new Map<string, string>()
     const original = globalThis.localStorage
@@ -67,9 +128,18 @@ describe('rectangleInstances', () => {
         lowPrice: 1,
         highPrice: 2,
       })!
-      saveWidgetRectangleInstances('panel-a', [instance])
+      const styled = {
+        ...instance,
+        locked: true,
+        fillColor: '#123456',
+        fillOpacity: 55,
+      }
+      saveWidgetRectangleInstances('panel-a', [styled])
       saveWidgetRectangleInstances('panel-b', [])
-      assert.equal(loadWidgetRectangleInstances('panel-a').length, 1)
+      const loadedA = loadWidgetRectangleInstances('panel-a')[0]
+      assert.equal(loadedA.locked, true)
+      assert.equal(loadedA.fillColor, '#123456')
+      assert.equal(loadedA.fillOpacity, 55)
       assert.equal(loadWidgetRectangleInstances('panel-b').length, 0)
       assert.ok(storage.has(WIDGET_RECTANGLE_INSTANCES_STORAGE_KEY))
     } finally {

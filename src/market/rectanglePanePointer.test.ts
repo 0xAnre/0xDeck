@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import { attachRectanglePanePointer } from './rectanglePanePointer.ts'
-import { INITIAL_RECTANGLE_INTERACTION_STATE, armRectangleTool } from './rectangleInteraction.ts'
+import {
+  applyRectangleSelection,
+  INITIAL_RECTANGLE_INTERACTION_STATE,
+  armRectangleTool,
+} from './rectangleInteraction.ts'
 
 function createPaneHarness() {
   const listeners = new Map<string, EventListener>()
@@ -289,5 +293,143 @@ describe('rectanglePanePointer', () => {
 
     assert.equal(interaction.phase, 'inactive')
     assert.equal(interaction.selectedId, 'rect-1')
+  })
+
+  it('selects locked rectangles without starting move or resize drafts', () => {
+    const { listeners, chart } = createPaneHarness()
+    let interaction = applyRectangleSelection(INITIAL_RECTANGLE_INTERACTION_STATE, null)
+    let updated = false
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction,
+        instances: [
+          {
+            id: 'rect-locked',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+            locked: true,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+        updated = true
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 5,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+
+    assert.equal(updated, true)
+    assert.equal(interaction.phase, 'inactive')
+    assert.equal(interaction.selectedId, 'rect-locked')
+    assert.equal(interaction.draft, null)
+  })
+
+  it('does not swallow pointer events on hidden handles of a selected locked rectangle', () => {
+    const { listeners, chart } = createPaneHarness()
+    let interaction = applyRectangleSelection(INITIAL_RECTANGLE_INTERACTION_STATE, 'rect-locked')
+    const lockedInstance = {
+      id: 'rect-locked',
+      fromTime: 100,
+      toTime: 200,
+      lowPrice: 20,
+      highPrice: 80,
+      locked: true,
+    }
+    const series = {
+      coordinateToPrice: (y: number) => 100 - y,
+      priceToCoordinate: (price: number) => 100 - price,
+      data: () => [{ time: 100 }, { time: 200 }],
+    }
+
+    const attach = (locked: boolean) => {
+      attachRectanglePanePointer(chart as never, {
+        getSnapshot: () => ({
+          interaction,
+          instances: [locked ? lockedInstance : { ...lockedInstance, locked: undefined }],
+        }),
+        getChart: () => chart as never,
+        getSeries: () => series as never,
+        onInteractionChange: (next) => {
+          interaction = next
+        },
+        onInstanceCompleted: () => {},
+        onInstanceUpdated: () => {},
+        onRequestRender: () => {},
+        onPointerPreviewChange: () => {},
+        getPointerPreview: () => ({ time: null, price: null }),
+        isAlternateToolActive: () => false,
+        getCompetingLineHit: () => ({
+          instanceId: 'line-1',
+          kind: 'body',
+          priority: 1,
+          instanceIndex: 0,
+        }),
+        getIntervalDurationSeconds: () => 300,
+        getLastBarUnixTime: () => 200,
+      })
+    }
+
+    attach(false)
+    let unlockedStopped = false
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 96,
+      clientY: 16,
+      pointerId: 6,
+      preventDefault: () => {},
+      stopPropagation: () => {
+        unlockedStopped = true
+      },
+    } as PointerEvent)
+    assert.equal(unlockedStopped, true)
+
+    interaction = applyRectangleSelection(INITIAL_RECTANGLE_INTERACTION_STATE, 'rect-locked')
+    attach(true)
+    let lockedStopped = false
+    let lockedPrevented = false
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 96,
+      clientY: 16,
+      pointerId: 7,
+      preventDefault: () => {
+        lockedPrevented = true
+      },
+      stopPropagation: () => {
+        lockedStopped = true
+      },
+    } as PointerEvent)
+
+    assert.equal(lockedStopped, false)
+    assert.equal(lockedPrevented, false)
+    assert.equal(interaction.phase, 'inactive')
+    assert.equal(interaction.draft, null)
   })
 })
