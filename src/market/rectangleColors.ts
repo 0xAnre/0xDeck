@@ -1,5 +1,6 @@
 import { resolveThemeCssColor, rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
 import {
+  DEFAULT_RECTANGLE_FILL_HEX,
   DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT,
   isRectangleFillOpacityPercent,
   isRectangleHexColor,
@@ -11,6 +12,36 @@ export const RECTANGLE_FILL_OPACITY = 0.20
 export const RECTANGLE_HANDLE_FILL_OPACITY = 0.85
 
 const RECTANGLE_FILL_FALLBACK_RGB = 'rgb(115, 115, 115)'
+
+function channelByteToHex(value: string): string | null {
+  const channel = Number(value)
+  if (!Number.isFinite(channel)) return null
+  const byte = Math.round(Math.min(255, Math.max(0, channel)))
+  return byte.toString(16).padStart(2, '0')
+}
+
+export function hexFromResolvedCssColor(color: string, fallbackHex: string): string {
+  const trimmed = color.trim()
+  const rgbMatch = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i.exec(trimmed)
+  if (rgbMatch) {
+    const channels = [rgbMatch[1], rgbMatch[2], rgbMatch[3]].map(channelByteToHex)
+    if (channels.every((channel) => channel !== null)) {
+      return `#${channels.join('')}`
+    }
+  }
+  if (isRectangleHexColor(trimmed)) return trimmed.toLowerCase()
+  return fallbackHex
+}
+
+export function rectangleInstancePickerFillHex(
+  instance: RectangleInstance,
+  themeBaseRgb: string = readRectangleThemeBaseRgb(),
+): string {
+  if (isRectangleHexColor(instance.fillColor)) {
+    return instance.fillColor.toLowerCase()
+  }
+  return hexFromResolvedCssColor(themeBaseRgb, DEFAULT_RECTANGLE_FILL_HEX)
+}
 
 export function readRectangleThemeBaseRgb(): string {
   if (typeof document === 'undefined') {

@@ -201,7 +201,3 @@ export function setRectangleInstanceFillOpacity(
 export function rectangleInstanceFillOpacityPercent(instance: RectangleInstance): number {
   return instance.fillOpacity ?? DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT
 }
-
-export function rectangleInstanceFillColorHex(instance: RectangleInstance): string {
-  return instance.fillColor ?? DEFAULT_RECTANGLE_FILL_HEX
-}
