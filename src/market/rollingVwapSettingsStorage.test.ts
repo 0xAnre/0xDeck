@@ -78,6 +78,18 @@ describe('rollingVwapSettingsStorage', () => {
     assert.equal(loadWidgetRollingVwapSettings('panel-a').lineWidth, 3)
   })
 
+  it('round-trips center-line presentation through panel storage', () => {
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineColor = '#abcdef'
+    settings.lineOpacity = 40
+    settings.lineStyle = 'dotted'
+    saveWidgetRollingVwapSettings('panel-a', settings)
+    const loaded = loadWidgetRollingVwapSettings('panel-a')
+    assert.equal(loaded.lineColor, '#abcdef')
+    assert.equal(loaded.lineOpacity, 40)
+    assert.equal(loaded.lineStyle, 'dotted')
+  })
+
   it('loads legacy settings without lineWidth at width 1', () => {
     const legacy = createDefaultRollingVwapSettings()
     memory.set(
@@ -93,5 +105,27 @@ describe('rollingVwapSettingsStorage', () => {
       }),
     )
     assert.equal(loadWidgetRollingVwapSettings('panel-a').lineWidth, 1)
+  })
+
+  it('loads legacy settings without center-line presentation fields', () => {
+    const legacy = createDefaultRollingVwapSettings()
+    memory.set(
+      WIDGET_ROLLING_VWAP_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        'panel-a': {
+          fixedTimePeriod: legacy.fixedTimePeriod,
+          minBars: legacy.minBars,
+          multipliers: legacy.multipliers,
+          bandColors: legacy.bandColors,
+          infoBox: legacy.infoBox,
+          lineWidth: 2,
+        },
+      }),
+    )
+    const loaded = loadWidgetRollingVwapSettings('panel-a')
+    assert.equal(loaded.lineWidth, 2)
+    assert.equal(loaded.lineColor, '#9e9e9e')
+    assert.equal(loaded.lineOpacity, 100)
+    assert.equal(loaded.lineStyle, 'solid')
   })
 })

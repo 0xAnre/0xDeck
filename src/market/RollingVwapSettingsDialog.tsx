@@ -9,7 +9,9 @@ import {
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
+  isRollingVwapLineStyle,
   isRollingVwapLineWidth,
+  ROLLING_VWAP_LINE_STYLES,
   ROLLING_VWAP_LINE_WIDTHS,
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
@@ -181,6 +183,71 @@ function RollingVwapSettingsDialogBody({
                   className="w-full"
                 >
                   {width}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </section>
+
+          <section className="space-y-2">
+            <p className="font-medium text-foreground">Center line</p>
+            <div className="grid grid-cols-[1fr_5rem] items-end gap-2">
+              <label className="space-y-1">
+                <span className="text-muted-foreground">Opacity (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className={inputClassName}
+                  value={draft.lineOpacity}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      lineOpacity: Number(event.target.value),
+                    }))
+                  }
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-muted-foreground">Color</span>
+                <input
+                  type="color"
+                  className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+                  value={draft.lineColor}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      lineColor: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <p className="font-medium text-foreground" id="rolling-vwap-line-style-label">
+              Line style
+            </p>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              className="grid w-full grid-cols-2"
+              aria-labelledby="rolling-vwap-line-style-label"
+              value={draft.lineStyle}
+              onValueChange={(value) => {
+                if (!value || !isRollingVwapLineStyle(value)) return
+                setDraft((current) => ({
+                  ...current,
+                  lineStyle: value,
+                }))
+              }}
+            >
+              {ROLLING_VWAP_LINE_STYLES.map((style) => (
+                <ToggleGroupItem
+                  key={style}
+                  value={style}
+                  aria-label={`Line style ${style}`}
+                  className="w-full capitalize"
+                >
+                  {style}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>

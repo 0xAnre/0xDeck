@@ -6,7 +6,7 @@ import {
   createDefaultRollingVwapSettings,
   type RollingVwapSettings,
 } from './rollingVwapSettings.ts'
-import type { IChartApi } from 'lightweight-charts'
+import { LineStyle, type IChartApi } from 'lightweight-charts'
 import {
   ROLLING_VWAP_BAND_SERIES_KEYS,
   ROLLING_VWAP_LINE_CHART_OPTIONS,
@@ -106,6 +106,7 @@ describe('rollingVwap chart series defaults', () => {
     assert.equal(bundle.ordered.length, 7)
     assert.equal(createdOptions[0].color, '#9e9e9e')
     assert.equal(createdOptions[0].lineWidth, 1)
+    assert.equal(createdOptions[0].lineStyle, LineStyle.Solid)
     assert.equal(createdOptions[0].priceLineVisible, false)
     assert.equal(createdOptions[0].lastValueVisible, true)
     assert.equal(createdOptions[1].color, '#4caf50')
@@ -117,6 +118,32 @@ describe('rollingVwap chart series defaults', () => {
       assert.equal(options.crosshairMarkerVisible, false)
       assert.equal(options.pointMarkersVisible, false)
     }
+  })
+
+  it('applies center-line color, opacity, and style at creation', () => {
+    const createdOptions: Record<string, unknown>[] = []
+    const chart = {
+      addSeries: (_type: unknown, options: Record<string, unknown>) => {
+        createdOptions.push(options)
+        return {
+          setData: () => {},
+          update: () => {},
+          applyOptions: () => {},
+        }
+      },
+    } as IChartApi
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineColor = '#ff0000'
+    settings.lineOpacity = 50
+    settings.lineStyle = 'dotted'
+    createRollingVwapChartSeriesBundle(chart, settings.bandColors, {
+      lineWidth: settings.lineWidth,
+      lineColor: settings.lineColor,
+      lineOpacity: settings.lineOpacity,
+      lineStyle: settings.lineStyle,
+    })
+    assert.equal(createdOptions[0].color, 'rgba(255, 0, 0, 0.5)')
+    assert.equal(createdOptions[0].lineStyle, LineStyle.Dotted)
   })
 
   it('applies instance lineWidth to all seven series at creation', () => {
@@ -138,6 +165,43 @@ describe('rollingVwap chart series defaults', () => {
     for (const options of createdOptions) {
       assert.equal(options.lineWidth, 3)
     }
+  })
+})
+
+describe('applyRollingVwapChartInstancePresentation', () => {
+  it('updates center-line color and style when settings are saved', () => {
+    const centerOptions: Record<string, unknown>[] = []
+    const makeLine = () => ({
+      setData: () => {},
+      update: () => {},
+      applyOptions: (opts: Record<string, unknown>) => {
+        centerOptions.push(opts)
+      },
+    })
+    const center = makeLine()
+    const bands = {} as RollingVwapChartSeriesBundle['bands']
+    const ordered = [center]
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      const series = makeLine()
+      bands[key] = series
+      ordered.push(series)
+    }
+    const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
+
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineColor = '#00ff00'
+    settings.lineOpacity = 25
+    settings.lineStyle = 'dotted'
+    const instance = createRollingVwapInstance({
+      id: 'rvwap-style',
+      settings,
+      randomId: () => 'rvwap-style',
+    })
+    applyRollingVwapChartInstancePresentation(bundle, instance, '1m')
+    const styleApply = centerOptions.find(
+      (opts) => opts.color === 'rgba(0, 255, 0, 0.25)' && opts.lineStyle === LineStyle.Dotted,
+    )
+    assert.ok(styleApply)
   })
 })
 

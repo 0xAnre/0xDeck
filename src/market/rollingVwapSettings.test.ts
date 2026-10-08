@@ -4,7 +4,11 @@ import {
   createDefaultRollingVwapSettings,
   DEFAULT_ROLLING_VWAP_BAND_COLORS,
   DEFAULT_ROLLING_VWAP_INFO_BOX,
+  DEFAULT_ROLLING_VWAP_LINE_COLOR,
+  DEFAULT_ROLLING_VWAP_LINE_OPACITY,
+  DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  rollingVwapCenterLineRgbaColor,
   sanitizeRollingVwapSettings,
 } from './rollingVwapSettings.ts'
 import {
@@ -22,6 +26,9 @@ describe('createDefaultRollingVwapSettings', () => {
     assert.deepEqual(settings.bandColors, DEFAULT_ROLLING_VWAP_BAND_COLORS)
     assert.deepEqual(settings.infoBox, DEFAULT_ROLLING_VWAP_INFO_BOX)
     assert.equal(settings.lineWidth, DEFAULT_ROLLING_VWAP_LINE_WIDTH)
+    assert.equal(settings.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
+    assert.equal(settings.lineOpacity, DEFAULT_ROLLING_VWAP_LINE_OPACITY)
+    assert.equal(settings.lineStyle, DEFAULT_ROLLING_VWAP_LINE_STYLE)
   })
 
   it('returns independent object instances', () => {
@@ -108,5 +115,44 @@ describe('sanitizeRollingVwapSettings', () => {
       const result = sanitizeRollingVwapSettings({ lineWidth })
       assert.equal(result.lineWidth, 1)
     }
+  })
+
+  it('defaults center-line presentation when fields are missing', () => {
+    const result = sanitizeRollingVwapSettings({ minBars: 12 })
+    assert.equal(result.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
+    assert.equal(result.lineOpacity, 100)
+    assert.equal(result.lineStyle, 'solid')
+  })
+
+  it('persists valid center-line presentation fields', () => {
+    const result = sanitizeRollingVwapSettings({
+      lineColor: '#ff0000',
+      lineOpacity: 50,
+      lineStyle: 'dotted',
+    })
+    assert.equal(result.lineColor, '#ff0000')
+    assert.equal(result.lineOpacity, 50)
+    assert.equal(result.lineStyle, 'dotted')
+  })
+
+  it('replaces invalid center-line presentation fields individually', () => {
+    const result = sanitizeRollingVwapSettings({
+      lineColor: 'red',
+      lineOpacity: 150,
+      lineStyle: 'dashed',
+    })
+    assert.equal(result.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
+    assert.equal(result.lineOpacity, DEFAULT_ROLLING_VWAP_LINE_OPACITY)
+    assert.equal(result.lineStyle, DEFAULT_ROLLING_VWAP_LINE_STYLE)
+  })
+})
+
+describe('rollingVwapCenterLineRgbaColor', () => {
+  it('returns hex when opacity is 100', () => {
+    assert.equal(rollingVwapCenterLineRgbaColor('#9e9e9e', 100), '#9e9e9e')
+  })
+
+  it('converts hex and opacity to rgba', () => {
+    assert.equal(rollingVwapCenterLineRgbaColor('#ff0000', 50), 'rgba(255, 0, 0, 0.5)')
   })
 })

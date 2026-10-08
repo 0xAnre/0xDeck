@@ -54,7 +54,19 @@ export type RollingVwapLineWidth = (typeof ROLLING_VWAP_LINE_WIDTHS)[number]
 
 export const DEFAULT_ROLLING_VWAP_LINE_WIDTH: RollingVwapLineWidth = 1
 
+export const DEFAULT_ROLLING_VWAP_LINE_COLOR = '#9e9e9e'
+
+export const DEFAULT_ROLLING_VWAP_LINE_OPACITY = 100
+
+export const ROLLING_VWAP_LINE_STYLES = ['solid', 'dotted'] as const
+
+export type RollingVwapLineStyle = (typeof ROLLING_VWAP_LINE_STYLES)[number]
+
+export const DEFAULT_ROLLING_VWAP_LINE_STYLE: RollingVwapLineStyle = 'solid'
+
 const ROLLING_VWAP_LINE_WIDTH_SET = new Set<number>(ROLLING_VWAP_LINE_WIDTHS)
+
+const ROLLING_VWAP_LINE_STYLE_SET = new Set<string>(ROLLING_VWAP_LINE_STYLES)
 
 export function isRollingVwapLineWidth(value: unknown): value is RollingVwapLineWidth {
   return (
@@ -64,6 +76,26 @@ export function isRollingVwapLineWidth(value: unknown): value is RollingVwapLine
   )
 }
 
+export function isRollingVwapLineStyle(value: unknown): value is RollingVwapLineStyle {
+  return typeof value === 'string' && ROLLING_VWAP_LINE_STYLE_SET.has(value)
+}
+
+export function isRollingVwapLineOpacity(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+}
+
+/** Converts persisted hex + opacity percent to a color string for Lightweight Charts. */
+export function rollingVwapCenterLineRgbaColor(lineColor: string, lineOpacity: number): string {
+  const clampedOpacity = Math.min(100, Math.max(0, lineOpacity))
+  if (clampedOpacity >= 100) {
+    return lineColor
+  }
+  const r = Number.parseInt(lineColor.slice(1, 3), 16)
+  const g = Number.parseInt(lineColor.slice(3, 5), 16)
+  const b = Number.parseInt(lineColor.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${clampedOpacity / 100})`
+}
+
 export type RollingVwapSettings = {
   fixedTimePeriod: RollingVwapFixedTimePeriod
   minBars: number
@@ -71,6 +103,9 @@ export type RollingVwapSettings = {
   bandColors: RollingVwapBandColors
   infoBox: RollingVwapInfoBoxSettings
   lineWidth: RollingVwapLineWidth
+  lineColor: string
+  lineOpacity: number
+  lineStyle: RollingVwapLineStyle
 }
 
 const DEFAULT_BAND_COLORS: RollingVwapBandColors = {
@@ -144,6 +179,9 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
     bandColors: { ...DEFAULT_BAND_COLORS },
     infoBox: { ...DEFAULT_INFO_BOX },
     lineWidth: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+    lineColor: DEFAULT_ROLLING_VWAP_LINE_COLOR,
+    lineOpacity: DEFAULT_ROLLING_VWAP_LINE_OPACITY,
+    lineStyle: DEFAULT_ROLLING_VWAP_LINE_STYLE,
   }
 }
 
@@ -174,5 +212,10 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     infoBox: sanitizeInfoBox(record.infoBox, defaults.infoBox),
     lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
+    lineColor: isRollingVwapHexColor(record.lineColor) ? record.lineColor : defaults.lineColor,
+    lineOpacity: isRollingVwapLineOpacity(record.lineOpacity)
+      ? record.lineOpacity
+      : defaults.lineOpacity,
+    lineStyle: isRollingVwapLineStyle(record.lineStyle) ? record.lineStyle : defaults.lineStyle,
   }
 }
