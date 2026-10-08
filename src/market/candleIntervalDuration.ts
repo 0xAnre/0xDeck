@@ -4,6 +4,8 @@ const CANDLE_INTERVAL_DURATION_SECONDS: Record<CandleInterval, number> = {
   '1m': 60,
   '5m': 300,
   '30m': 1800,
+  '1h': 3600,
+  '2h': 7200,
   '4h': 14_400,
   '1d': 86_400,
   '1w': 604_800,

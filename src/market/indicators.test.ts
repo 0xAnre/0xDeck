@@ -64,7 +64,7 @@ describe('ema-200 registry', () => {
 })
 
 describe('rolling-vwap registry', () => {
-  it('is enabled on all six intervals with no context level', () => {
+  it('is enabled on all chart intervals with no context level', () => {
     const def = MARKET_INDICATOR_DEFINITIONS['rolling-vwap']
     assert.equal(def.label, 'Rolling VWAP')
     assert.equal(def.contextLevel, null)
@@ -95,6 +95,20 @@ describe('indicator support matrix', () => {
   it('disables daily and weekly on 1w', () => {
     assert.equal(isIndicatorSupportedOnInterval('daily-vwap', '1w'), false)
     assert.equal(isIndicatorSupportedOnInterval('weekly-vwap', '1w'), false)
+  })
+
+  it('enables daily and weekly on 1h and 2h', () => {
+    assert.equal(isIndicatorSupportedOnInterval('daily-vwap', '1h'), true)
+    assert.equal(isIndicatorSupportedOnInterval('weekly-vwap', '1h'), true)
+    assert.equal(isIndicatorSupportedOnInterval('daily-vwap', '2h'), true)
+    assert.equal(isIndicatorSupportedOnInterval('weekly-vwap', '2h'), true)
+  })
+
+  it('keeps monthly and quarterly disabled on 1h and 2h', () => {
+    assert.equal(isIndicatorSupportedOnInterval('monthly-vwap', '1h'), false)
+    assert.equal(isIndicatorSupportedOnInterval('quarterly-vwap', '1h'), false)
+    assert.equal(isIndicatorSupportedOnInterval('monthly-vwap', '2h'), false)
+    assert.equal(isIndicatorSupportedOnInterval('quarterly-vwap', '2h'), false)
   })
 })
 

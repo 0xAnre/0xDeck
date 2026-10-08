@@ -125,7 +125,7 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         )
 
     def test_supported_intervals_accepted(self) -> None:
-        for interval in ("1m", "5m", "30m", "4h", "1d"):
+        for interval in ("1m", "5m", "30m", "1h", "2h", "4h", "1d", "1w"):
             self.assertEqual(validate_interval(interval), interval)
 
     def test_invalid_interval_rejected(self) -> None:
@@ -224,9 +224,24 @@ class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
     def test_rest_endpoint_rejects_invalid_interval(self) -> None:
         result = self.client.get(
             "/api/market/binance/usdm/btcusdt/klines",
-            params={"interval": "2h"},
+            params={"interval": "15m"},
         )
         self.assertEqual(result.status_code, 400)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_rest_endpoint_accepts_1h_and_2h(self, mock_get: MagicMock) -> None:
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json.return_value = [SAMPLE_REST_ROW]
+        mock_get.return_value = response
+
+        for interval in ("1h", "2h"):
+            result = self.client.get(
+                "/api/market/binance/usdm/btcusdt/klines",
+                params={"interval": interval, "limit": 1},
+            )
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json()["interval"], interval)
 
     @patch("app.market.binance_usdm_btc.httpx.get")
     def test_rest_endpoint_rejects_malformed_kline_row(self, mock_get: MagicMock) -> None:
@@ -643,7 +658,7 @@ class BinanceHistoryBeforeTests(unittest.TestCase):
         client = TestClient(app)
         result = client.get(
             "/api/market/binance/usdm/btcusdt/klines/history",
-            params={"interval": "2h", "before": 1_700_000_000},
+            params={"interval": "15m", "before": 1_700_000_000},
         )
         self.assertEqual(result.status_code, 400)
 
@@ -766,7 +781,7 @@ class BinanceWeeklyContextEndpointTests(unittest.TestCase):
     def test_weekly_context_rejects_invalid_interval(self) -> None:
         result = self.client.get(
             "/api/market/binance/usdm/btcusdt/klines/weekly-context",
-            params={"interval": "2h"},
+            params={"interval": "3h"},
         )
         self.assertEqual(result.status_code, 400)
 
@@ -941,6 +956,12 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
     def test_1w_channel_and_ws_url_use_binance_interval(self) -> None:
         self.assertEqual(parse_channel_interval(channel_for_interval("1w")), "1w")
         self.assertIn("@kline_1w", binance_ws_stream_url("1w"))
+
+    def test_1h_and_2h_channel_ws_url_and_duration(self) -> None:
+        for interval, duration_ms in (("1h", 3_600_000), ("2h", 7_200_000)):
+            self.assertEqual(parse_channel_interval(channel_for_interval(interval)), interval)
+            self.assertIn(f"@kline_{interval}", binance_ws_stream_url(interval))
+            self.assertEqual(INTERVAL_DURATION_MS[interval], duration_ms)
 
 
 class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):

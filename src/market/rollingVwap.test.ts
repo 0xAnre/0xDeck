@@ -42,6 +42,8 @@ describe('rollingVwapAutoWindowMs', () => {
     assert.equal(rollingVwapAutoWindowMs('1m'), MS_IN_HOUR)
     assert.equal(rollingVwapAutoWindowMs('5m'), MS_IN_HOUR * 4)
     assert.equal(rollingVwapAutoWindowMs('30m'), MS_IN_DAY)
+    assert.equal(rollingVwapAutoWindowMs('1h'), MS_IN_DAY)
+    assert.equal(rollingVwapAutoWindowMs('2h'), MS_IN_DAY * 3)
     assert.equal(rollingVwapAutoWindowMs('4h'), MS_IN_DAY * 3)
     assert.equal(rollingVwapAutoWindowMs('1d'), Math.trunc(MS_IN_DAY * 30.4375))
     assert.equal(rollingVwapAutoWindowMs('1w'), MS_IN_DAY * 90)

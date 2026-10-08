@@ -38,22 +38,22 @@ export type MarketIndicatorDefinition = {
 export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndicatorDefinition> = {
   'triple-ema': {
     label: '3 EMA',
-    supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
+    supportedIntervals: ['1m', '5m', '30m', '1h', '2h', '4h', '1d', '1w'],
     contextLevel: null,
   },
   'ema-200': {
     label: 'EMA 200',
-    supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
+    supportedIntervals: ['1m', '5m', '30m', '1h', '2h', '4h', '1d', '1w'],
     contextLevel: null,
   },
   'daily-vwap': {
     label: 'Daily VWAP',
-    supportedIntervals: ['1m', '5m', '30m', '4h', '1d'],
+    supportedIntervals: ['1m', '5m', '30m', '1h', '2h', '4h', '1d'],
     contextLevel: 'daily',
   },
   'weekly-vwap': {
     label: 'Weekly VWAP',
-    supportedIntervals: ['1m', '5m', '30m', '4h', '1d'],
+    supportedIntervals: ['1m', '5m', '30m', '1h', '2h', '4h', '1d'],
     contextLevel: 'weekly',
   },
   'monthly-vwap': {
@@ -73,7 +73,7 @@ export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndic
   },
   'rolling-vwap': {
     label: 'Rolling VWAP',
-    supportedIntervals: ['1m', '5m', '30m', '4h', '1d', '1w'],
+    supportedIntervals: ['1m', '5m', '30m', '1h', '2h', '4h', '1d', '1w'],
     contextLevel: null,
   },
 }

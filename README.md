@@ -95,12 +95,12 @@ Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts
 
 | Topic | Behavior |
 |-------|----------|
-| **Timeframes** | `1m`, `5m`, `30m`, `4h`, `1d`, `1w` (header interval picker) |
+| **Timeframes** | `1m`, `5m`, `30m`, `1H`, `2H`, `4h`, `1d`, `1w` (header interval picker; stored as `1h`/`2h`) |
 | **Default** | `1m`, no indicators selected |
 | **3 EMA** | EMA 13, 21, 35 — all timeframes |
 | **EMA 200** | 200-period EMA — all timeframes (independent of 3 EMA) |
-| **Daily VWAP** | `1m`–`1d` (not `1w`) |
-| **Weekly VWAP** | `1m`–`1d` (not `1w`) |
+| **Daily VWAP** | `1m`–`1d` including `1h` and `2h` (not `1w`) |
+| **Weekly VWAP** | `1m`–`1d` including `1h` and `2h` (not `1w`) |
 | **Monthly VWAP** | `4h`, `1d` only |
 | **Quarterly VWAP** | `4h`, `1d` only |
 | **Yearly VWAP** | `1d`, `1w` only |

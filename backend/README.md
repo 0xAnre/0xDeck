@@ -63,7 +63,7 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 
 ### WebSocket (`/api/ws/{channel}`)
 
-Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). Generic channels accept `ping` / `pong` only. **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `30m`, `4h`, `1d`, `1w`). The backend opens a shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
+Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). Generic channels accept `ping` / `pong` only. **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`). The backend opens a shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
 
 **Server → client** (every message includes `type`, `channel`, `timestamp` UTC ISO):
 

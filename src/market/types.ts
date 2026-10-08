@@ -1,4 +1,4 @@
-export const CANDLE_INTERVALS = ['1m', '5m', '30m', '4h', '1d', '1w'] as const
+export const CANDLE_INTERVALS = ['1m', '5m', '30m', '1h', '2h', '4h', '1d', '1w'] as const
 
 export type CandleInterval = (typeof CANDLE_INTERVALS)[number]
 
@@ -8,6 +8,8 @@ export const BTC_USDM_KLINE_CHANNELS: Record<CandleInterval, string> = {
   '1m': 'binance.usdm.btcusdt.kline.1m',
   '5m': 'binance.usdm.btcusdt.kline.5m',
   '30m': 'binance.usdm.btcusdt.kline.30m',
+  '1h': 'binance.usdm.btcusdt.kline.1h',
+  '2h': 'binance.usdm.btcusdt.kline.2h',
   '4h': 'binance.usdm.btcusdt.kline.4h',
   '1d': 'binance.usdm.btcusdt.kline.1d',
   '1w': 'binance.usdm.btcusdt.kline.1w',
