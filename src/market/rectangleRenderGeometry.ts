@@ -99,6 +99,25 @@ export function getRectangleInstanceOmittedDuringInteraction(
   return null
 }
 
+function previewFillStyleForInteraction(args: BuildRectangleDrawModelsArgs): string {
+  const { interaction } = args
+  if (interaction.phase !== 'resizing' && interaction.phase !== 'moving') {
+    return args.previewFillStyle
+  }
+
+  const draft = interaction.draft
+  if (draft === null || draft.kind === 'create') {
+    return args.previewFillStyle
+  }
+  if (draft.kind === 'resize' || draft.kind === 'move') {
+    const instance = args.instances.find((item) => item.id === draft.instanceId)
+    return instance ? args.resolveInstanceFillStyle(instance) : args.previewFillStyle
+  }
+
+  const _exhaustive: never = draft
+  return _exhaustive
+}
+
 export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): RectangleDrawModel[] {
   const models: RectangleDrawModel[] = []
   const omittedInstanceId = getRectangleInstanceOmittedDuringInteraction(args.interaction)
@@ -131,7 +150,7 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
         if (box) {
           models.push({
             ...box,
-            fillStyle: args.previewFillStyle,
+            fillStyle: previewFillStyleForInteraction(args),
             handles:
               args.interaction.phase === 'resizing' || args.interaction.phase === 'moving'
                 ? buildHandlePoints(box)
