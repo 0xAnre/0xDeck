@@ -33,4 +33,23 @@ describe('rectangleHitTest', () => {
     assert.equal(hit?.kind, 'corner-nw')
     assert.equal(hit?.instanceId, 'rect-old')
   })
+
+  it('ignores hidden handle targets on a selected locked rectangle', () => {
+    const locked: RectangleInstance[] = [
+      {
+        id: 'rect-locked',
+        fromTime: 1,
+        toTime: 2,
+        lowPrice: 1,
+        highPrice: 2,
+        locked: true,
+      },
+    ]
+    const projectLocked = () => ({ left: 0, right: 100, top: 0, bottom: 100 })
+    const outsideCorner = hitTestRectangles(locked, 'rect-locked', -4, -4, projectLocked)
+    assert.equal(outsideCorner, null)
+    const interior = hitTestRectangles(locked, 'rect-locked', 50, 50, projectLocked)
+    assert.equal(interior?.kind, 'interior')
+    assert.equal(interior?.instanceId, 'rect-locked')
+  })
 })
