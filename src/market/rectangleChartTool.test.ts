@@ -6,6 +6,7 @@ import {
 } from './rectangleChartTool.ts'
 import { INITIAL_RECTANGLE_INTERACTION_STATE, startRectangleCreateDraft, armRectangleTool } from './rectangleInteraction.ts'
 import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
+import { INITIAL_LINE_INTERACTION_STATE } from './lineInteraction.ts'
 import { createRectangleInstance } from './rectangleInstances.ts'
 describe('rectangleChartTool', () => {
   it('locks chart navigation only while creating or resizing', () => {
@@ -18,11 +19,13 @@ describe('rectangleChartTool', () => {
     applyRectangleChartInteractionMode(
       chart as never,
       INITIAL_RECTANGLE_INTERACTION_STATE,
+      INITIAL_LINE_INTERACTION_STATE,
       INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
     )
     applyRectangleChartInteractionMode(
       chart as never,
       startRectangleCreateDraft(armRectangleTool(INITIAL_RECTANGLE_INTERACTION_STATE), 1, 1),
+      INITIAL_LINE_INTERACTION_STATE,
       INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
     )
     assert.equal(options[0]?.handleScroll.pressedMouseMove, true)
@@ -63,6 +66,7 @@ describe('rectangleChartTool', () => {
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => null,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      getLineInteraction: () => INITIAL_LINE_INTERACTION_STATE,
       shouldHandleKeyboardShortcut: () => true,
     })
 
@@ -140,6 +144,7 @@ describe('rectangleChartTool', () => {
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => null,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      getLineInteraction: () => INITIAL_LINE_INTERACTION_STATE,
       shouldHandleKeyboardShortcut: () => true,
     })
 

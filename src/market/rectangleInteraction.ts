@@ -54,6 +54,10 @@ export function isRectangleChartNavigationLocked(state: RectangleInteractionStat
   return state.phase === 'creating' || state.phase === 'resizing' || state.phase === 'moving'
 }
 
+export function isRectangleToolArmed(state: RectangleInteractionState): boolean {
+  return state.phase === 'armed'
+}
+
 export function armRectangleTool(state: RectangleInteractionState): RectangleInteractionState {
   return {
     ...state,

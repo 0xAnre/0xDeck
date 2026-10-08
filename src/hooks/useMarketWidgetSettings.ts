@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
@@ -30,6 +31,9 @@ type UseMarketWidgetSettingsArgs = {
   rectangleInstances: RectangleInstance[]
   onRectangleArm: () => void
   onRectangleDelete: (instanceId: string) => void
+  lineInstances: LineInstance[]
+  onLineArm: () => void
+  onLineDelete: (instanceId: string) => void
   disabled: boolean
 }
 
@@ -53,6 +57,9 @@ export function useMarketWidgetSettings({
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
+  lineInstances,
+  onLineArm,
+  onLineDelete,
   disabled,
 }: UseMarketWidgetSettingsArgs) {
   const registration = useMemo<WidgetSettingsRegistration>(
@@ -91,11 +98,15 @@ export function useMarketWidgetSettings({
       rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
       onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
       onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
+      lineInstances: headerSettings.tools === true ? lineInstances : undefined,
+      onLineArm: headerSettings.tools === true ? onLineArm : undefined,
+      onLineDelete: headerSettings.tools === true ? onLineDelete : undefined,
     }),
     [
       disabled,
       fixedRangeVolumeProfileInstances,
       rectangleInstances,
+      lineInstances,
       headerSettings,
       marketIndicators,
       marketInterval,
@@ -103,6 +114,8 @@ export function useMarketWidgetSettings({
       onFixedRangeVolumeProfileDelete,
       onRectangleArm,
       onRectangleDelete,
+      onLineArm,
+      onLineDelete,
       onMarketIndicatorsChange,
       onRollingVwapAdd,
       onRollingVwapDelete,

@@ -147,7 +147,10 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
         settings.onFixedRangeVolumeProfileDelete &&
         settings.rectangleInstances &&
         settings.onRectangleArm &&
-        settings.onRectangleDelete && (
+        settings.onRectangleDelete &&
+        settings.lineInstances &&
+        settings.onLineArm &&
+        settings.onLineDelete && (
           <HeaderToolsMenu
             id={`${panelId}-tools`}
             disabled={settings.disabled}
@@ -157,6 +160,9 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             rectangleInstances={settings.rectangleInstances}
             onRectangleArm={settings.onRectangleArm}
             onRectangleDelete={settings.onRectangleDelete}
+            lineInstances={settings.lineInstances}
+            onLineArm={settings.onLineArm}
+            onLineDelete={settings.onLineDelete}
           />
         )}
     </div>
