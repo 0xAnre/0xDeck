@@ -2,6 +2,7 @@ import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
@@ -54,6 +55,9 @@ export type WidgetSettingsRegistration = {
   rectangleInstances?: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
+  lineInstances?: LineInstance[]
+  onLineArm?: () => void
+  onLineDelete?: (instanceId: string) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {

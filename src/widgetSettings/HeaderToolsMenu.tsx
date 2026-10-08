@@ -10,6 +10,8 @@ import {
 import { cn } from '@/lib/utils'
 import { formatFixedRangeVolumeProfileInstanceLabel } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import { formatLineInstanceLabel } from '@/market/lineInstances'
+import type { LineInstance } from '@/market/lineInstances'
 import { formatRectangleInstanceLabel } from '@/market/rectangleInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
@@ -23,6 +25,9 @@ type HeaderToolsMenuProps = {
   rectangleInstances: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
+  lineInstances: LineInstance[]
+  onLineArm?: () => void
+  onLineDelete?: (instanceId: string) => void
 }
 
 export function HeaderToolsMenu({
@@ -34,6 +39,9 @@ export function HeaderToolsMenu({
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
+  lineInstances,
+  onLineArm,
+  onLineDelete,
 }: HeaderToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -44,6 +52,11 @@ export function HeaderToolsMenu({
 
   const armRectangle = () => {
     onRectangleArm?.()
+    setMenuOpen(false)
+  }
+
+  const armLine = () => {
+    onLineArm?.()
     setMenuOpen(false)
   }
 
@@ -69,6 +82,9 @@ export function HeaderToolsMenu({
         <DropdownMenuItem disabled={disabled} onSelect={armRectangle}>
           Rectangle / Box
         </DropdownMenuItem>
+        <DropdownMenuItem disabled={disabled} onSelect={armLine}>
+          Line
+        </DropdownMenuItem>
         {fixedRangeVolumeProfileInstances.length > 0 && (
           <>
             <DropdownMenuSeparator />
@@ -89,6 +105,32 @@ export function HeaderToolsMenu({
                   onClick={(event) => {
                     event.stopPropagation()
                     onFixedRangeVolumeProfileDelete?.(instance.id)
+                  }}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </button>
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+        {lineInstances.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            {lineInstances.map((instance) => (
+              <DropdownMenuItem
+                key={instance.id}
+                className="flex items-center justify-between gap-2"
+                onSelect={(event) => event.preventDefault()}
+              >
+                <span className="min-w-0 truncate text-xs">{formatLineInstanceLabel(instance)}</span>
+                <button
+                  type="button"
+                  aria-label="Delete line"
+                  className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onLineDelete?.(instance.id)
                   }}
                 >
                   <Trash2Icon className="size-3.5" />

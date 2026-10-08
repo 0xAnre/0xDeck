@@ -1,63 +1,63 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { preferDrawingPointerTarget } from './drawingPointerArbitration.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
-import type { LineHitTarget } from './lineHitTest.ts'
 import {
-  applyRectangleSelection,
-  cancelRectangleInteraction,
-  commitRectangleCreate,
-  commitRectangleMove,
-  commitRectangleResize,
-  isRectangleChartNavigationLocked,
-  startRectangleCreateDraft,
-  startRectangleMoveDraft,
-  startRectangleResizeDraft,
-  updateRectangleCreatePreview,
-  type RectangleInteractionState,
-} from './rectangleInteraction.ts'
-import type { RectangleInstance } from './rectangleInstances.ts'
-import { hitTestRectangles } from './rectangleHitTest.ts'
-import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
+  applyLineSelection,
+  cancelLineInteraction,
+  commitLineCreate,
+  commitLineMove,
+  commitLineResize,
+  isLineChartNavigationLocked,
+  startLineCreateDraft,
+  startLineMoveDraft,
+  startLineResizeDraft,
+  updateLineCreatePreview,
+  type LineInteractionState,
+} from './lineInteraction.ts'
+import { hitTestLines } from './lineHitTest.ts'
+import type { LineInstance } from './lineInstances.ts'
+import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
+import type { RectangleHitTarget } from './rectangleHitTest.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
-  buildRectangleChartTimeContext,
-  resolveRectangleTimeToCoordinate,
-  type RectangleChartTimeContext,
-} from './rectangleChartTime.ts'
+  buildLineChartTimeContext,
+  resolveLineTimeToCoordinate,
+  type LineChartTimeContext,
+} from './lineChartTime.ts'
 
-export type RectanglePanePointerCallbacks = {
+export type LinePanePointerCallbacks = {
   getSnapshot: () => {
-    interaction: RectangleInteractionState
-    instances: readonly RectangleInstance[]
+    interaction: LineInteractionState
+    instances: readonly LineInstance[]
   }
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<SeriesType, Time> | null
   getIntervalDurationSeconds: () => number
   getLastBarUnixTime: () => number | null
-  onInteractionChange: (state: RectangleInteractionState) => void
-  onInstanceCompleted: (instance: RectangleInstance) => void
-  onInstanceUpdated: (instance: RectangleInstance) => void
+  onInteractionChange: (state: LineInteractionState) => void
+  onInstanceCompleted: (instance: LineInstance) => void
+  onInstanceUpdated: (instance: LineInstance) => void
   onRequestRender: () => void
   onPointerPreviewChange: (time: number | null, price: number | null) => void
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
-  getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
+  getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
 }
 
-export type RectanglePanePointerController = {
+export type LinePanePointerController = {
   dispose: () => void
 }
 
-function focusRectangleInteractionPane(paneElement: HTMLElement): void {
+function focusLineInteractionPane(paneElement: HTMLElement): void {
   if (typeof paneElement.focus !== 'function') return
   if (paneElement.tabIndex < 0) paneElement.tabIndex = -1
   paneElement.focus()
 }
 
-export function attachRectanglePanePointer(
+export function attachLinePanePointer(
   chart: IChartApi,
-  callbacks: RectanglePanePointerCallbacks,
-): RectanglePanePointerController {
+  callbacks: LinePanePointerCallbacks,
+): LinePanePointerController {
   const pane = chart.panes()[0]
   const paneElement = pane.getHTMLElement()
   if (!paneElement) {
@@ -71,23 +71,23 @@ export function attachRectanglePanePointer(
     return event.clientY - rect.top
   }
 
-  const resolveTimeContext = (): RectangleChartTimeContext | null => {
+  const resolveTimeContext = (): LineChartTimeContext | null => {
     const series = callbacks.getSeries()
     if (!series) return null
-    return buildRectangleChartTimeContext(
+    return buildLineChartTimeContext(
       chart,
       callbacks.getLastBarUnixTime(),
       callbacks.getIntervalDurationSeconds(),
     )
   }
 
-  const projectInstance = (instance: RectangleInstance) => {
+  const projectInstance = (instance: LineInstance) => {
     const series = callbacks.getSeries()
     if (!series) return null
     const timeContext = resolveTimeContext()
-    return projectRectangleInstanceToScreenBox(
+    return projectLineInstanceToScreenSegment(
       instance,
-      (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge, timeContext),
+      (time, edge) => resolveLineTimeToCoordinate(chart, time, edge, timeContext),
       (price) => series.priceToCoordinate(price),
     )
   }
@@ -101,7 +101,7 @@ export function attachRectanglePanePointer(
     const snapshot = callbacks.getSnapshot()
     let next = snapshot.interaction
     if (next.phase === 'creating') {
-      next = updateRectangleCreatePreview(next, point.time, point.price)
+      next = updateLineCreatePreview(next, point.time, point.price)
     }
     if (next !== snapshot.interaction) {
       callbacks.onInteractionChange(next)
@@ -124,8 +124,8 @@ export function attachRectanglePanePointer(
       if (!point) return
       event.preventDefault()
       event.stopPropagation()
-      focusRectangleInteractionPane(paneElement)
-      const next = startRectangleCreateDraft(interaction, point.time, point.price)
+      focusLineInteractionPane(paneElement)
+      const next = startLineCreateDraft(interaction, point.time, point.price)
       if (next === interaction) return
       activePointerId = event.pointerId
       paneElement.setPointerCapture(event.pointerId)
@@ -136,7 +136,7 @@ export function attachRectanglePanePointer(
     }
 
     if (interaction.phase === 'inactive') {
-      const hit = hitTestRectangles(
+      const hit = hitTestLines(
         snapshot.instances,
         interaction.selectedId,
         paneX,
@@ -145,24 +145,24 @@ export function attachRectanglePanePointer(
       )
       if (!hit) {
         if (interaction.selectedId !== null) {
-          callbacks.onInteractionChange(applyRectangleSelection(interaction, null))
+          callbacks.onInteractionChange(applyLineSelection(interaction, null))
           callbacks.onRequestRender()
         }
         return
       }
       if (
-        preferDrawingPointerTarget(callbacks.getCompetingLineHit(paneX, paneY), hit) !==
-        'rectangle'
+        preferDrawingPointerTarget(hit, callbacks.getCompetingRectangleHit(paneX, paneY)) !==
+        'line'
       ) {
         return
       }
       event.preventDefault()
       event.stopPropagation()
-      focusRectangleInteractionPane(paneElement)
-      if (hit.kind !== 'interior') {
+      focusLineInteractionPane(paneElement)
+      if (hit.kind !== 'body') {
         const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
         if (!instance) return
-        const next = startRectangleResizeDraft(interaction, instance, hit.kind)
+        const next = startLineResizeDraft(interaction, instance, hit.kind)
         if (next === interaction) return
         activePointerId = event.pointerId
         paneElement.setPointerCapture(event.pointerId)
@@ -176,7 +176,7 @@ export function attachRectanglePanePointer(
       if (!series) return
       const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
       if (!point) return
-      const next = startRectangleMoveDraft(interaction, instance, point.time, point.price)
+      const next = startLineMoveDraft(interaction, instance, point.time, point.price)
       if (next === interaction) return
       activePointerId = event.pointerId
       paneElement.setPointerCapture(event.pointerId)
@@ -188,7 +188,7 @@ export function attachRectanglePanePointer(
   const onPointerMove = (event: PointerEvent) => {
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
-    if (!isRectangleChartNavigationLocked(snapshot.interaction)) return
+    if (!isLineChartNavigationLocked(snapshot.interaction)) return
     const paneX = resolvePaneRelativePointerX(event, paneElement)
     const paneY = resolvePaneY(event)
     syncPointerPreview(paneX, paneY)
@@ -216,9 +216,9 @@ export function attachRectanglePanePointer(
     if (snapshot.interaction.phase === 'creating') {
       let interaction = snapshot.interaction
       if (point) {
-        interaction = updateRectangleCreatePreview(interaction, point.time, point.price)
+        interaction = updateLineCreatePreview(interaction, point.time, point.price)
       }
-      const result = commitRectangleCreate(interaction, snapshot.instances)
+      const result = commitLineCreate(interaction, snapshot.instances)
       callbacks.onInteractionChange(result.state)
       if (result.completedInstance) {
         callbacks.onInstanceCompleted(result.completedInstance)
@@ -234,7 +234,7 @@ export function attachRectanglePanePointer(
       const commitTime = point?.time ?? preview.time
       const commitPrice = point?.price ?? preview.price
       if (commitTime !== null && commitPrice !== null) {
-        const result = commitRectangleResize(
+        const result = commitLineResize(
           snapshot.interaction,
           snapshot.instances,
           commitTime,
@@ -245,7 +245,7 @@ export function attachRectanglePanePointer(
           callbacks.onInstanceUpdated(result.updatedInstance)
         }
       } else {
-        callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
+        callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
       }
       callbacks.onPointerPreviewChange(null, null)
       releasePointer(event)
@@ -258,7 +258,7 @@ export function attachRectanglePanePointer(
       const commitTime = point?.time ?? preview.time
       const commitPrice = point?.price ?? preview.price
       if (commitTime !== null && commitPrice !== null) {
-        const result = commitRectangleMove(
+        const result = commitLineMove(
           snapshot.interaction,
           snapshot.instances,
           commitTime,
@@ -269,7 +269,7 @@ export function attachRectanglePanePointer(
           callbacks.onInstanceUpdated(result.updatedInstance)
         }
       } else {
-        callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
+        callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
       }
       callbacks.onPointerPreviewChange(null, null)
       releasePointer(event)
@@ -283,8 +283,8 @@ export function attachRectanglePanePointer(
   const onPointerCancel = (event: PointerEvent) => {
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
-    if (isRectangleChartNavigationLocked(snapshot.interaction)) {
-      const cancelled = cancelRectangleInteraction(snapshot.interaction)
+    if (isLineChartNavigationLocked(snapshot.interaction)) {
+      const cancelled = cancelLineInteraction(snapshot.interaction)
       callbacks.onPointerPreviewChange(null, null)
       callbacks.onInteractionChange(cancelled)
       callbacks.onRequestRender()

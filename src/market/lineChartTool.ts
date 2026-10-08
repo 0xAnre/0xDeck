@@ -1,55 +1,53 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
-import { lineHitAtPanePoint } from './drawingPointerArbitration.ts'
+import { rectangleHitAtPanePoint } from './drawingPointerArbitration.ts'
 import {
   isFixedRangeVolumeProfileToolActive,
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import {
-  cancelRectangleInteraction,
-  INITIAL_RECTANGLE_INTERACTION_STATE,
-  removeSelectedRectangle,
-  type RectangleInteractionState,
-} from './rectangleInteraction.ts'
-import {
-  isLineDrawingBlockingPeerTools,
+  cancelLineInteraction,
+  INITIAL_LINE_INTERACTION_STATE,
+  removeSelectedLine,
   type LineInteractionState,
 } from './lineInteraction.ts'
 import type { LineInstance } from './lineInstances.ts'
-import type { RectangleInstance } from './rectangleInstances.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
+import type { RectangleInteractionState } from './rectangleInteraction.ts'
+import type { RectangleInstance } from './rectangleInstances.ts'
+import { isRectangleDrawingBlockingPeerTools } from './rectanglePeerTools.ts'
 import {
-  attachRectanglePanePointer,
-  type RectanglePanePointerController,
-} from './rectanglePanePointer.ts'
+  attachLinePanePointer,
+  type LinePanePointerController,
+} from './linePanePointer.ts'
 
-export type RectangleChartToolSnapshot = {
-  interaction: RectangleInteractionState
-  instances: readonly RectangleInstance[]
+export type LineChartToolSnapshot = {
+  interaction: LineInteractionState
+  instances: readonly LineInstance[]
   pointerTime: number | null
   pointerPrice: number | null
 }
 
-export type RectangleChartToolCallbacks = {
-  getSnapshot: () => Omit<RectangleChartToolSnapshot, 'pointerTime' | 'pointerPrice'>
+export type LineChartToolCallbacks = {
+  getSnapshot: () => Omit<LineChartToolSnapshot, 'pointerTime' | 'pointerPrice'>
   getPointerPreview: () => { pointerTime: number | null; pointerPrice: number | null }
   setPointerPreview: (time: number | null, price: number | null) => void
   shouldHandleKeyboardShortcut: () => boolean
-  onInteractionChange: (state: RectangleInteractionState) => void
-  onInstancesChange: (instances: RectangleInstance[]) => void
-  onInstanceCompleted: (instance: RectangleInstance) => void
-  onInstanceUpdated: (instance: RectangleInstance) => void
+  onInteractionChange: (state: LineInteractionState) => void
+  onInstancesChange: (instances: LineInstance[]) => void
+  onInstanceCompleted: (instance: LineInstance) => void
+  onInstanceUpdated: (instance: LineInstance) => void
   onRequestRender: () => void
   getChart: () => IChartApi | null
   getSeries: () => ISeriesApi<SeriesType, Time> | null
   getIntervalDurationSeconds: () => number
   getLastBarUnixTime: () => number | null
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
-  getLineInteraction: () => LineInteractionState
-  getLineInstances: () => readonly LineInstance[]
+  getRectangleInteraction: () => RectangleInteractionState
+  getRectangleInstances: () => readonly RectangleInstance[]
 }
 
-export type RectangleChartToolController = {
+export type LineChartToolController = {
   sync: () => void
   dispose: () => void
 }
@@ -61,31 +59,31 @@ function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   return target.isContentEditable
 }
 
-export function applyRectangleChartInteractionMode(
+export function applyLineChartInteractionMode(
   chart: IChartApi,
-  rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
+  rectangleInteraction: RectangleInteractionState,
   frvpInteraction: FixedRangeVolumeProfileInteractionState,
 ): void {
   applyChartDrawingInteractionMode(chart, rectangleInteraction, lineInteraction, frvpInteraction)
 }
 
-export function attachRectangleChartTool(
+export function attachLineChartTool(
   chart: IChartApi,
-  callbacks: RectangleChartToolCallbacks,
-): RectangleChartToolController {
-  let panePointer: RectanglePanePointerController | null = null
+  callbacks: LineChartToolCallbacks,
+): LineChartToolController {
+  let panePointer: LinePanePointerController | null = null
 
   const present = () => {
-    applyRectangleChartInteractionMode(
+    applyLineChartInteractionMode(
       chart,
       callbacks.getSnapshot().interaction,
-      callbacks.getLineInteraction(),
+      callbacks.getRectangleInteraction(),
       callbacks.getFixedRangeVolumeProfileInteraction(),
     )
   }
 
-  const commitInteraction = (next: RectangleInteractionState) => {
+  const commitInteraction = (next: LineInteractionState) => {
     callbacks.onInteractionChange(next)
     present()
     callbacks.onRequestRender()
@@ -96,7 +94,7 @@ export function attachRectangleChartTool(
     callbacks.onRequestRender()
   }
 
-  panePointer = attachRectanglePanePointer(chart, {
+  panePointer = attachLinePanePointer(chart, {
     getSnapshot: () => callbacks.getSnapshot(),
     getChart: callbacks.getChart,
     getSeries: callbacks.getSeries,
@@ -125,17 +123,19 @@ export function attachRectangleChartTool(
     },
     isAlternateToolActive: () => {
       const frvp = callbacks.getFixedRangeVolumeProfileInteraction()
-      const line = callbacks.getLineInteraction()
-      return isFixedRangeVolumeProfileToolActive(frvp) || isLineDrawingBlockingPeerTools(line)
+      const rectangle = callbacks.getRectangleInteraction()
+      return (
+        isFixedRangeVolumeProfileToolActive(frvp) || isRectangleDrawingBlockingPeerTools(rectangle)
+      )
     },
-    getCompetingLineHit: (paneX, paneY) => {
+    getCompetingRectangleHit: (paneX, paneY) => {
       const series = callbacks.getSeries()
       if (!series) return null
-      return lineHitAtPanePoint({
+      return rectangleHitAtPanePoint({
         chart,
         series,
-        instances: callbacks.getLineInstances(),
-        selectedId: callbacks.getLineInteraction().selectedId,
+        instances: callbacks.getRectangleInstances(),
+        selectedId: callbacks.getRectangleInteraction().selectedId,
         paneX,
         paneY,
         intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
@@ -149,7 +149,7 @@ export function attachRectangleChartTool(
     if (!callbacks.shouldHandleKeyboardShortcut()) return
     const snapshot = callbacks.getSnapshot()
     if (event.key === 'Escape') {
-      const next = cancelRectangleInteraction(snapshot.interaction)
+      const next = cancelLineInteraction(snapshot.interaction)
       if (next === snapshot.interaction) return
       event.preventDefault()
       callbacks.setPointerPreview(null, null)
@@ -168,7 +168,7 @@ export function attachRectangleChartTool(
         return
       }
       event.preventDefault()
-      const result = removeSelectedRectangle(snapshot.interaction, snapshot.instances)
+      const result = removeSelectedLine(snapshot.interaction, snapshot.instances)
       commitInteraction(result.state)
       callbacks.onInstancesChange([...result.instances])
     }
@@ -181,10 +181,10 @@ export function attachRectangleChartTool(
     window.removeEventListener('keydown', onKeyDown)
     panePointer?.dispose()
     panePointer = null
-    applyRectangleChartInteractionMode(
+    applyLineChartInteractionMode(
       chart,
-      INITIAL_RECTANGLE_INTERACTION_STATE,
-      callbacks.getLineInteraction(),
+      INITIAL_LINE_INTERACTION_STATE,
+      callbacks.getRectangleInteraction(),
       callbacks.getFixedRangeVolumeProfileInteraction(),
     )
   }
