@@ -40,6 +40,18 @@ describe('fixedRangeVolumeProfileRequestBounds', () => {
     assert.equal(bounds?.requestEndTime, to + 14_400)
   })
 
+  it('includes the last 1h and 2h candles in exclusive API end', () => {
+    const from = 1_700_000_000
+    const oneHour = computeFixedRangeVolumeProfileRequestBounds(
+      instance(from, from + 3600, '1h'),
+    )
+    assert.equal(oneHour?.requestEndTime, from + 7200)
+    const twoHour = computeFixedRangeVolumeProfileRequestBounds(
+      instance(from, from + 7200, '2h'),
+    )
+    assert.equal(twoHour?.requestEndTime, from + 14_400)
+  })
+
   it('includes the last 1d candle in exclusive API end', () => {
     const from = 1_700_000_000
     const to = from + 86_400

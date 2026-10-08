@@ -1,5 +1,5 @@
-import type { CandleInterval } from '@/market/types'
-import { CANDLE_INTERVALS, DEFAULT_CANDLE_INTERVAL } from '@/market/types'
+import type { CandleInterval } from './market/types.ts'
+import { CANDLE_INTERVALS, DEFAULT_CANDLE_INTERVAL } from './market/types.ts'
 
 export const WIDGET_MARKET_INTERVAL_STORAGE_KEY = '0xdeck-widget-market-intervals'
 
@@ -31,7 +31,18 @@ export function saveWidgetMarketInterval(panelId: string, interval: CandleInterv
   localStorage.setItem(WIDGET_MARKET_INTERVAL_STORAGE_KEY, JSON.stringify(map))
 }
 
+const MARKET_INTERVAL_LABELS: Record<CandleInterval, string> = {
+  '1m': '1m',
+  '5m': '5m',
+  '30m': '30m',
+  '1h': '1H',
+  '2h': '2H',
+  '4h': '4h',
+  '1d': '1d',
+  '1w': '1w',
+}
+
 export const MARKET_INTERVAL_OPTIONS = CANDLE_INTERVALS.map((value) => ({
   value,
-  label: value,
+  label: MARKET_INTERVAL_LABELS[value],
 }))

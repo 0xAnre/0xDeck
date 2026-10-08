@@ -50,7 +50,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `columns` | Column multi-select (table) |
 | `metric` | KPI metric column |
 | `aggregation` | KPI aggregation |
-| `interval` | Candle interval (`1m`, `5m`, `30m`, `4h`, `1d`, `1w`) for live market widgets |
+| `interval` | Candle interval (`1m`, `5m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`) for live market widgets |
 
 ---
 
