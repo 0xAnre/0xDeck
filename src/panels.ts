@@ -95,6 +95,8 @@ export function resolvePanelInstance(instanceId: string): PanelInstance | null {
 }
 
 export function panelDisplayTitle(instance: PanelInstance, activeInstances: PanelInstance[]): string {
+  if (instance.kind === 'btc-perpetual-chart') return instance.title
+
   const sameKind = activeInstances.filter((panel) => panel.kind === instance.kind)
   if (sameKind.length <= 1) return instance.title
 
