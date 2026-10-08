@@ -1,4 +1,5 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
+import { preferDrawingPointerTarget } from './drawingPointerArbitration.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import {
   applyLineSelection,
@@ -13,9 +14,10 @@ import {
   updateLineCreatePreview,
   type LineInteractionState,
 } from './lineInteraction.ts'
-import type { LineInstance } from './lineInstances.ts'
 import { hitTestLines } from './lineHitTest.ts'
+import type { LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
+import type { RectangleHitTarget } from './rectangleHitTest.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
   buildLineChartTimeContext,
@@ -39,6 +41,7 @@ export type LinePanePointerCallbacks = {
   onPointerPreviewChange: (time: number | null, price: number | null) => void
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
+  getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
 }
 
 export type LinePanePointerController = {
@@ -145,6 +148,12 @@ export function attachLinePanePointer(
           callbacks.onInteractionChange(applyLineSelection(interaction, null))
           callbacks.onRequestRender()
         }
+        return
+      }
+      if (
+        preferDrawingPointerTarget(hit, callbacks.getCompetingRectangleHit(paneX, paneY)) !==
+        'line'
+      ) {
         return
       }
       event.preventDefault()

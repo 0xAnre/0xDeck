@@ -110,6 +110,12 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
+  releaseLineInteractionForPeerTool,
+  releaseRectangleInteractionForPeerTool,
+  withExclusiveLineSelection,
+  withExclusiveRectangleSelection,
+} from '@/market/drawingSelection'
+import {
   applyRectangleSelection,
   armRectangleTool,
   cancelRectangleInteraction,
@@ -446,10 +452,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setFixedRangeVolumeProfileInteraction(cancelledFrvp)
       fixedRangeVolumeProfileToolControllerRef.current?.sync()
     }
-    const cancelledLine = cancelLineInteraction(lineInteractionRef.current)
-    if (cancelledLine !== lineInteractionRef.current) {
-      lineInteractionRef.current = cancelledLine
-      setLineInteraction(cancelledLine)
+    const releasedLine = releaseLineInteractionForPeerTool(lineInteractionRef.current)
+    if (releasedLine !== lineInteractionRef.current) {
+      lineInteractionRef.current = releasedLine
+      setLineInteraction(releasedLine)
       lineToolControllerRef.current?.sync()
       lineSeriesAttachmentRef.current?.update()
     }
@@ -486,10 +492,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setFixedRangeVolumeProfileInteraction(cancelledFrvp)
       fixedRangeVolumeProfileToolControllerRef.current?.sync()
     }
-    const cancelledRectangle = cancelRectangleInteraction(rectangleInteractionRef.current)
-    if (cancelledRectangle !== rectangleInteractionRef.current) {
-      rectangleInteractionRef.current = cancelledRectangle
-      setRectangleInteraction(cancelledRectangle)
+    const releasedRectangle = releaseRectangleInteractionForPeerTool(
+      rectangleInteractionRef.current,
+    )
+    if (releasedRectangle !== rectangleInteractionRef.current) {
+      rectangleInteractionRef.current = releasedRectangle
+      setRectangleInteraction(releasedRectangle)
       rectangleToolControllerRef.current?.sync()
       rectangleSeriesAttachmentRef.current?.update()
     }
@@ -763,8 +771,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         rectanglePointerPreviewRef.current = { pointerTime, pointerPrice }
       },
       onInteractionChange: (state) => {
-        rectangleInteractionRef.current = state
-        setRectangleInteraction(state)
+        const next = withExclusiveRectangleSelection(state, lineInteractionRef.current)
+        rectangleInteractionRef.current = next.rectangle
+        setRectangleInteraction(next.rectangle)
+        if (next.line !== lineInteractionRef.current) {
+          lineInteractionRef.current = next.line
+          setLineInteraction(next.line)
+          lineToolControllerRef.current?.sync()
+          lineSeriesAttachmentRef.current?.update()
+        }
       },
       onInstancesChange: (instances) => {
         persistRectangleInstances(instances)
@@ -790,6 +805,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getFixedRangeVolumeProfileInteraction: () =>
         fixedRangeVolumeProfileInteractionRef.current,
       getLineInteraction: () => lineInteractionRef.current,
+      getLineInstances: () => lineInstancesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     rectangleToolControllerRef.current = controller
@@ -814,8 +830,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         linePointerPreviewRef.current = { pointerTime, pointerPrice }
       },
       onInteractionChange: (state) => {
-        lineInteractionRef.current = state
-        setLineInteraction(state)
+        const next = withExclusiveLineSelection(state, rectangleInteractionRef.current)
+        lineInteractionRef.current = next.line
+        setLineInteraction(next.line)
+        if (next.rectangle !== rectangleInteractionRef.current) {
+          rectangleInteractionRef.current = next.rectangle
+          setRectangleInteraction(next.rectangle)
+          rectangleToolControllerRef.current?.sync()
+          rectangleSeriesAttachmentRef.current?.update()
+        }
       },
       onInstancesChange: (instances) => {
         persistLineInstances(instances)
@@ -839,6 +862,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getFixedRangeVolumeProfileInteraction: () =>
         fixedRangeVolumeProfileInteractionRef.current,
       getRectangleInteraction: () => rectangleInteractionRef.current,
+      getRectangleInstances: () => rectangleInstancesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     lineToolControllerRef.current = controller

@@ -1,5 +1,6 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
+import { lineHitAtPanePoint } from './drawingPointerArbitration.ts'
 import {
   isFixedRangeVolumeProfileToolActive,
   type FixedRangeVolumeProfileInteractionState,
@@ -10,8 +11,11 @@ import {
   removeSelectedRectangle,
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
-import type { LineInteractionState } from './lineInteraction.ts'
-import { isLineDrawingBlockingPeerTools } from './lineInteraction.ts'
+import {
+  isLineDrawingBlockingPeerTools,
+  type LineInteractionState,
+} from './lineInteraction.ts'
+import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import {
@@ -42,6 +46,7 @@ export type RectangleChartToolCallbacks = {
   getLastBarUnixTime: () => number | null
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
   getLineInteraction: () => LineInteractionState
+  getLineInstances: () => readonly LineInstance[]
 }
 
 export type RectangleChartToolController = {
@@ -122,6 +127,20 @@ export function attachRectangleChartTool(
       const frvp = callbacks.getFixedRangeVolumeProfileInteraction()
       const line = callbacks.getLineInteraction()
       return isFixedRangeVolumeProfileToolActive(frvp) || isLineDrawingBlockingPeerTools(line)
+    },
+    getCompetingLineHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      if (!series) return null
+      return lineHitAtPanePoint({
+        chart,
+        series,
+        instances: callbacks.getLineInstances(),
+        selectedId: callbacks.getLineInteraction().selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
     },
   })
 

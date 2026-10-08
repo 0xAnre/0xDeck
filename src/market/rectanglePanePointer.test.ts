@@ -36,6 +36,7 @@ function createPaneHarness() {
       coordinateToLogical: (x: number) => x,
       timeToIndex: () => 1,
       logicalToCoordinate: (logical: number) => logical,
+      timeToCoordinate: (time: number) => time,
     }),
   }
 
@@ -79,6 +80,7 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -114,6 +116,7 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -158,6 +161,7 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => true,
+      getCompetingLineHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -210,6 +214,7 @@ describe('rectanglePanePointer', () => {
       onPointerPreviewChange: () => {},
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -225,5 +230,64 @@ describe('rectanglePanePointer', () => {
 
     assert.equal(focused, 1)
     assert.equal(tabIndex, -1)
+  })
+
+  it('yields an interior hit when a line stroke is the competing target', () => {
+    const { listeners, chart } = createPaneHarness()
+    let interaction = {
+      ...INITIAL_RECTANGLE_INTERACTION_STATE,
+      selectedId: 'rect-1',
+    }
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction,
+        instances: [
+          {
+            id: 'rect-1',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => ({
+        instanceId: 'line-1',
+        kind: 'body',
+        priority: 1,
+        instanceIndex: 0,
+      }),
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 4,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+
+    assert.equal(interaction.phase, 'inactive')
+    assert.equal(interaction.selectedId, 'rect-1')
   })
 })

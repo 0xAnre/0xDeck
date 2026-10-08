@@ -1,7 +1,6 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
-import {
-  applyChartDrawingInteractionMode,
-} from './chartDrawingInteractionMode.ts'
+import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
+import { rectangleHitAtPanePoint } from './drawingPointerArbitration.ts'
 import {
   isFixedRangeVolumeProfileToolActive,
   type FixedRangeVolumeProfileInteractionState,
@@ -15,6 +14,7 @@ import {
 import type { LineInstance } from './lineInstances.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
+import type { RectangleInstance } from './rectangleInstances.ts'
 import { isRectangleDrawingBlockingPeerTools } from './rectanglePeerTools.ts'
 import {
   attachLinePanePointer,
@@ -44,6 +44,7 @@ export type LineChartToolCallbacks = {
   getLastBarUnixTime: () => number | null
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
   getRectangleInteraction: () => RectangleInteractionState
+  getRectangleInstances: () => readonly RectangleInstance[]
 }
 
 export type LineChartToolController = {
@@ -126,6 +127,20 @@ export function attachLineChartTool(
       return (
         isFixedRangeVolumeProfileToolActive(frvp) || isRectangleDrawingBlockingPeerTools(rectangle)
       )
+    },
+    getCompetingRectangleHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      if (!series) return null
+      return rectangleHitAtPanePoint({
+        chart,
+        series,
+        instances: callbacks.getRectangleInstances(),
+        selectedId: callbacks.getRectangleInteraction().selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
     },
   })
 

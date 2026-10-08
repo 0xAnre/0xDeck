@@ -67,6 +67,7 @@ describe('rectangleChartTool', () => {
       getLastBarUnixTime: () => null,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
       getLineInteraction: () => INITIAL_LINE_INTERACTION_STATE,
+      getLineInstances: () => [],
       shouldHandleKeyboardShortcut: () => true,
     })
 
@@ -145,6 +146,7 @@ describe('rectangleChartTool', () => {
       getLastBarUnixTime: () => null,
       getFixedRangeVolumeProfileInteraction: () => INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
       getLineInteraction: () => INITIAL_LINE_INTERACTION_STATE,
+      getLineInstances: () => [],
       shouldHandleKeyboardShortcut: () => true,
     })
 
