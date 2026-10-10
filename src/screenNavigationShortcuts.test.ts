@@ -2,10 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it, mock } from 'node:test'
 import {
   createScreenNavigationSequenceHandler,
-  findPanelNavigationElement,
   isEditableKeyboardTarget,
-  PANEL_NAV_ID_ATTR,
-  scrollToVisibleScreenAtIndex,
+  resolveWorkspaceScreenScrollTop,
+  scrollToWorkspaceScreenAtIndex,
   type ScreenNavigationKeyEvent,
 } from './screenNavigationShortcuts.ts'
 
@@ -239,40 +238,75 @@ describe('createScreenNavigationSequenceHandler', () => {
   })
 })
 
-describe('findPanelNavigationElement', () => {
-  it('returns the panel element marked with the navigation data attribute', () => {
-    const container = {
-      querySelector(selector: string) {
-        if (selector === `[${PANEL_NAV_ID_ATTR}="chart-abc"]`) {
-          return { id: 'chart-abc' }
-        }
-        return null
-      },
-    } as HTMLElement
+describe('resolveWorkspaceScreenScrollTop', () => {
+  const pageHeight = 800
 
-    const found = findPanelNavigationElement(container, 'chart-abc')
-    assert.equal((found as { id: string }).id, 'chart-abc')
-    assert.equal(findPanelNavigationElement(null, 'chart-abc'), null)
+  it('maps screen indexes 0 through 4 to exact page start offsets for Screens 1 through 5', () => {
+    const container = { clientHeight: pageHeight, scrollHeight: pageHeight * 6 }
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 0), 0)
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 1), pageHeight)
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 2), pageHeight * 2)
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 3), pageHeight * 3)
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 4), pageHeight * 4)
+  })
+
+  it('does not depend on panel count or widget order', () => {
+    const threePages = { clientHeight: pageHeight, scrollHeight: pageHeight * 3 }
+    const manyWidgetsOneScreen = { clientHeight: pageHeight, scrollHeight: pageHeight * 3 }
+    assert.equal(resolveWorkspaceScreenScrollTop(threePages, 1), pageHeight)
+    assert.equal(resolveWorkspaceScreenScrollTop(manyWidgetsOneScreen, 2), pageHeight * 2)
+  })
+
+  it('sends g+2 and g+3 to Screen 2 and 3 starts when multiple widgets share Screen 1', () => {
+    const container = { clientHeight: pageHeight, scrollHeight: pageHeight * 4 }
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 0), 0)
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 1), pageHeight)
+    assert.equal(resolveWorkspaceScreenScrollTop(container, 2), pageHeight * 2)
+  })
+
+  it('no-ops for missing screens without throwing', () => {
+    const twoPagesReachable = { clientHeight: pageHeight, scrollHeight: pageHeight * 2 }
+    assert.equal(resolveWorkspaceScreenScrollTop(twoPagesReachable, 0), 0)
+    assert.equal(resolveWorkspaceScreenScrollTop(twoPagesReachable, 1), pageHeight)
+    assert.equal(resolveWorkspaceScreenScrollTop(twoPagesReachable, 2), null)
+    assert.equal(resolveWorkspaceScreenScrollTop(twoPagesReachable, 4), null)
+
+    const noScroll = { clientHeight: pageHeight, scrollHeight: pageHeight }
+    assert.equal(resolveWorkspaceScreenScrollTop(noScroll, 0), 0)
+    assert.equal(resolveWorkspaceScreenScrollTop(noScroll, 1), null)
+
+    assert.equal(resolveWorkspaceScreenScrollTop({ clientHeight: 0, scrollHeight: 1000 }, 0), null)
+    assert.equal(resolveWorkspaceScreenScrollTop({ clientHeight: pageHeight, scrollHeight: pageHeight * 2 }, -1), null)
+    assert.equal(resolveWorkspaceScreenScrollTop({ clientHeight: pageHeight, scrollHeight: pageHeight * 2 }, 5), null)
   })
 })
 
-describe('scrollToVisibleScreenAtIndex', () => {
-  it('no-ops when the target screen is missing and does not throw', () => {
-    scrollToVisibleScreenAtIndex([], 0)
-    scrollToVisibleScreenAtIndex([null], 0)
-    scrollToVisibleScreenAtIndex([{} as HTMLElement], 4, () => {
-      throw new Error('should not scroll')
-    })
+describe('scrollToWorkspaceScreenAtIndex', () => {
+  it('scrolls to the exact top offset for the requested screen', () => {
+    const pageHeight = 600
+    const scrollCalls: { top: number; behavior?: ScrollBehavior }[] = []
+    const container = {
+      clientHeight: pageHeight,
+      scrollHeight: pageHeight * 5,
+      scrollTo(options: { top: number; behavior?: ScrollBehavior }) {
+        scrollCalls.push(options)
+      },
+    }
+
+    scrollToWorkspaceScreenAtIndex(container, 2)
+    assert.deepEqual(scrollCalls, [{ top: pageHeight * 2, behavior: 'smooth' }])
   })
 
-  it('scrolls the element at the requested visible index', () => {
-    const scrolled: HTMLElement[] = []
-    const first = { id: 'a' } as HTMLElement
-    const second = { id: 'b' } as HTMLElement
-    scrollToVisibleScreenAtIndex([first, second], 1, (element) => {
-      scrolled.push(element)
-    })
-    assert.deepEqual(scrolled, [second])
+  it('no-ops when the target screen is missing and does not throw', () => {
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 500,
+      scrollTo() {
+        throw new Error('should not scroll')
+      },
+    }
+    scrollToWorkspaceScreenAtIndex(container, 1)
+    scrollToWorkspaceScreenAtIndex(container, 4)
   })
 })
 
