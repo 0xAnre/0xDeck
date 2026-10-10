@@ -59,7 +59,7 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/binance/usdm/btcusdt/klines/monthly-context` | Klines for monthly VWAP (`4h`, `1d`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/quarterly-context` | Klines for quarterly VWAP (`4h`, `1d`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/yearly-context` | Klines for yearly VWAP (`1d`, `1w`) |
-| GET | `/api/market/binance/usdm/btcusdt/klines/volume-profile` | Source klines for fixed-range volume profile (`start_time`, `end_time` Unix seconds; auto-picks finest Binance interval up to ~5000 candles) |
+| GET | `/api/market/binance/usdm/btcusdt/klines/volume-profile` | Source klines for fixed-range volume profile (`start_time`, `end_time` as Unix seconds; auto-picks finest Binance interval up to ~5000 candles) |
 | WS | `/api/ws/{channel}` | WebSocket transport; Binance BTC kline relay on `binance.usdm.btcusdt.kline.{interval}` |
 
 ### WebSocket (`/api/ws/{channel}`)
