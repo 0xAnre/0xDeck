@@ -9,14 +9,27 @@ import {
   type ScreenNavigationKeyEvent,
 } from './screenNavigationShortcuts.ts'
 
+const KEY_FROM_CODE: Record<string, string> = {
+  KeyG: 'g',
+  KeyA: 'a',
+  Digit1: '1',
+  Digit2: '2',
+  Digit3: '3',
+  Digit4: '4',
+  Digit5: '5',
+  Digit6: '6',
+}
+
 function shortcutEvent(
   partial: Partial<ScreenNavigationKeyEvent> & Pick<ScreenNavigationKeyEvent, 'code'>,
 ): ScreenNavigationKeyEvent {
+  const key = partial.key ?? KEY_FROM_CODE[partial.code] ?? partial.code
   return {
     metaKey: false,
     ctrlKey: false,
     altKey: false,
     shiftKey: false,
+    key,
     code: partial.code,
     target: null,
     ...partial,
@@ -79,10 +92,33 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('maps physical digit keys via event.code regardless of layout-specific key values', () => {
+  it('matches typed digit characters via event.key (e.g. AZERTY shift+digit)', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit3' })), 2)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
+    assert.equal(
+      sequence.handleKeyDown(
+        shortcutEvent({ code: 'Digit2', key: '2', shiftKey: true }),
+      ),
+      1,
+    )
+    sequence.dispose()
+  })
+
+  it('does not navigate from physical digit position when the typed character is not 1-5', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ code: 'Digit1', key: '&' })),
+      null,
+    )
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit3', key: '3' })), null)
+    sequence.dispose()
+  })
+
+  it('arms the sequence when g is typed on a non-KeyG physical position (e.g. Dvorak)', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyI', key: 'g' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4', key: '4' })), 3)
     sequence.dispose()
   })
 

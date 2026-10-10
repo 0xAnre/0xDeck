@@ -3,14 +3,15 @@ export type ScreenNavigationKeyEvent = {
   ctrlKey: boolean
   altKey: boolean
   shiftKey: boolean
+  key: string
   code: string
   target: EventTarget | null
 }
 
 export const SCREEN_NAVIGATION_SEQUENCE_TIMEOUT_MS = 500
 
-function screenIndexFromDigitCode(code: string): number | null {
-  const match = /^Digit([1-5])$/.exec(code)
+function screenIndexFromDigitKey(key: string): number | null {
+  const match = /^([1-5])$/.exec(key)
   if (!match) return null
   return Number.parseInt(match[1], 10) - 1
 }
@@ -20,7 +21,11 @@ function isPlainKey(event: ScreenNavigationKeyEvent): boolean {
 }
 
 function isSequenceGKey(event: ScreenNavigationKeyEvent): boolean {
-  return isPlainKey(event) && event.code === 'KeyG'
+  return isPlainKey(event) && event.key === 'g'
+}
+
+function isDigitKeyWithoutUnrelatedModifiers(event: ScreenNavigationKeyEvent): boolean {
+  return !event.metaKey && !event.ctrlKey && !event.altKey
 }
 
 export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -94,7 +99,9 @@ export function createScreenNavigationSequenceHandler(
 
     if (!pending) return null
 
-    const index = isPlainKey(event) ? screenIndexFromDigitCode(event.code) : null
+    const index = isDigitKeyWithoutUnrelatedModifiers(event)
+      ? screenIndexFromDigitKey(event.key)
+      : null
     if (index === null) {
       clear()
       return null
