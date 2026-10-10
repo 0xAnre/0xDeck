@@ -7,10 +7,20 @@ export type ScreenNavigationKeyEvent = {
   target: EventTarget | null
 }
 
+export const SCREEN_NAVIGATION_SEQUENCE_TIMEOUT_MS = 500
+
 function screenIndexFromDigitCode(code: string): number | null {
   const match = /^Digit([1-5])$/.exec(code)
   if (!match) return null
   return Number.parseInt(match[1], 10) - 1
+}
+
+function isPlainKey(event: ScreenNavigationKeyEvent): boolean {
+  return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+}
+
+function isSequenceGKey(event: ScreenNavigationKeyEvent): boolean {
+  return isPlainKey(event) && event.code === 'KeyG'
 }
 
 export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -42,16 +52,59 @@ export function findPanelNavigationElement(
   )
 }
 
+export type ScreenNavigationSequenceHandler = {
+  handleKeyDown: (event: ScreenNavigationKeyEvent) => number | null
+  dispose: () => void
+}
+
 /**
- * Returns zero-based visible screen index for Cmd+Option+1…Cmd+Option+5, or null when the shortcut
- * does not apply. Option avoids macOS browser tab shortcuts (Cmd+1…5) and screenshot chords
- * (Cmd+Shift+3…5) that the OS handles before the page receives keydown.
+ * Two-key screen navigation: `g` then `1`…`5` within a short timeout maps to visible screen indexes 0…4.
  */
-export function resolveScreenIndexFromShortcut(event: ScreenNavigationKeyEvent): number | null {
-  if (isEditableKeyboardTarget(event.target)) return null
-  if (!event.metaKey || !event.altKey) return null
-  if (event.ctrlKey || event.shiftKey) return null
-  return screenIndexFromDigitCode(event.code)
+export function createScreenNavigationSequenceHandler(
+  options: { timeoutMs?: number } = {},
+): ScreenNavigationSequenceHandler {
+  const timeoutMs = options.timeoutMs ?? SCREEN_NAVIGATION_SEQUENCE_TIMEOUT_MS
+  let pending = false
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const clear = () => {
+    pending = false
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+    }
+  }
+
+  const armPending = () => {
+    pending = true
+    if (timeoutId !== null) clearTimeout(timeoutId)
+    timeoutId = setTimeout(clear, timeoutMs)
+  }
+
+  const handleKeyDown = (event: ScreenNavigationKeyEvent): number | null => {
+    if (isEditableKeyboardTarget(event.target)) {
+      clear()
+      return null
+    }
+
+    if (isSequenceGKey(event)) {
+      armPending()
+      return null
+    }
+
+    if (!pending) return null
+
+    const index = isPlainKey(event) ? screenIndexFromDigitCode(event.code) : null
+    if (index === null) {
+      clear()
+      return null
+    }
+
+    clear()
+    return index
+  }
+
+  return { handleKeyDown, dispose: clear }
 }
 
 export function scrollToVisibleScreenAtIndex(
