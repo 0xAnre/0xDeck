@@ -67,9 +67,9 @@ export function resolveWorkspaceScreenScrollTop(
   const pageHeight = container.clientHeight
   if (pageHeight <= 0) return null
   const targetTop = screenIndex * pageHeight
+  if (targetTop >= container.scrollHeight) return null
   const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
-  if (targetTop > maxScrollTop) return null
-  return targetTop
+  return Math.min(targetTop, maxScrollTop)
 }
 
 export function scrollToWorkspaceScreenAtIndex(

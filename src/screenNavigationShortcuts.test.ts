@@ -264,6 +264,13 @@ describe('resolveWorkspaceScreenScrollTop', () => {
     assert.equal(resolveWorkspaceScreenScrollTop(container, 2), pageHeight * 2)
   })
 
+  it('clamps to max scroll when a screen starts within content but past the scroll range', () => {
+    const partialSecondScreen = { clientHeight: pageHeight, scrollHeight: 1200 }
+    assert.equal(resolveWorkspaceScreenScrollTop(partialSecondScreen, 0), 0)
+    assert.equal(resolveWorkspaceScreenScrollTop(partialSecondScreen, 1), 400)
+    assert.equal(resolveWorkspaceScreenScrollTop(partialSecondScreen, 2), null)
+  })
+
   it('no-ops for missing screens without throwing', () => {
     const twoPagesReachable = { clientHeight: pageHeight, scrollHeight: pageHeight * 2 }
     assert.equal(resolveWorkspaceScreenScrollTop(twoPagesReachable, 0), 0)
