@@ -37,9 +37,10 @@ Details: [AGENTS.md](../AGENTS.md) (Lead → Cursor workflow).
 
 **Build a workspace**
 
-1. Add a widget: Chart, KPI Card, Data Table, Notes, Market Times, Dashboard, Reports
-2. Use the dropdowns in the widget header for dataset, columns, time range, metric, and aggregation
+1. Add a widget: Chart, KPI Card, Data Table, Notes, Market Times, Dashboard, Reports, **BTC Perp**
+2. Use the dropdowns in the widget header for dataset, columns, time range, metric, and aggregation (BTC Perp: interval, indicators, tools)
 3. Drag, resize, stack panels — layout persists in `localStorage`
+4. Scroll the workspace when content extends below the viewport; jump to screens 1–5 with `p` then `1`–`5` (see [README](../README.md#workspace-navigation))
 
 **Create a reusable widget**
 
@@ -59,6 +60,7 @@ Details: [AGENTS.md](../AGENTS.md) (Lead → Cursor workflow).
 | Reports | Preview tab | Export mock; saved queries planned |
 | Notes | localStorage | Markdown edit + preview |
 | Market Times | — | Exchange sessions, open/close countdown |
+| BTC Perp | REST klines + WebSocket relay | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line tools |
 
 ## Data layout
 
