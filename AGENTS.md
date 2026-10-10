@@ -49,7 +49,7 @@ A **market research workspace canvas** with a **reusable widget model** — not 
 - Trade execution UI
 - Bot monitoring and control panels
 
-**Included:** draggable/resizable widget grid, layout persistence, 5 shadcn color themes, shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and tools in `src/market/`).
+**Included:** draggable/resizable widget grid, layout persistence, 6 built-in color themes (including `black`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`).
 
 **Not included:** auth, generic multi-exchange connectors, trade execution APIs. Parquet widgets do not use live feeds; **BTC Perp** is the live market widget (see `src/widgets/stream/`, `/api/ws/{channel}`, `backend/app/market/`).
 
@@ -62,7 +62,8 @@ App.tsx                    → header, theme/widget menus, grid shell; renders r
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract + client (BTC Perp relay channels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts)
-market/                    → Candles, EMA/VWAP indicators, rolling VWAP, fixed-range volume profile
+market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, FRVP, rectangle/line tools
+screenNavigationShortcuts.ts → Workspace screen jumps (`p` then `1`–`5`)
 api/client.ts              → Parquet datasets: preview, series, kpi
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
 panels.ts                  → instance ids (chart-abc123), layout helpers; catalog derived from registry
@@ -116,6 +117,17 @@ Before any new UI work:
 4. Add: `npx shadcn@latest add <component>`
 5. Compose in app code — only build custom **wrappers** (e.g. `ThemeSelect`, `WidgetSelect`), not custom primitives
 
+## Agent skills (`.agents/skills/`)
+
+Project-local skills for AI agents. Read the relevant `SKILL.md` before working in that area:
+
+| Skill | Path |
+|-------|------|
+| shadcn/ui | `.agents/skills/shadcn/SKILL.md` |
+| Lightweight Charts | `.agents/skills/lightweight-charts/SKILL.md` |
+| Lightweight Charts plugins | `.agents/skills/lightweight-charts-plugin-authoring/SKILL.md` |
+| Radix → Base UI migration | `.agents/skills/migrate-radix-to-base/SKILL.md` |
+
 ## UI inventory
 
 ### shadcn installed + in use
@@ -166,7 +178,7 @@ Before any new UI work:
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, EMA 200, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP), fixed-range volume profile tool; REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, EMA 200, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
@@ -186,8 +198,12 @@ Before any new UI work:
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Rolling VWAP band/settings per instance |
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |
+| `0xdeck-widget-rectangle-instances` | Rectangle/box drawing instances (BTC Perp) |
+| `0xdeck-widget-line-instances` | Line drawing instances (BTC Perp) |
 
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
+
+**Workspace screens:** `p` then `1`–`5` scrolls the outer workspace to screen positions 1–5 (`screenNavigationShortcuts.ts`). Outer `.workspace-scroller` and panel `.panel-body` use hidden scrollbars (`App.css`); both regions remain scrollable.
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
 

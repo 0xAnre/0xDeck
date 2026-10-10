@@ -29,7 +29,7 @@ Most market tools force a fixed workflow. 0xDeck gives you a surface you can res
 | **Reusable widgets** | Register a template once in `src/widgets/registry/definitions.tsx`; add many instances; each keeps its own config |
 | **Custom widgets** | Add your own panels through `WIDGET_REGISTRY` (`src/widgets/registry/`) |
 | **Data binding** | Per-widget dataset, columns, time range (`15m`–`7d`), KPI metric + aggregation |
-| **Themes** | 5 shadcn presets — Neutral, Stone, Mauve, Taupe, Olive |
+| **Themes** | 6 built-in palettes — Neutral, Stone, Mauve, Taupe, Olive, Black (`#0F0F0F` background; Neutral-derived) |
 | **Persistence** | Workspace layout + widget config in `localStorage` (`0xdeck-*` keys) |
 
 **Stack:** Vite · React 19 · TypeScript · Tailwind v4 · shadcn/ui · [react-grid-layout](https://github.com/react-grid-layout/react-grid-layout) v2 · FastAPI · DuckDB
@@ -107,9 +107,17 @@ Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts
 | **Initial history** | At least **500** candles when available; **last 120** visible on open |
 | **1w history** | If Binance has fewer than 500 weekly candles, all available history is used |
 | **Scroll left** | Older candles load on demand (`/klines/history`) |
-| **Persistence** | Interval, indicators, and workspace layout survive refresh (`0xdeck-widget-market-intervals`, `0xdeck-widget-market-indicators`, layout keys) |
+| **Rolling VWAP** | Overlay instances (not a single on/off toggle). Add, enable/disable, open settings, or delete from the indicators menu. Settings cover fixed/auto period, min bars, standard-deviation bands, band colors, info box, and center-line style. Persisted per instance via `0xdeck-widget-rolling-vwap-instances` and `0xdeck-widget-rolling-vwap-settings`. |
+| **Tools** | Header **Tools** menu when `headerSettings.tools` is true: **Fixed Range Volume Profile**, **Rectangle / Box**, **Line**. FRVP instances persist (`0xdeck-widget-fixed-range-vp-instances`) and can be deleted from the menu. Rectangles persist (`0xdeck-widget-rectangle-instances`); create from the menu, select/move/resize on chart, lock/unlock, delete, and set fill (default `#737373` at `20%` opacity). Lines persist (`0xdeck-widget-line-instances`); create, select/move/resize, delete. |
+| **Persistence** | Interval, indicators, rolling VWAP, drawings, and workspace layout survive refresh (see [AGENTS.md](AGENTS.md) persistence keys) |
 
 Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
+
+## Workspace navigation
+
+The outer workspace (`main.workspace-scroller` in `App.tsx`) scrolls vertically when panels extend below the viewport. Scrollbars are hidden for `.workspace-scroller` and `.panel-body` in `App.css` (content still scrolls).
+
+**Screen shortcuts:** press `p`, then `1`–`5` within ~500ms to jump to workspace screen positions 1–5 (scroll offsets 0…4 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`.
 
 ## Documentation
 

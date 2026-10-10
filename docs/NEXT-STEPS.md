@@ -16,20 +16,21 @@ Make 0xDeck a market research workspace canvas where users can combine built-in 
 8. Data Table column picker + workspace defaults ✅
 9. Auto registry refresh on folder save ✅
 10. Header dropdowns for data widget settings (dataset, columns, range, metric, aggregation) ✅
+11. Custom widget path — [templates/widget/](../templates/widget/README.md), [WIDGET-GUIDE](./WIDGET-GUIDE.md), [WIDGET-STANDARD](./WIDGET-STANDARD.md) ✅
+12. BTC Perpetual — REST + WebSocket klines, indicators, rolling VWAP overlays, FRVP / rectangle / line tools ✅
+13. Workspace screen navigation — `p` then `1`–`5` ✅
 
 ## Remaining
 
 | Priority | Task |
 |----------|------|
-| 1 | Custom widget path — template/scaffold docs and examples |
-| 2 | Reports — saved queries + CSV/PDF export (UI mock today) |
-| 3 | Backend performance — large stream queries (indexing, caching, file pruning) |
-| 4 | WebSocket / live feed (last) |
+| 1 | Reports — saved queries + CSV/PDF export (UI mock today) |
+| 2 | Backend performance — large stream queries (indexing, caching, file pruning) |
+| 3 | Additional live widgets beyond BTC Perp (generic stream wiring for custom panels) |
 
 ## Optional polish
 
 - Widget gallery / example workflows
-- Blank widget template
 - Bot monitor widget example
 - Strategy notebook widget
 - OHLC / candlestick chart type

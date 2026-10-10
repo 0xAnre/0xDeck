@@ -99,6 +99,9 @@ Do not change spacing, font sizes, radius, or layout per theme. Themes change co
 | Overlap | Enabled — last dragged panel on top |
 | Layout storage | `localStorage` key `0xdeck-workspace` (lg only) |
 | Resize | 8 invisible handles (edges + corners) |
+| Workspace scroll | Outer `main.workspace-scroller` (`App.tsx`) scrolls when panels extend below the viewport |
+| Scrollbars | Hidden for `.workspace-scroller` and `.panel-body` (`App.css`); regions remain scrollable |
+| Screen shortcuts | `p` then `1`–`5` jumps to workspace screens 1–5 (`screenNavigationShortcuts.ts`) |
 
 ---
 

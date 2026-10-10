@@ -90,8 +90,9 @@ Follow [WIDGET-STANDARD.md](./WIDGET-STANDARD.md), then:
 
 - `minW` × `minH` — minimum size **and** default open size
 - lg grid: 36 columns, `rowHeight` 11px → height ≈ `h × 11px`
-- `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` for metadata only (hooks unchanged in v1)
-- Future live data: `stream` (`channel`) and `query-and-stream` (`queries` + `channel`) — types only until a later stage; no widget uses them yet
+- `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` for metadata only
+- Live data: `stream` (`channel`) or `query-and-stream` (`queries` + `channel` / `channels`) — **BTC Perp** (`btc-perpetual-chart`) uses `query-and-stream` with REST candles and per-interval WebSocket channels (see [WIDGET-STANDARD](./WIDGET-STANDARD.md))
+- Market widgets can set `headerSettings.interval`, `indicators`, and `tools`; register values via `useMarketWidgetSettings` in the panel body
 - `widgetHasHeaderControls(definition)` in the registry drives header chrome — no separate configurable set
 
 ### 2. Create panel component
@@ -129,7 +130,9 @@ Parquet-backed panels use `WidgetDataStateView` (`src/widgets/components/WidgetD
 
 ### WebSocket stream foundation
 
-Registry `data` kinds `stream` and `query-and-stream` carry a `channel` string for future live feeds. Shared transport lives in `src/widgets/stream/` (`WidgetStreamClient`, message types). The client connects to same-origin `/api/ws/{channel}` (Vite proxies WebSocket to the backend on port 57342). **No built-in widget opens a stream yet** — REST hooks and Parquet panels are unchanged until a later stage wires `WidgetStreamClient` from widget code.
+Registry `data` kinds `stream` and `query-and-stream` carry `channel` or `channels` for live feeds. Shared transport lives in `src/widgets/stream/` (`WidgetStreamClient`, message types). The client connects to same-origin `/api/ws/{channel}` (Vite proxies WebSocket to the backend on port 57342).
+
+**BTC Perpetual** is the built-in live widget: it loads history via REST (`candles` query → `/api/market/binance/usdm/btcusdt/klines` and VWAP context routes) and subscribes to `binance.usdm.btcusdt.kline.{interval}` for candle updates. Parquet-backed widgets continue to use REST hooks only.
 
 ---
 
@@ -184,6 +187,9 @@ Header controls:
 | KPI Card | `kpi-card` | `useKpiCardData` | dataset, range, metric, aggregation |
 | Dashboard | `dashboard` | `useWidgetParquetData` | dataset, range |
 | Reports | `reports` | `useWidgetParquetData` | dataset, range |
+| BTC Perp | `btc-perpetual-chart` | `BtcPerpetualChartPanel` (REST + `WidgetStreamClient`) | interval, indicators, tools |
+
+BTC Perp tools (when `headerSettings.tools` is true): Fixed Range Volume Profile, Rectangle / Box, Line — instances persist per `panelId` (`0xdeck-widget-fixed-range-vp-instances`, `0xdeck-widget-rectangle-instances`, `0xdeck-widget-line-instances`). Rolling VWAP uses overlay instances plus per-panel settings (`0xdeck-widget-rolling-vwap-instances`, `0xdeck-widget-rolling-vwap-settings`). See [README BTC Perpetual](../README.md#btc-perpetual-widget).
 
 ### KPI aggregations
 

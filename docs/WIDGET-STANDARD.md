@@ -41,7 +41,9 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 
 - **`headerSettings` in the registry is the single source of truth** for which header fields appear.
 - Do not enable a field the body does not support.
-- Data widgets register live values via **`useParquetWidgetSettings({ headerSettings, panelId, … })`**; `PanelHeaderControls` renders the shared header.
+- Parquet widgets register live values via **`useParquetWidgetSettings({ headerSettings, panelId, … })`**.
+- BTC Perp registers interval, indicators, and tools via **`useMarketWidgetSettings`**.
+- `PanelHeaderControls` renders the shared header.
 
 | Field | Meaning |
 |-------|---------|
@@ -51,6 +53,8 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `metric` | KPI metric column |
 | `aggregation` | KPI aggregation |
 | `interval` | Candle interval (`1m`, `5m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`) for live market widgets |
+| `indicators` | Market indicator multi-select (BTC Perp; availability is interval-specific) |
+| `tools` | Chart tools menu (BTC Perp: FRVP, rectangle/box, line) |
 
 ---
 
@@ -71,7 +75,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 - `kpi` — KPI endpoint
 - `candles` — Binance BTC perpetual klines (`/api/market/binance/usdm/btcusdt/klines`)
 
-**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). **BTC Perpetual** (`btc-perpetual-chart`) uses `query-and-stream`: REST klines + context endpoints for VWAP, and one WebSocket relay channel per interval (`binance.usdm.btcusdt.kline.{interval}`). Indicator availability is timeframe-specific (see README BTC Perpetual section). Instance interval and indicators persist via `0xdeck-widget-market-intervals` and `0xdeck-widget-market-indicators`.
+**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). **BTC Perpetual** (`btc-perpetual-chart`) uses `query-and-stream`: REST klines + context endpoints for VWAP, fixed-range volume profile source (`/klines/volume-profile`), and one WebSocket relay channel per interval (`binance.usdm.btcusdt.kline.{interval}`). Indicator availability is timeframe-specific (see README BTC Perpetual section). Instance interval, indicators, rolling VWAP, and drawing tools persist via the `0xdeck-widget-market-*` and related keys in [AGENTS.md](../AGENTS.md).
 
 ---
 
