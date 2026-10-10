@@ -189,15 +189,13 @@ function App() {
       )
       if (screenIndex >= orderedElements.length) return
 
+      const targetPanel = visiblePanels[screenIndex]
       const targetElement = orderedElements[screenIndex]
-      if (!targetElement) return
-
-      const panel = visiblePanels[screenIndex]
-      if (!panel) return
+      if (!targetElement || !targetPanel) return
 
       event.preventDefault()
       flushSync(() => {
-        bringToFront(panel.id)
+        bringToFront(targetPanel.id)
       })
       scrollToVisibleScreenAtIndex(orderedElements, screenIndex)
     }
