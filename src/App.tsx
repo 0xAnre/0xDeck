@@ -233,7 +233,7 @@ function App() {
         </div>
       </header>
 
-      <main ref={containerRef} className="min-h-0 flex-1 overflow-auto p-1.5">
+      <main ref={containerRef} className="workspace-scroller min-h-0 flex-1 overflow-auto p-1.5">
         {mounted && width > 0 && visiblePanels.length > 0 && (
           <ResponsiveGridLayout
             layouts={workspace.layouts}
