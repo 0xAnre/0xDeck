@@ -3,7 +3,7 @@ export type ScreenNavigationKeyEvent = {
   ctrlKey: boolean
   altKey: boolean
   shiftKey: boolean
-  key: string
+  code: string
   target: EventTarget | null
 }
 
@@ -21,8 +21,9 @@ export function resolveScreenIndexFromShortcut(event: ScreenNavigationKeyEvent):
   if (isEditableKeyboardTarget(event.target)) return null
   if (!event.metaKey) return null
   if (event.ctrlKey || event.altKey || event.shiftKey) return null
-  if (event.key.length !== 1 || event.key < '1' || event.key > '5') return null
-  return Number.parseInt(event.key, 10) - 1
+  const digitMatch = /^Digit([1-5])$/.exec(event.code)
+  if (!digitMatch) return null
+  return Number.parseInt(digitMatch[1], 10) - 1
 }
 
 export function scrollToVisibleScreenAtIndex(
