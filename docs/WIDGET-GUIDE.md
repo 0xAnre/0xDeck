@@ -90,7 +90,7 @@ Follow [WIDGET-STANDARD.md](./WIDGET-STANDARD.md), then:
 
 - `minW` × `minH` — minimum size **and** default open size
 - lg grid: 36 columns, `rowHeight` 11px → height ≈ `h × 11px`
-- `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` for metadata only
+- `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` | `candles` for metadata only
 - Live data: `stream` (`channel`) or `query-and-stream` (`queries` + `channel` / `channels`) — **BTC Perp** (`btc-perpetual-chart`) uses `query-and-stream` with REST candles and per-interval WebSocket channels (see [WIDGET-STANDARD](./WIDGET-STANDARD.md))
 - Market widgets can set `headerSettings.interval`, `indicators`, and `tools`; register values via `useMarketWidgetSettings` in the panel body
 - `widgetHasHeaderControls(definition)` in the registry drives header chrome (dataset, time range, columns, metric, aggregation, interval, indicators, **tools**) — no separate configurable set
@@ -118,7 +118,7 @@ export function MyWidgetPanel({ panelId, headerSettings }: WidgetInstanceProps) 
 
 Shared types live in `src/widgets/data/types.ts`:
 
-- **Query names** — `WidgetDataQuerySource` (`preview`, `series`, `schema`, `kpi`) appear in each widget’s registry `data` metadata (`definitions.tsx`).
+- **Query names** — `WidgetDataQuerySource` (`preview`, `series`, `schema`, `kpi`, `candles`) appear in each widget’s registry `data` metadata (`definitions.tsx`).
 - **Result types** — `WidgetQueryResultMap` links each query name to the matching type in `src/api/types.ts`; use `WidgetQueryResult<'preview'>` (and so on) in ready payloads.
 - **Hook state** — `ParquetDataState`, `ParquetCatalogState`, and `KpiCardState` are `WidgetDataState<TReady>` with the same ready fields as before (`dataset`, `preview`, `series`, `kpi`, …). Use `isWidgetDataReady()` or the existing `isParquetReady()` / `isKpiCardReady()` guards.
 
