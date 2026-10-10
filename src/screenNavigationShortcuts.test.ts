@@ -15,6 +15,7 @@ function shortcutEvent(
     ctrlKey: false,
     altKey: false,
     shiftKey: false,
+    code: partial.code,
     target: null,
     ...partial,
   }
@@ -32,23 +33,35 @@ describe('resolveScreenIndexFromShortcut', () => {
 
   it('ignores non-meta keypresses and unrelated keys', () => {
     assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ code: 'Digit1' })), null)
-    assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit6' })), null)
-    assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'KeyA' })), null)
     assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit2' })),
+      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit6' })),
       null,
     )
     assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, ctrlKey: true, code: 'Digit2' })),
+      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'KeyA' })),
       null,
     )
     assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, altKey: true, code: 'Digit2' })),
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit2' }),
+      ),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, ctrlKey: true, code: 'Digit2' }),
+      ),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit2' }),
+      ),
       null,
     )
   })
 
-  it('maps physical number-row keys when layout produces non-digit event.key values', () => {
+  it('maps physical digit keys via event.code regardless of layout-specific key values', () => {
     assert.equal(
       resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit1' })),
       0,
