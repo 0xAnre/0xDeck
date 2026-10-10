@@ -24,33 +24,32 @@ function shortcutEvent(
 }
 
 describe('resolveScreenIndexFromShortcut', () => {
-<<<<<<< HEAD
   it('maps Cmd+Option+1 through Cmd+Option+5 to zero-based indexes 0 through 4', () => {
     for (let digit = 1; digit <= 5; digit += 1) {
       const index = resolveScreenIndexFromShortcut(
         shortcutEvent({ metaKey: true, altKey: true, code: `Digit${digit}` }),
-=======
-  it('maps Cmd+1 through Cmd+5 to zero-based indexes 0 through 4', () => {
-    for (let digit = 1; digit <= 5; digit += 1) {
-      const index = resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, code: `Digit${digit}` }),
->>>>>>> 0202ff8 (fix: resolve panel scroll targets without RGL ref override)
       )
       assert.equal(index, digit - 1)
     }
+  })
+
+  it('ignores browser tab and macOS screenshot chords', () => {
+    assert.equal(
+      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit1' })),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit3' }),
+      ),
+      null,
+    )
   })
 
   it('ignores non-meta keypresses and unrelated keys', () => {
     assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ code: 'Digit1' })), null)
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, code: 'Digit6' }),
-      ),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-<<<<<<< HEAD
         shortcutEvent({ metaKey: true, altKey: true, code: 'Digit6' }),
       ),
       null,
@@ -58,27 +57,18 @@ describe('resolveScreenIndexFromShortcut', () => {
     assert.equal(
       resolveScreenIndexFromShortcut(
         shortcutEvent({ metaKey: true, altKey: true, code: 'KeyA' }),
-=======
-        shortcutEvent({ metaKey: true, code: 'KeyA' }),
->>>>>>> 0202ff8 (fix: resolve panel scroll targets without RGL ref override)
       ),
       null,
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, ctrlKey: true, code: 'Digit2' }),
+        shortcutEvent({ metaKey: true, altKey: true, ctrlKey: true, code: 'Digit2' }),
       ),
       null,
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit2' }),
-      ),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit2' }),
+        shortcutEvent({ metaKey: true, altKey: true, shiftKey: true, code: 'Digit2' }),
       ),
       null,
     )
@@ -87,21 +77,13 @@ describe('resolveScreenIndexFromShortcut', () => {
   it('maps physical digit keys via event.code regardless of layout-specific key values', () => {
     assert.equal(
       resolveScreenIndexFromShortcut(
-<<<<<<< HEAD
         shortcutEvent({ metaKey: true, altKey: true, code: 'Digit1' }),
-=======
-        shortcutEvent({ metaKey: true, code: 'Digit1' }),
->>>>>>> 0202ff8 (fix: resolve panel scroll targets without RGL ref override)
       ),
       0,
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-<<<<<<< HEAD
         shortcutEvent({ metaKey: true, altKey: true, code: 'Digit3' }),
-=======
-        shortcutEvent({ metaKey: true, code: 'Digit3' }),
->>>>>>> 0202ff8 (fix: resolve panel scroll targets without RGL ref override)
       ),
       2,
     )
@@ -141,10 +123,7 @@ describe('resolveScreenIndexFromShortcut', () => {
         resolveScreenIndexFromShortcut(
           shortcutEvent({
             metaKey: true,
-<<<<<<< HEAD
             altKey: true,
-=======
->>>>>>> 0202ff8 (fix: resolve panel scroll targets without RGL ref override)
             code: 'Digit3',
             target: target as never,
           }),
