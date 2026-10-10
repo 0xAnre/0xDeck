@@ -93,7 +93,7 @@ Follow [WIDGET-STANDARD.md](./WIDGET-STANDARD.md), then:
 - `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` for metadata only
 - Live data: `stream` (`channel`) or `query-and-stream` (`queries` + `channel` / `channels`) — **BTC Perp** (`btc-perpetual-chart`) uses `query-and-stream` with REST candles and per-interval WebSocket channels (see [WIDGET-STANDARD](./WIDGET-STANDARD.md))
 - Market widgets can set `headerSettings.interval`, `indicators`, and `tools`; register values via `useMarketWidgetSettings` in the panel body
-- `widgetHasHeaderControls(definition)` in the registry drives header chrome — no separate configurable set
+- `widgetHasHeaderControls(definition)` in the registry drives header chrome (dataset, time range, columns, metric, aggregation, interval, indicators, **tools**) — no separate configurable set
 
 ### 2. Create panel component
 

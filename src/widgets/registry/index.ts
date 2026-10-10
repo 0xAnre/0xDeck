@@ -31,7 +31,8 @@ export function widgetHasHeaderControls(definition: WidgetDefinition): boolean {
     fields.metric ||
     fields.aggregation ||
     fields.interval ||
-    fields.indicators
+    fields.indicators ||
+    Boolean(fields.tools)
   )
 }
 
