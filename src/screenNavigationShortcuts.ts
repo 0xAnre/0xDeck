@@ -22,6 +22,26 @@ export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   return target.closest('[contenteditable]') !== null
 }
 
+export const PANEL_NAV_ID_ATTR = 'data-panel-nav-id'
+
+function escapePanelIdForAttributeSelector(panelId: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(panelId)
+  }
+  return panelId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+export function findPanelNavigationElement(
+  container: HTMLElement | null | undefined,
+  panelId: string,
+): HTMLElement | null {
+  if (!container) return null
+  const escapedId = escapePanelIdForAttributeSelector(panelId)
+  return container.querySelector<HTMLElement>(
+    `[${PANEL_NAV_ID_ATTR}="${escapedId}"]`,
+  )
+}
+
 /**
  * Returns zero-based visible screen index for Cmd+Option+1…Cmd+Option+5, or null when the shortcut
  * does not apply. Option avoids macOS browser tab shortcuts (Cmd+1…5) and screenshot chords

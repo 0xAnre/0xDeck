@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -41,6 +41,8 @@ import { ThemeSelect } from './ThemeSelect'
 import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 import {
+  findPanelNavigationElement,
+  PANEL_NAV_ID_ATTR,
   resolveScreenIndexFromShortcut,
   scrollToVisibleScreenAtIndex,
 } from './screenNavigationShortcuts'
@@ -61,8 +63,6 @@ function App() {
   const [focusOrder, setFocusOrder] = useState<string[]>(
     () => loadWorkspace().activePanels,
   )
-  const panelElementRefs = useRef(new Map<string, HTMLElement>())
-
   const stackOrder = useMemo(
     () => reconcileStackOrder(focusOrder, workspace.activePanels),
     [focusOrder, workspace.activePanels],
@@ -177,21 +177,14 @@ function App() {
     setTheme(next)
   }, [])
 
-  const registerPanelElementRef = useCallback(
-    (panelId: string) => (element: HTMLElement | null) => {
-      if (element) panelElementRefs.current.set(panelId, element)
-      else panelElementRefs.current.delete(panelId)
-    },
-    [],
-  )
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const screenIndex = resolveScreenIndexFromShortcut(event)
       if (screenIndex === null) return
 
-      const orderedElements = visiblePanels.map(
-        (panel) => panelElementRefs.current.get(panel.id) ?? null,
+      const container = containerRef.current
+      const orderedElements = visiblePanels.map((panel) =>
+        findPanelNavigationElement(container, panel.id),
       )
       if (screenIndex >= orderedElements.length) return
 
@@ -204,7 +197,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [visiblePanels])
+  }, [containerRef, visiblePanels])
 
   return (
     <ParquetDataProvider>
@@ -265,9 +258,9 @@ function App() {
                 size="sm"
                 className="group/panel h-full gap-0 py-0"
                 style={{ zIndex: panelZIndex(panel.id) }}
+                {...{ [PANEL_NAV_ID_ATTR]: panel.id }}
               >
                 <CardHeader
-                  ref={registerPanelElementRef(panel.id)}
                   className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"
                 >
                   <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
