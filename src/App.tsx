@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { flushSync } from 'react-dom'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -43,9 +42,8 @@ import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 import {
   createScreenNavigationSequenceHandler,
-  findPanelNavigationElement,
-  PANEL_NAV_ID_ATTR,
-  scrollToVisibleScreenAtIndex,
+  resolveWorkspaceScreenScrollTop,
+  scrollToWorkspaceScreenAtIndex,
 } from './screenNavigationShortcuts'
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
@@ -185,20 +183,11 @@ function App() {
       if (screenIndex === null) return
 
       const container = containerRef.current
-      const orderedElements = visiblePanels.map((panel) =>
-        findPanelNavigationElement(container, panel.id),
-      )
-      if (screenIndex >= orderedElements.length) return
-
-      const targetPanel = visiblePanels[screenIndex]
-      const targetElement = orderedElements[screenIndex]
-      if (!targetElement || !targetPanel) return
+      if (!container) return
+      if (resolveWorkspaceScreenScrollTop(container, screenIndex) === null) return
 
       event.preventDefault()
-      flushSync(() => {
-        bringToFront(targetPanel.id)
-      })
-      scrollToVisibleScreenAtIndex(orderedElements, screenIndex)
+      scrollToWorkspaceScreenAtIndex(container, screenIndex)
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -206,7 +195,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       sequence.dispose()
     }
-  }, [bringToFront, containerRef, visiblePanels])
+  }, [containerRef])
 
   return (
     <ParquetDataProvider>
@@ -267,7 +256,6 @@ function App() {
                 size="sm"
                 className="group/panel h-full gap-0 py-0"
                 style={{ zIndex: panelZIndex(panel.id) }}
-                {...{ [PANEL_NAV_ID_ATTR]: panel.id }}
               >
                 <CardHeader
                   className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"

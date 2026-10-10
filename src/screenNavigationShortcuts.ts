@@ -50,24 +50,35 @@ export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   return target.closest('[contenteditable]') !== null
 }
 
-export const PANEL_NAV_ID_ATTR = 'data-panel-nav-id'
-
-function escapePanelIdForAttributeSelector(panelId: string): string {
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(panelId)
-  }
-  return panelId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+export type WorkspaceScrollMetrics = {
+  clientHeight: number
+  scrollHeight: number
 }
 
-export function findPanelNavigationElement(
-  container: HTMLElement | null | undefined,
-  panelId: string,
-): HTMLElement | null {
-  if (!container) return null
-  const escapedId = escapePanelIdForAttributeSelector(panelId)
-  return container.querySelector<HTMLElement>(
-    `[${PANEL_NAV_ID_ATTR}="${escapedId}"]`,
-  )
+/**
+ * Scroll offset for workspace screen index 0…4 (Screen 1…5), or null when unreachable.
+ * Based on viewport page height inside the scroll container, not panel/widget order.
+ */
+export function resolveWorkspaceScreenScrollTop(
+  container: WorkspaceScrollMetrics,
+  screenIndex: number,
+): number | null {
+  if (screenIndex < 0 || screenIndex > 4) return null
+  const pageHeight = container.clientHeight
+  if (pageHeight <= 0) return null
+  const targetTop = screenIndex * pageHeight
+  if (targetTop >= container.scrollHeight) return null
+  const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+  return Math.min(targetTop, maxScrollTop)
+}
+
+export function scrollToWorkspaceScreenAtIndex(
+  container: WorkspaceScrollMetrics & { scrollTo: (options: { top: number; behavior?: ScrollBehavior }) => void },
+  screenIndex: number,
+): void {
+  const targetTop = resolveWorkspaceScreenScrollTop(container, screenIndex)
+  if (targetTop === null) return
+  container.scrollTo({ top: targetTop, behavior: 'smooth' })
 }
 
 export type ScreenNavigationSequenceHandler = {
@@ -76,7 +87,7 @@ export type ScreenNavigationSequenceHandler = {
 }
 
 /**
- * Two-key screen navigation: `g` then `1`…`5` within a short timeout maps to visible screen indexes 0…4.
+ * Two-key screen navigation: `g` then `1`…`5` within a short timeout maps to workspace screen indexes 0…4.
  */
 export function createScreenNavigationSequenceHandler(
   options: { timeoutMs?: number } = {},
@@ -127,17 +138,4 @@ export function createScreenNavigationSequenceHandler(
   }
 
   return { handleKeyDown, dispose: clear }
-}
-
-export function scrollToVisibleScreenAtIndex(
-  orderedPanelElements: readonly (HTMLElement | null | undefined)[],
-  index: number,
-  scrollIntoView: (element: HTMLElement) => void = (element) => {
-    element.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' })
-  },
-): void {
-  if (index < 0 || index >= orderedPanelElements.length) return
-  const element = orderedPanelElements[index]
-  if (!element) return
-  scrollIntoView(element)
 }
