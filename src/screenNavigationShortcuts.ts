@@ -28,6 +28,19 @@ function isDigitKeyWithoutUnrelatedModifiers(event: ScreenNavigationKeyEvent): b
   return !event.metaKey && !event.ctrlKey && !event.altKey
 }
 
+/** Modifier-only keydown (e.g. Shift before AZERTY shift+digit) must not cancel a pending sequence. */
+function isModifierOnlyKeyEvent(event: ScreenNavigationKeyEvent): boolean {
+  switch (event.key) {
+    case 'Shift':
+    case 'Control':
+    case 'Alt':
+    case 'Meta':
+      return true
+    default:
+      return false
+  }
+}
+
 export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (typeof HTMLElement === 'undefined') return false
   if (!(target instanceof HTMLElement)) return false
@@ -98,6 +111,8 @@ export function createScreenNavigationSequenceHandler(
     }
 
     if (!pending) return null
+
+    if (isModifierOnlyKeyEvent(event)) return null
 
     const index = isDigitKeyWithoutUnrelatedModifiers(event)
       ? screenIndexFromDigitKey(event.key)

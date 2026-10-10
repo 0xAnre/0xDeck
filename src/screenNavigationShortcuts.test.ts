@@ -104,6 +104,24 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
+  it('retains the sequence through a separate Shift keydown before a shifted digit', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
+    assert.equal(
+      sequence.handleKeyDown(
+        shortcutEvent({ code: 'ShiftLeft', key: 'Shift', shiftKey: true }),
+      ),
+      null,
+    )
+    assert.equal(
+      sequence.handleKeyDown(
+        shortcutEvent({ code: 'Digit2', key: '2', shiftKey: true }),
+      ),
+      1,
+    )
+    sequence.dispose()
+  })
+
   it('does not navigate from physical digit position when the typed character is not 1-5', () => {
     const sequence = createScreenNavigationSequenceHandler()
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
