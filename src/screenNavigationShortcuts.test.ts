@@ -1,0 +1,121 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import {
+  isEditableKeyboardTarget,
+  resolveScreenIndexFromShortcut,
+  scrollToVisibleScreenAtIndex,
+  type ScreenNavigationKeyEvent,
+} from './screenNavigationShortcuts.ts'
+
+function shortcutEvent(
+  partial: Partial<ScreenNavigationKeyEvent> & Pick<ScreenNavigationKeyEvent, 'key'>,
+): ScreenNavigationKeyEvent {
+  return {
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    target: null,
+    ...partial,
+  }
+}
+
+describe('resolveScreenIndexFromShortcut', () => {
+  it('maps Cmd+1 through Cmd+5 to zero-based indexes 0 through 4', () => {
+    for (let digit = 1; digit <= 5; digit += 1) {
+      const index = resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, key: String(digit) }),
+      )
+      assert.equal(index, digit - 1)
+    }
+  })
+
+  it('ignores non-meta keypresses and unrelated keys', () => {
+    assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ key: '1' })), null)
+    assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, key: '6' })), null)
+    assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, key: 'a' })), null)
+    assert.equal(
+      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, shiftKey: true, key: '2' })),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, ctrlKey: true, key: '2' })),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, altKey: true, key: '2' })),
+      null,
+    )
+  })
+
+  it('ignores shortcuts when the target is an editable field', () => {
+    class FakeElement {
+      tagName: string
+      isContentEditable = false
+      parent: FakeElement | null = null
+
+      constructor(tagName: string, parent: FakeElement | null = null) {
+        this.tagName = tagName
+        this.parent = parent
+      }
+
+      closest(selector: string): FakeElement | null {
+        if (selector === '[contenteditable]' && this.isContentEditable) return this
+        return this.parent?.closest(selector) ?? null
+      }
+    }
+
+    const originalHtmlElement = globalThis.HTMLElement
+    Object.defineProperty(globalThis, 'HTMLElement', {
+      configurable: true,
+      value: FakeElement,
+    })
+
+    const input = new FakeElement('INPUT')
+    const textarea = new FakeElement('TEXTAREA')
+    const select = new FakeElement('SELECT')
+    const editable = new FakeElement('DIV')
+    editable.isContentEditable = true
+
+    for (const target of [input, textarea, select, editable]) {
+      assert.equal(
+        resolveScreenIndexFromShortcut(
+          shortcutEvent({ metaKey: true, key: '3', target: target as never }),
+        ),
+        null,
+      )
+    }
+
+    Object.defineProperty(globalThis, 'HTMLElement', {
+      configurable: true,
+      value: originalHtmlElement,
+    })
+  })
+})
+
+describe('scrollToVisibleScreenAtIndex', () => {
+  it('no-ops when the target screen is missing and does not throw', () => {
+    scrollToVisibleScreenAtIndex([], 0)
+    scrollToVisibleScreenAtIndex([null], 0)
+    scrollToVisibleScreenAtIndex([{} as HTMLElement], 4, () => {
+      throw new Error('should not scroll')
+    })
+  })
+
+  it('scrolls the element at the requested visible index', () => {
+    const scrolled: HTMLElement[] = []
+    const first = { id: 'a' } as HTMLElement
+    const second = { id: 'b' } as HTMLElement
+    scrollToVisibleScreenAtIndex([first, second], 1, (element) => {
+      scrolled.push(element)
+    })
+    assert.deepEqual(scrolled, [second])
+  })
+})
+
+describe('isEditableKeyboardTarget', () => {
+  it('returns false for non-element targets', () => {
+    assert.equal(isEditableKeyboardTarget(null), false)
+    assert.equal(isEditableKeyboardTarget({}), false)
+  })
+})

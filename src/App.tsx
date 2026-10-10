@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -40,6 +40,10 @@ import { DataSourceDialog } from './DataSourceDialog'
 import { ThemeSelect } from './ThemeSelect'
 import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
+import {
+  resolveScreenIndexFromShortcut,
+  scrollToVisibleScreenAtIndex,
+} from './screenNavigationShortcuts'
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
 const OVERLAP_COMPACTOR = getCompactor(null, true)
@@ -57,6 +61,7 @@ function App() {
   const [focusOrder, setFocusOrder] = useState<string[]>(
     () => loadWorkspace().activePanels,
   )
+  const panelElementRefs = useRef(new Map<string, HTMLElement>())
 
   const stackOrder = useMemo(
     () => reconcileStackOrder(focusOrder, workspace.activePanels),
@@ -172,6 +177,35 @@ function App() {
     setTheme(next)
   }, [])
 
+  const registerPanelElementRef = useCallback(
+    (panelId: string) => (element: HTMLElement | null) => {
+      if (element) panelElementRefs.current.set(panelId, element)
+      else panelElementRefs.current.delete(panelId)
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const screenIndex = resolveScreenIndexFromShortcut(event)
+      if (screenIndex === null) return
+
+      const orderedElements = visiblePanels.map(
+        (panel) => panelElementRefs.current.get(panel.id) ?? null,
+      )
+      if (screenIndex >= orderedElements.length) return
+
+      const targetElement = orderedElements[screenIndex]
+      if (!targetElement) return
+
+      event.preventDefault()
+      scrollToVisibleScreenAtIndex(orderedElements, screenIndex)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [visiblePanels])
+
   return (
     <ParquetDataProvider>
     <WidgetSettingsProvider>
@@ -228,6 +262,7 @@ function App() {
               return (
               <Card
                 key={panel.id}
+                ref={registerPanelElementRef(panel.id)}
                 size="sm"
                 className="group/panel h-full gap-0 py-0"
                 style={{ zIndex: panelZIndex(panel.id) }}
