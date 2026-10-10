@@ -262,12 +262,14 @@ function App() {
               return (
               <Card
                 key={panel.id}
-                ref={registerPanelElementRef(panel.id)}
                 size="sm"
                 className="group/panel h-full gap-0 py-0"
                 style={{ zIndex: panelZIndex(panel.id) }}
               >
-                <CardHeader className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing">
+                <CardHeader
+                  ref={registerPanelElementRef(panel.id)}
+                  className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"
+                >
                   <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
                     {panelDisplayTitle(panel, visiblePanels)}
                   </CardTitle>
