@@ -189,7 +189,7 @@ Header controls:
 | Reports | `reports` | `useWidgetParquetData` | dataset, range |
 | BTC Perp | `btc-perpetual-chart` | `BtcPerpetualChartPanel` (REST + `WidgetStreamClient`) | interval, indicators, tools |
 
-BTC Perp tools (when `headerSettings.tools` is true): Fixed Range Volume Profile, Rectangle / Box, Line — instances persist per `panelId` (`0xdeck-widget-fixed-range-vp-instances`, `0xdeck-widget-rectangle-instances`, `0xdeck-widget-line-instances`). Rolling VWAP uses overlay instances plus per-panel settings (`0xdeck-widget-rolling-vwap-instances`, `0xdeck-widget-rolling-vwap-settings`). See [README BTC Perpetual](../README.md#btc-perpetual-widget).
+BTC Perp tools (when `headerSettings.tools` is true): Fixed Range Volume Profile, Rectangle / Box, Line — instances persist per `panelId` (`0xdeck-widget-fixed-range-vp-instances`, `0xdeck-widget-rectangle-instances`, `0xdeck-widget-line-instances`). Rolling VWAP overlay instances (settings embedded per instance) persist under `0xdeck-widget-rolling-vwap-instances`; `0xdeck-widget-rolling-vwap-settings` is legacy migration input only. See [README BTC Perpetual](../README.md#btc-perpetual-widget).
 
 ### KPI aggregations
 
