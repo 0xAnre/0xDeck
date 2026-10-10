@@ -20,8 +20,8 @@ function isPlainKey(event: ScreenNavigationKeyEvent): boolean {
   return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
 }
 
-function isSequenceGKey(event: ScreenNavigationKeyEvent): boolean {
-  return isPlainKey(event) && event.key === 'g'
+function isSequencePKey(event: ScreenNavigationKeyEvent): boolean {
+  return isPlainKey(event) && event.key === 'p'
 }
 
 function isDigitKeyWithoutUnrelatedModifiers(event: ScreenNavigationKeyEvent): boolean {
@@ -87,7 +87,7 @@ export type ScreenNavigationSequenceHandler = {
 }
 
 /**
- * Two-key screen navigation: `g` then `1`…`5` within a short timeout maps to workspace screen indexes 0…4.
+ * Two-key screen navigation: `p` then `1`…`5` within a short timeout maps to workspace screen indexes 0…4.
  */
 export function createScreenNavigationSequenceHandler(
   options: { timeoutMs?: number } = {},
@@ -116,7 +116,7 @@ export function createScreenNavigationSequenceHandler(
       return null
     }
 
-    if (isSequenceGKey(event)) {
+    if (isSequencePKey(event)) {
       armPending()
       return null
     }
