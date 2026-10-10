@@ -315,6 +315,19 @@ describe('scrollToWorkspaceScreenAtIndex', () => {
     scrollToWorkspaceScreenAtIndex(container, 1)
     scrollToWorkspaceScreenAtIndex(container, 4)
   })
+
+  it('scrolls to clamped offset for a partially filled final screen', () => {
+    const scrollCalls: { top: number; behavior?: ScrollBehavior }[] = []
+    const container = {
+      clientHeight: 800,
+      scrollHeight: 1200,
+      scrollTo(options: { top: number; behavior?: ScrollBehavior }) {
+        scrollCalls.push(options)
+      },
+    }
+    scrollToWorkspaceScreenAtIndex(container, 1)
+    assert.deepEqual(scrollCalls, [{ top: 400, behavior: 'smooth' }])
+  })
 })
 
 describe('isEditableKeyboardTarget', () => {
