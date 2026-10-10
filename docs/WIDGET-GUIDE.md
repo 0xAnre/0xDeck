@@ -90,7 +90,7 @@ Follow [WIDGET-STANDARD.md](./WIDGET-STANDARD.md), then:
 
 - `minW` × `minH` — minimum size **and** default open size
 - lg grid: 36 columns, `rowHeight` 11px → height ≈ `h × 11px`
-- `data.kind: 'none'` when the widget has no backend queries; use `rest` with `preview` | `series` | `schema` | `kpi` | `candles` for metadata only
+- `data.kind: 'none'` when the widget has no backend queries; query sources are `preview` | `series` | `schema` | `kpi` (Parquet `rest`) and `candles` (`query-and-stream` market klines)
 - Live data: `stream` (`channel`) or `query-and-stream` (`queries` + `channel` / `channels`) — **BTC Perp** (`btc-perpetual-chart`) uses `query-and-stream` with REST candles and per-interval WebSocket channels (see [WIDGET-STANDARD](./WIDGET-STANDARD.md))
 - Market widgets can set `headerSettings.interval`, `indicators`, and `tools`; register values via `useMarketWidgetSettings` in the panel body
 - `widgetHasHeaderControls(definition)` in the registry drives header chrome (dataset, time range, columns, metric, aggregation, interval, indicators, **tools**) — no separate configurable set
