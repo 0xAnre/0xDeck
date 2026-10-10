@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -191,13 +192,19 @@ function App() {
       const targetElement = orderedElements[screenIndex]
       if (!targetElement) return
 
+      const panel = visiblePanels[screenIndex]
+      if (!panel) return
+
       event.preventDefault()
+      flushSync(() => {
+        bringToFront(panel.id)
+      })
       scrollToVisibleScreenAtIndex(orderedElements, screenIndex)
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [containerRef, visiblePanels])
+  }, [bringToFront, containerRef, visiblePanels])
 
   return (
     <ParquetDataProvider>
