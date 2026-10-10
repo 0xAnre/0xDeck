@@ -22,11 +22,14 @@ export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   return target.closest('[contenteditable]') !== null
 }
 
-/** Returns zero-based visible screen index for Cmd+1…Cmd+5, or null when the shortcut does not apply. */
+/**
+ * Returns zero-based visible screen index for Cmd+Shift+1…Cmd+Shift+5, or null when the shortcut
+ * does not apply. Uses Shift so the chord is not reserved by macOS browsers (Cmd+1…5 select tabs).
+ */
 export function resolveScreenIndexFromShortcut(event: ScreenNavigationKeyEvent): number | null {
   if (isEditableKeyboardTarget(event.target)) return null
-  if (!event.metaKey) return null
-  if (event.ctrlKey || event.altKey || event.shiftKey) return null
+  if (!event.metaKey || !event.shiftKey) return null
+  if (event.ctrlKey || event.altKey) return null
   return screenIndexFromDigitCode(event.code)
 }
 

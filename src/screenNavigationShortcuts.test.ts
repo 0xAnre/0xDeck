@@ -22,10 +22,10 @@ function shortcutEvent(
 }
 
 describe('resolveScreenIndexFromShortcut', () => {
-  it('maps Cmd+1 through Cmd+5 to zero-based indexes 0 through 4', () => {
+  it('maps Cmd+Shift+1 through Cmd+Shift+5 to zero-based indexes 0 through 4', () => {
     for (let digit = 1; digit <= 5; digit += 1) {
       const index = resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, code: `Digit${digit}` }),
+        shortcutEvent({ metaKey: true, shiftKey: true, code: `Digit${digit}` }),
       )
       assert.equal(index, digit - 1)
     }
@@ -34,16 +34,26 @@ describe('resolveScreenIndexFromShortcut', () => {
   it('ignores non-meta keypresses and unrelated keys', () => {
     assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ code: 'Digit1' })), null)
     assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit6' })),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'KeyA' })),
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, code: 'Digit1' }),
+      ),
       null,
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit2' }),
+        shortcutEvent({ metaKey: true, code: 'Digit6' }),
+      ),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit6' }),
+      ),
+      null,
+    )
+    assert.equal(
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'KeyA' }),
       ),
       null,
     )
@@ -63,11 +73,15 @@ describe('resolveScreenIndexFromShortcut', () => {
 
   it('maps physical digit keys via event.code regardless of layout-specific key values', () => {
     assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit1' })),
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit1' }),
+      ),
       0,
     )
     assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit3' })),
+      resolveScreenIndexFromShortcut(
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit3' }),
+      ),
       2,
     )
   })
@@ -104,7 +118,12 @@ describe('resolveScreenIndexFromShortcut', () => {
     for (const target of [input, textarea, select, editable]) {
       assert.equal(
         resolveScreenIndexFromShortcut(
-          shortcutEvent({ metaKey: true, code: 'Digit3', target: target as never }),
+          shortcutEvent({
+            metaKey: true,
+            shiftKey: true,
+            code: 'Digit3',
+            target: target as never,
+          }),
         ),
         null,
       )
