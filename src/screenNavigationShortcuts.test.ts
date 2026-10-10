@@ -22,10 +22,10 @@ function shortcutEvent(
 }
 
 describe('resolveScreenIndexFromShortcut', () => {
-  it('maps Cmd+Shift+1 through Cmd+Shift+5 to zero-based indexes 0 through 4', () => {
+  it('maps Cmd+Option+1 through Cmd+Option+5 to zero-based indexes 0 through 4', () => {
     for (let digit = 1; digit <= 5; digit += 1) {
       const index = resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: `Digit${digit}` }),
+        shortcutEvent({ metaKey: true, altKey: true, code: `Digit${digit}` }),
       )
       assert.equal(index, digit - 1)
     }
@@ -47,13 +47,13 @@ describe('resolveScreenIndexFromShortcut', () => {
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit6' }),
+        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit6' }),
       ),
       null,
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'KeyA' }),
+        shortcutEvent({ metaKey: true, altKey: true, code: 'KeyA' }),
       ),
       null,
     )
@@ -65,7 +65,7 @@ describe('resolveScreenIndexFromShortcut', () => {
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit2' }),
+        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit2' }),
       ),
       null,
     )
@@ -74,13 +74,13 @@ describe('resolveScreenIndexFromShortcut', () => {
   it('maps physical digit keys via event.code regardless of layout-specific key values', () => {
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit1' }),
+        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit1' }),
       ),
       0,
     )
     assert.equal(
       resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit3' }),
+        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit3' }),
       ),
       2,
     )
@@ -120,7 +120,7 @@ describe('resolveScreenIndexFromShortcut', () => {
         resolveScreenIndexFromShortcut(
           shortcutEvent({
             metaKey: true,
-            shiftKey: true,
+            altKey: true,
             code: 'Digit3',
             target: target as never,
           }),
