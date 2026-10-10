@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:market": "node --experimental-strip-types --test src/market/*.test.ts",
+    "test:navigation": "node --experimental-strip-types --test src/screenNavigationShortcuts.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

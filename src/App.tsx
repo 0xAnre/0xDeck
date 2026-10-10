@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -40,6 +41,12 @@ import { DataSourceDialog } from './DataSourceDialog'
 import { ThemeSelect } from './ThemeSelect'
 import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
+import {
+  findPanelNavigationElement,
+  PANEL_NAV_ID_ATTR,
+  resolveScreenIndexFromShortcut,
+  scrollToVisibleScreenAtIndex,
+} from './screenNavigationShortcuts'
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
 const OVERLAP_COMPACTOR = getCompactor(null, true)
@@ -57,7 +64,6 @@ function App() {
   const [focusOrder, setFocusOrder] = useState<string[]>(
     () => loadWorkspace().activePanels,
   )
-
   const stackOrder = useMemo(
     () => reconcileStackOrder(focusOrder, workspace.activePanels),
     [focusOrder, workspace.activePanels],
@@ -172,6 +178,32 @@ function App() {
     setTheme(next)
   }, [])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const screenIndex = resolveScreenIndexFromShortcut(event)
+      if (screenIndex === null) return
+
+      const container = containerRef.current
+      const orderedElements = visiblePanels.map((panel) =>
+        findPanelNavigationElement(container, panel.id),
+      )
+      if (screenIndex >= orderedElements.length) return
+
+      const targetPanel = visiblePanels[screenIndex]
+      const targetElement = orderedElements[screenIndex]
+      if (!targetElement || !targetPanel) return
+
+      event.preventDefault()
+      flushSync(() => {
+        bringToFront(targetPanel.id)
+      })
+      scrollToVisibleScreenAtIndex(orderedElements, screenIndex)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [bringToFront, containerRef, visiblePanels])
+
   return (
     <ParquetDataProvider>
     <WidgetSettingsProvider>
@@ -231,8 +263,11 @@ function App() {
                 size="sm"
                 className="group/panel h-full gap-0 py-0"
                 style={{ zIndex: panelZIndex(panel.id) }}
+                {...{ [PANEL_NAV_ID_ATTR]: panel.id }}
               >
-                <CardHeader className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing">
+                <CardHeader
+                  className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"
+                >
                   <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
                     {panelDisplayTitle(panel, visiblePanels)}
                   </CardTitle>
