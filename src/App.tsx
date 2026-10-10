@@ -42,9 +42,9 @@ import { ThemeSelect } from './ThemeSelect'
 import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 import {
+  createScreenNavigationSequenceHandler,
   findPanelNavigationElement,
   PANEL_NAV_ID_ATTR,
-  resolveScreenIndexFromShortcut,
   scrollToVisibleScreenAtIndex,
 } from './screenNavigationShortcuts'
 
@@ -179,8 +179,9 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const sequence = createScreenNavigationSequenceHandler()
     const onKeyDown = (event: KeyboardEvent) => {
-      const screenIndex = resolveScreenIndexFromShortcut(event)
+      const screenIndex = sequence.handleKeyDown(event)
       if (screenIndex === null) return
 
       const container = containerRef.current
@@ -201,7 +202,10 @@ function App() {
     }
 
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      sequence.dispose()
+    }
   }, [bringToFront, containerRef, visiblePanels])
 
   return (

@@ -1,92 +1,179 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it, mock } from 'node:test'
 import {
+  createScreenNavigationSequenceHandler,
   findPanelNavigationElement,
   isEditableKeyboardTarget,
   PANEL_NAV_ID_ATTR,
-  resolveScreenIndexFromShortcut,
   scrollToVisibleScreenAtIndex,
   type ScreenNavigationKeyEvent,
 } from './screenNavigationShortcuts.ts'
 
+const KEY_FROM_CODE: Record<string, string> = {
+  KeyG: 'g',
+  KeyA: 'a',
+  Digit1: '1',
+  Digit2: '2',
+  Digit3: '3',
+  Digit4: '4',
+  Digit5: '5',
+  Digit6: '6',
+}
+
 function shortcutEvent(
   partial: Partial<ScreenNavigationKeyEvent> & Pick<ScreenNavigationKeyEvent, 'code'>,
 ): ScreenNavigationKeyEvent {
+  const key = partial.key ?? KEY_FROM_CODE[partial.code] ?? partial.code
   return {
     metaKey: false,
     ctrlKey: false,
     altKey: false,
     shiftKey: false,
+    key,
     code: partial.code,
     target: null,
     ...partial,
   }
 }
 
-describe('resolveScreenIndexFromShortcut', () => {
-  it('maps Cmd+Option+1 through Cmd+Option+5 to zero-based indexes 0 through 4', () => {
+describe('createScreenNavigationSequenceHandler', () => {
+  it('maps g then 1 through g then 5 to zero-based indexes 0 through 4', () => {
+    const sequence = createScreenNavigationSequenceHandler()
     for (let digit = 1; digit <= 5; digit += 1) {
-      const index = resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, code: `Digit${digit}` }),
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+      assert.equal(
+        sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })),
+        digit - 1,
       )
-      assert.equal(index, digit - 1)
     }
+    sequence.dispose()
   })
 
-  it('ignores browser tab and macOS screenshot chords', () => {
-    assert.equal(
-      resolveScreenIndexFromShortcut(shortcutEvent({ metaKey: true, code: 'Digit1' })),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, shiftKey: true, code: 'Digit3' }),
-      ),
-      null,
-    )
+  it('does not navigate when pressing 1 through 5 without a preceding g', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    for (let digit = 1; digit <= 5; digit += 1) {
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })), null)
+    }
+    sequence.dispose()
   })
 
-  it('ignores non-meta keypresses and unrelated keys', () => {
-    assert.equal(resolveScreenIndexFromShortcut(shortcutEvent({ code: 'Digit1' })), null)
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit6' }),
-      ),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, code: 'KeyA' }),
-      ),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, ctrlKey: true, code: 'Digit2' }),
-      ),
-      null,
-    )
-    assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, shiftKey: true, code: 'Digit2' }),
-      ),
-      null,
-    )
+  it('does not navigate after g when the timeout expires before a digit', () => {
+    const timeoutMs = 50
+    const sequence = createScreenNavigationSequenceHandler({ timeoutMs })
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+
+    return new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit1' })), null)
+          sequence.dispose()
+          resolve()
+        } catch (error) {
+          reject(error)
+        }
+      }, timeoutMs + 25)
+    })
   })
 
-  it('maps physical digit keys via event.code regardless of layout-specific key values', () => {
+  it('cancels the sequence after g then a non-matching key', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyA' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
+    sequence.dispose()
+  })
+
+  it('allows a new g to start a fresh sequence after cancellation', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyA' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4' })), 3)
+    sequence.dispose()
+  })
+
+  it('matches typed digit characters via event.key (e.g. AZERTY shift+digit)', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
     assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit1' }),
+      sequence.handleKeyDown(
+        shortcutEvent({ code: 'Digit2', key: '2', shiftKey: true }),
       ),
-      0,
+      1,
+    )
+    sequence.dispose()
+  })
+
+  it('retains the sequence through a separate Shift keydown before a shifted digit', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
+    assert.equal(
+      sequence.handleKeyDown(
+        shortcutEvent({ code: 'ShiftLeft', key: 'Shift', shiftKey: true }),
+      ),
+      null,
     )
     assert.equal(
-      resolveScreenIndexFromShortcut(
-        shortcutEvent({ metaKey: true, altKey: true, code: 'Digit3' }),
+      sequence.handleKeyDown(
+        shortcutEvent({ code: 'Digit2', key: '2', shiftKey: true }),
       ),
-      2,
+      1,
     )
+    sequence.dispose()
+  })
+
+  it('does not navigate from physical digit position when the typed character is not 1-5', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', key: 'g' })), null)
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ code: 'Digit1', key: '&' })),
+      null,
+    )
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit3', key: '3' })), null)
+    sequence.dispose()
+  })
+
+  it('arms the sequence when g is typed on a non-KeyG physical position (e.g. Dvorak)', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyI', key: 'g' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4', key: '4' })), 3)
+    sequence.dispose()
+  })
+
+  it('ignores Cmd+1 through Cmd+5 and Cmd+Option chords', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    for (let digit = 1; digit <= 5; digit += 1) {
+      assert.equal(
+        sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: `Digit${digit}` })),
+        null,
+      )
+      assert.equal(
+        sequence.handleKeyDown(
+          shortcutEvent({ metaKey: true, altKey: true, code: `Digit${digit}` }),
+        ),
+        null,
+      )
+    }
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'Digit2' })),
+      null,
+    )
+    sequence.dispose()
+  })
+
+  it('ignores unrelated keys and modified g', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit6' })), null)
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'KeyG' })),
+      null,
+    )
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ ctrlKey: true, code: 'KeyG' })),
+      null,
+    )
+    sequence.dispose()
   })
 
   it('ignores shortcuts when the target is an editable field', () => {
@@ -119,23 +206,36 @@ describe('resolveScreenIndexFromShortcut', () => {
     editable.isContentEditable = true
 
     for (const target of [input, textarea, select, editable]) {
+      const sequence = createScreenNavigationSequenceHandler()
       assert.equal(
-        resolveScreenIndexFromShortcut(
-          shortcutEvent({
-            metaKey: true,
-            altKey: true,
-            code: 'Digit3',
-            target: target as never,
-          }),
-        ),
+        sequence.handleKeyDown(shortcutEvent({ code: 'KeyG', target: target as never })),
         null,
       )
+      assert.equal(
+        sequence.handleKeyDown(shortcutEvent({ code: 'Digit3', target: target as never })),
+        null,
+      )
+      sequence.dispose()
     }
 
     Object.defineProperty(globalThis, 'HTMLElement', {
       configurable: true,
       value: originalHtmlElement,
     })
+  })
+
+  it('clears pending state on dispose', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    const clearTimeoutSpy = mock.fn(globalThis.clearTimeout)
+    const originalClearTimeout = globalThis.clearTimeout
+    globalThis.clearTimeout = clearTimeoutSpy
+
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyG' })), null)
+    sequence.dispose()
+    assert.equal(clearTimeoutSpy.mock.callCount(), 1)
+
+    globalThis.clearTimeout = originalClearTimeout
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit1' })), null)
   })
 })
 

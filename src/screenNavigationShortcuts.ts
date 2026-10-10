@@ -3,14 +3,42 @@ export type ScreenNavigationKeyEvent = {
   ctrlKey: boolean
   altKey: boolean
   shiftKey: boolean
+  key: string
   code: string
   target: EventTarget | null
 }
 
-function screenIndexFromDigitCode(code: string): number | null {
-  const match = /^Digit([1-5])$/.exec(code)
+export const SCREEN_NAVIGATION_SEQUENCE_TIMEOUT_MS = 500
+
+function screenIndexFromDigitKey(key: string): number | null {
+  const match = /^([1-5])$/.exec(key)
   if (!match) return null
   return Number.parseInt(match[1], 10) - 1
+}
+
+function isPlainKey(event: ScreenNavigationKeyEvent): boolean {
+  return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+}
+
+function isSequenceGKey(event: ScreenNavigationKeyEvent): boolean {
+  return isPlainKey(event) && event.key === 'g'
+}
+
+function isDigitKeyWithoutUnrelatedModifiers(event: ScreenNavigationKeyEvent): boolean {
+  return !event.metaKey && !event.ctrlKey && !event.altKey
+}
+
+/** Modifier-only keydown (e.g. Shift before AZERTY shift+digit) must not cancel a pending sequence. */
+function isModifierOnlyKeyEvent(event: ScreenNavigationKeyEvent): boolean {
+  switch (event.key) {
+    case 'Shift':
+    case 'Control':
+    case 'Alt':
+    case 'Meta':
+      return true
+    default:
+      return false
+  }
 }
 
 export function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -42,16 +70,63 @@ export function findPanelNavigationElement(
   )
 }
 
+export type ScreenNavigationSequenceHandler = {
+  handleKeyDown: (event: ScreenNavigationKeyEvent) => number | null
+  dispose: () => void
+}
+
 /**
- * Returns zero-based visible screen index for Cmd+Option+1…Cmd+Option+5, or null when the shortcut
- * does not apply. Option avoids macOS browser tab shortcuts (Cmd+1…5) and screenshot chords
- * (Cmd+Shift+3…5) that the OS handles before the page receives keydown.
+ * Two-key screen navigation: `g` then `1`…`5` within a short timeout maps to visible screen indexes 0…4.
  */
-export function resolveScreenIndexFromShortcut(event: ScreenNavigationKeyEvent): number | null {
-  if (isEditableKeyboardTarget(event.target)) return null
-  if (!event.metaKey || !event.altKey) return null
-  if (event.ctrlKey || event.shiftKey) return null
-  return screenIndexFromDigitCode(event.code)
+export function createScreenNavigationSequenceHandler(
+  options: { timeoutMs?: number } = {},
+): ScreenNavigationSequenceHandler {
+  const timeoutMs = options.timeoutMs ?? SCREEN_NAVIGATION_SEQUENCE_TIMEOUT_MS
+  let pending = false
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const clear = () => {
+    pending = false
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+    }
+  }
+
+  const armPending = () => {
+    pending = true
+    if (timeoutId !== null) clearTimeout(timeoutId)
+    timeoutId = setTimeout(clear, timeoutMs)
+  }
+
+  const handleKeyDown = (event: ScreenNavigationKeyEvent): number | null => {
+    if (isEditableKeyboardTarget(event.target)) {
+      clear()
+      return null
+    }
+
+    if (isSequenceGKey(event)) {
+      armPending()
+      return null
+    }
+
+    if (!pending) return null
+
+    if (isModifierOnlyKeyEvent(event)) return null
+
+    const index = isDigitKeyWithoutUnrelatedModifiers(event)
+      ? screenIndexFromDigitKey(event.key)
+      : null
+    if (index === null) {
+      clear()
+      return null
+    }
+
+    clear()
+    return index
+  }
+
+  return { handleKeyDown, dispose: clear }
 }
 
 export function scrollToVisibleScreenAtIndex(
