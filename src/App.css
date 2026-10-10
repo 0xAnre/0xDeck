@@ -98,10 +98,12 @@
   cursor: nw-resize;
 }
 
-.panel-body {
+.panel-body,
+.workspace-scroller {
   scrollbar-width: none;
 }
 
-.panel-body::-webkit-scrollbar {
+.panel-body::-webkit-scrollbar,
+.workspace-scroller::-webkit-scrollbar {
   display: none;
 }
