@@ -1,24 +1,28 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  clearPaneDoubleClickPointerRecord,
-  pointerClientMovementExceedsDoubleClickPairTolerance,
+  armPanePointerClickForDoubleClick,
+  cancelPanePointerClickForDoubleClick,
+  commitPanePointerClickForDoubleClick,
+  invalidatePanePointerClickForDoubleClickOnDrag,
   shouldSuppressPanePointerDownForDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 
 const DOUBLE_CLICK_INTERVAL_MS = 500
 
 describe('shouldSuppressPanePointerDownForDoubleClick', () => {
-  it('suppresses only the second press within interval and distance', () => {
+  it('suppresses only the second press within interval and distance after a completed click', () => {
     const pane = {} as HTMLElement
-    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 10, 20, 0), false)
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    commitPanePointerClickForDoubleClick(pane)
     assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 100), true)
     assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 200), false)
   })
 
   it('does not suppress when presses are too far apart in time', () => {
     const pane = {} as HTMLElement
-    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 0, 0, 0), false)
+    armPanePointerClickForDoubleClick(pane, 0, 0, 0)
+    commitPanePointerClickForDoubleClick(pane)
     assert.equal(
       shouldSuppressPanePointerDownForDoubleClick(pane, 0, 0, DOUBLE_CLICK_INTERVAL_MS + 1),
       false,
@@ -27,23 +31,26 @@ describe('shouldSuppressPanePointerDownForDoubleClick', () => {
 
   it('does not suppress when presses are too far apart in position', () => {
     const pane = {} as HTMLElement
-    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 0, 0, 0), false)
+    armPanePointerClickForDoubleClick(pane, 0, 0, 0)
+    commitPanePointerClickForDoubleClick(pane)
     assert.equal(
       shouldSuppressPanePointerDownForDoubleClick(pane, 100, 100, 50),
       false,
     )
   })
 
-  it('does not suppress the next press after the pending record is cleared', () => {
+  it('does not treat a drag as the first click of a double-click', () => {
     const pane = {} as HTMLElement
-    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 10, 20, 0), false)
-    clearPaneDoubleClickPointerRecord(pane)
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
+    commitPanePointerClickForDoubleClick(pane)
     assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 100), false)
-    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 150), true)
   })
 
-  it('detects client movement beyond the double-click pair tolerance', () => {
-    assert.equal(pointerClientMovementExceedsDoubleClickPairTolerance(0, 0, 10, 0), false)
-    assert.equal(pointerClientMovementExceedsDoubleClickPairTolerance(0, 0, 11, 0), true)
+  it('does not record a cancelled pending click', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    cancelPanePointerClickForDoubleClick(pane)
+    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 100), false)
   })
 })

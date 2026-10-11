@@ -21,8 +21,10 @@ import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.t
 import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
-  clearPaneDoubleClickPointerRecord,
-  pointerClientMovementExceedsDoubleClickPairTolerance,
+  armPanePointerClickForDoubleClick,
+  cancelPanePointerClickForDoubleClick,
+  commitPanePointerClickForDoubleClick,
+  invalidatePanePointerClickForDoubleClickOnDrag,
   shouldSuppressPanePointerDownForDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 import {
@@ -72,7 +74,7 @@ export function attachRectanglePanePointer(
 
   let activePointerId: number | null = null
   let activeDragStartPane: { paneX: number; paneY: number } | null = null
-  let activeDragStartClient: { clientX: number; clientY: number } | null = null
+  let activePointerDownClient: { clientX: number; clientY: number } | null = null
 
   const resolvePaneY = (event: PointerEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -175,6 +177,8 @@ export function attachRectanglePanePointer(
       ) {
         return
       }
+      armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
+      activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
       if (isRectangleInstanceLocked(instance)) {
         const next = applyRectangleSelection(interaction, hit.instanceId)
         if (next !== interaction) {
@@ -191,7 +195,6 @@ export function attachRectanglePanePointer(
         if (next === interaction) return
         activePointerId = event.pointerId
         activeDragStartPane = { paneX, paneY }
-        activeDragStartClient = { clientX: event.clientX, clientY: event.clientY }
         paneElement.setPointerCapture(event.pointerId)
         syncPointerPreview(paneX, paneY)
         callbacks.onInteractionChange(next)
@@ -205,7 +208,6 @@ export function attachRectanglePanePointer(
       if (next === interaction) return
       activePointerId = event.pointerId
       activeDragStartPane = { paneX, paneY }
-      activeDragStartClient = { clientX: event.clientX, clientY: event.clientY }
       paneElement.setPointerCapture(event.pointerId)
       syncPointerPreview(paneX, paneY)
       callbacks.onInteractionChange(next)
@@ -213,19 +215,16 @@ export function attachRectanglePanePointer(
   }
 
   const onPointerMove = (event: PointerEvent) => {
-    if (activePointerId !== event.pointerId) return
-    const dragStartClient = activeDragStartClient
-    if (
-      dragStartClient &&
-      pointerClientMovementExceedsDoubleClickPairTolerance(
-        dragStartClient.clientX,
-        dragStartClient.clientY,
+    if (activePointerDownClient) {
+      invalidatePanePointerClickForDoubleClickOnDrag(
+        paneElement,
+        activePointerDownClient.clientX,
+        activePointerDownClient.clientY,
         event.clientX,
         event.clientY,
       )
-    ) {
-      clearPaneDoubleClickPointerRecord(paneElement)
     }
+    if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (!isRectangleChartNavigationLocked(snapshot.interaction)) return
     const paneX = resolvePaneRelativePointerX(event, paneElement)
@@ -240,11 +239,27 @@ export function attachRectanglePanePointer(
     }
     activePointerId = null
     activeDragStartPane = null
-    activeDragStartClient = null
+    activePointerDownClient = null
   }
 
   const onPointerUp = (event: PointerEvent) => {
     if (event.button !== 0) return
+    if (activePointerId === null && activePointerDownClient !== null) {
+      if (
+        pointerMovementWithinClickTolerance(
+          activePointerDownClient.clientX,
+          activePointerDownClient.clientY,
+          event.clientX,
+          event.clientY,
+        )
+      ) {
+        commitPanePointerClickForDoubleClick(paneElement)
+      } else {
+        cancelPanePointerClickForDoubleClick(paneElement)
+      }
+      activePointerDownClient = null
+      return
+    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     const series = callbacks.getSeries()
@@ -276,9 +291,10 @@ export function attachRectanglePanePointer(
         dragStart !== null &&
         pointerMovementWithinClickTolerance(dragStart.paneX, dragStart.paneY, paneX, paneY)
       if (wasClick) {
+        commitPanePointerClickForDoubleClick(paneElement)
         callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
       } else {
-        clearPaneDoubleClickPointerRecord(paneElement)
+        cancelPanePointerClickForDoubleClick(paneElement)
         const preview = callbacks.getPointerPreview()
         const commitTime = point?.time ?? preview.time
         const commitPrice = point?.price ?? preview.price
@@ -318,6 +334,7 @@ export function attachRectanglePanePointer(
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (isRectangleChartNavigationLocked(snapshot.interaction)) {
+      cancelPanePointerClickForDoubleClick(paneElement)
       const cancelled = cancelRectangleInteraction(snapshot.interaction)
       callbacks.onPointerPreviewChange(null, null)
       callbacks.onInteractionChange(cancelled)
