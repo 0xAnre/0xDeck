@@ -34,20 +34,22 @@ function resolveVisibleDataIndexBounds(
   barsBefore: number,
   dataLength: number,
 ): { firstVisibleIndex: number; lastVisibleIndex: number } | null {
-  const firstLogicalOnSeries = logicalRange.from - barsBefore
-  const firstVisibleIndex = Math.ceil(logicalRange.from) - firstLogicalOnSeries
-  const lastVisibleIndex = Math.floor(logicalRange.to) - firstLogicalOnSeries
-  if (
-    firstVisibleIndex < 0 ||
-    lastVisibleIndex < 0 ||
-    firstVisibleIndex >= dataLength ||
-    lastVisibleIndex < firstVisibleIndex
-  ) {
+  const seriesOriginLogical = Math.floor(logicalRange.from - barsBefore)
+  const visibleFromLogical = Math.ceil(logicalRange.from)
+  const visibleToLogical = Math.floor(logicalRange.to)
+  const firstVisibleIndex = visibleFromLogical - seriesOriginLogical
+  const lastVisibleIndex = visibleToLogical - seriesOriginLogical
+  if (lastVisibleIndex < 0 || firstVisibleIndex >= dataLength || lastVisibleIndex < firstVisibleIndex) {
+    return null
+  }
+  const clampedFirst = Math.max(0, firstVisibleIndex)
+  const clampedLast = Math.min(lastVisibleIndex, dataLength - 1)
+  if (clampedLast < clampedFirst) {
     return null
   }
   return {
-    firstVisibleIndex,
-    lastVisibleIndex: Math.min(lastVisibleIndex, dataLength - 1),
+    firstVisibleIndex: clampedFirst,
+    lastVisibleIndex: clampedLast,
   }
 }
 

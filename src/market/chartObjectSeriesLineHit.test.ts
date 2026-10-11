@@ -41,15 +41,15 @@ function createMockLineSeries(
       const toLogical = Math.min(lastLogicalIndex, Math.floor(range.to))
       if (fromLogical > toLogical) {
         return {
-          barsBefore: range.from - firstLogicalIndex,
-          barsAfter: lastLogicalIndex - range.to,
+          barsBefore: Math.floor(range.from - firstLogicalIndex),
+          barsAfter: Math.floor(lastLogicalIndex - range.to),
         }
       }
       const fromIndex = fromLogical - firstLogicalIndex
       const toIndex = toLogical - firstLogicalIndex
       return {
-        barsBefore: range.from - firstLogicalIndex,
-        barsAfter: lastLogicalIndex - range.to,
+        barsBefore: Math.floor(range.from - firstLogicalIndex),
+        barsAfter: Math.floor(lastLogicalIndex - range.to),
         from: points[fromIndex].time,
         to: points[toIndex].time,
       }
@@ -78,6 +78,17 @@ describe('resolveVisibleLineSegmentIndexBounds', () => {
       startIndex: 10,
       endIndex: 21,
     })
+  })
+
+  it('uses integral data indexes when logical range is fractional', () => {
+    const chart = createMockChart({ from: 10.2, to: 20.8 })
+    const series = createMockLineSeries(
+      Array.from({ length: 100 }, (_, index) => ({ time: index, value: index })),
+    )
+    const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, series, 100)
+    assert.equal(Number.isInteger(startIndex), true)
+    assert.equal(Number.isInteger(endIndex), true)
+    assert.equal(hitTestLineSeriesAtPane(chart, series, 15.5, 15), true)
   })
 
   it('maps visible logical range to compact indicator data', () => {
