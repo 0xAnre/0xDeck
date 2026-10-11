@@ -1361,6 +1361,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       applyChartHistorySeries(bundleNow, candles, rollingVwapInstancesRef.current)
       const barCount = candles.length
       const currentInterval = activeIntervalRef.current
+      let pendingHistoryViewportRestore = false
       suppressViewportPersistRef.current = true
       try {
         const saved = loadWidgetMarketChartViewport(panelId, currentInterval)
@@ -1373,6 +1374,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           } else if (restoreResult === 'needs_history') {
             const bundleForHistory = seriesRef.current
             if (bundleForHistory) {
+              pendingHistoryViewportRestore = true
               void loadOlderHistoryUntilVisibleFrom({
                 state: infiniteHistoryRef.current,
                 generation: loadGenerationRef.current,
@@ -1383,34 +1385,40 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 chart,
                 signal: controller.signal,
                 rollingVwapInstances: rollingVwapInstancesRef.current,
-              }).then(() => {
-                if (generation !== loadGenerationRef.current) return
-                const chartAfterHistory = chartRef.current
-                if (!chartAfterHistory) return
-                const candlesAfterHistory = candlesRef.current
-                if (
-                  savedVisibleTimeRangeIsRestorable(
-                    saved.visibleTimeRange,
-                    candlesAfterHistory,
-                  )
-                ) {
-                  applySavedVisibleTimeRange(
-                    chartAfterHistory,
-                    saved.visibleTimeRange,
-                    saved.rightOffset,
-                  )
-                } else {
-                  applyDefaultMarketChartPresentation(
-                    chartAfterHistory,
-                    candlesAfterHistory.length,
-                  )
-                }
               })
+                .then(() => {
+                  if (generation !== loadGenerationRef.current) return
+                  const chartAfterHistory = chartRef.current
+                  if (!chartAfterHistory) return
+                  const candlesAfterHistory = candlesRef.current
+                  if (
+                    savedVisibleTimeRangeIsRestorable(
+                      saved.visibleTimeRange,
+                      candlesAfterHistory,
+                    )
+                  ) {
+                    applySavedVisibleTimeRange(
+                      chartAfterHistory,
+                      saved.visibleTimeRange,
+                      saved.rightOffset,
+                    )
+                  } else {
+                    applyDefaultMarketChartPresentation(
+                      chartAfterHistory,
+                      candlesAfterHistory.length,
+                    )
+                  }
+                })
+                .finally(() => {
+                  suppressViewportPersistRef.current = false
+                })
             }
           }
         }
       } finally {
-        suppressViewportPersistRef.current = false
+        if (!pendingHistoryViewportRestore) {
+          suppressViewportPersistRef.current = false
+        }
       }
       return true
     }
