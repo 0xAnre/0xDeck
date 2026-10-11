@@ -1368,7 +1368,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
               }).then(() => {
                 if (generation !== loadGenerationRef.current) return
                 if (!chartRef.current) return
-                applySavedVisibleTimeRange(chartRef.current, saved.visibleTimeRange)
+                applySavedVisibleTimeRange(
+                  chartRef.current,
+                  saved.visibleTimeRange,
+                  saved.rightOffset,
+                )
               })
             }
           }

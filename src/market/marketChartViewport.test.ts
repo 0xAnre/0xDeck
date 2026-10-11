@@ -166,7 +166,7 @@ describe('restoreMarketChartViewport', () => {
     }
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'needs_history')
     assert.equal(getState().visibleTimeRange, null)
-    assert.equal(getState().rightOffset, 8)
+    assert.equal(getState().rightOffset, 0)
   })
 
   it('falls back when the saved window does not overlap loaded candles', () => {

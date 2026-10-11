@@ -198,12 +198,11 @@ export function restoreMarketChartViewport(
   applyViewportPresentationOptions(chart, parsed)
 
   if (visibleTimeRangeNeedsOlderHistory(parsed.visibleTimeRange, candles)) {
-    chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
     return 'needs_history'
   }
 
-  chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
   chart.timeScale().setVisibleRange(parsed.visibleTimeRange as IRangeTime)
+  chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
   return 'restored'
 }
 
@@ -212,8 +211,10 @@ type IRangeTime = { from: Time; to: Time }
 export function applySavedVisibleTimeRange(
   chart: IChartApi,
   visibleTimeRange: { from: number; to: number },
+  rightOffset: number,
 ): void {
   chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
+  chart.timeScale().applyOptions({ rightOffset })
 }
 
 export { MARKET_CHART_INITIAL_VISIBLE_BARS }
