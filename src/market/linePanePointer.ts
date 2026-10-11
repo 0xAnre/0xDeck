@@ -206,6 +206,23 @@ export function attachLinePanePointer(
   }
 
   const onPointerMove = (event: PointerEvent) => {
+    if (
+      pendingChartObjectActivation &&
+      pendingChartObjectActivation.pointerId === event.pointerId
+    ) {
+      const paneX = resolvePaneRelativePointerX(event, paneElement)
+      const paneY = resolvePaneY(event)
+      if (
+        !pointerMovementWithinClickTolerance(
+          pendingChartObjectActivation.startPaneX,
+          pendingChartObjectActivation.startPaneY,
+          paneX,
+          paneY,
+        )
+      ) {
+        pendingChartObjectActivation = null
+      }
+    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (!isLineChartNavigationLocked(snapshot.interaction)) return

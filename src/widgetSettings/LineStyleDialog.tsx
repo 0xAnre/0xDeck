@@ -7,12 +7,8 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import {
-  LINE_CHART_STROKE_STYLES,
-  LINE_CHART_STROKE_WIDTHS,
-  type LineChartStrokeStyle,
-  type LineChartStrokeWidth,
-} from '@/market/lineChartStroke'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
+import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import {
   formatLineInstanceLabel,
   lineInstanceStrokeStyle,
@@ -76,36 +72,14 @@ export function LineStyleDialog({
                 onChange={(event) => onStrokeColorChange(instance.id, event.target.value)}
               />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="line-width">Width</FieldLabel>
-              <select
-                id="line-width"
-                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm"
-                value={lineInstanceStrokeWidth(instance)}
-                onChange={(event) =>
-                  onLineWidthChange(instance.id, Number(event.target.value) as LineChartStrokeWidth)
-                }
-              >
-                {LINE_CHART_STROKE_WIDTHS.map((width) => (
-                  <option key={width} value={width}>{width}px</option>
-                ))}
-              </select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="line-style">Style</FieldLabel>
-              <select
-                id="line-style"
-                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm"
-                value={lineInstanceStrokeStyle(instance)}
-                onChange={(event) =>
-                  onLineStyleChange(instance.id, event.target.value as LineChartStrokeStyle)
-                }
-              >
-                {LINE_CHART_STROKE_STYLES.map((style) => (
-                  <option key={style} value={style}>{style}</option>
-                ))}
-              </select>
-            </Field>
+            <LineChartStrokeSelectFields
+              widthId="line-width"
+              styleId="line-style"
+              lineWidth={lineInstanceStrokeWidth(instance)}
+              lineStyle={lineInstanceStrokeStyle(instance)}
+              onLineWidthChange={(lineWidth) => onLineWidthChange(instance.id, lineWidth)}
+              onLineStyleChange={(lineStyle) => onLineStyleChange(instance.id, lineStyle)}
+            />
           </FieldGroup>
         ) : null}
       </DialogContent>

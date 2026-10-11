@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { EyeIcon, EyeOffIcon, LockIcon, LockOpenIcon, SettingsIcon, Trash2Icon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type ChartObjectListRowProps = {
@@ -38,11 +39,12 @@ export function ChartObjectListRow({
       <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
       <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
       {onToggleHidden && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           aria-label={hidden ? 'Show object' : 'Hide object'}
           disabled={disabled}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.preventDefault()
@@ -50,15 +52,16 @@ export function ChartObjectListRow({
             onToggleHidden()
           }}
         >
-          {hidden ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
-        </button>
+          {hidden ? <EyeOffIcon data-icon="inline-start" /> : <EyeIcon data-icon="inline-start" />}
+        </Button>
       )}
       {onToggleLocked && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           aria-label={locked ? 'Unlock object' : 'Lock object'}
           disabled={disabled}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.preventDefault()
@@ -66,15 +69,16 @@ export function ChartObjectListRow({
             onToggleLocked()
           }}
         >
-          {locked ? <LockIcon className="size-3.5" /> : <LockOpenIcon className="size-3.5" />}
-        </button>
+          {locked ? <LockIcon data-icon="inline-start" /> : <LockOpenIcon data-icon="inline-start" />}
+        </Button>
       )}
       {onSettings && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           aria-label={`${label} settings`}
           disabled={disabled}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.preventDefault()
@@ -82,15 +86,17 @@ export function ChartObjectListRow({
             onSettings()
           }}
         >
-          <SettingsIcon className="size-3.5" />
-        </button>
+          <SettingsIcon data-icon="inline-start" />
+        </Button>
       )}
       {onDelete && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="hover:text-destructive"
           aria-label={`Delete ${label}`}
           disabled={disabled}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-50"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.preventDefault()
@@ -98,8 +104,8 @@ export function ChartObjectListRow({
             onDelete()
           }}
         >
-          <Trash2Icon className="size-3.5" />
-        </button>
+          <Trash2Icon data-icon="inline-start" />
+        </Button>
       )}
     </div>
   )

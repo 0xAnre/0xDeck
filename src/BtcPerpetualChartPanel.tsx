@@ -190,6 +190,7 @@ import {
   updateFixedRangeVolumeProfileInstancesById,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
+import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettingsPanePointer'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   applyMarketIndicatorPresentationToBundle,
@@ -1186,6 +1187,49 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   useEffect(() => {
     const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const controller = attachChartObjectSettingsPanePointer(chart, {
+      getHitTestContext: (paneX, paneY) => {
+        const bundle = seriesRef.current
+        const candleSeries = bundle?.candle
+        if (!bundle || !candleSeries) return null
+        const loaded = loadedVwapContextRef.current
+        return {
+          chart,
+          series: candleSeries,
+          paneX,
+          paneY,
+          interval: activeIntervalRef.current,
+          intervalDurationSeconds: candleIntervalDurationSeconds(activeIntervalRef.current),
+          lastBarUnixTime: latestCandleUnixTime(candlesRef.current),
+          activeIndicators: activeIndicatorsRef.current,
+          loadedVwapLevel:
+            loaded?.interval === activeIntervalRef.current ? loaded.level : null,
+          loadedVwapInterval: loaded?.interval ?? null,
+          bundle,
+          rectangleInteraction: rectangleInteractionRef.current,
+          lineInteraction: lineInteractionRef.current,
+          fixedRangeVolumeProfileInteraction: fixedRangeVolumeProfileInteractionRef.current,
+          rectangleInstances: rectangleInstancesRef.current,
+          lineInstances: lineInstancesRef.current,
+          fixedRangeVolumeProfileInstances: fixedRangeVolumeProfileInstancesRef.current,
+          fixedRangeVolumeProfileRuntime: fixedRangeVolumeProfileRuntimeRef.current,
+          rollingVwapInstances: rollingVwapInstancesRef.current,
+        }
+      },
+      onActivate: (target) => {
+        openChartObjectSettings(target)
+      },
+    })
+
+    return () => {
+      controller.dispose()
+    }
+  }, [chartReady, openChartObjectSettings])
+
+  useEffect(() => {
+    const chart = chartRef.current
     const bundle = seriesRef.current
     if (!chart || !bundle || !chartReady) return
 
@@ -1291,7 +1335,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (!bundle) return
     applyEmaIndicatorSeriesVisibility(bundle, activeIndicators)
     syncAllVwapVisibility(bundle)
-  }, [activeIndicators, chartReady, interval, rollingVwapInstances, syncAllVwapVisibility])
+    syncWidgetMarketIndicatorPresentations(panelId, bundle)
+  }, [activeIndicators, chartReady, interval, panelId, rollingVwapInstances, syncAllVwapVisibility])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -1494,7 +1539,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       candlesRef.current = []
       historyReadyRef.current = false
     }
-  }, [flushMarketChartViewportPersist, scheduleMarketChartViewportPersist])
+  }, [flushMarketChartViewportPersist, panelId, scheduleMarketChartViewportPersist])
 
   useEffect(() => {
     const intervalLeaving = activeIntervalRef.current

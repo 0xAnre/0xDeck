@@ -9,12 +9,11 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { MARKET_INDICATOR_DEFINITIONS, type MarketIndicatorId } from '@/market/indicators'
 import {
-  LINE_CHART_STROKE_STYLES,
-  LINE_CHART_STROKE_WIDTHS,
-  type LineChartStrokeStyle,
-  type LineChartStrokeWidth,
+  DEFAULT_LINE_CHART_STROKE_STYLE,
+  DEFAULT_LINE_CHART_STROKE_WIDTH,
 } from '@/market/lineChartStroke'
 import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
+import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 
 type MarketIndicatorStyleDialogProps = {
   indicatorId: MarketIndicatorId | null
@@ -67,42 +66,18 @@ export function MarketIndicatorStyleDialog({
                 }
               />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="indicator-width">Width</FieldLabel>
-              <select
-                id="indicator-width"
-                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm"
-                value={presentation.lineWidth ?? 1}
-                onChange={(event) =>
-                  onPresentationChange(indicatorId, {
-                    ...presentation,
-                    lineWidth: Number(event.target.value) as LineChartStrokeWidth,
-                  })
-                }
-              >
-                {LINE_CHART_STROKE_WIDTHS.map((width) => (
-                  <option key={width} value={width}>{width}px</option>
-                ))}
-              </select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="indicator-style">Style</FieldLabel>
-              <select
-                id="indicator-style"
-                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm"
-                value={presentation.lineStyle ?? 'solid'}
-                onChange={(event) =>
-                  onPresentationChange(indicatorId, {
-                    ...presentation,
-                    lineStyle: event.target.value as LineChartStrokeStyle,
-                  })
-                }
-              >
-                {LINE_CHART_STROKE_STYLES.map((style) => (
-                  <option key={style} value={style}>{style}</option>
-                ))}
-              </select>
-            </Field>
+            <LineChartStrokeSelectFields
+              widthId="indicator-width"
+              styleId="indicator-style"
+              lineWidth={presentation.lineWidth ?? DEFAULT_LINE_CHART_STROKE_WIDTH}
+              lineStyle={presentation.lineStyle ?? DEFAULT_LINE_CHART_STROKE_STYLE}
+              onLineWidthChange={(lineWidth) =>
+                onPresentationChange(indicatorId, { ...presentation, lineWidth })
+              }
+              onLineStyleChange={(lineStyle) =>
+                onPresentationChange(indicatorId, { ...presentation, lineStyle })
+              }
+            />
           </FieldGroup>
         ) : null}
       </DialogContent>
