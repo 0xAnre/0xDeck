@@ -12,13 +12,17 @@ import {
   DEFAULT_LINE_CHART_STROKE_STYLE,
   DEFAULT_LINE_CHART_STROKE_WIDTH,
 } from '@/market/lineChartStroke'
+import {
+  marketIndicatorColorInputValue,
+  marketIndicatorUsesDistinctSeriesColors,
+} from '@/market/marketIndicatorSeriesColors'
 import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 
 type MarketIndicatorStyleDialogProps = {
   indicatorId: MarketIndicatorId | null
   presentation: MarketIndicatorPresentation
-  seriesColor?: string
+  seriesColors: readonly string[]
   returnFocusId: string
   onOpenChange: (open: boolean) => void
   onPresentationChange: (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => void
@@ -27,13 +31,15 @@ type MarketIndicatorStyleDialogProps = {
 export function MarketIndicatorStyleDialog({
   indicatorId,
   presentation,
-  seriesColor,
+  seriesColors,
   returnFocusId,
   onOpenChange,
   onPresentationChange,
 }: MarketIndicatorStyleDialogProps) {
   const label = indicatorId ? MARKET_INDICATOR_DEFINITIONS[indicatorId].label : 'Indicator'
-  const colorControlValue = presentation.color ?? seriesColor ?? '#9e9e9e'
+  const colorInputValue = marketIndicatorColorInputValue(presentation.color, seriesColors)
+  const usesDistinctSeriesColors =
+    presentation.color === undefined && marketIndicatorUsesDistinctSeriesColors(seriesColors)
 
   return (
     <Dialog
@@ -57,10 +63,25 @@ export function MarketIndicatorStyleDialog({
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="indicator-color">Color</FieldLabel>
+              {usesDistinctSeriesColors ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {seriesColors.map((color, index) => (
+                    <span
+                      key={`${color}-${index}`}
+                      className="size-6 rounded border border-border"
+                      style={{ backgroundColor: color }}
+                      aria-hidden
+                    />
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Theme colors per line. Pick a color to apply it to all lines.
+                  </p>
+                </div>
+              ) : null}
               <Input
                 id="indicator-color"
                 type="color"
-                value={colorControlValue}
+                value={colorInputValue}
                 onChange={(event) =>
                   onPresentationChange(indicatorId, {
                     ...presentation,

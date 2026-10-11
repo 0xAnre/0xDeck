@@ -96,6 +96,7 @@ import {
   saveWidgetMarketIndicatorPresentation,
   type MarketIndicatorPresentation,
 } from '@/marketIndicatorPresentationStorage'
+import { readMarketIndicatorSeriesColors } from '@/market/marketIndicatorSeriesColors'
 import { MarketIndicatorStyleDialog } from '@/widgetSettings/MarketIndicatorStyleDialog'
 import { createDefaultRollingVwapSettings } from '@/market/rollingVwapSettings'
 import { saveWidgetRollingVwapInstances } from '@/rollingVwapInstancesStorage'
@@ -194,7 +195,6 @@ import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettin
 import { EMA_PERIODS } from '@/market/ema'
 import {
   applyMarketIndicatorPresentationToBundle,
-  resolveMarketIndicatorSeriesColor,
   syncWidgetMarketIndicatorPresentations,
 } from '@/market/marketIndicatorPresentationApply'
 import {
@@ -285,9 +285,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     useState<MarketIndicatorId | null>(null)
   const [marketIndicatorPresentation, setMarketIndicatorPresentation] =
     useState<MarketIndicatorPresentation>({})
-  const [editingMarketIndicatorSeriesColor, setEditingMarketIndicatorSeriesColor] = useState<
-    string | undefined
-  >(undefined)
+  const [editingMarketIndicatorSeriesColors, setEditingMarketIndicatorSeriesColors] = useState<
+    readonly string[]
+  >([])
   const [fixedRangeVolumeProfileInstances, setFixedRangeVolumeProfileInstances] = useState<
     FixedRangeVolumeProfileInstance[]
   >(() =>
@@ -652,8 +652,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         loadWidgetMarketIndicatorPresentation(panelId, target.indicatorId),
       )
       const bundle = seriesRef.current
-      setEditingMarketIndicatorSeriesColor(
-        bundle ? resolveMarketIndicatorSeriesColor(bundle, target.indicatorId) : undefined,
+      setEditingMarketIndicatorSeriesColors(
+        bundle ? readMarketIndicatorSeriesColors(bundle, target.indicatorId) : [],
       )
     }
   }, [panelId])
@@ -1958,12 +1958,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       <MarketIndicatorStyleDialog
         indicatorId={editingMarketIndicatorId}
         presentation={marketIndicatorPresentation}
-        seriesColor={editingMarketIndicatorSeriesColor}
+        seriesColors={editingMarketIndicatorSeriesColors}
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           if (!open) {
             setEditingMarketIndicatorId(null)
-            setEditingMarketIndicatorSeriesColor(undefined)
+            setEditingMarketIndicatorSeriesColors([])
             setChartObjectSettingsTarget(null)
           }
         }}

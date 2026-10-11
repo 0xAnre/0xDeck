@@ -1,6 +1,7 @@
-import { LineStyle, type ISeriesApi, type LineSeriesPartialOptions } from 'lightweight-charts'
+import { LineStyle, type LineSeriesPartialOptions } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import { MARKET_INDICATOR_IDS, type MarketIndicatorId } from './indicators.ts'
+import { readMarketIndicatorSeriesColors } from './marketIndicatorSeriesColors.ts'
 import {
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
@@ -39,39 +40,12 @@ export function marketIndicatorPresentationLineOptions(
   return options
 }
 
-function readLineSeriesColor(series: ISeriesApi<'Line'>): string | undefined {
-  const color = series.options().color
-  return typeof color === 'string' ? color : undefined
-}
-
 export function resolveMarketIndicatorSeriesColor(
   bundle: ChartSeriesBundle,
   indicatorId: MarketIndicatorId,
 ): string | undefined {
-  switch (indicatorId) {
-    case 'triple-ema':
-      return readLineSeriesColor(bundle.emas[0]!)
-    case 'dual-ema':
-      return readLineSeriesColor(bundle.ema100)
-    case 'daily-vwap':
-      return readLineSeriesColor(bundle.dailyVwap.byKey.vwap)
-    case 'weekly-vwap':
-      return readLineSeriesColor(bundle.weeklyVwap.byKey.vwap)
-    case 'monthly-vwap':
-      return readLineSeriesColor(bundle.monthlyVwap.byKey.vwap)
-    case 'quarterly-vwap':
-      return readLineSeriesColor(bundle.quarterlyVwap.byKey.vwap)
-    case 'yearly-vwap':
-      return readLineSeriesColor(bundle.yearlyVwap.byKey.vwap)
-    case 'rolling-vwap': {
-      const first = bundle.rollingVwaps.values().next().value
-      return first ? readLineSeriesColor(first.center) : undefined
-    }
-    default: {
-      const unreachable: never = indicatorId
-      return unreachable
-    }
-  }
+  const colors = readMarketIndicatorSeriesColors(bundle, indicatorId)
+  return colors[0]
 }
 
 function hasPresentationOverrides(presentation: MarketIndicatorPresentation): boolean {
