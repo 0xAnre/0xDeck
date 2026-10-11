@@ -333,7 +333,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (!options?.allowWhileHistoryNotReady && !historyReadyRef.current) return
       const chart = chartRef.current
       if (!chart) return
-      const captured = captureMarketChartViewport(chart)
+      const captured = captureMarketChartViewport(chart, candlesRef.current)
       if (!captured) return
       saveWidgetMarketChartViewport(
         panelId,
@@ -1404,13 +1404,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                       saved.rightOffset,
                       candlesAfterHistory,
                       saved.visibleLogicalRange,
+                      saved.logicalFromOffsetFromTimeAnchor,
                     )
                   } else {
                     applyDefaultMarketChartPresentation(
                       chartAfterHistory,
                       candlesAfterHistory.length,
                     )
-                    const fallbackViewport = captureMarketChartViewport(chartAfterHistory)
+                    const fallbackViewport = captureMarketChartViewport(
+                      chartAfterHistory,
+                      candlesAfterHistory,
+                    )
                     if (fallbackViewport) {
                       saveWidgetMarketChartViewport(
                         panelId,

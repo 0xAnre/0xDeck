@@ -375,6 +375,36 @@ describe('rebaseSavedVisibleLogicalRange', () => {
       { from: 1.35, to: 11.35 },
     )
   })
+
+  it('preserves leading whitespace when the saved time anchor is clamped to the first candle', () => {
+    const rebased = rebaseSavedVisibleLogicalRange(
+      candles,
+      { from: 100, to: 400 },
+      { from: -10.4, to: -0.4 },
+    )
+    assert.ok(rebased)
+    assert.equal(rebased.from, -10.4)
+    assert.equal(rebased.to - rebased.from, 10)
+  })
+
+  it('uses the persisted time-anchor offset after history indices shift', () => {
+    const shiftedCandles = sampleCandles([
+      1_699_990_000,
+      1_699_995_000,
+      1_700_000_000,
+      1_700_000_060,
+      1_700_000_120,
+    ])
+    assert.deepEqual(
+      rebaseSavedVisibleLogicalRange(
+        shiftedCandles,
+        { from: 1_700_000_000, to: 1_700_000_120 },
+        { from: 0, to: 10 },
+        0,
+      ),
+      { from: 2, to: 12 },
+    )
+  })
 })
 
 describe('visibleTimeRangeToLogicalRange', () => {

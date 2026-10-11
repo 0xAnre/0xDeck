@@ -17,6 +17,8 @@ export type PersistedMarketChartViewport = {
   version: 1
   visibleLogicalRange: { from: number; to: number }
   visibleTimeRange: { from: number; to: number }
+  /** Logical `from` minus the candle index for `visibleTimeRange.from` at capture time. */
+  logicalFromOffsetFromTimeAnchor?: number
   autoScale: boolean
   priceRange: { from: number; to: number } | null
   scaleMargins: { top: number; bottom: number }
@@ -90,10 +92,19 @@ export function parsePersistedMarketChartViewport(
 
   if (!record.autoScale && priceRange === null) return null
 
+  let logicalFromOffsetFromTimeAnchor: number | undefined
+  if (record.logicalFromOffsetFromTimeAnchor !== undefined) {
+    if (!isFiniteNumber(record.logicalFromOffsetFromTimeAnchor)) return null
+    logicalFromOffsetFromTimeAnchor = record.logicalFromOffsetFromTimeAnchor
+  }
+
   return {
     version: 1,
     visibleLogicalRange,
     visibleTimeRange,
+    ...(logicalFromOffsetFromTimeAnchor !== undefined
+      ? { logicalFromOffsetFromTimeAnchor }
+      : {}),
     autoScale: record.autoScale,
     priceRange,
     scaleMargins,
@@ -101,7 +112,10 @@ export function parsePersistedMarketChartViewport(
   }
 }
 
-export function captureMarketChartViewport(chart: IChartApi): PersistedMarketChartViewport | null {
+export function captureMarketChartViewport(
+  chart: IChartApi,
+  candles?: readonly MarketCandle[],
+): PersistedMarketChartViewport | null {
   const visibleLogicalRange = chart.timeScale().getVisibleLogicalRange()
   if (!visibleLogicalRange) return null
   const parsedLogical = parseVisibleLogicalRange(visibleLogicalRange)
@@ -135,10 +149,19 @@ export function captureMarketChartViewport(chart: IChartApi): PersistedMarketCha
     priceRange = { from: visible.from, to: visible.to }
   }
 
+  let logicalFromOffsetFromTimeAnchor: number | undefined
+  if (candles && candles.length > 0) {
+    const anchorIndex = findCandleIndexAtOrAfter(candles, truncated.from)
+    logicalFromOffsetFromTimeAnchor = parsedLogical.from - anchorIndex
+  }
+
   return {
     version: 1,
     visibleLogicalRange: parsedLogical,
     visibleTimeRange: truncated,
+    ...(logicalFromOffsetFromTimeAnchor !== undefined
+      ? { logicalFromOffsetFromTimeAnchor }
+      : {}),
     autoScale,
     priceRange,
     scaleMargins,
@@ -262,6 +285,7 @@ export function restoreMarketChartViewport(
     parsed.rightOffset,
     candles,
     parsed.visibleLogicalRange,
+    parsed.logicalFromOffsetFromTimeAnchor,
   )
   return 'restored'
 }
@@ -328,14 +352,27 @@ export function rebaseSavedVisibleLogicalRange(
   candles: readonly MarketCandle[],
   visibleTimeRange: { from: number; to: number },
   visibleLogicalRange: { from: number; to: number },
+  logicalFromOffsetFromTimeAnchor?: number,
 ): { from: number; to: number } | null {
   if (candles.length === 0) return null
   const width = visibleLogicalRange.to - visibleLogicalRange.from
   if (!Number.isFinite(width) || width <= 0) return null
+  const fromIndex = findCandleIndexAtOrAfter(candles, visibleTimeRange.from)
   const fractionalFromOffset =
     visibleLogicalRange.from - Math.floor(visibleLogicalRange.from)
-  const fromIndex = findCandleIndexAtOrAfter(candles, visibleTimeRange.from)
-  const rebasedFrom = fromIndex + fractionalFromOffset
+  const fullOffsetFromAnchor = visibleLogicalRange.from - fromIndex
+  const firstCandleTime = candles[0].time
+  const leadingWhitespaceBeyondLoaded =
+    visibleTimeRange.from <= firstCandleTime && visibleLogicalRange.from < fromIndex
+
+  let rebasedFrom: number
+  if (logicalFromOffsetFromTimeAnchor !== undefined) {
+    rebasedFrom = fromIndex + logicalFromOffsetFromTimeAnchor
+  } else if (leadingWhitespaceBeyondLoaded) {
+    rebasedFrom = fromIndex + fullOffsetFromAnchor
+  } else {
+    rebasedFrom = fromIndex + fractionalFromOffset
+  }
   return { from: rebasedFrom, to: rebasedFrom + width }
 }
 
@@ -345,12 +382,14 @@ export function applySavedVisibleTimeRange(
   scrollPosition: number,
   candles: readonly MarketCandle[],
   visibleLogicalRange?: { from: number; to: number },
+  logicalFromOffsetFromTimeAnchor?: number,
 ): void {
   if (visibleLogicalRange) {
     const rebased = rebaseSavedVisibleLogicalRange(
       candles,
       visibleTimeRange,
       visibleLogicalRange,
+      logicalFromOffsetFromTimeAnchor,
     )
     if (rebased) {
       chart.timeScale().setVisibleLogicalRange(rebased)
