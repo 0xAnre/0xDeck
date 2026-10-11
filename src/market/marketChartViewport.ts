@@ -1,4 +1,4 @@
-import type { IChartApi, Time } from 'lightweight-charts'
+import type { IChartApi, LogicalRange, Time } from 'lightweight-charts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
 import {
   computeInitialVisibleLogicalRange,
@@ -229,18 +229,78 @@ export function restoreMarketChartViewport(
     return 'needs_history'
   }
 
-  applySavedVisibleTimeRange(chart, parsed.visibleTimeRange, parsed.rightOffset)
+  applySavedVisibleTimeRange(
+    chart,
+    parsed.visibleTimeRange,
+    parsed.rightOffset,
+    candles,
+  )
   return 'restored'
 }
 
 type IRangeTime = { from: Time; to: Time }
 
+function findCandleIndexAtOrAfter(
+  candles: readonly MarketCandle[],
+  time: number,
+): number {
+  let low = 0
+  let high = candles.length - 1
+  let result = candles.length
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    if (candles[mid].time >= time) {
+      result = mid
+      high = mid - 1
+    } else {
+      low = mid + 1
+    }
+  }
+  return result === candles.length ? candles.length - 1 : result
+}
+
+function findCandleIndexAtOrBefore(
+  candles: readonly MarketCandle[],
+  time: number,
+): number {
+  let low = 0
+  let high = candles.length - 1
+  let result = -1
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    if (candles[mid].time <= time) {
+      result = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  return result === -1 ? 0 : result
+}
+
+export function visibleTimeRangeToLogicalRange(
+  candles: readonly MarketCandle[],
+  visibleTimeRange: { from: number; to: number },
+): LogicalRange | null {
+  if (candles.length === 0) return null
+  const fromIndex = findCandleIndexAtOrAfter(candles, visibleTimeRange.from)
+  const toIndex = findCandleIndexAtOrBefore(candles, visibleTimeRange.to)
+  if (fromIndex > toIndex) return null
+  return { from: fromIndex, to: toIndex } as LogicalRange
+}
+
 export function applySavedVisibleTimeRange(
   chart: IChartApi,
   visibleTimeRange: { from: number; to: number },
   scrollPosition: number,
+  candles: readonly MarketCandle[],
 ): void {
-  chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
+  const logicalRange = visibleTimeRangeToLogicalRange(candles, visibleTimeRange)
+  if (logicalRange) {
+    chart.timeScale().setVisibleLogicalRange(logicalRange)
+  } else {
+    chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
+  }
   chart.timeScale().scrollToPosition(scrollPosition, false)
 }
 

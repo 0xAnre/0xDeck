@@ -1402,6 +1402,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                       chartAfterHistory,
                       saved.visibleTimeRange,
                       saved.rightOffset,
+                      candlesAfterHistory,
                     )
                   } else {
                     applyDefaultMarketChartPresentation(

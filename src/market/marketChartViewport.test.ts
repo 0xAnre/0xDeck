@@ -11,10 +11,11 @@ import {
   visibleTimeRangeNeedsHistoryLoad,
   visibleTimeRangeNeedsOlderHistory,
   visibleTimeRangeOverlapsLoadedCandles,
+  visibleTimeRangeToLogicalRange,
 } from './marketChartViewport.ts'
 import type { MarketCandle } from './types.ts'
 
-function makeChartStub(barDurationSeconds = 60) {
+function makeChartStub(candleTimes: number[] = [], barDurationSeconds = 60) {
   let logicalRange: { from: number; to: number } | null = null
   let visibleTimeRange: { from: number; to: number } | null = null
   let rightOffset = 0
@@ -23,18 +24,19 @@ function makeChartStub(barDurationSeconds = 60) {
   let scaleMargins = { top: 0.2, bottom: 0.1 }
   let priceVisible: { from: number; to: number } | null = null
 
+  const timeAtLogical = (index: number): number => {
+    if (candleTimes.length > 0) {
+      const clamped = Math.max(0, Math.min(candleTimes.length - 1, Math.round(index)))
+      return candleTimes[clamped]
+    }
+    return index * barDurationSeconds
+  }
+
   const chart = {
     timeScale: () => ({
       applyOptions: (options: { rightOffset?: number }) => {
         if (options.rightOffset === undefined) return
         rightOffset = options.rightOffset
-        if (visibleTimeRange !== null) {
-          const shift = options.rightOffset * barDurationSeconds
-          visibleTimeRange = {
-            from: visibleTimeRange.from - shift,
-            to: visibleTimeRange.to - shift,
-          }
-        }
       },
       options: () => ({ rightOffset }),
       scrollPosition: () => scrollPosition,
@@ -43,13 +45,15 @@ function makeChartStub(barDurationSeconds = 60) {
       },
       setVisibleLogicalRange: (range: { from: number; to: number }) => {
         logicalRange = range
-        rightOffset = 0
-        scrollPosition = 0
+        visibleTimeRange = {
+          from: timeAtLogical(range.from),
+          to: timeAtLogical(range.to),
+        }
       },
       getVisibleLogicalRange: () => logicalRange,
       setVisibleRange: (range: { from: number; to: number }) => {
         visibleTimeRange = { ...range }
-        rightOffset = 0
+        logicalRange = null
         scrollPosition = 0
       },
       getVisibleRange: () => visibleTimeRange,
@@ -169,7 +173,8 @@ describe('restoreMarketChartViewport', () => {
   const candles = sampleCandles([1_700_000_000, 1_700_000_060, 1_700_000_120])
 
   it('restores saved ranges when data covers the window', () => {
-    const { chart, getState } = makeChartStub()
+    const times = candles.map((c) => c.time)
+    const { chart, getState } = makeChartStub(times)
     const saved = {
       version: 1 as const,
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
@@ -184,6 +189,7 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(state.autoScale, false)
     assert.deepEqual(state.priceVisible, saved.priceRange)
     assert.equal(state.scrollPosition, 4)
+    assert.deepEqual(state.logicalRange, { from: 0, to: 2 })
   })
 
   it('requests older history when the saved window starts before loaded candles', () => {
@@ -231,7 +237,8 @@ describe('restoreMarketChartViewport', () => {
   })
 
   it('restores visible timestamps then live scroll position', () => {
-    const { chart, getState } = makeChartStub()
+    const times = candles.map((c) => c.time)
+    const { chart, getState } = makeChartStub(times)
     const saved = {
       version: 1 as const,
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
@@ -243,6 +250,38 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
     assert.deepEqual(getState().visibleTimeRange, saved.visibleTimeRange)
     assert.equal(getState().scrollPosition, 8)
+    assert.deepEqual(getState().logicalRange, { from: 0, to: 2 })
+  })
+
+  it('preserves logical width when restoring positive scroll offset', () => {
+    const times = candles.map((c) => c.time)
+    const { chart, getState } = makeChartStub(times)
+    const saved = {
+      version: 1 as const,
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
+    const first = getState()
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
+    const second = getState()
+    assert.deepEqual(second.visibleTimeRange, first.visibleTimeRange)
+    assert.deepEqual(second.logicalRange, first.logicalRange)
+    assert.equal(second.scrollPosition, first.scrollPosition)
+  })
+})
+
+describe('visibleTimeRangeToLogicalRange', () => {
+  const candles = sampleCandles([100, 200, 300, 400])
+
+  it('maps saved timestamps to candle indices', () => {
+    assert.deepEqual(visibleTimeRangeToLogicalRange(candles, { from: 100, to: 300 }), {
+      from: 0,
+      to: 2,
+    })
   })
 })
 
