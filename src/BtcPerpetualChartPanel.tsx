@@ -99,6 +99,7 @@ import {
 import {
   readMarketIndicatorSeriesColors,
   readMarketIndicatorSeriesLineStyles,
+  readMarketIndicatorSeriesLineWidths,
 } from '@/market/marketIndicatorSeriesColors'
 import { MarketIndicatorStyleDialog } from '@/widgetSettings/MarketIndicatorStyleDialog'
 import { createDefaultRollingVwapSettings } from '@/market/rollingVwapSettings'
@@ -291,6 +292,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [editingMarketIndicatorSeriesColors, setEditingMarketIndicatorSeriesColors] = useState<
     readonly string[]
   >([])
+  const [editingMarketIndicatorSeriesLineWidths, setEditingMarketIndicatorSeriesLineWidths] =
+    useState<readonly LineChartStrokeWidth[]>([])
   const [editingMarketIndicatorSeriesLineStyles, setEditingMarketIndicatorSeriesLineStyles] =
     useState<readonly LineChartStrokeStyle[]>([])
   const [fixedRangeVolumeProfileInstances, setFixedRangeVolumeProfileInstances] = useState<
@@ -659,6 +662,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const bundle = seriesRef.current
       setEditingMarketIndicatorSeriesColors(
         bundle ? readMarketIndicatorSeriesColors(bundle, target.indicatorId) : [],
+      )
+      setEditingMarketIndicatorSeriesLineWidths(
+        bundle ? readMarketIndicatorSeriesLineWidths(bundle, target.indicatorId) : [],
       )
       setEditingMarketIndicatorSeriesLineStyles(
         bundle ? readMarketIndicatorSeriesLineStyles(bundle, target.indicatorId) : [],
@@ -1967,12 +1973,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         indicatorId={editingMarketIndicatorId}
         presentation={marketIndicatorPresentation}
         seriesColors={editingMarketIndicatorSeriesColors}
+        seriesLineWidths={editingMarketIndicatorSeriesLineWidths}
         seriesLineStyles={editingMarketIndicatorSeriesLineStyles}
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           if (!open) {
             setEditingMarketIndicatorId(null)
             setEditingMarketIndicatorSeriesColors([])
+            setEditingMarketIndicatorSeriesLineWidths([])
             setEditingMarketIndicatorSeriesLineStyles([])
             setChartObjectSettingsTarget(null)
           }

@@ -1,7 +1,12 @@
 import { LineStyle, type ISeriesApi } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import type { MarketIndicatorId } from './indicators.ts'
-import type { LineChartStrokeStyle } from './lineChartStroke.ts'
+import {
+  DEFAULT_LINE_CHART_STROKE_WIDTH,
+  isLineChartStrokeWidth,
+  type LineChartStrokeStyle,
+  type LineChartStrokeWidth,
+} from './lineChartStroke.ts'
 import { resolveCssColor } from '../lib/resolveCssColor.ts'
 
 const COLOR_INPUT_FALLBACK_HEX = '#71717a'
@@ -59,6 +64,47 @@ export function chartLineStyleToStrokeStyle(lineStyle: LineStyle | undefined): L
 
 export function readLineSeriesLineStyle(series: ISeriesApi<'Line'>): LineChartStrokeStyle {
   return chartLineStyleToStrokeStyle(series.options().lineStyle)
+}
+
+export function readLineSeriesLineWidth(series: ISeriesApi<'Line'>): LineChartStrokeWidth {
+  const width = series.options().lineWidth
+  if (isLineChartStrokeWidth(width)) {
+    return width
+  }
+  return DEFAULT_LINE_CHART_STROKE_WIDTH
+}
+
+export function readMarketIndicatorSeriesLineWidths(
+  bundle: ChartSeriesBundle,
+  indicatorId: MarketIndicatorId,
+): readonly LineChartStrokeWidth[] {
+  switch (indicatorId) {
+    case 'triple-ema':
+      return bundle.emas.map((series) => readLineSeriesLineWidth(series))
+    case 'dual-ema':
+      return [readLineSeriesLineWidth(bundle.ema100), readLineSeriesLineWidth(bundle.ema200)]
+    case 'daily-vwap':
+      return [readLineSeriesLineWidth(bundle.dailyVwap.byKey.vwap)]
+    case 'weekly-vwap':
+      return [readLineSeriesLineWidth(bundle.weeklyVwap.byKey.vwap)]
+    case 'monthly-vwap':
+      return [readLineSeriesLineWidth(bundle.monthlyVwap.byKey.vwap)]
+    case 'quarterly-vwap':
+      return [readLineSeriesLineWidth(bundle.quarterlyVwap.byKey.vwap)]
+    case 'yearly-vwap':
+      return [readLineSeriesLineWidth(bundle.yearlyVwap.byKey.vwap)]
+    case 'rolling-vwap': {
+      const widths: LineChartStrokeWidth[] = []
+      for (const chartBundle of bundle.rollingVwaps.values()) {
+        widths.push(readLineSeriesLineWidth(chartBundle.center))
+      }
+      return widths
+    }
+    default: {
+      const unreachable: never = indicatorId
+      return unreachable
+    }
+  }
 }
 
 export function readMarketIndicatorSeriesLineStyles(
@@ -146,6 +192,19 @@ export function marketIndicatorUsesDistinctSeriesColors(seriesColors: readonly s
   return new Set(normalized).size > 1
 }
 
+export function marketIndicatorLineWidthInputValue(
+  presentationWidth: LineChartStrokeWidth | undefined,
+  seriesWidths: readonly LineChartStrokeWidth[],
+): LineChartStrokeWidth {
+  if (presentationWidth !== undefined) {
+    return presentationWidth
+  }
+  if (seriesWidths.length === 0) {
+    return DEFAULT_LINE_CHART_STROKE_WIDTH
+  }
+  return seriesWidths[0]
+}
+
 export function marketIndicatorLineStyleSelectValue(
   presentationLineStyle: LineChartStrokeStyle | undefined,
   seriesLineStyles: readonly LineChartStrokeStyle[],
@@ -157,6 +216,13 @@ export function marketIndicatorLineStyleSelectValue(
     return 'solid'
   }
   return seriesLineStyles[0]
+}
+
+export function marketIndicatorUsesDistinctSeriesLineWidths(
+  seriesWidths: readonly LineChartStrokeWidth[],
+): boolean {
+  if (seriesWidths.length <= 1) return false
+  return new Set(seriesWidths).size > 1
 }
 
 export function marketIndicatorUsesDistinctSeriesLineStyles(

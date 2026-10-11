@@ -7,6 +7,7 @@ import {
   cssColorToHexForColorInput,
   marketIndicatorColorInputValue,
   marketIndicatorLineStyleSelectValue,
+  marketIndicatorLineWidthInputValue,
   marketIndicatorUsesDistinctSeriesColors,
   marketIndicatorUsesDistinctSeriesLineStyles,
   readLineSeriesColorHex,
@@ -104,5 +105,10 @@ describe('marketIndicatorSeriesColors', () => {
   it('detects distinct series line styles for grouped indicators', () => {
     assert.equal(marketIndicatorUsesDistinctSeriesLineStyles(['solid', 'solid']), false)
     assert.equal(marketIndicatorUsesDistinctSeriesLineStyles(['dashed', 'solid']), true)
+  })
+
+  it('derives line width defaults from series options', () => {
+    assert.equal(marketIndicatorLineWidthInputValue(undefined, [3, 3]), 3)
+    assert.equal(marketIndicatorLineWidthInputValue(2, [3, 3]), 2)
   })
 })

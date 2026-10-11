@@ -8,12 +8,14 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { MARKET_INDICATOR_DEFINITIONS, type MarketIndicatorId } from '@/market/indicators'
-import { DEFAULT_LINE_CHART_STROKE_WIDTH, type LineChartStrokeStyle } from '@/market/lineChartStroke'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import {
   marketIndicatorColorInputValue,
   marketIndicatorLineStyleSelectValue,
+  marketIndicatorLineWidthInputValue,
   marketIndicatorUsesDistinctSeriesColors,
   marketIndicatorUsesDistinctSeriesLineStyles,
+  marketIndicatorUsesDistinctSeriesLineWidths,
 } from '@/market/marketIndicatorSeriesColors'
 import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
@@ -22,6 +24,7 @@ type MarketIndicatorStyleDialogProps = {
   indicatorId: MarketIndicatorId | null
   presentation: MarketIndicatorPresentation
   seriesColors: readonly string[]
+  seriesLineWidths: readonly LineChartStrokeWidth[]
   seriesLineStyles: readonly LineChartStrokeStyle[]
   returnFocusId: string
   onOpenChange: (open: boolean) => void
@@ -32,6 +35,7 @@ export function MarketIndicatorStyleDialog({
   indicatorId,
   presentation,
   seriesColors,
+  seriesLineWidths,
   seriesLineStyles,
   returnFocusId,
   onOpenChange,
@@ -41,10 +45,17 @@ export function MarketIndicatorStyleDialog({
   const colorInputValue = marketIndicatorColorInputValue(presentation.color, seriesColors)
   const usesDistinctSeriesColors =
     presentation.color === undefined && marketIndicatorUsesDistinctSeriesColors(seriesColors)
+  const lineWidthInputValue = marketIndicatorLineWidthInputValue(
+    presentation.lineWidth,
+    seriesLineWidths,
+  )
   const lineStyleSelectValue = marketIndicatorLineStyleSelectValue(
     presentation.lineStyle,
     seriesLineStyles,
   )
+  const usesDistinctSeriesLineWidths =
+    presentation.lineWidth === undefined &&
+    marketIndicatorUsesDistinctSeriesLineWidths(seriesLineWidths)
   const usesDistinctSeriesLineStyles =
     presentation.lineStyle === undefined &&
     marketIndicatorUsesDistinctSeriesLineStyles(seriesLineStyles)
@@ -98,6 +109,11 @@ export function MarketIndicatorStyleDialog({
                 }
               />
             </Field>
+            {usesDistinctSeriesLineWidths ? (
+              <p className="text-xs text-muted-foreground">
+                Mixed line widths on chart. Pick a width to apply to all lines.
+              </p>
+            ) : null}
             {usesDistinctSeriesLineStyles ? (
               <div className="flex flex-wrap items-center gap-2">
                 {seriesLineStyles.map((style, index) => (
@@ -116,7 +132,7 @@ export function MarketIndicatorStyleDialog({
             <LineChartStrokeSelectFields
               widthId="indicator-width"
               styleId="indicator-style"
-              lineWidth={presentation.lineWidth ?? DEFAULT_LINE_CHART_STROKE_WIDTH}
+              lineWidth={lineWidthInputValue}
               lineStyle={lineStyleSelectValue}
               onLineWidthChange={(lineWidth) =>
                 onPresentationChange(indicatorId, { ...presentation, lineWidth })
