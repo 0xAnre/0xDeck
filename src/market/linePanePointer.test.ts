@@ -199,4 +199,79 @@ describe('linePanePointer', () => {
     assert.equal(lineInteraction.phase, 'moving')
     assert.equal(lineInteraction.selectedId, 'line-1')
   })
+
+  it('starts moving when the second press within double-click interval becomes a drag', () => {
+    const { listeners, chart } = createPaneHarness()
+    let interaction: LineInteractionState = INITIAL_LINE_INTERACTION_STATE
+
+    attachLinePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction,
+        instances: [
+          {
+            id: 'line-1',
+            timeA: 100,
+            priceA: 50,
+            timeB: 200,
+            priceB: 50,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingRectangleHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    const pointerDown = listeners.get('pointerdown')?.[0] as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup')?.[0] as (event: PointerEvent) => void
+    const pointerMove = listeners.get('pointermove')?.[0] as (event: PointerEvent) => void
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 12,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 12,
+    } as PointerEvent)
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 13,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    assert.equal(interaction.phase, 'inactive')
+
+    pointerMove({
+      clientX: 170,
+      clientY: 50,
+      pointerId: 13,
+    } as PointerEvent)
+    assert.equal(interaction.phase, 'moving')
+  })
 })

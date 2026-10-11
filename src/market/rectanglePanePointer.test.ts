@@ -433,7 +433,7 @@ describe('rectanglePanePointer', () => {
     assert.equal(interaction.draft, null)
   })
 
-  it('allows the second press of a double-click to start drag, cancelling on click release', () => {
+  it('defers the second press of a double-click until movement, and skips drag on click release', () => {
     const { listeners, chart } = createPaneHarness()
     let interaction = INITIAL_RECTANGLE_INTERACTION_STATE
 
@@ -502,8 +502,8 @@ describe('rectanglePanePointer', () => {
       stopPropagation: () => {},
     } as PointerEvent)
 
-    assert.equal(interaction.phase, 'moving')
-    assert.notEqual(interaction.draft, null)
+    assert.equal(interaction.phase, 'inactive')
+    assert.equal(interaction.draft, null)
 
     pointerUp({
       button: 0,
@@ -514,5 +514,80 @@ describe('rectanglePanePointer', () => {
 
     assert.equal(interaction.phase, 'inactive')
     assert.equal(interaction.draft, null)
+  })
+
+  it('starts move when the second press within double-click interval becomes a drag', () => {
+    const { listeners, chart } = createPaneHarness()
+    let interaction = INITIAL_RECTANGLE_INTERACTION_STATE
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction,
+        instances: [
+          {
+            id: 'rect-1',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    const pointerDown = listeners.get('pointerdown') as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup') as (event: PointerEvent) => void
+    const pointerMove = listeners.get('pointermove') as (event: PointerEvent) => void
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 10,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 10,
+    } as PointerEvent)
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 11,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    assert.equal(interaction.phase, 'inactive')
+
+    pointerMove({
+      clientX: 170,
+      clientY: 50,
+      pointerId: 11,
+    } as PointerEvent)
+    assert.equal(interaction.phase, 'moving')
   })
 })

@@ -14,7 +14,7 @@ import {
   updateLineCreatePreview,
   type LineInteractionState,
 } from './lineInteraction.ts'
-import { hitTestLines } from './lineHitTest.ts'
+import { hitTestLines, type LineHitTarget } from './lineHitTest.ts'
 import { isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
@@ -75,6 +75,15 @@ export function attachLinePanePointer(
   let activePointerId: number | null = null
   let activeDragStartPane: { paneX: number; paneY: number } | null = null
   let activePointerDownClient: { clientX: number; clientY: number } | null = null
+  let pendingDeferredLineDrag: {
+    pointerId: number
+    hit: LineHitTarget
+    instance: LineInstance
+    startClientX: number
+    startClientY: number
+    paneX: number
+    paneY: number
+  } | null = null
 
   const resolvePaneY = (event: PointerEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -117,6 +126,48 @@ export function attachLinePanePointer(
       callbacks.onInteractionChange(next)
     }
     callbacks.onRequestRender()
+  }
+
+  const startDragFromLineHit = (
+    hit: LineHitTarget,
+    instance: LineInstance,
+    paneX: number,
+    paneY: number,
+    pointerId: number,
+  ): void => {
+    const snapshot = callbacks.getSnapshot()
+    const interaction = snapshot.interaction
+    if (interaction.phase !== 'inactive') return
+    if (hit.kind !== 'body') {
+      const next = startLineResizeDraft(interaction, instance, hit.kind)
+      if (next === interaction) return
+      activePointerId = pointerId
+      activeDragStartPane = { paneX, paneY }
+      paneElement.setPointerCapture(pointerId)
+      syncPointerPreview(paneX, paneY)
+      callbacks.onInteractionChange(next)
+      return
+    }
+    const series = callbacks.getSeries()
+    if (!series) return
+    const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
+    if (!point) return
+    const next = startLineMoveDraft(interaction, instance, point.time, point.price)
+    if (next === interaction) return
+    activePointerId = pointerId
+    activeDragStartPane = { paneX, paneY }
+    paneElement.setPointerCapture(pointerId)
+    syncPointerPreview(paneX, paneY)
+    callbacks.onInteractionChange(next)
+  }
+
+  const releaseDeferredLineDrag = (event: PointerEvent): void => {
+    if (pendingDeferredLineDrag?.pointerId !== event.pointerId) return
+    pendingDeferredLineDrag = null
+    if (paneElement.hasPointerCapture(event.pointerId)) {
+      paneElement.releasePointerCapture(event.pointerId)
+    }
+    activePointerId = null
   }
 
   const onPointerDown = (event: PointerEvent) => {
@@ -168,13 +219,18 @@ export function attachLinePanePointer(
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
-      consumeCompletedClickForDoubleClickSequence(
+      const isSecondClickOfSequence = consumeCompletedClickForDoubleClickSequence(
         paneElement,
         event.clientX,
         event.clientY,
       )
-      armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
-      activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
+      if (isSecondClickOfSequence && isLineInstanceLocked(instance)) {
+        return
+      }
+      if (!isSecondClickOfSequence) {
+        armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
+        activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
+      }
       if (isLineInstanceLocked(instance)) {
         const next = applyLineSelection(interaction, hit.instanceId)
         if (next !== interaction) {
@@ -186,31 +242,47 @@ export function attachLinePanePointer(
       event.preventDefault()
       event.stopPropagation()
       focusLineInteractionPane(paneElement)
-      if (hit.kind !== 'body') {
-        const next = startLineResizeDraft(interaction, instance, hit.kind)
-        if (next === interaction) return
+      if (isSecondClickOfSequence) {
+        pendingDeferredLineDrag = {
+          pointerId: event.pointerId,
+          hit,
+          instance,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          paneX,
+          paneY,
+        }
         activePointerId = event.pointerId
-        activeDragStartPane = { paneX, paneY }
         paneElement.setPointerCapture(event.pointerId)
-        syncPointerPreview(paneX, paneY)
-        callbacks.onInteractionChange(next)
         return
       }
-      const series = callbacks.getSeries()
-      if (!series) return
-      const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
-      if (!point) return
-      const next = startLineMoveDraft(interaction, instance, point.time, point.price)
-      if (next === interaction) return
-      activePointerId = event.pointerId
-      activeDragStartPane = { paneX, paneY }
-      paneElement.setPointerCapture(event.pointerId)
-      syncPointerPreview(paneX, paneY)
-      callbacks.onInteractionChange(next)
+      startDragFromLineHit(hit, instance, paneX, paneY, event.pointerId)
     }
   }
 
   const onPointerMove = (event: PointerEvent) => {
+    if (pendingDeferredLineDrag?.pointerId === event.pointerId) {
+      if (
+        !pointerMovementWithinClickTolerance(
+          pendingDeferredLineDrag.startClientX,
+          pendingDeferredLineDrag.startClientY,
+          event.clientX,
+          event.clientY,
+        )
+      ) {
+        const pending = pendingDeferredLineDrag
+        pendingDeferredLineDrag = null
+        startDragFromLineHit(
+          pending.hit,
+          pending.instance,
+          pending.paneX,
+          pending.paneY,
+          pending.pointerId,
+        )
+      } else {
+        return
+      }
+    }
     if (activePointerDownClient) {
       invalidatePanePointerClickForDoubleClickOnDrag(
         paneElement,
@@ -240,6 +312,10 @@ export function attachLinePanePointer(
 
   const onPointerUp = (event: PointerEvent) => {
     if (event.button !== 0) return
+    if (pendingDeferredLineDrag?.pointerId === event.pointerId) {
+      releaseDeferredLineDrag(event)
+      return
+    }
     if (activePointerId === null && activePointerDownClient !== null) {
       if (
         pointerMovementWithinClickTolerance(
@@ -327,6 +403,10 @@ export function attachLinePanePointer(
   }
 
   const onPointerCancel = (event: PointerEvent) => {
+    if (pendingDeferredLineDrag?.pointerId === event.pointerId) {
+      releaseDeferredLineDrag(event)
+      return
+    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (isLineChartNavigationLocked(snapshot.interaction)) {
