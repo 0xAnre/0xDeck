@@ -1140,9 +1140,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getLineInteraction: () => lineInteractionRef.current,
       getLineInstances: () => lineInstancesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
-      onChartObjectActivate: (instanceId) => {
-        openChartObjectSettings({ kind: 'rectangle', instanceId })
-      },
     })
     rectangleToolControllerRef.current = controller
     controller.sync()
@@ -1150,7 +1147,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       rectangleToolControllerRef.current = null
     }
-  }, [chartReady, openChartObjectSettings, panelId, persistRectangleInstances])
+  }, [chartReady, panelId, persistRectangleInstances])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -1200,9 +1197,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getRectangleInteraction: () => rectangleInteractionRef.current,
       getRectangleInstances: () => rectangleInstancesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
-      onChartObjectActivate: (instanceId) => {
-        openChartObjectSettings({ kind: 'line', instanceId })
-      },
     })
     lineToolControllerRef.current = controller
     controller.sync()
@@ -1210,7 +1204,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       lineToolControllerRef.current = null
     }
-  }, [chartReady, openChartObjectSettings, panelId, persistLineInstances])
+  }, [chartReady, panelId, persistLineInstances])
 
   useEffect(() => {
     const chart = chartRef.current

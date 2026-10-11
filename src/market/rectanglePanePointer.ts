@@ -18,7 +18,6 @@ import {
 import { isRectangleInstanceLocked, type RectangleInstance } from './rectangleInstances.ts'
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
-import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
   buildRectangleChartTimeContext,
@@ -43,7 +42,6 @@ export type RectanglePanePointerCallbacks = {
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
   getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
-  onChartObjectActivate?: (instanceId: string) => void
 }
 
 export type RectanglePanePointerController = {
@@ -67,12 +65,6 @@ export function attachRectanglePanePointer(
   }
 
   let activePointerId: number | null = null
-  let pendingChartObjectActivation: {
-    pointerId: number
-    startPaneX: number
-    startPaneY: number
-    instanceId: string
-  } | null = null
 
   const resolvePaneY = (event: PointerEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -166,17 +158,14 @@ export function attachRectanglePanePointer(
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
+      if (event.detail >= 2) {
+        return
+      }
       if (isRectangleInstanceLocked(instance)) {
         const next = applyRectangleSelection(interaction, hit.instanceId)
         if (next !== interaction) {
           callbacks.onInteractionChange(next)
           callbacks.onRequestRender()
-        }
-        pendingChartObjectActivation = {
-          pointerId: event.pointerId,
-          startPaneX: paneX,
-          startPaneY: paneY,
-          instanceId: hit.instanceId,
         }
         return
       }
@@ -206,23 +195,6 @@ export function attachRectanglePanePointer(
   }
 
   const onPointerMove = (event: PointerEvent) => {
-    if (
-      pendingChartObjectActivation &&
-      pendingChartObjectActivation.pointerId === event.pointerId
-    ) {
-      const paneX = resolvePaneRelativePointerX(event, paneElement)
-      const paneY = resolvePaneY(event)
-      if (
-        !pointerMovementWithinClickTolerance(
-          pendingChartObjectActivation.startPaneX,
-          pendingChartObjectActivation.startPaneY,
-          paneX,
-          paneY,
-        )
-      ) {
-        pendingChartObjectActivation = null
-      }
-    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (!isRectangleChartNavigationLocked(snapshot.interaction)) return
@@ -239,27 +211,8 @@ export function attachRectanglePanePointer(
     activePointerId = null
   }
 
-  const tryCompletePendingChartObjectActivation = (event: PointerEvent) => {
-    const pending = pendingChartObjectActivation
-    if (!pending || pending.pointerId !== event.pointerId) return
-    pendingChartObjectActivation = null
-    const paneX = resolvePaneRelativePointerX(event, paneElement)
-    const paneY = resolvePaneY(event)
-    if (
-      pointerMovementWithinClickTolerance(
-        pending.startPaneX,
-        pending.startPaneY,
-        paneX,
-        paneY,
-      )
-    ) {
-      callbacks.onChartObjectActivate?.(pending.instanceId)
-    }
-  }
-
   const onPointerUp = (event: PointerEvent) => {
     if (event.button !== 0) return
-    tryCompletePendingChartObjectActivation(event)
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     const series = callbacks.getSeries()
@@ -337,9 +290,6 @@ export function attachRectanglePanePointer(
   }
 
   const onPointerCancel = (event: PointerEvent) => {
-    if (pendingChartObjectActivation?.pointerId === event.pointerId) {
-      pendingChartObjectActivation = null
-    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (isRectangleChartNavigationLocked(snapshot.interaction)) {

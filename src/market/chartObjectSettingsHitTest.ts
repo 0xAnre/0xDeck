@@ -20,7 +20,11 @@ import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileI
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { CandleInterval } from './types.ts'
-import { lineHitAtPanePoint, rectangleHitAtPanePoint } from './drawingPointerArbitration.ts'
+import {
+  lineHitAtPanePoint,
+  preferDrawingPointerTarget,
+  rectangleHitAtPanePoint,
+} from './drawingPointerArbitration.ts'
 import type { LineInteractionState } from './lineInteraction.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
@@ -210,11 +214,9 @@ function hitTestSingletonMarketIndicators(
   return null
 }
 
-export function hitTestChartObjectSettingsTarget(
+function hitTestDrawingChartObjectSettingsTarget(
   ctx: ChartObjectSettingsHitTestContext,
 ): ChartObjectSettingsTarget | null {
-  if (chartObjectSettingsHitTestBlocked(ctx)) return null
-
   const paneHitArgs = {
     chart: ctx.chart,
     series: ctx.series,
@@ -224,25 +226,33 @@ export function hitTestChartObjectSettingsTarget(
     lastBarUnixTime: ctx.lastBarUnixTime,
   }
 
-  if (
-    lineHitAtPanePoint({
-      ...paneHitArgs,
-      instances: ctx.lineInstances,
-      selectedId: ctx.lineInteraction.selectedId,
-    }) !== null
-  ) {
-    return null
+  const lineHit = lineHitAtPanePoint({
+    ...paneHitArgs,
+    instances: ctx.lineInstances,
+    selectedId: ctx.lineInteraction.selectedId,
+  })
+  const rectangleHit = rectangleHitAtPanePoint({
+    ...paneHitArgs,
+    instances: ctx.rectangleInstances,
+    selectedId: ctx.rectangleInteraction.selectedId,
+  })
+  const preferred = preferDrawingPointerTarget(lineHit, rectangleHit)
+  if (preferred === 'line' && lineHit) {
+    return { kind: 'line', instanceId: lineHit.instanceId }
   }
+  if (preferred === 'rectangle' && rectangleHit) {
+    return { kind: 'rectangle', instanceId: rectangleHit.instanceId }
+  }
+  return null
+}
 
-  if (
-    rectangleHitAtPanePoint({
-      ...paneHitArgs,
-      instances: ctx.rectangleInstances,
-      selectedId: ctx.rectangleInteraction.selectedId,
-    }) !== null
-  ) {
-    return null
-  }
+export function hitTestChartObjectSettingsTarget(
+  ctx: ChartObjectSettingsHitTestContext,
+): ChartObjectSettingsTarget | null {
+  if (chartObjectSettingsHitTestBlocked(ctx)) return null
+
+  const drawing = hitTestDrawingChartObjectSettingsTarget(ctx)
+  if (drawing) return drawing
 
   const frvp = hitTestFixedRangeVolumeProfiles(ctx)
   if (frvp) return frvp

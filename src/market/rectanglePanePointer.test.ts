@@ -433,21 +433,20 @@ describe('rectanglePanePointer', () => {
     assert.equal(interaction.draft, null)
   })
 
-  it('defers locked-rectangle settings activation until pointerup within click tolerance', () => {
+  it('does not start move or resize on the second press of a double-click', () => {
     const { listeners, chart } = createPaneHarness()
-    let activated: string | null = null
+    let interaction = INITIAL_RECTANGLE_INTERACTION_STATE
 
     attachRectanglePanePointer(chart as never, {
       getSnapshot: () => ({
-        interaction: INITIAL_RECTANGLE_INTERACTION_STATE,
+        interaction,
         instances: [
           {
-            id: 'rect-locked',
+            id: 'rect-1',
             fromTime: 100,
             toTime: 200,
             lowPrice: 20,
             highPrice: 80,
-            locked: true,
           },
         ],
       }),
@@ -458,7 +457,9 @@ describe('rectanglePanePointer', () => {
           priceToCoordinate: (price: number) => 100 - price,
           data: () => [{ time: 100 }, { time: 200 }],
         }) as never,
-      onInteractionChange: () => {},
+      onInteractionChange: (next) => {
+        interaction = next
+      },
       onInstanceCompleted: () => {},
       onInstanceUpdated: () => {},
       onRequestRender: () => {},
@@ -468,9 +469,6 @@ describe('rectanglePanePointer', () => {
       getCompetingLineHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
-      onChartObjectActivate: (instanceId) => {
-        activated = instanceId
-      },
     })
 
     listeners.get('pointerdown')?.({
@@ -478,19 +476,12 @@ describe('rectanglePanePointer', () => {
       clientX: 150,
       clientY: 50,
       pointerId: 8,
+      detail: 2,
       preventDefault: () => {},
       stopPropagation: () => {},
     } as PointerEvent)
 
-    assert.equal(activated, null)
-
-    listeners.get('pointerup')?.({
-      button: 0,
-      clientX: 151,
-      clientY: 51,
-      pointerId: 8,
-    } as PointerEvent)
-
-    assert.equal(activated, 'rect-locked')
+    assert.equal(interaction.phase, 'inactive')
+    assert.equal(interaction.draft, null)
   })
 })
