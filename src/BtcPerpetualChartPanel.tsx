@@ -324,9 +324,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
   const flushMarketChartViewportPersist = useCallback(
-    (intervalOverride?: CandleInterval) => {
+    (
+      intervalOverride?: CandleInterval,
+      options?: { allowWhileHistoryNotReady?: boolean },
+    ) => {
       if (suppressViewportPersistRef.current) return
-      if (!historyReadyRef.current) return
+      if (!options?.allowWhileHistoryNotReady && !historyReadyRef.current) return
       const chart = chartRef.current
       if (!chart) return
       const captured = captureMarketChartViewport(chart)
@@ -1257,11 +1260,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [flushMarketChartViewportPersist, scheduleMarketChartViewportPersist])
 
   useEffect(() => {
+    const intervalLeaving = activeIntervalRef.current
+    const hadPendingViewportPersist = viewportPersistTimerRef.current !== null
     if (viewportPersistTimerRef.current) {
       clearTimeout(viewportPersistTimerRef.current)
       viewportPersistTimerRef.current = null
     }
-    flushMarketChartViewportPersist()
+    if (hadPendingViewportPersist) {
+      flushMarketChartViewportPersist(intervalLeaving, { allowWhileHistoryNotReady: true })
+    } else {
+      flushMarketChartViewportPersist(intervalLeaving)
+    }
 
     activeIntervalRef.current = interval
     loadGenerationRef.current += 1

@@ -197,9 +197,7 @@ export function applyDefaultMarketChartPresentation(chart: IChartApi, barCount: 
     chart.timeScale().setVisibleLogicalRange(initialRange)
   }
 
-  chart.timeScale().applyOptions({
-    rightOffset: MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET,
-  })
+  chart.timeScale().scrollToPosition(MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET, false)
 }
 
 export function restoreMarketChartViewport(

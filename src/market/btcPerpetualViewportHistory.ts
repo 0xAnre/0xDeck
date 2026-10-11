@@ -5,6 +5,7 @@ import {
   type FetchBtcPerpHistory,
   type InfiniteHistoryState,
 } from './btcPerpetualInfiniteHistory.ts'
+import { olderHistoryPageMadeProgress } from './btcPerpetualHistoryPageProgress.ts'
 import { visibleTimeRangeNeedsHistoryLoad } from './marketChartViewport.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
@@ -65,13 +66,10 @@ export async function loadOlderHistoryUntilVisibleFrom(
     if (state.generation !== generation) return
     if (state.exhausted) return
 
-    const candlesAfter = candlesRef.current
     if (
-      candlesAfter.length === candleCountBefore &&
-      candlesAfter.length > 0 &&
-      candlesAfter[0].time === oldestTimeBefore
+      !olderHistoryPageMadeProgress(candleCountBefore, oldestTimeBefore, candlesRef.current)
     ) {
-      return
+      break
     }
   }
 }

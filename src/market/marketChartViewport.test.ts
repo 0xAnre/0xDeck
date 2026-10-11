@@ -17,11 +17,11 @@ function makeChartStub(barDurationSeconds = 60) {
   let logicalRange: { from: number; to: number } | null = null
   let visibleTimeRange: { from: number; to: number } | null = null
   let rightOffset = 0
+  let scrollPosition = 0
   let autoScale = true
   let scaleMargins = { top: 0.2, bottom: 0.1 }
   let priceVisible: { from: number; to: number } | null = null
 
-  let scrollPosition = 0
   const chart = {
     timeScale: () => ({
       applyOptions: (options: { rightOffset?: number }) => {
@@ -42,10 +42,14 @@ function makeChartStub(barDurationSeconds = 60) {
       },
       setVisibleLogicalRange: (range: { from: number; to: number }) => {
         logicalRange = range
+        rightOffset = 0
+        scrollPosition = 0
       },
       getVisibleLogicalRange: () => logicalRange,
       setVisibleRange: (range: { from: number; to: number }) => {
         visibleTimeRange = { ...range }
+        rightOffset = 0
+        scrollPosition = 0
       },
       getVisibleRange: () => visibleTimeRange,
     }),
@@ -138,7 +142,7 @@ describe('applyDefaultMarketChartPresentation', () => {
     applyDefaultMarketChartPresentation(chart as never, 1000)
     const state = getState()
     assert.deepEqual(state.scaleMargins, MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS)
-    assert.equal(state.rightOffset, MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET)
+    assert.equal(state.scrollPosition, MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET)
     assert.equal(state.logicalRange?.from, 1000 - MARKET_CHART_INITIAL_VISIBLE_BARS)
     assert.equal(state.logicalRange?.to, 999)
   })
