@@ -12,7 +12,7 @@ import {
 } from './marketChartViewport.ts'
 import type { MarketCandle } from './types.ts'
 
-function makeChartStub() {
+function makeChartStub(barDurationSeconds = 60) {
   let logicalRange: { from: number; to: number } | null = null
   let visibleTimeRange: { from: number; to: number } | null = null
   let rightOffset = 0
@@ -23,17 +23,23 @@ function makeChartStub() {
   const chart = {
     timeScale: () => ({
       applyOptions: (options: { rightOffset?: number }) => {
-        if (options.rightOffset !== undefined) rightOffset = options.rightOffset
+        if (options.rightOffset === undefined) return
+        rightOffset = options.rightOffset
+        if (visibleTimeRange !== null) {
+          const shift = options.rightOffset * barDurationSeconds
+          visibleTimeRange = {
+            from: visibleTimeRange.from - shift,
+            to: visibleTimeRange.to - shift,
+          }
+        }
       },
       options: () => ({ rightOffset }),
       setVisibleLogicalRange: (range: { from: number; to: number }) => {
         logicalRange = range
-        rightOffset = 0
       },
       getVisibleLogicalRange: () => logicalRange,
       setVisibleRange: (range: { from: number; to: number }) => {
-        visibleTimeRange = range
-        rightOffset = 0
+        visibleTimeRange = { ...range }
       },
       getVisibleRange: () => visibleTimeRange,
     }),
@@ -197,6 +203,35 @@ describe('restoreMarketChartViewport', () => {
     }
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'invalid')
     assert.equal(getState().visibleTimeRange, null)
+  })
+
+  it('requests older history when the saved window is entirely before loaded candles', () => {
+    const { chart, getState } = makeChartStub()
+    const saved = {
+      version: 1 as const,
+      visibleTimeRange: { from: 1_699_998_000, to: 1_699_999_500 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'needs_history')
+    assert.equal(getState().visibleTimeRange, null)
+  })
+
+  it('applies right offset before visible range so timestamps are not shifted', () => {
+    const { chart, getState } = makeChartStub()
+    const saved = {
+      version: 1 as const,
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
+    assert.deepEqual(getState().visibleTimeRange, saved.visibleTimeRange)
+    assert.equal(getState().rightOffset, 8)
   })
 })
 

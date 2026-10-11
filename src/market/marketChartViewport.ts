@@ -191,6 +191,10 @@ export function restoreMarketChartViewport(
 ): RestoreMarketChartViewportResult {
   const parsed = parsePersistedMarketChartViewport(viewport)
   if (!parsed) return 'invalid'
+  if (candles.length === 0) return 'invalid'
+  if (parsed.visibleTimeRange.from > candles[candles.length - 1].time) {
+    return 'invalid'
+  }
 
   if (visibleTimeRangeNeedsOlderHistory(parsed.visibleTimeRange, candles)) {
     applyViewportPresentationOptions(chart, parsed)
@@ -203,8 +207,8 @@ export function restoreMarketChartViewport(
 
   applyViewportPresentationOptions(chart, parsed)
 
-  chart.timeScale().setVisibleRange(parsed.visibleTimeRange as IRangeTime)
   chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
+  chart.timeScale().setVisibleRange(parsed.visibleTimeRange as IRangeTime)
   return 'restored'
 }
 
@@ -215,8 +219,8 @@ export function applySavedVisibleTimeRange(
   visibleTimeRange: { from: number; to: number },
   rightOffset: number,
 ): void {
-  chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
   chart.timeScale().applyOptions({ rightOffset })
+  chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
 }
 
 export { MARKET_CHART_INITIAL_VISIBLE_BARS }

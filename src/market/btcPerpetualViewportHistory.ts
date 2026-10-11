@@ -45,6 +45,9 @@ export async function loadOlderHistoryUntilVisibleFrom(
     if (candles.length === 0) return
     if (targetFrom >= candles[0].time) return
 
+    const candleCountBefore = candles.length
+    const oldestTimeBefore = candles[0].time
+
     await loadOlderBtcPerpHistory({
       state,
       generation,
@@ -60,5 +63,14 @@ export async function loadOlderHistoryUntilVisibleFrom(
 
     if (state.generation !== generation) return
     if (state.exhausted) return
+
+    const candlesAfter = candlesRef.current
+    if (
+      candlesAfter.length === candleCountBefore &&
+      candlesAfter.length > 0 &&
+      candlesAfter[0].time === oldestTimeBefore
+    ) {
+      return
+    }
   }
 }
