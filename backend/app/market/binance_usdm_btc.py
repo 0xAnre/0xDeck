@@ -27,7 +27,7 @@ DEFAULT_INTERVAL = "1m"
 DEFAULT_LIMIT = 500
 MIN_LIMIT = 1
 MAX_LIMIT = 1000
-MIN_INITIAL_HISTORY_BARS = 500
+MIN_INITIAL_HISTORY_BARS = 750
 
 # Binance USDM kline interval durations (milliseconds).
 INTERVAL_DURATION_MS: dict[str, int] = {

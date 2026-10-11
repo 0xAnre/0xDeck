@@ -31,7 +31,15 @@ import {
   applyEmaIndicatorSeriesVisibility,
   getEmaIndicatorSeriesVisibility,
 } from '@/market/chartEmaIndicatorVisibility'
-import { computeInitialVisibleLogicalRange } from '@/market/chartInitialVisibleRange'
+import {
+  applyDefaultMarketChartPresentation,
+  captureMarketChartViewport,
+  restoreMarketChartViewport,
+} from '@/market/marketChartViewport'
+import {
+  loadWidgetMarketChartViewport,
+  saveWidgetMarketChartViewport,
+} from '@/marketChartViewportStorage'
 import {
   createInfiniteHistoryState,
   maybeRequestOlderBtcPerpHistory,
@@ -310,6 +318,29 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     pointerPrice: null,
   })
   const lineArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const suppressViewportPersistRef = useRef(false)
+  const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+
+  const flushMarketChartViewportPersist = useCallback(() => {
+    if (suppressViewportPersistRef.current) return
+    if (!historyReadyRef.current) return
+    const chart = chartRef.current
+    if (!chart) return
+    const captured = captureMarketChartViewport(chart)
+    if (!captured) return
+    saveWidgetMarketChartViewport(panelId, activeIntervalRef.current, captured)
+  }, [panelId])
+
+  const scheduleMarketChartViewportPersist = useCallback(() => {
+    if (suppressViewportPersistRef.current) return
+    if (viewportPersistTimerRef.current) {
+      clearTimeout(viewportPersistTimerRef.current)
+    }
+    viewportPersistTimerRef.current = setTimeout(() => {
+      viewportPersistTimerRef.current = null
+      flushMarketChartViewportPersist()
+    }, 250)
+  }, [flushMarketChartViewportPersist])
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -1052,6 +1083,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const bundle = seriesRef.current
       const activeChart = chartRef.current
       if (!bundle || !activeChart || activeChart !== historyListenerChart) return
+      scheduleMarketChartViewportPersist()
       maybeRequestOlderBtcPerpHistory({
         state: infiniteHistoryRef.current,
         historyReady: historyReadyRef.current,
@@ -1183,10 +1215,23 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         activeChart.applyOptions({ width, height })
       }
     })
+    const onViewportPointerUp = () => {
+      scheduleMarketChartViewportPersist()
+    }
+    container.addEventListener('pointerup', onViewportPointerUp)
+    container.addEventListener('wheel', onViewportPointerUp, { passive: true })
+
     resizeObserver.observe(container)
     ensureChart()
 
     return () => {
+      container.removeEventListener('pointerup', onViewportPointerUp)
+      container.removeEventListener('wheel', onViewportPointerUp)
+      if (viewportPersistTimerRef.current) {
+        clearTimeout(viewportPersistTimerRef.current)
+        viewportPersistTimerRef.current = null
+      }
+      flushMarketChartViewportPersist()
       detachInfiniteHistoryListener()
       resizeObserver.disconnect()
       streamRef.current?.disconnect()
@@ -1199,7 +1244,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       candlesRef.current = []
       historyReadyRef.current = false
     }
-  }, [])
+  }, [flushMarketChartViewportPersist, scheduleMarketChartViewportPersist])
 
   useEffect(() => {
     activeIntervalRef.current = interval
@@ -1288,9 +1333,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         activeIntervalRef.current,
       )
       applyChartHistorySeries(bundleNow, candles, rollingVwapInstancesRef.current)
-      const initialRange = computeInitialVisibleLogicalRange(candles.length)
-      if (initialRange) {
-        chart.timeScale().setVisibleLogicalRange(initialRange)
+      const barCount = candles.length
+      const currentInterval = activeIntervalRef.current
+      suppressViewportPersistRef.current = true
+      try {
+        const saved = loadWidgetMarketChartViewport(panelId, currentInterval)
+        if (!saved || !restoreMarketChartViewport(chart, saved, barCount)) {
+          applyDefaultMarketChartPresentation(chart, barCount)
+        }
+      } finally {
+        suppressViewportPersistRef.current = false
       }
       return true
     }
@@ -1380,7 +1432,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       streamRef.current?.disconnect()
       streamRef.current = null
     }
-  }, [interval, syncAllVwapVisibility, liveVwapContext])
+  }, [interval, panelId, syncAllVwapVisibility, liveVwapContext])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) return
