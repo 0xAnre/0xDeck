@@ -650,6 +650,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     }
   }, [panelId])
 
+  const handleChartObjectSettingsTargetChange = useCallback(
+    (target: ChartObjectSettingsTarget | null) => {
+      if (target === null) {
+        setChartObjectSettingsTarget(null)
+        return
+      }
+      openChartObjectSettings(target)
+    },
+    [openChartObjectSettings],
+  )
+
   const handleRectangleVisibilityToggle = useCallback(
     (instanceId: string, hidden: boolean) => {
       persistRectangleInstances(
@@ -1024,13 +1035,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onLineWidthChange: handleLineWidthChange,
     onLineStyleChange: handleLineStyleChange,
     chartObjectSettingsTarget,
-    onChartObjectSettingsTargetChange: (target) => {
-      if (target === null) {
-        setChartObjectSettingsTarget(null)
-        return
-      }
-      openChartObjectSettings(target)
-    },
+    onChartObjectSettingsTargetChange: handleChartObjectSettingsTargetChange,
     disabled: !chartReady && dataState.status === 'loading',
   })
 
