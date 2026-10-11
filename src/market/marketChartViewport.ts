@@ -196,22 +196,11 @@ export function savedVisibleTimeRangeIsRestorable(
   )
 }
 
-export function visibleLogicalRangeIsEntirelyAfterLoaded(
-  range: { from: number; to: number },
-  candles: readonly MarketCandle[],
-): boolean {
-  if (candles.length === 0) return false
-  const lastIndex = candles.length - 1
-  return range.from > lastIndex
-}
-
 export function savedVisibleLogicalRangeIsRestorable(
-  logicalRange: { from: number; to: number },
+  _logicalRange: { from: number; to: number },
   visibleTimeRange: { from: number; to: number },
   candles: readonly MarketCandle[],
 ): boolean {
-  if (candles.length === 0) return false
-  if (visibleLogicalRangeIsEntirelyAfterLoaded(logicalRange, candles)) return false
   return savedVisibleTimeRangeIsRestorable(visibleTimeRange, candles)
 }
 

@@ -8,6 +8,7 @@ import {
   parsePersistedMarketChartViewport,
   rebaseSavedVisibleLogicalRange,
   restoreMarketChartViewport,
+  savedVisibleLogicalRangeIsRestorable,
   savedVisibleTimeRangeIsRestorable,
   visibleTimeRangeNeedsHistoryLoad,
   visibleTimeRangeNeedsOlderHistory,
@@ -386,5 +387,17 @@ describe('visibleTimeRange helpers', () => {
     assert.equal(savedVisibleTimeRangeIsRestorable({ from: 150, to: 250 }, candles), true)
     assert.equal(savedVisibleTimeRangeIsRestorable({ from: 50, to: 150 }, candles), false)
     assert.equal(savedVisibleTimeRangeIsRestorable({ from: 10, to: 90 }, candles), false)
+  })
+
+  it('treats stale logical indices as restorable when timestamps are loaded', () => {
+    const smallWindow = sampleCandles(
+      Array.from({ length: 750 }, (_, i) => 1_700_000_000 + i * 60),
+    )
+    const savedTime = { from: 1_700_010_000, to: 1_700_020_000 }
+    const staleLogical = { from: 15_000, to: 15_010 }
+    assert.equal(
+      savedVisibleLogicalRangeIsRestorable(staleLogical, savedTime, smallWindow),
+      true,
+    )
   })
 })
