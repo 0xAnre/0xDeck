@@ -1410,6 +1410,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                   }
                 })
                 .finally(() => {
+                  if (generation !== loadGenerationRef.current) return
                   suppressViewportPersistRef.current = false
                 })
             }
