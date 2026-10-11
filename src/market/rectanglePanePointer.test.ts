@@ -447,6 +447,7 @@ describe('rectanglePanePointer', () => {
             toTime: 200,
             lowPrice: 20,
             highPrice: 80,
+            locked: true,
           },
         ],
       }),
@@ -476,10 +477,24 @@ describe('rectanglePanePointer', () => {
       clientX: 150,
       clientY: 50,
       pointerId: 8,
-      detail: 2,
       preventDefault: () => {},
       stopPropagation: () => {},
     } as PointerEvent)
+
+    const now = performance.now()
+    const originalNow = performance.now
+    performance.now = () => now + 100
+
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 9,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+
+    performance.now = originalNow
 
     assert.equal(interaction.phase, 'inactive')
     assert.equal(interaction.draft, null)

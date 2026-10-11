@@ -19,6 +19,7 @@ import { isRectangleInstanceLocked, type RectangleInstance } from './rectangleIn
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
+import { shouldSuppressPanePointerDownForDoubleClick } from './paneDoubleClickPointerGuard.ts'
 import {
   buildRectangleChartTimeContext,
   resolveRectangleTimeToCoordinate,
@@ -158,7 +159,13 @@ export function attachRectanglePanePointer(
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
-      if (event.detail >= 2) {
+      if (
+        shouldSuppressPanePointerDownForDoubleClick(
+          paneElement,
+          event.clientX,
+          event.clientY,
+        )
+      ) {
         return
       }
       if (isRectangleInstanceLocked(instance)) {

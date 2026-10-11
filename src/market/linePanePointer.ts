@@ -24,6 +24,7 @@ import {
   resolveLineTimeToCoordinate,
   type LineChartTimeContext,
 } from './lineChartTime.ts'
+import { shouldSuppressPanePointerDownForDoubleClick } from './paneDoubleClickPointerGuard.ts'
 
 export type LinePanePointerCallbacks = {
   getSnapshot: () => {
@@ -158,7 +159,13 @@ export function attachLinePanePointer(
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
-      if (event.detail >= 2) {
+      if (
+        shouldSuppressPanePointerDownForDoubleClick(
+          paneElement,
+          event.clientX,
+          event.clientY,
+        )
+      ) {
         return
       }
       if (isLineInstanceLocked(instance)) {
