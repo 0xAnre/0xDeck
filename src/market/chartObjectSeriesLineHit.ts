@@ -30,11 +30,18 @@ function hitBodySegment(
 }
 
 function resolveFullSeriesLogicalSegmentEnd(series: ISeriesApi<'Line', Time>): number {
-  let endLogicalIndex = -1
-  while (series.dataByIndex(endLogicalIndex + 2) !== null) {
-    endLogicalIndex += 1
+  const barsInfo = series.barsInLogicalRange({ from: 0, to: 0 })
+  if (barsInfo === null) {
+    return -1
   }
-  return endLogicalIndex
+  const lastLogical = barsInfo.barsAfter
+  if (lastLogical < 1) {
+    return -1
+  }
+  if (series.dataByIndex(lastLogical - 1) === null || series.dataByIndex(lastLogical) === null) {
+    return -1
+  }
+  return lastLogical - 1
 }
 
 const MAX_LOGICAL_INDEX_PROBE = 1_000_000
