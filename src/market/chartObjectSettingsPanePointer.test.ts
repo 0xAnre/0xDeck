@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { attachChartObjectSettingsPanePointer } from './chartObjectSettingsPanePointer.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
-import { markPaneDoubleClickSequenceDragTainted } from './paneDoubleClickPointerGuard.ts'
+import {
+  armPanePointerClickForDoubleClick,
+  invalidatePanePointerClickForDoubleClickOnDrag,
+} from './paneDoubleClickPointerGuard.ts'
 
 function createPaneHarness() {
   const listeners = new Map<string, EventListener>()
@@ -198,7 +201,8 @@ describe('chartObjectSettingsPanePointer', () => {
       },
     })
 
-    markPaneDoubleClickSequenceDragTainted(paneElement)
+    armPanePointerClickForDoubleClick(paneElement, 150, 50)
+    invalidatePanePointerClickForDoubleClickOnDrag(paneElement, 150, 50, 170, 50)
 
     listeners.get('dblclick')?.({
       button: 0,

@@ -24,6 +24,7 @@ import {
   armPanePointerClickForDoubleClick,
   cancelPanePointerClickForDoubleClick,
   commitPanePointerClickForDoubleClick,
+  clearAwaitingSecondPressForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
   markPaneDoubleClickSequenceDragTainted,
@@ -165,6 +166,7 @@ export function attachRectanglePanePointer(
   const releaseDeferredRectangleDrag = (event: PointerEvent): void => {
     if (pendingDeferredRectangleDrag?.pointerId !== event.pointerId) return
     pendingDeferredRectangleDrag = null
+    clearAwaitingSecondPressForDoubleClick(paneElement)
     if (paneElement.hasPointerCapture(event.pointerId)) {
       paneElement.releasePointerCapture(event.pointerId)
     }
@@ -274,6 +276,7 @@ export function attachRectanglePanePointer(
         const pending = pendingDeferredRectangleDrag
         pendingDeferredRectangleDrag = null
         markPaneDoubleClickSequenceDragTainted(paneElement)
+        clearAwaitingSecondPressForDoubleClick(paneElement)
         startDragFromRectangleHit(
           pending.hit,
           pending.instance,

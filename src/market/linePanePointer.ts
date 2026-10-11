@@ -29,6 +29,7 @@ import {
   armPanePointerClickForDoubleClick,
   cancelPanePointerClickForDoubleClick,
   commitPanePointerClickForDoubleClick,
+  clearAwaitingSecondPressForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
   markPaneDoubleClickSequenceDragTainted,
@@ -165,6 +166,7 @@ export function attachLinePanePointer(
   const releaseDeferredLineDrag = (event: PointerEvent): void => {
     if (pendingDeferredLineDrag?.pointerId !== event.pointerId) return
     pendingDeferredLineDrag = null
+    clearAwaitingSecondPressForDoubleClick(paneElement)
     if (paneElement.hasPointerCapture(event.pointerId)) {
       paneElement.releasePointerCapture(event.pointerId)
     }
@@ -274,6 +276,7 @@ export function attachLinePanePointer(
         const pending = pendingDeferredLineDrag
         pendingDeferredLineDrag = null
         markPaneDoubleClickSequenceDragTainted(paneElement)
+        clearAwaitingSecondPressForDoubleClick(paneElement)
         startDragFromLineHit(
           pending.hit,
           pending.instance,
