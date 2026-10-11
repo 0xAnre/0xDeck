@@ -399,5 +399,6 @@ describe('visibleTimeRange helpers', () => {
       savedVisibleLogicalRangeIsRestorable(staleLogical, savedTime, smallWindow),
       true,
     )
+    assert.equal(savedVisibleTimeRangeIsRestorable(savedTime, smallWindow), true)
   })
 })
