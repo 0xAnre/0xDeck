@@ -1,6 +1,7 @@
-import type { ISeriesApi } from 'lightweight-charts'
+import { LineStyle, type ISeriesApi } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import type { MarketIndicatorId } from './indicators.ts'
+import type { LineChartStrokeStyle } from './lineChartStroke.ts'
 import { resolveCssColor } from '../lib/resolveCssColor.ts'
 
 const COLOR_INPUT_FALLBACK_HEX = '#71717a'
@@ -40,6 +41,57 @@ export function readLineSeriesColorHex(series: ISeriesApi<'Line'>): string {
     return COLOR_INPUT_FALLBACK_HEX
   }
   return cssColorToHexForColorInput(color)
+}
+
+export function chartLineStyleToStrokeStyle(lineStyle: LineStyle | undefined): LineChartStrokeStyle {
+  switch (lineStyle) {
+    case LineStyle.Dotted:
+      return 'dotted'
+    case LineStyle.Dashed:
+      return 'dashed'
+    case LineStyle.Solid:
+    case undefined:
+      return 'solid'
+    default:
+      return 'solid'
+  }
+}
+
+export function readLineSeriesLineStyle(series: ISeriesApi<'Line'>): LineChartStrokeStyle {
+  return chartLineStyleToStrokeStyle(series.options().lineStyle)
+}
+
+export function readMarketIndicatorSeriesLineStyles(
+  bundle: ChartSeriesBundle,
+  indicatorId: MarketIndicatorId,
+): readonly LineChartStrokeStyle[] {
+  switch (indicatorId) {
+    case 'triple-ema':
+      return bundle.emas.map((series) => readLineSeriesLineStyle(series))
+    case 'dual-ema':
+      return [readLineSeriesLineStyle(bundle.ema100), readLineSeriesLineStyle(bundle.ema200)]
+    case 'daily-vwap':
+      return [readLineSeriesLineStyle(bundle.dailyVwap.byKey.vwap)]
+    case 'weekly-vwap':
+      return [readLineSeriesLineStyle(bundle.weeklyVwap.byKey.vwap)]
+    case 'monthly-vwap':
+      return [readLineSeriesLineStyle(bundle.monthlyVwap.byKey.vwap)]
+    case 'quarterly-vwap':
+      return [readLineSeriesLineStyle(bundle.quarterlyVwap.byKey.vwap)]
+    case 'yearly-vwap':
+      return [readLineSeriesLineStyle(bundle.yearlyVwap.byKey.vwap)]
+    case 'rolling-vwap': {
+      const styles: LineChartStrokeStyle[] = []
+      for (const chartBundle of bundle.rollingVwaps.values()) {
+        styles.push(readLineSeriesLineStyle(chartBundle.center))
+      }
+      return styles
+    }
+    default: {
+      const unreachable: never = indicatorId
+      return unreachable
+    }
+  }
 }
 
 export function readMarketIndicatorSeriesColors(
@@ -92,4 +144,24 @@ export function marketIndicatorUsesDistinctSeriesColors(seriesColors: readonly s
   if (seriesColors.length <= 1) return false
   const normalized = seriesColors.map((color) => cssColorToHexForColorInput(color))
   return new Set(normalized).size > 1
+}
+
+export function marketIndicatorLineStyleSelectValue(
+  presentationLineStyle: LineChartStrokeStyle | undefined,
+  seriesLineStyles: readonly LineChartStrokeStyle[],
+): LineChartStrokeStyle {
+  if (presentationLineStyle !== undefined) {
+    return presentationLineStyle
+  }
+  if (seriesLineStyles.length === 0) {
+    return 'solid'
+  }
+  return seriesLineStyles[0]
+}
+
+export function marketIndicatorUsesDistinctSeriesLineStyles(
+  seriesLineStyles: readonly LineChartStrokeStyle[],
+): boolean {
+  if (seriesLineStyles.length <= 1) return false
+  return new Set(seriesLineStyles).size > 1
 }

@@ -8,13 +8,12 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { MARKET_INDICATOR_DEFINITIONS, type MarketIndicatorId } from '@/market/indicators'
-import {
-  DEFAULT_LINE_CHART_STROKE_STYLE,
-  DEFAULT_LINE_CHART_STROKE_WIDTH,
-} from '@/market/lineChartStroke'
+import { DEFAULT_LINE_CHART_STROKE_WIDTH, type LineChartStrokeStyle } from '@/market/lineChartStroke'
 import {
   marketIndicatorColorInputValue,
+  marketIndicatorLineStyleSelectValue,
   marketIndicatorUsesDistinctSeriesColors,
+  marketIndicatorUsesDistinctSeriesLineStyles,
 } from '@/market/marketIndicatorSeriesColors'
 import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
@@ -23,6 +22,7 @@ type MarketIndicatorStyleDialogProps = {
   indicatorId: MarketIndicatorId | null
   presentation: MarketIndicatorPresentation
   seriesColors: readonly string[]
+  seriesLineStyles: readonly LineChartStrokeStyle[]
   returnFocusId: string
   onOpenChange: (open: boolean) => void
   onPresentationChange: (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => void
@@ -32,6 +32,7 @@ export function MarketIndicatorStyleDialog({
   indicatorId,
   presentation,
   seriesColors,
+  seriesLineStyles,
   returnFocusId,
   onOpenChange,
   onPresentationChange,
@@ -40,6 +41,13 @@ export function MarketIndicatorStyleDialog({
   const colorInputValue = marketIndicatorColorInputValue(presentation.color, seriesColors)
   const usesDistinctSeriesColors =
     presentation.color === undefined && marketIndicatorUsesDistinctSeriesColors(seriesColors)
+  const lineStyleSelectValue = marketIndicatorLineStyleSelectValue(
+    presentation.lineStyle,
+    seriesLineStyles,
+  )
+  const usesDistinctSeriesLineStyles =
+    presentation.lineStyle === undefined &&
+    marketIndicatorUsesDistinctSeriesLineStyles(seriesLineStyles)
 
   return (
     <Dialog
@@ -90,11 +98,26 @@ export function MarketIndicatorStyleDialog({
                 }
               />
             </Field>
+            {usesDistinctSeriesLineStyles ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {seriesLineStyles.map((style, index) => (
+                  <span
+                    key={`${style}-${index}`}
+                    className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground capitalize"
+                  >
+                    {style}
+                  </span>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Theme styles per line. Pick a style to apply it to all lines.
+                </p>
+              </div>
+            ) : null}
             <LineChartStrokeSelectFields
               widthId="indicator-width"
               styleId="indicator-style"
               lineWidth={presentation.lineWidth ?? DEFAULT_LINE_CHART_STROKE_WIDTH}
-              lineStyle={presentation.lineStyle ?? DEFAULT_LINE_CHART_STROKE_STYLE}
+              lineStyle={lineStyleSelectValue}
               onLineWidthChange={(lineWidth) =>
                 onPresentationChange(indicatorId, { ...presentation, lineWidth })
               }
