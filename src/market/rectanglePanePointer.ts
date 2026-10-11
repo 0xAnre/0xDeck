@@ -24,8 +24,8 @@ import {
   armPanePointerClickForDoubleClick,
   cancelPanePointerClickForDoubleClick,
   commitPanePointerClickForDoubleClick,
+  consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
-  shouldSuppressPanePointerDownForDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 import {
   buildRectangleChartTimeContext,
@@ -168,15 +168,11 @@ export function attachRectanglePanePointer(
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
-      if (
-        shouldSuppressPanePointerDownForDoubleClick(
-          paneElement,
-          event.clientX,
-          event.clientY,
-        )
-      ) {
-        return
-      }
+      consumeCompletedClickForDoubleClickSequence(
+        paneElement,
+        event.clientX,
+        event.clientY,
+      )
       armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
       activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
       if (isRectangleInstanceLocked(instance)) {

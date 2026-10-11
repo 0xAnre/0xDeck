@@ -22,10 +22,14 @@ function isWithinDoubleClickDistance(
 }
 
 /**
- * Pointer Events sets `detail` to 0 on `pointerdown`, so double-click suppression
+ * Pointer Events sets `detail` to 0 on `pointerdown`, so double-click handling
  * must track the click sequence independently of `event.detail`.
+ *
+ * When the user presses again soon after a completed click at the same spot,
+ * consume the stored click so drag can start on this press; a release within
+ * click tolerance cancels the drag without committing (see pane pointer up handlers).
  */
-export function shouldSuppressPanePointerDownForDoubleClick(
+export function consumeCompletedClickForDoubleClickSequence(
   paneElement: HTMLElement,
   clientX: number,
   clientY: number,

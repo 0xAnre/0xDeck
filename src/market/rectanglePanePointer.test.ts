@@ -433,7 +433,7 @@ describe('rectanglePanePointer', () => {
     assert.equal(interaction.draft, null)
   })
 
-  it('does not start move or resize on the second press of a double-click', () => {
+  it('allows the second press of a double-click to start drag, cancelling on click release', () => {
     const { listeners, chart } = createPaneHarness()
     let interaction = INITIAL_RECTANGLE_INTERACTION_STATE
 
@@ -500,6 +500,16 @@ describe('rectanglePanePointer', () => {
       pointerId: 9,
       preventDefault: () => {},
       stopPropagation: () => {},
+    } as PointerEvent)
+
+    assert.equal(interaction.phase, 'moving')
+    assert.notEqual(interaction.draft, null)
+
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 9,
     } as PointerEvent)
 
     assert.equal(interaction.phase, 'inactive')
