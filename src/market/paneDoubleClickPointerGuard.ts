@@ -9,7 +9,7 @@ type PointerClickRecord = {
 
 const lastCompletedClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const pendingClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
-const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, boolean>()
+const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, number>()
 
 function isWithinDoubleClickDistance(
   a: PointerClickRecord,
@@ -78,19 +78,27 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
   }
 }
 
-/** Either press in a click sequence moved enough to commit a drag; ignore the next `dblclick`. */
-export function markPaneDoubleClickSequenceDragTainted(paneElement: HTMLElement): void {
-  dragTaintedDoubleClickByPane.set(paneElement, true)
+/**
+ * A press in a double-click sequence moved enough to commit a drag; ignore the next
+ * `dblclick` only while still within the double-click interval.
+ */
+export function markPaneDoubleClickSequenceDragTainted(
+  paneElement: HTMLElement,
+  now: number = performance.now(),
+): void {
+  dragTaintedDoubleClickByPane.set(paneElement, now)
 }
 
 export function shouldSuppressChartObjectSettingsDoubleClick(
   paneElement: HTMLElement,
+  now: number = performance.now(),
 ): boolean {
-  if (!dragTaintedDoubleClickByPane.get(paneElement)) {
+  const taintedAt = dragTaintedDoubleClickByPane.get(paneElement)
+  if (taintedAt === undefined) {
     return false
   }
   dragTaintedDoubleClickByPane.delete(paneElement)
-  return true
+  return now - taintedAt <= DOUBLE_CLICK_INTERVAL_MS
 }
 
 export function commitPanePointerClickForDoubleClick(paneElement: HTMLElement): void {
