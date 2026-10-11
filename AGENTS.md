@@ -178,7 +178,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, EMA 200, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 

@@ -40,6 +40,7 @@ function fakeBundle(): ChartSeriesBundle {
   return {
     candle: { setData: () => {}, update: () => {}, barsInLogicalRange: () => null } as ChartSeriesBundle['candle'],
     emas: [line, line, line] as ChartSeriesBundle['emas'],
+    ema100: line as ChartSeriesBundle['ema100'],
     ema200: line as ChartSeriesBundle['ema200'],
     dailyVwap: {
       byKey: {} as ChartSeriesBundle['dailyVwap']['byKey'],

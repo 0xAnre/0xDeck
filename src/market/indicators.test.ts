@@ -29,37 +29,38 @@ describe('market indicator ids', () => {
     assert.equal(isMarketIndicatorId('rolling-vwap'), true)
   })
 
-  it('accepts ema-200', () => {
-    assert.equal(isMarketIndicatorId('ema-200'), true)
+  it('accepts dual-ema', () => {
+    assert.equal(isMarketIndicatorId('dual-ema'), true)
   })
 
-  it('rejects removed sma indicator ids', () => {
+  it('rejects removed sma and legacy ema-200 indicator ids', () => {
     assert.equal(isMarketIndicatorId('sma-20'), false)
     assert.equal(isMarketIndicatorId('sma-50'), false)
     assert.equal(isMarketIndicatorId('sma-100'), false)
     assert.equal(isMarketIndicatorId('sma-200'), false)
+    assert.equal(isMarketIndicatorId('ema-200'), false)
   })
 })
 
-describe('ema-200 registry', () => {
-  it('lists EMA 200 after 3 EMA with all-interval support', () => {
+describe('dual-ema registry', () => {
+  it('lists 2 EMA after 3 EMA with all-interval support', () => {
     const tripleIndex = MARKET_INDICATOR_IDS.indexOf('triple-ema')
-    const ema200Index = MARKET_INDICATOR_IDS.indexOf('ema-200')
+    const dualEmaIndex = MARKET_INDICATOR_IDS.indexOf('dual-ema')
     assert.equal(tripleIndex >= 0, true)
-    assert.equal(ema200Index, tripleIndex + 1)
-    const def = MARKET_INDICATOR_DEFINITIONS['ema-200']
-    assert.equal(def.label, 'EMA 200')
+    assert.equal(dualEmaIndex, tripleIndex + 1)
+    const def = MARKET_INDICATOR_DEFINITIONS['dual-ema']
+    assert.equal(def.label, '2 EMA')
     assert.equal(def.contextLevel, null)
     for (const interval of CANDLE_INTERVALS) {
-      assert.equal(isIndicatorSupportedOnInterval('ema-200', interval), true)
+      assert.equal(isIndicatorSupportedOnInterval('dual-ema', interval), true)
     }
   })
 
-  it('exposes EMA 200 in indicator menu options', () => {
+  it('exposes 2 EMA in indicator menu options', () => {
     const options = buildMarketIndicatorOptions('1m')
-    const ema200 = options.find((o) => o.value === 'ema-200')
-    assert.equal(ema200?.label, 'EMA 200')
-    assert.equal(ema200?.disabled, false)
+    const dualEma = options.find((o) => o.value === 'dual-ema')
+    assert.equal(dualEma?.label, '2 EMA')
+    assert.equal(dualEma?.disabled, false)
   })
 })
 
