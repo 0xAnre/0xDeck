@@ -348,6 +348,17 @@ describe('rebaseSavedVisibleLogicalRange', () => {
       { from: 2, to: 12 },
     )
   })
+
+  it('preserves the fractional logical offset from the saved range', () => {
+    assert.deepEqual(
+      rebaseSavedVisibleLogicalRange(
+        candles,
+        { from: 200, to: 400 },
+        { from: 1.35, to: 11.35 },
+      ),
+      { from: 1.35, to: 11.35 },
+    )
+  })
 })
 
 describe('visibleTimeRangeToLogicalRange', () => {

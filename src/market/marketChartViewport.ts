@@ -333,7 +333,9 @@ export function rebaseSavedVisibleLogicalRange(
   const width = visibleLogicalRange.to - visibleLogicalRange.from
   if (!Number.isFinite(width) || width <= 0) return null
   const fromIndex = findCandleIndexAtOrAfter(candles, visibleTimeRange.from)
-  return { from: fromIndex, to: fromIndex + width }
+  const fractionalFromOffset = visibleLogicalRange.from - Math.floor(visibleLogicalRange.from)
+  const rebasedFrom = fromIndex + fractionalFromOffset
+  return { from: rebasedFrom, to: rebasedFrom + width }
 }
 
 export function applySavedVisibleTimeRange(
