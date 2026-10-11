@@ -29,16 +29,26 @@ function hitBodySegment(
   return distanceSq(paneX, paneY, projX, projY) <= radiusSq
 }
 
-function findSeriesDataIndexByTime<T extends { time: Time }>(
-  data: readonly T[],
-  time: Time,
-): number {
-  for (let index = 0; index < data.length; index += 1) {
-    if (data[index].time === time) {
-      return index
-    }
+function resolveVisibleDataIndexBounds(
+  logicalRange: { from: number; to: number },
+  barsBefore: number,
+  dataLength: number,
+): { firstVisibleIndex: number; lastVisibleIndex: number } | null {
+  const firstLogicalOnSeries = logicalRange.from - barsBefore
+  const firstVisibleIndex = Math.ceil(logicalRange.from) - firstLogicalOnSeries
+  const lastVisibleIndex = Math.floor(logicalRange.to) - firstLogicalOnSeries
+  if (
+    firstVisibleIndex < 0 ||
+    lastVisibleIndex < 0 ||
+    firstVisibleIndex >= dataLength ||
+    lastVisibleIndex < firstVisibleIndex
+  ) {
+    return null
   }
-  return -1
+  return {
+    firstVisibleIndex,
+    lastVisibleIndex: Math.min(lastVisibleIndex, dataLength - 1),
+  }
 }
 
 /** Segment indices (inclusive) to scan for hits; includes one segment outside each visible edge. */
@@ -58,16 +68,19 @@ export function resolveVisibleLineSegmentIndexBounds(
   }
 
   const barsInfo = series.barsInLogicalRange(logicalRange)
-  if (barsInfo === null || barsInfo.from === undefined || barsInfo.to === undefined) {
+  if (barsInfo === null) {
     return { startIndex: 0, endIndex: -1 }
   }
 
-  const data = series.data()
-  const firstVisibleIndex = findSeriesDataIndexByTime(data, barsInfo.from)
-  const lastVisibleIndex = findSeriesDataIndexByTime(data, barsInfo.to)
-  if (firstVisibleIndex < 0 || lastVisibleIndex < 0) {
+  const visibleBounds = resolveVisibleDataIndexBounds(
+    logicalRange,
+    barsInfo.barsBefore,
+    dataLength,
+  )
+  if (visibleBounds === null) {
     return { startIndex: 0, endIndex: -1 }
   }
+  const { firstVisibleIndex, lastVisibleIndex } = visibleBounds
 
   const startIndex = Math.max(0, firstVisibleIndex - 1)
   const endIndex = Math.min(maxSegmentIndex, lastVisibleIndex + 1)
