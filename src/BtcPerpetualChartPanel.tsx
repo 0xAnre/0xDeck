@@ -33,9 +33,11 @@ import {
 } from '@/market/chartEmaIndicatorVisibility'
 import {
   applyDefaultMarketChartPresentation,
+  applySavedVisibleTimeRange,
   captureMarketChartViewport,
   restoreMarketChartViewport,
 } from '@/market/marketChartViewport'
+import { loadOlderHistoryUntilVisibleFrom } from '@/market/btcPerpetualViewportHistory'
 import {
   loadWidgetMarketChartViewport,
   saveWidgetMarketChartViewport,
@@ -1250,8 +1252,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (viewportPersistTimerRef.current) {
       clearTimeout(viewportPersistTimerRef.current)
       viewportPersistTimerRef.current = null
-      flushMarketChartViewportPersist()
     }
+    flushMarketChartViewportPersist()
+
     activeIntervalRef.current = interval
     loadGenerationRef.current += 1
     const generation = loadGenerationRef.current
@@ -1343,8 +1346,32 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       suppressViewportPersistRef.current = true
       try {
         const saved = loadWidgetMarketChartViewport(panelId, currentInterval)
-        if (!saved || !restoreMarketChartViewport(chart, saved, barCount)) {
+        if (!saved) {
           applyDefaultMarketChartPresentation(chart, barCount)
+        } else {
+          const restoreResult = restoreMarketChartViewport(chart, saved, candles)
+          if (restoreResult === 'invalid') {
+            applyDefaultMarketChartPresentation(chart, barCount)
+          } else if (restoreResult === 'needs_history') {
+            const bundleForHistory = seriesRef.current
+            if (bundleForHistory) {
+              void loadOlderHistoryUntilVisibleFrom({
+                state: infiniteHistoryRef.current,
+                generation: loadGenerationRef.current,
+                interval: currentInterval,
+                targetFrom: saved.visibleTimeRange.from,
+                candlesRef,
+                bundle: bundleForHistory,
+                chart,
+                signal: controller.signal,
+                rollingVwapInstances: rollingVwapInstancesRef.current,
+              }).then(() => {
+                if (generation !== loadGenerationRef.current) return
+                if (!chartRef.current) return
+                applySavedVisibleTimeRange(chartRef.current, saved.visibleTimeRange)
+              })
+            }
+          }
         }
       } finally {
         suppressViewportPersistRef.current = false

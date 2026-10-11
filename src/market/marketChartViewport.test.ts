@@ -7,10 +7,14 @@ import {
   applyDefaultMarketChartPresentation,
   parsePersistedMarketChartViewport,
   restoreMarketChartViewport,
+  visibleTimeRangeNeedsOlderHistory,
+  visibleTimeRangeOverlapsLoadedCandles,
 } from './marketChartViewport.ts'
+import type { MarketCandle } from './types.ts'
 
 function makeChartStub() {
   let logicalRange: { from: number; to: number } | null = null
+  let visibleTimeRange: { from: number; to: number } | null = null
   let rightOffset = 0
   let autoScale = true
   let scaleMargins = { top: 0.2, bottom: 0.1 }
@@ -24,8 +28,13 @@ function makeChartStub() {
       options: () => ({ rightOffset }),
       setVisibleLogicalRange: (range: { from: number; to: number }) => {
         logicalRange = range
+        rightOffset = 0
       },
       getVisibleLogicalRange: () => logicalRange,
+      setVisibleRange: (range: { from: number; to: number }) => {
+        visibleTimeRange = range
+      },
+      getVisibleRange: () => visibleTimeRange,
     }),
     priceScale: () => ({
       applyOptions: (options: {
@@ -46,14 +55,32 @@ function makeChartStub() {
 
   return {
     chart,
-    getState: () => ({ logicalRange, rightOffset, autoScale, scaleMargins, priceVisible }),
+    getState: () => ({
+      logicalRange,
+      visibleTimeRange,
+      rightOffset,
+      autoScale,
+      scaleMargins,
+      priceVisible,
+    }),
   }
 }
+
+const sampleCandles = (times: number[]): MarketCandle[] =>
+  times.map((time) => ({
+    time,
+    open: 1,
+    high: 2,
+    low: 0.5,
+    close: 1.5,
+    volume: 1,
+    interval: '1m',
+  }))
 
 describe('parsePersistedMarketChartViewport', () => {
   const valid = {
     version: 1,
-    logicalRange: { from: 10, to: 20 },
+    visibleTimeRange: { from: 1_700_000_000, to: 1_700_010_000 },
     autoScale: true,
     priceRange: null,
     scaleMargins: { top: 0.1, bottom: 0.1 },
@@ -64,10 +91,10 @@ describe('parsePersistedMarketChartViewport', () => {
     assert.deepEqual(parsePersistedMarketChartViewport(valid), valid)
   })
 
-  it('rejects invalid logical range and margins', () => {
+  it('rejects invalid time range and margins', () => {
     assert.equal(parsePersistedMarketChartViewport(null), null)
     assert.equal(
-      parsePersistedMarketChartViewport({ ...valid, logicalRange: { from: 5, to: 5 } }),
+      parsePersistedMarketChartViewport({ ...valid, visibleTimeRange: { from: 5, to: 5 } }),
       null,
     )
     assert.equal(
@@ -78,11 +105,18 @@ describe('parsePersistedMarketChartViewport', () => {
       parsePersistedMarketChartViewport({ ...valid, autoScale: false, priceRange: null }),
       null,
     )
+    assert.equal(
+      parsePersistedMarketChartViewport({
+        ...valid,
+        visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_000 },
+      }),
+      null,
+    )
   })
 })
 
 describe('applyDefaultMarketChartPresentation', () => {
-  it('applies margins, right offset, and last visible bars', () => {
+  it('applies margins, initial range, then right offset', () => {
     const { chart, getState } = makeChartStub()
     applyDefaultMarketChartPresentation(chart as never, 1000)
     const state = getState()
@@ -100,35 +134,71 @@ describe('applyDefaultMarketChartPresentation', () => {
 })
 
 describe('restoreMarketChartViewport', () => {
-  it('restores saved ranges when plausible', () => {
+  const candles = sampleCandles([1_700_000_000, 1_700_000_060, 1_700_000_120])
+
+  it('restores saved ranges when data covers the window', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
-      logicalRange: { from: 50, to: 150 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: false,
       priceRange: { from: 90_000, to: 92_000 },
       scaleMargins: { top: 0.05, bottom: 0.15 },
       rightOffset: 4,
     }
-    assert.equal(restoreMarketChartViewport(chart as never, saved, 500), true)
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
     const state = getState()
-    assert.deepEqual(state.logicalRange, saved.logicalRange)
+    assert.deepEqual(state.visibleTimeRange, saved.visibleTimeRange)
     assert.equal(state.autoScale, false)
     assert.deepEqual(state.priceVisible, saved.priceRange)
     assert.equal(state.rightOffset, 4)
   })
 
-  it('falls back when logical range is implausible', () => {
+  it('requests older history when the saved window starts before loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
-      logicalRange: { from: 10_000, to: 10_100 },
+      visibleTimeRange: { from: 1_699_999_000, to: 1_700_000_120 },
       autoScale: true,
       priceRange: null,
       scaleMargins: { top: 0.1, bottom: 0.1 },
       rightOffset: 8,
     }
-    assert.equal(restoreMarketChartViewport(chart as never, saved, 200), false)
-    assert.equal(getState().logicalRange, null)
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'needs_history')
+    assert.equal(getState().visibleTimeRange, null)
+    assert.equal(getState().rightOffset, 8)
+  })
+
+  it('falls back when the saved window does not overlap loaded candles', () => {
+    const { chart, getState } = makeChartStub()
+    const saved = {
+      version: 1 as const,
+      visibleTimeRange: { from: 1_800_000_000, to: 1_800_010_000 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'invalid')
+    assert.equal(getState().visibleTimeRange, null)
+  })
+})
+
+describe('visibleTimeRange helpers', () => {
+  const candles = sampleCandles([100, 200, 300])
+
+  it('detects overlap and older-history needs', () => {
+    assert.equal(
+      visibleTimeRangeOverlapsLoadedCandles({ from: 150, to: 250 }, candles),
+      true,
+    )
+    assert.equal(
+      visibleTimeRangeNeedsOlderHistory({ from: 50, to: 250 }, candles),
+      true,
+    )
+    assert.equal(
+      visibleTimeRangeOverlapsLoadedCandles({ from: 400, to: 500 }, candles),
+      false,
+    )
   })
 })

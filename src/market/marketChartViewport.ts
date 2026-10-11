@@ -1,8 +1,10 @@
-import type { IChartApi, LogicalRange } from 'lightweight-charts'
+import type { IChartApi, Time } from 'lightweight-charts'
+import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
 import {
   computeInitialVisibleLogicalRange,
   MARKET_CHART_INITIAL_VISIBLE_BARS,
 } from './chartInitialVisibleRange.ts'
+import type { MarketCandle } from './types.ts'
 
 export const MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS = {
   top: 0.1,
@@ -13,12 +15,14 @@ export const MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET = 8
 
 export type PersistedMarketChartViewport = {
   version: 1
-  logicalRange: { from: number; to: number }
+  visibleTimeRange: { from: number; to: number }
   autoScale: boolean
   priceRange: { from: number; to: number } | null
   scaleMargins: { top: number; bottom: number }
   rightOffset: number
 }
+
+export type RestoreMarketChartViewportResult = 'restored' | 'needs_history' | 'invalid'
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -31,6 +35,17 @@ function isValidScaleMargins(margins: { top: number; bottom: number }): boolean 
   return top + bottom < 1
 }
 
+function parseVisibleTimeRange(value: unknown): { from: number; to: number } | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  if (!isFiniteNumber(record.from) || !isFiniteNumber(record.to)) return null
+  const from = Math.trunc(record.from)
+  const to = Math.trunc(record.to)
+  if (!isValidUnixChartTimeSeconds(from) || !isValidUnixChartTimeSeconds(to)) return null
+  if (from >= to) return null
+  return { from, to }
+}
+
 export function parsePersistedMarketChartViewport(
   value: unknown,
 ): PersistedMarketChartViewport | null {
@@ -38,11 +53,8 @@ export function parsePersistedMarketChartViewport(
   const record = value as Record<string, unknown>
   if (record.version !== 1) return null
 
-  const logicalRaw = record.logicalRange
-  if (!logicalRaw || typeof logicalRaw !== 'object') return null
-  const logical = logicalRaw as Record<string, unknown>
-  if (!isFiniteNumber(logical.from) || !isFiniteNumber(logical.to)) return null
-  if (logical.from >= logical.to) return null
+  const visibleTimeRange = parseVisibleTimeRange(record.visibleTimeRange)
+  if (!visibleTimeRange) return null
 
   if (typeof record.autoScale !== 'boolean') return null
 
@@ -68,7 +80,7 @@ export function parsePersistedMarketChartViewport(
 
   return {
     version: 1,
-    logicalRange: { from: logical.from, to: logical.to },
+    visibleTimeRange,
     autoScale: record.autoScale,
     priceRange,
     scaleMargins,
@@ -77,11 +89,13 @@ export function parsePersistedMarketChartViewport(
 }
 
 export function captureMarketChartViewport(chart: IChartApi): PersistedMarketChartViewport | null {
-  const logicalRange = chart.timeScale().getVisibleLogicalRange()
-  if (!logicalRange) return null
-  const from = logicalRange.from as number
-  const to = logicalRange.to as number
+  const visibleTimeRange = chart.timeScale().getVisibleRange()
+  if (!visibleTimeRange) return null
+  const from = visibleTimeRange.from as number
+  const to = visibleTimeRange.to as number
   if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) return null
+  const truncated = parseVisibleTimeRange({ from, to })
+  if (!truncated) return null
 
   const priceScale = chart.priceScale('right')
   const options = priceScale.options()
@@ -106,7 +120,7 @@ export function captureMarketChartViewport(chart: IChartApi): PersistedMarketCha
 
   return {
     version: 1,
-    logicalRange: { from, to },
+    visibleTimeRange: truncated,
     autoScale,
     priceRange,
     scaleMargins,
@@ -114,46 +128,30 @@ export function captureMarketChartViewport(chart: IChartApi): PersistedMarketCha
   }
 }
 
-function logicalRangeIsPlausible(
+export function visibleTimeRangeOverlapsLoadedCandles(
   range: { from: number; to: number },
-  barCount: number,
+  candles: readonly MarketCandle[],
 ): boolean {
-  if (barCount <= 0) return false
-  const maxIndex = barCount - 1
-  const span = range.to - range.from
-  if (span <= 0) return false
-  if (range.to < -barCount || range.from > maxIndex + barCount) return false
+  if (candles.length === 0) return false
+  const first = candles[0].time
+  const last = candles[candles.length - 1].time
+  if (range.to < first) return false
+  if (range.from > last) return false
   return true
 }
 
-export function applyDefaultMarketChartPresentation(chart: IChartApi, barCount: number): void {
-  chart.priceScale('right').applyOptions({
-    autoScale: true,
-    scaleMargins: {
-      top: MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS.top,
-      bottom: MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS.bottom,
-    },
-  })
-  chart.timeScale().applyOptions({
-    rightOffset: MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET,
-  })
-
-  const initialRange = computeInitialVisibleLogicalRange(barCount)
-  if (initialRange) {
-    chart.timeScale().setVisibleLogicalRange(initialRange)
-  }
+export function visibleTimeRangeNeedsOlderHistory(
+  range: { from: number; to: number },
+  candles: readonly MarketCandle[],
+): boolean {
+  if (candles.length === 0) return false
+  return range.from < candles[0].time
 }
 
-export function restoreMarketChartViewport(
+function applyViewportPresentationOptions(
   chart: IChartApi,
-  viewport: PersistedMarketChartViewport,
-  barCount: number,
-): boolean {
-  const parsed = parsePersistedMarketChartViewport(viewport)
-  if (!parsed) return false
-  if (!logicalRangeIsPlausible(parsed.logicalRange, barCount)) return false
-
-  chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
+  parsed: PersistedMarketChartViewport,
+): void {
   chart.priceScale('right').applyOptions({
     scaleMargins: {
       top: parsed.scaleMargins.top,
@@ -165,9 +163,57 @@ export function restoreMarketChartViewport(
   if (!parsed.autoScale && parsed.priceRange) {
     chart.priceScale('right').setVisibleRange(parsed.priceRange)
   }
+}
 
-  chart.timeScale().setVisibleLogicalRange(parsed.logicalRange as LogicalRange)
-  return true
+export function applyDefaultMarketChartPresentation(chart: IChartApi, barCount: number): void {
+  chart.priceScale('right').applyOptions({
+    autoScale: true,
+    scaleMargins: {
+      top: MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS.top,
+      bottom: MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS.bottom,
+    },
+  })
+
+  const initialRange = computeInitialVisibleLogicalRange(barCount)
+  if (initialRange) {
+    chart.timeScale().setVisibleLogicalRange(initialRange)
+  }
+
+  chart.timeScale().applyOptions({
+    rightOffset: MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET,
+  })
+}
+
+export function restoreMarketChartViewport(
+  chart: IChartApi,
+  viewport: PersistedMarketChartViewport,
+  candles: readonly MarketCandle[],
+): RestoreMarketChartViewportResult {
+  const parsed = parsePersistedMarketChartViewport(viewport)
+  if (!parsed) return 'invalid'
+  if (!visibleTimeRangeOverlapsLoadedCandles(parsed.visibleTimeRange, candles)) {
+    return 'invalid'
+  }
+
+  applyViewportPresentationOptions(chart, parsed)
+
+  if (visibleTimeRangeNeedsOlderHistory(parsed.visibleTimeRange, candles)) {
+    chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
+    return 'needs_history'
+  }
+
+  chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
+  chart.timeScale().setVisibleRange(parsed.visibleTimeRange as IRangeTime)
+  return 'restored'
+}
+
+type IRangeTime = { from: Time; to: Time }
+
+export function applySavedVisibleTimeRange(
+  chart: IChartApi,
+  visibleTimeRange: { from: number; to: number },
+): void {
+  chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
 }
 
 export { MARKET_CHART_INITIAL_VISIBLE_BARS }

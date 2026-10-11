@@ -10,7 +10,7 @@ const memory = new Map<string, string>()
 
 const sampleViewport = {
   version: 1 as const,
-  logicalRange: { from: 1, to: 50 },
+  visibleTimeRange: { from: 1_700_000_000, to: 1_700_001_000 },
   autoScale: true,
   priceRange: null,
   scaleMargins: { top: 0.1, bottom: 0.1 },
@@ -53,19 +53,19 @@ describe('marketChartViewportStorage', () => {
   it('isolates viewports per panel id', () => {
     saveWidgetMarketChartViewport('panel-a', '1m', {
       ...sampleViewport,
-      logicalRange: { from: 0, to: 10 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_100 },
     })
     saveWidgetMarketChartViewport('panel-b', '1m', {
       ...sampleViewport,
-      logicalRange: { from: 20, to: 30 },
+      visibleTimeRange: { from: 1_700_000_200, to: 1_700_000_300 },
     })
-    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1m')?.logicalRange, {
-      from: 0,
-      to: 10,
+    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1m')?.visibleTimeRange, {
+      from: 1_700_000_000,
+      to: 1_700_000_100,
     })
-    assert.deepEqual(loadWidgetMarketChartViewport('panel-b', '1m')?.logicalRange, {
-      from: 20,
-      to: 30,
+    assert.deepEqual(loadWidgetMarketChartViewport('panel-b', '1m')?.visibleTimeRange, {
+      from: 1_700_000_200,
+      to: 1_700_000_300,
     })
   })
 
@@ -73,15 +73,15 @@ describe('marketChartViewportStorage', () => {
     saveWidgetMarketChartViewport('panel-a', '1m', sampleViewport)
     saveWidgetMarketChartViewport('panel-a', '1h', {
       ...sampleViewport,
-      logicalRange: { from: 100, to: 200 },
+      visibleTimeRange: { from: 1_700_100_000, to: 1_700_200_000 },
     })
-    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1m')?.logicalRange, {
-      from: 1,
-      to: 50,
+    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1m')?.visibleTimeRange, {
+      from: 1_700_000_000,
+      to: 1_700_001_000,
     })
-    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1h')?.logicalRange, {
-      from: 100,
-      to: 200,
+    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1h')?.visibleTimeRange, {
+      from: 1_700_100_000,
+      to: 1_700_200_000,
     })
     assert.equal(loadWidgetMarketChartViewport('panel-a', '5m'), null)
   })
@@ -94,16 +94,16 @@ describe('marketChartViewportStorage', () => {
       WIDGET_MARKET_CHART_VIEWPORT_STORAGE_KEY,
       JSON.stringify({
         'panel-a': {
-          '1m': { version: 1, logicalRange: { from: 5, to: 5 } },
+          '1m': { version: 1, visibleTimeRange: { from: 5, to: 5 } },
           '1h': sampleViewport,
           bogus: sampleViewport,
         },
       }),
     )
     assert.equal(loadWidgetMarketChartViewport('panel-a', '1m'), null)
-    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1h')?.logicalRange, {
-      from: 1,
-      to: 50,
+    assert.deepEqual(loadWidgetMarketChartViewport('panel-a', '1h')?.visibleTimeRange, {
+      from: 1_700_000_000,
+      to: 1_700_001_000,
     })
   })
 })
