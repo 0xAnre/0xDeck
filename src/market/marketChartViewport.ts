@@ -364,6 +364,8 @@ export function applySavedVisibleTimeRange(
       chart.timeScale().setVisibleLogicalRange(rebased)
       return
     }
+    applySavedVisibleLogicalRange(chart, visibleLogicalRange)
+    return
   }
 
   const logicalRange = visibleTimeRangeToLogicalRange(candles, visibleTimeRange)

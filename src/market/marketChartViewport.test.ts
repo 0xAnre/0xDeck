@@ -191,7 +191,7 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(state.autoScale, false)
     assert.deepEqual(state.priceVisible, saved.priceRange)
     assert.equal(state.scrollPosition, 0)
-    assert.deepEqual(state.logicalRange, saved.visibleLogicalRange)
+    assert.deepEqual(state.logicalRange, { from: 0, to: 2.5 })
   })
 
   it('requests older history when the saved window starts before loaded candles', () => {
@@ -274,6 +274,29 @@ describe('restoreMarketChartViewport', () => {
     assert.deepEqual(getState().logicalRange, { from: 0, to: 10 })
   })
 
+  it('rebases saved logical range onto current candle indices after history grows', () => {
+    const shifted = sampleCandles([
+      1_699_990_000,
+      1_699_995_000,
+      1_700_000_000,
+      1_700_000_060,
+      1_700_000_120,
+    ])
+    const times = shifted.map((c) => c.time)
+    const { chart, getState } = makeChartStub(times)
+    const saved = {
+      version: 1 as const,
+      visibleLogicalRange: { from: 0, to: 10 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, shifted), 'restored')
+    assert.deepEqual(getState().logicalRange, { from: 2, to: 12 })
+  })
+
   it('preserves logical width across repeated restore cycles', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
@@ -306,6 +329,22 @@ describe('rebaseSavedVisibleLogicalRange', () => {
         { from: 99, to: 109 },
       ),
       { from: 1, to: 11 },
+    )
+  })
+
+  it('rebases saved logical indices when the same timestamps sit at new indices', () => {
+    const shiftedCandles = sampleCandles([
+      1_699_990_000,
+      1_699_995_000,
+      1_700_000_000,
+      1_700_000_060,
+      1_700_000_120,
+    ])
+    const savedLogical = { from: 0, to: 10 }
+    const savedTime = { from: 1_700_000_000, to: 1_700_000_120 }
+    assert.deepEqual(
+      rebaseSavedVisibleLogicalRange(shiftedCandles, savedTime, savedLogical),
+      { from: 2, to: 12 },
     )
   })
 })
