@@ -1347,10 +1347,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     streamRef.current = client
     client.connect()
 
-    const applyInitialSeries = (candles: MarketCandle[]) => {
+    const applyInitialSeries = (
+      candles: MarketCandle[],
+    ): { ok: true; pendingViewportRestore?: Promise<void> } | { ok: false } => {
       const bundleNow = seriesRef.current
       const chart = chartRef.current
-      if (!bundleNow || !chart) return false
+      if (!bundleNow || !chart) return { ok: false }
 
       reconcileRollingVwapChartBundles(
         chart,
@@ -1361,7 +1363,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       applyChartHistorySeries(bundleNow, candles, rollingVwapInstancesRef.current)
       const barCount = candles.length
       const currentInterval = activeIntervalRef.current
-      let pendingHistoryViewportRestore = false
+      let pendingViewportRestore: Promise<void> | undefined
       suppressViewportPersistRef.current = true
       try {
         const saved = loadWidgetMarketChartViewport(panelId, currentInterval)
@@ -1374,8 +1376,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           } else if (restoreResult === 'needs_history') {
             const bundleForHistory = seriesRef.current
             if (bundleForHistory) {
-              pendingHistoryViewportRestore = true
-              void loadOlderHistoryUntilVisibleFrom({
+              pendingViewportRestore = loadOlderHistoryUntilVisibleFrom({
                 state: infiniteHistoryRef.current,
                 generation: loadGenerationRef.current,
                 interval: currentInterval,
@@ -1417,11 +1418,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           }
         }
       } finally {
-        if (!pendingHistoryViewportRestore) {
+        if (!pendingViewportRestore) {
           suppressViewportPersistRef.current = false
         }
       }
-      return true
+      return { ok: true, pendingViewportRestore }
     }
 
     void (async () => {
@@ -1453,13 +1454,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (generation !== loadGenerationRef.current) return
 
         candlesRef.current = [...merged]
-        if (!applyInitialSeries(merged)) {
+        const initialSeriesResult = applyInitialSeries(merged)
+        if (!initialSeriesResult.ok) {
           teardownStream()
           setDataState({
             status: 'error',
             message: 'Chart could not be initialized',
           })
           return
+        }
+
+        if (initialSeriesResult.pendingViewportRestore) {
+          await initialSeriesResult.pendingViewportRestore
+          if (generation !== loadGenerationRef.current) return
         }
 
         if (streamBuffer.size > 0) {
