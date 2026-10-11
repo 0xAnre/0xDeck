@@ -14,7 +14,11 @@ export function addDefaultRollingVwapPanelInstance(
   randomId?: () => string,
 ): RollingVwapInstance[] {
   const existingIds = new Set(instances.map((instance) => instance.id))
-  const created = createRollingVwapInstance({ existingIds, randomId })
+  const created = createRollingVwapInstance({
+    existingIds,
+    siblingInstances: instances,
+    randomId,
+  })
   return addRollingVwapInstance(instances, created)
 }
 

@@ -88,8 +88,15 @@ import {
 import { bootstrapRollingVwapPanelState } from '@/market/rollingVwapPanelBootstrap'
 import {
   findRollingVwapInstance,
+  updateRollingVwapInstance,
   type RollingVwapInstance,
 } from '@/market/rollingVwapInstances'
+import {
+  loadWidgetMarketIndicatorPresentation,
+  saveWidgetMarketIndicatorPresentation,
+  type MarketIndicatorPresentation,
+} from '@/marketIndicatorPresentationStorage'
+import { MarketIndicatorStyleDialog } from '@/widgetSettings/MarketIndicatorStyleDialog'
 import { createDefaultRollingVwapSettings } from '@/market/rollingVwapSettings'
 import { saveWidgetRollingVwapInstances } from '@/rollingVwapInstancesStorage'
 import {
@@ -143,6 +150,7 @@ import {
   sanitizeRectangleInstances,
   setRectangleInstanceFillColor,
   setRectangleInstanceFillOpacity,
+  setRectangleInstanceHidden,
   setRectangleInstanceLocked,
   updateRectangleInstancesById,
   type RectangleInstance,
@@ -164,7 +172,23 @@ import {
   INITIAL_LINE_INTERACTION_STATE,
   type LineInteractionState,
 } from '@/market/lineInteraction'
-import { sanitizeLineInstances, type LineInstance } from '@/market/lineInstances'
+import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
+import {
+  sanitizeLineInstances,
+  setLineInstanceHidden,
+  setLineInstanceLocked,
+  setLineInstanceStrokeColor,
+  setLineInstanceStrokeStyle,
+  setLineInstanceStrokeWidth,
+  updateLineInstancesById,
+  type LineInstance,
+} from '@/market/lineInstances'
+import {
+  setFixedRangeVolumeProfileInstanceEnabled,
+  setFixedRangeVolumeProfileInstanceLocked,
+  updateFixedRangeVolumeProfileInstancesById,
+} from '@/market/fixedRangeVolumeProfileInstances'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { EMA_PERIODS } from '@/market/ema'
 import {
@@ -249,6 +273,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [editingRollingVwapInstanceId, setEditingRollingVwapInstanceId] = useState<string | null>(
     null,
   )
+  const [chartObjectSettingsTarget, setChartObjectSettingsTarget] =
+    useState<ChartObjectSettingsTarget | null>(null)
+  const [editingMarketIndicatorId, setEditingMarketIndicatorId] =
+    useState<MarketIndicatorId | null>(null)
+  const [marketIndicatorPresentation, setMarketIndicatorPresentation] =
+    useState<MarketIndicatorPresentation>({})
   const [fixedRangeVolumeProfileInstances, setFixedRangeVolumeProfileInstances] = useState<
     FixedRangeVolumeProfileInstance[]
   >(() =>
@@ -600,6 +630,154 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistLineInstances],
   )
 
+  const openChartObjectSettings = useCallback((target: ChartObjectSettingsTarget) => {
+    setChartObjectSettingsTarget(target)
+    if (target.kind === 'rolling-vwap') {
+      setEditingRollingVwapInstanceId(target.instanceId)
+      setRollingVwapSettingsOpen(true)
+      return
+    }
+    if (target.kind === 'market-indicator') {
+      setEditingMarketIndicatorId(target.indicatorId)
+      setMarketIndicatorPresentation(
+        loadWidgetMarketIndicatorPresentation(panelId, target.indicatorId),
+      )
+    }
+  }, [panelId])
+
+  const handleRectangleVisibilityToggle = useCallback(
+    (instanceId: string, hidden: boolean) => {
+      persistRectangleInstances(
+        updateRectangleInstancesById(rectangleInstancesRef.current, instanceId, (instance) =>
+          setRectangleInstanceHidden(instance, hidden),
+        ),
+      )
+    },
+    [persistRectangleInstances],
+  )
+
+  const handleLineLockToggle = useCallback(
+    (instanceId: string, locked: boolean) => {
+      persistLineInstances(
+        updateLineInstancesById(lineInstancesRef.current, instanceId, (instance) =>
+          setLineInstanceLocked(instance, locked),
+        ),
+      )
+    },
+    [persistLineInstances],
+  )
+
+  const handleLineVisibilityToggle = useCallback(
+    (instanceId: string, hidden: boolean) => {
+      persistLineInstances(
+        updateLineInstancesById(lineInstancesRef.current, instanceId, (instance) =>
+          setLineInstanceHidden(instance, hidden),
+        ),
+      )
+    },
+    [persistLineInstances],
+  )
+
+  const handleLineStrokeColorChange = useCallback(
+    (instanceId: string, strokeColor: string) => {
+      persistLineInstances(
+        updateLineInstancesById(lineInstancesRef.current, instanceId, (instance) =>
+          setLineInstanceStrokeColor(instance, strokeColor),
+        ),
+      )
+    },
+    [persistLineInstances],
+  )
+
+  const handleLineWidthChange = useCallback(
+    (instanceId: string, lineWidth: LineChartStrokeWidth) => {
+      persistLineInstances(
+        updateLineInstancesById(lineInstancesRef.current, instanceId, (instance) =>
+          setLineInstanceStrokeWidth(instance, lineWidth),
+        ),
+      )
+    },
+    [persistLineInstances],
+  )
+
+  const handleLineStyleChange = useCallback(
+    (instanceId: string, lineStyle: LineChartStrokeStyle) => {
+      persistLineInstances(
+        updateLineInstancesById(lineInstancesRef.current, instanceId, (instance) =>
+          setLineInstanceStrokeStyle(instance, lineStyle),
+        ),
+      )
+    },
+    [persistLineInstances],
+  )
+
+  const handleFixedRangeVolumeProfileToggle = useCallback(
+    (instanceId: string, enabled: boolean) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFixedRangeVolumeProfileInstanceEnabled(instance, enabled),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileLockToggle = useCallback(
+    (instanceId: string, locked: boolean) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFixedRangeVolumeProfileInstanceLocked(instance, locked),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileRowCountChange = useCallback(
+    (instanceId: string, rowCount: number) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => ({ ...instance, rowCount }),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileValueAreaChange = useCallback(
+    (instanceId: string, valueAreaPercent: number) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => ({ ...instance, valueAreaPercent }),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleMarketIndicatorSettingsClick = useCallback(
+    (indicatorId: MarketIndicatorId) => {
+      openChartObjectSettings({ kind: 'market-indicator', indicatorId })
+    },
+    [openChartObjectSettings],
+  )
+
+  const handleMarketIndicatorPresentationChange = useCallback(
+    (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => {
+      setMarketIndicatorPresentation(presentation)
+      saveWidgetMarketIndicatorPresentation(panelId, indicatorId, presentation)
+    },
+    [panelId],
+  )
+
   const handleFixedRangeVolumeProfileArm = useCallback(() => {
     const cancelledRectangle = cancelRectangleInteraction(rectangleInteractionRef.current)
     if (cancelledRectangle !== rectangleInteractionRef.current) {
@@ -639,6 +817,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       return sanitized
     },
     [panelId],
+  )
+
+  const handleRollingVwapLockToggle = useCallback(
+    (instanceId: string, locked: boolean) => {
+      persistRollingVwapInstances(
+        updateRollingVwapInstance(rollingVwapInstancesRef.current, instanceId, { locked }),
+      )
+    },
+    [persistRollingVwapInstances],
   )
 
   const syncAllVwapVisibility = useCallback((bundle: ChartSeriesBundle) => {
@@ -703,10 +890,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistRollingVwapInstances],
   )
 
-  const handleRollingVwapSettingsClick = useCallback((instanceId: string) => {
-    setEditingRollingVwapInstanceId(instanceId)
-    setRollingVwapSettingsOpen(true)
-  }, [])
+  const handleRollingVwapSettingsClick = useCallback(
+    (instanceId: string) => {
+      openChartObjectSettings({ kind: 'rolling-vwap', instanceId })
+    },
+    [openChartObjectSettings],
+  )
 
   const handleRollingVwapSettingsSave = useCallback(
     (nextSettings: ReturnType<typeof createDefaultRollingVwapSettings>) => {
@@ -801,18 +990,38 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onRollingVwapToggle: handleRollingVwapToggle,
     onRollingVwapSettingsClick: handleRollingVwapSettingsClick,
     onRollingVwapDelete: handleRollingVwapDelete,
+    onRollingVwapLockToggle: handleRollingVwapLockToggle,
+    onMarketIndicatorSettingsClick: handleMarketIndicatorSettingsClick,
     fixedRangeVolumeProfileInstances,
     onFixedRangeVolumeProfileArm: handleFixedRangeVolumeProfileArm,
     onFixedRangeVolumeProfileDelete: handleFixedRangeVolumeProfileDelete,
+    onFixedRangeVolumeProfileToggle: handleFixedRangeVolumeProfileToggle,
+    onFixedRangeVolumeProfileLockToggle: handleFixedRangeVolumeProfileLockToggle,
+    onFixedRangeVolumeProfileRowCountChange: handleFixedRangeVolumeProfileRowCountChange,
+    onFixedRangeVolumeProfileValueAreaChange: handleFixedRangeVolumeProfileValueAreaChange,
     rectangleInstances,
     onRectangleArm: handleRectangleArm,
     onRectangleDelete: handleRectangleDelete,
     onRectangleLockToggle: handleRectangleLockToggle,
+    onRectangleVisibilityToggle: handleRectangleVisibilityToggle,
     onRectangleFillColorChange: handleRectangleFillColorChange,
     onRectangleFillOpacityChange: handleRectangleFillOpacityChange,
     lineInstances,
     onLineArm: handleLineArm,
     onLineDelete: handleLineDelete,
+    onLineLockToggle: handleLineLockToggle,
+    onLineVisibilityToggle: handleLineVisibilityToggle,
+    onLineStrokeColorChange: handleLineStrokeColorChange,
+    onLineWidthChange: handleLineWidthChange,
+    onLineStyleChange: handleLineStyleChange,
+    chartObjectSettingsTarget,
+    onChartObjectSettingsTargetChange: (target) => {
+      if (target === null) {
+        setChartObjectSettingsTarget(null)
+        return
+      }
+      openChartObjectSettings(target)
+    },
     disabled: !chartReady && dataState.status === 'loading',
   })
 
@@ -895,6 +1104,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getLineInteraction: () => lineInteractionRef.current,
       getLineInstances: () => lineInstancesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
+      onChartObjectActivate: (instanceId) => {
+        openChartObjectSettings({ kind: 'rectangle', instanceId })
+      },
     })
     rectangleToolControllerRef.current = controller
     controller.sync()
@@ -902,7 +1114,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       rectangleToolControllerRef.current = null
     }
-  }, [chartReady, panelId, persistRectangleInstances])
+  }, [chartReady, openChartObjectSettings, panelId, persistRectangleInstances])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -952,6 +1164,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getRectangleInteraction: () => rectangleInteractionRef.current,
       getRectangleInstances: () => rectangleInstancesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
+      onChartObjectActivate: (instanceId) => {
+        openChartObjectSettings({ kind: 'line', instanceId })
+      },
     })
     lineToolControllerRef.current = controller
     controller.sync()
@@ -959,7 +1174,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       lineToolControllerRef.current = null
     }
-  }, [chartReady, panelId, persistLineInstances])
+  }, [chartReady, openChartObjectSettings, panelId, persistLineInstances])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -1666,9 +1881,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }
         onOpenChange={(open) => {
           setRollingVwapSettingsOpen(open)
-          if (!open) setEditingRollingVwapInstanceId(null)
+          if (!open) {
+            setEditingRollingVwapInstanceId(null)
+            setChartObjectSettingsTarget(null)
+          }
         }}
         onSave={handleRollingVwapSettingsSave}
+      />
+      <MarketIndicatorStyleDialog
+        indicatorId={editingMarketIndicatorId}
+        presentation={marketIndicatorPresentation}
+        returnFocusId={`${panelId}-indicators`}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingMarketIndicatorId(null)
+            setChartObjectSettingsTarget(null)
+          }
+        }}
+        onPresentationChange={handleMarketIndicatorPresentationChange}
       />
     </div>
   )

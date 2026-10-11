@@ -1,6 +1,11 @@
 import type { RectangleTimeEdge } from './rectangleChartTime.ts'
 import type { RectangleHandleKind } from './rectangleHitTest.ts'
-import { isRectangleInstanceLocked, type NormalizedRectangleBounds, type RectangleInstance } from './rectangleInstances.ts'
+import {
+  isRectangleInstanceHidden,
+  isRectangleInstanceLocked,
+  type NormalizedRectangleBounds,
+  type RectangleInstance,
+} from './rectangleInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
 import { previewBoundsFromInteraction } from './rectangleInteraction.ts'
 
@@ -123,6 +128,7 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
   const omittedInstanceId = getRectangleInstanceOmittedDuringInteraction(args.interaction)
 
   for (const instance of args.instances) {
+    if (isRectangleInstanceHidden(instance)) continue
     if (omittedInstanceId !== null && instance.id === omittedInstanceId) continue
     const model = instanceToDrawModel(
       instance,

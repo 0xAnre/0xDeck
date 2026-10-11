@@ -21,3 +21,13 @@ export function readLineStrokeStyle(): string {
 export function readLineHandleFillStyle(): string {
   return readLineStrokeStyle()
 }
+
+export function readLineStrokeStyleForInstance(
+  instance: { strokeColor?: string },
+  fallback: string = readLineStrokeStyle(),
+): string {
+  if (instance.strokeColor && /^#[0-9A-Fa-f]{6}$/.test(instance.strokeColor)) {
+    return instance.strokeColor
+  }
+  return fallback
+}

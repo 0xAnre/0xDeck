@@ -42,6 +42,7 @@ export type RectanglePanePointerCallbacks = {
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
   getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
+  onChartObjectActivate?: (instanceId: string) => void
 }
 
 export type RectanglePanePointerController = {
@@ -167,6 +168,7 @@ export function attachRectanglePanePointer(
           callbacks.onInteractionChange(next)
           callbacks.onRequestRender()
         }
+        callbacks.onChartObjectActivate?.(hit.instanceId)
         return
       }
       if (hit.kind !== 'interior') {

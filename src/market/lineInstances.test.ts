@@ -44,7 +44,7 @@ describe('lineInstances', () => {
     ])
     assert.equal(sanitized.length, 3)
     if (first) {
-      assert.ok(formatLineInstanceLabel(first).includes('→'))
+      assert.match(formatLineInstanceLabel(first), /^Line \d+$/)
     }
   })
 

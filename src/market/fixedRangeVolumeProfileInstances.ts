@@ -1,4 +1,11 @@
 import { isCandleInterval } from './candleIntervalDuration.ts'
+import {
+  formatNumberedChartObjectLabel,
+  isValidDisplaySequence,
+  migrateChartObjectDisplaySequences,
+  nextDisplaySequence,
+} from './chartObjectDisplaySequence.ts'
+import { setChartObjectLocked } from './chartObjectState.ts'
 import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
 
 export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
@@ -12,6 +19,8 @@ export type FixedRangeVolumeProfileInstance = {
   rowCount: number
   valueAreaPercent: number
   enabled: boolean
+  displaySequence: number
+  locked?: boolean
 }
 
 export type SanitizeFixedRangeVolumeProfileOptions = {
@@ -95,7 +104,7 @@ export function sanitizeFixedRangeVolumeProfileInstance(
     options.selectionIntervalFallback,
   )
 
-  return {
+  const instance: FixedRangeVolumeProfileInstance = {
     id: record.id.trim(),
     fromTime: normalized.fromTime,
     toTime: normalized.toTime,
@@ -103,7 +112,12 @@ export function sanitizeFixedRangeVolumeProfileInstance(
     rowCount: sanitizePositiveInt(record.rowCount, DEFAULT_FIXED_RANGE_VP_ROW_COUNT),
     valueAreaPercent: sanitizeValueAreaPercent(record.valueAreaPercent),
     enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
+    displaySequence: isValidDisplaySequence(record.displaySequence) ? record.displaySequence : 0,
   }
+  if (record.locked === true) {
+    instance.locked = true
+  }
+  return instance
 }
 
 export function sanitizeFixedRangeVolumeProfileInstances(
@@ -119,7 +133,7 @@ export function sanitizeFixedRangeVolumeProfileInstances(
     seen.add(instance.id)
     instances.push(instance)
   }
-  return instances
+  return migrateChartObjectDisplaySequences(instances)
 }
 
 export function createFixedRangeVolumeProfileInstance(params: {
@@ -127,6 +141,7 @@ export function createFixedRangeVolumeProfileInstance(params: {
   toTime: number
   selectionInterval: CandleInterval
   existingIds?: ReadonlySet<string>
+  siblingInstances?: readonly FixedRangeVolumeProfileInstance[]
   rowCount?: number
   valueAreaPercent?: number
   enabled?: boolean
@@ -135,6 +150,7 @@ export function createFixedRangeVolumeProfileInstance(params: {
   if (!normalized) return null
   if (!isCandleInterval(params.selectionInterval)) return null
   const existingIds = params.existingIds ?? new Set<string>()
+  const siblings = params.siblingInstances ?? []
   return {
     id: createFixedRangeVolumeProfileInstanceId(existingIds),
     fromTime: normalized.fromTime,
@@ -143,16 +159,40 @@ export function createFixedRangeVolumeProfileInstance(params: {
     rowCount: params.rowCount ?? DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
     valueAreaPercent: params.valueAreaPercent ?? DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
     enabled: params.enabled ?? true,
+    displaySequence: nextDisplaySequence(siblings),
   }
 }
 
 export function formatFixedRangeVolumeProfileInstanceLabel(
-  fromTime: number,
-  toTime: number,
+  instance: FixedRangeVolumeProfileInstance,
 ): string {
-  const format = (epochSeconds: number) => {
-    const date = new Date(epochSeconds * 1000)
-    return date.toISOString().slice(0, 16).replace('T', ' ')
-  }
-  return `${format(fromTime)} → ${format(toTime)}`
+  return formatNumberedChartObjectLabel('frvp', instance.displaySequence)
+}
+
+export function isFixedRangeVolumeProfileInstanceHidden(
+  instance: FixedRangeVolumeProfileInstance,
+): boolean {
+  return !instance.enabled
+}
+
+export function setFixedRangeVolumeProfileInstanceEnabled(
+  instance: FixedRangeVolumeProfileInstance,
+  enabled: boolean,
+): FixedRangeVolumeProfileInstance {
+  return { ...instance, enabled }
+}
+
+export function setFixedRangeVolumeProfileInstanceLocked(
+  instance: FixedRangeVolumeProfileInstance,
+  locked: boolean,
+): FixedRangeVolumeProfileInstance {
+  return setChartObjectLocked(instance, locked)
+}
+
+export function updateFixedRangeVolumeProfileInstancesById(
+  instances: readonly FixedRangeVolumeProfileInstance[],
+  instanceId: string,
+  updater: (instance: FixedRangeVolumeProfileInstance) => FixedRangeVolumeProfileInstance,
+): FixedRangeVolumeProfileInstance[] {
+  return instances.map((item) => (item.id === instanceId ? updater(item) : item))
 }

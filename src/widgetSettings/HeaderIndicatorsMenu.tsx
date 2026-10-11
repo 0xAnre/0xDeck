@@ -1,16 +1,16 @@
 import { useState } from 'react'
-import { ChevronDownIcon, PlusIcon, SettingsIcon, Trash2Icon } from 'lucide-react'
+import { ChevronDownIcon, PlusIcon } from 'lucide-react'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { isIndicatorSupportedOnInterval, type MarketIndicatorId } from '@/market/indicators'
-import { rollingVwapInstanceMenuLabel } from '@/market/rollingVwapChartInstances'
-import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
+import { rollingVwapInstanceDisplayLabel, type RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval } from '@/market/types'
+import { ChartObjectListRow } from '@/widgetSettings/ChartObjectListRow'
+import { marketIndicatorIcon, numberedChartObjectIcon } from '@/widgetSettings/chartObjectIcons'
 import {
   runIndicatorSettingsGearClick,
   toggleMarketIndicatorSelection,
@@ -35,6 +35,8 @@ type HeaderIndicatorsMenuProps = {
   onRollingVwapToggle?: (instanceId: string, enabled: boolean) => void
   onRollingVwapSettingsClick?: (instanceId: string) => void
   onRollingVwapDelete?: (instanceId: string) => void
+  onRollingVwapLockToggle?: (instanceId: string, locked: boolean) => void
+  onMarketIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
 }
 
 export function HeaderIndicatorsMenu({
@@ -49,6 +51,8 @@ export function HeaderIndicatorsMenu({
   onRollingVwapToggle,
   onRollingVwapSettingsClick,
   onRollingVwapDelete,
+  onRollingVwapLockToggle,
+  onMarketIndicatorSettingsClick,
 }: HeaderIndicatorsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const activeSet = new Set(activeIndicators)
@@ -87,23 +91,34 @@ export function HeaderIndicatorsMenu({
         align="start"
         side="bottom"
         sideOffset={4}
-        className="z-[200] max-h-64 min-w-[14rem] overflow-y-auto"
+        className="z-[200] max-h-64 min-w-[16rem] overflow-y-auto"
       >
-        {singletonOptions.map((option) => (
-          <div key={option.value} className="flex items-center gap-0.5 pr-1">
-            <DropdownMenuCheckboxItem
-              className="min-w-0 flex-1"
-              checked={activeSet.has(option.value)}
-              disabled={option.disabled === true}
-              onCheckedChange={(checked) =>
-                toggleIndicator(option.value, checked === true, option.disabled === true)
+        {singletonOptions.map((option) => {
+          const Icon = marketIndicatorIcon(option.value)
+          const isActive = activeSet.has(option.value)
+          return (
+            <ChartObjectListRow
+              key={option.value}
+              icon={Icon}
+              label={option.label}
+              hidden={!isActive}
+              disabled={disabled || option.disabled === true}
+              onToggleHidden={() =>
+                toggleIndicator(option.value, !isActive, option.disabled === true)
               }
-              onSelect={(event) => event.preventDefault()}
-            >
-              <span className="truncate">{option.label}</span>
-            </DropdownMenuCheckboxItem>
-          </div>
-        ))}
+              onSettings={
+                onMarketIndicatorSettingsClick
+                  ? () =>
+                      runIndicatorSettingsGearClick({
+                        indicatorId: option.value,
+                        closeDropdown: () => setMenuOpen(false),
+                        onIndicatorSettingsClick: onMarketIndicatorSettingsClick,
+                      })
+                  : undefined
+              }
+            />
+          )
+        })}
 
         <div className="mt-1 border-t border-border pt-1">
           <div className="flex items-center justify-between gap-1 px-2 py-1">
@@ -127,58 +142,35 @@ export function HeaderIndicatorsMenu({
           </div>
 
           {rollingVwapInstances.map((instance) => (
-            <div
+            <ChartObjectListRow
               key={instance.id}
-              className="flex items-center gap-0.5 py-0.5 pl-2 pr-1"
-            >
-              <DropdownMenuCheckboxItem
-                className="min-w-0 flex-1 py-1"
-                checked={instance.enabled}
-                disabled={disabled || !rollingSupported}
-                onCheckedChange={(checked) => {
-                  onRollingVwapToggle?.(instance.id, checked === true)
-                }}
-                onSelect={(event) => event.preventDefault()}
-              >
-                <span className="truncate text-xs">
-                  {rollingVwapInstanceMenuLabel(instance, marketInterval)}
-                </span>
-              </DropdownMenuCheckboxItem>
-              {onRollingVwapSettingsClick && (
-                <button
-                  type="button"
-                  aria-label={`${rollingVwapInstanceMenuLabel(instance, marketInterval)} settings`}
-                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    runIndicatorSettingsGearClick({
-                      indicatorId: 'rolling-vwap',
-                      closeDropdown: () => setMenuOpen(false),
-                      onIndicatorSettingsClick: () => onRollingVwapSettingsClick(instance.id),
-                    })
-                  }}
-                >
-                  <SettingsIcon className="size-3.5" />
-                </button>
-              )}
-              {onRollingVwapDelete && (
-                <button
-                  type="button"
-                  aria-label={`Delete ${rollingVwapInstanceMenuLabel(instance, marketInterval)}`}
-                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-destructive"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    onRollingVwapDelete(instance.id)
-                  }}
-                >
-                  <Trash2Icon className="size-3.5" />
-                </button>
-              )}
-            </div>
+              icon={numberedChartObjectIcon('rolling-vwap')}
+              label={rollingVwapInstanceDisplayLabel(instance)}
+              hidden={!instance.enabled}
+              locked={instance.locked === true}
+              disabled={disabled || !rollingSupported}
+              onToggleHidden={
+                onRollingVwapToggle
+                  ? () => onRollingVwapToggle(instance.id, !instance.enabled)
+                  : undefined
+              }
+              onToggleLocked={
+                onRollingVwapLockToggle
+                  ? () => onRollingVwapLockToggle(instance.id, instance.locked !== true)
+                  : undefined
+              }
+              onSettings={
+                onRollingVwapSettingsClick
+                  ? () =>
+                      runIndicatorSettingsGearClick({
+                        indicatorId: 'rolling-vwap',
+                        closeDropdown: () => setMenuOpen(false),
+                        onIndicatorSettingsClick: () => onRollingVwapSettingsClick(instance.id),
+                      })
+                  : undefined
+              }
+              onDelete={onRollingVwapDelete ? () => onRollingVwapDelete(instance.id) : undefined}
+            />
           ))}
         </div>
       </DropdownMenuContent>

@@ -1,3 +1,19 @@
+import {
+  formatNumberedChartObjectLabel,
+  isValidDisplaySequence,
+  migrateChartObjectDisplaySequences,
+  nextDisplaySequence,
+} from './chartObjectDisplaySequence.ts'
+import {
+  DEFAULT_LINE_CHART_STROKE_STYLE,
+  DEFAULT_LINE_CHART_STROKE_WIDTH,
+  isLineChartHexColor,
+  isLineChartStrokeStyle,
+  isLineChartStrokeWidth,
+  type LineChartStrokeStyle,
+  type LineChartStrokeWidth,
+} from './lineChartStroke.ts'
+import { isChartObjectHidden, setChartObjectHidden, setChartObjectLocked } from './chartObjectState.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
 
 export type LineInstance = {
@@ -6,6 +22,12 @@ export type LineInstance = {
   priceA: number
   timeB: number
   priceB: number
+  displaySequence: number
+  locked?: boolean
+  hidden?: boolean
+  strokeColor?: string
+  lineWidth?: LineChartStrokeWidth
+  lineStyle?: LineChartStrokeStyle
 }
 
 export type NormalizedLineEndpoints = {
@@ -76,10 +98,27 @@ export function sanitizeLineInstance(value: unknown): LineInstance | null {
   )
   if (!normalized) return null
 
-  return {
+  const instance: LineInstance = {
     id: record.id.trim(),
+    displaySequence: isValidDisplaySequence(record.displaySequence) ? record.displaySequence : 0,
     ...normalized,
   }
+  if (record.locked === true) {
+    instance.locked = true
+  }
+  if (record.hidden === true) {
+    instance.hidden = true
+  }
+  if (isLineChartHexColor(record.strokeColor)) {
+    instance.strokeColor = record.strokeColor
+  }
+  if (isLineChartStrokeWidth(record.lineWidth)) {
+    instance.lineWidth = record.lineWidth
+  }
+  if (isLineChartStrokeStyle(record.lineStyle)) {
+    instance.lineStyle = record.lineStyle
+  }
+  return instance
 }
 
 export function sanitizeLineInstances(value: unknown): LineInstance[] {
@@ -92,7 +131,7 @@ export function sanitizeLineInstances(value: unknown): LineInstance[] {
     seen.add(instance.id)
     instances.push(instance)
   }
-  return instances
+  return migrateChartObjectDisplaySequences(instances)
 }
 
 export function createLineInstance(params: {
@@ -101,6 +140,7 @@ export function createLineInstance(params: {
   timeB: number
   priceB: number
   existingIds?: ReadonlySet<string>
+  siblingInstances?: readonly LineInstance[]
 }): LineInstance | null {
   const normalized = normalizeLineEndpoints(
     params.timeA,
@@ -110,14 +150,83 @@ export function createLineInstance(params: {
   )
   if (!normalized) return null
 
+  const siblings = params.siblingInstances ?? []
   return {
     id: createLineInstanceId(params.existingIds ?? new Set()),
+    displaySequence: nextDisplaySequence(siblings),
     ...normalized,
   }
 }
 
+export function isLineInstanceLocked(instance: LineInstance): boolean {
+  return instance.locked === true
+}
+
+export function isLineInstanceTransformable(instance: LineInstance): boolean {
+  return !isLineInstanceLocked(instance)
+}
+
+export function isLineInstanceHidden(instance: LineInstance): boolean {
+  return isChartObjectHidden(instance.hidden)
+}
+
+export function setLineInstanceHidden(instance: LineInstance, hidden: boolean): LineInstance {
+  return setChartObjectHidden(instance, hidden)
+}
+
+export function setLineInstanceLocked(instance: LineInstance, locked: boolean): LineInstance {
+  return setChartObjectLocked(instance, locked)
+}
+
+export function lineInstanceStrokeWidth(instance: LineInstance): LineChartStrokeWidth {
+  return instance.lineWidth ?? DEFAULT_LINE_CHART_STROKE_WIDTH
+}
+
+export function lineInstanceStrokeStyle(instance: LineInstance): LineChartStrokeStyle {
+  return instance.lineStyle ?? DEFAULT_LINE_CHART_STROKE_STYLE
+}
+
 export function formatLineInstanceLabel(instance: LineInstance): string {
-  return `${instance.timeA}–${instance.timeB} @ ${instance.priceA.toFixed(2)}→${instance.priceB.toFixed(2)}`
+  return formatNumberedChartObjectLabel('line', instance.displaySequence)
+}
+
+export function updateLineInstancesById(
+  instances: readonly LineInstance[],
+  instanceId: string,
+  updater: (instance: LineInstance) => LineInstance,
+): LineInstance[] {
+  return instances.map((item) => (item.id === instanceId ? updater(item) : item))
+}
+
+export function setLineInstanceStrokeColor(instance: LineInstance, strokeColor: string): LineInstance {
+  if (!isLineChartHexColor(strokeColor)) return instance
+  return { ...instance, strokeColor }
+}
+
+export function setLineInstanceStrokeWidth(
+  instance: LineInstance,
+  lineWidth: LineChartStrokeWidth,
+): LineInstance {
+  if (!isLineChartStrokeWidth(lineWidth)) return instance
+  if (lineWidth === DEFAULT_LINE_CHART_STROKE_WIDTH) {
+    const next = { ...instance }
+    delete next.lineWidth
+    return next
+  }
+  return { ...instance, lineWidth }
+}
+
+export function setLineInstanceStrokeStyle(
+  instance: LineInstance,
+  lineStyle: LineChartStrokeStyle,
+): LineInstance {
+  if (!isLineChartStrokeStyle(lineStyle)) return instance
+  if (lineStyle === DEFAULT_LINE_CHART_STROKE_STYLE) {
+    const next = { ...instance }
+    delete next.lineStyle
+    return next
+  }
+  return { ...instance, lineStyle }
 }
 
 export function updateLineInstanceEndpoints(

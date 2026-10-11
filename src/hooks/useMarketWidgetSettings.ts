@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
+import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
@@ -25,49 +27,79 @@ type UseMarketWidgetSettingsArgs = {
   onRollingVwapToggle: (instanceId: string, enabled: boolean) => void
   onRollingVwapSettingsClick: (instanceId: string) => void
   onRollingVwapDelete: (instanceId: string) => void
+  onRollingVwapLockToggle?: (instanceId: string, locked: boolean) => void
+  onMarketIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm: () => void
   onFixedRangeVolumeProfileDelete: (instanceId: string) => void
+  onFixedRangeVolumeProfileToggle?: (instanceId: string, enabled: boolean) => void
+  onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
+  onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
+  onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm: () => void
   onRectangleDelete: (instanceId: string) => void
   onRectangleLockToggle: (instanceId: string, locked: boolean) => void
+  onRectangleVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   onRectangleFillColorChange: (instanceId: string, fillColor: string) => void
   onRectangleFillOpacityChange: (instanceId: string, fillOpacity: number) => void
   lineInstances: LineInstance[]
   onLineArm: () => void
   onLineDelete: (instanceId: string) => void
+  onLineLockToggle?: (instanceId: string, locked: boolean) => void
+  onLineVisibilityToggle?: (instanceId: string, hidden: boolean) => void
+  onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
+  onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
+  onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
+  chartObjectSettingsTarget?: ChartObjectSettingsTarget | null
+  onChartObjectSettingsTargetChange?: (target: ChartObjectSettingsTarget | null) => void
   disabled: boolean
 }
 
 const noop = () => {}
 
-export function useMarketWidgetSettings({
-  headerSettings,
-  panelId,
-  marketInterval,
-  onMarketIntervalChange,
-  marketIndicators,
-  onMarketIndicatorsChange,
-  rollingVwapInstances,
-  onRollingVwapAdd,
-  onRollingVwapToggle,
-  onRollingVwapSettingsClick,
-  onRollingVwapDelete,
-  fixedRangeVolumeProfileInstances,
-  onFixedRangeVolumeProfileArm,
-  onFixedRangeVolumeProfileDelete,
-  rectangleInstances,
-  onRectangleArm,
-  onRectangleDelete,
-  onRectangleLockToggle,
-  onRectangleFillColorChange,
-  onRectangleFillOpacityChange,
-  lineInstances,
-  onLineArm,
-  onLineDelete,
-  disabled,
-}: UseMarketWidgetSettingsArgs) {
+export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
+  const {
+    headerSettings,
+    panelId,
+    marketInterval,
+    onMarketIntervalChange,
+    marketIndicators,
+    onMarketIndicatorsChange,
+    rollingVwapInstances,
+    onRollingVwapAdd,
+    onRollingVwapToggle,
+    onRollingVwapSettingsClick,
+    onRollingVwapDelete,
+    onRollingVwapLockToggle,
+    onMarketIndicatorSettingsClick,
+    fixedRangeVolumeProfileInstances,
+    onFixedRangeVolumeProfileArm,
+    onFixedRangeVolumeProfileDelete,
+    onFixedRangeVolumeProfileToggle,
+    onFixedRangeVolumeProfileLockToggle,
+    onFixedRangeVolumeProfileRowCountChange,
+    onFixedRangeVolumeProfileValueAreaChange,
+    rectangleInstances,
+    onRectangleArm,
+    onRectangleDelete,
+    onRectangleLockToggle,
+    onRectangleVisibilityToggle,
+    onRectangleFillColorChange,
+    onRectangleFillOpacityChange,
+    lineInstances,
+    onLineArm,
+    onLineDelete,
+    onLineLockToggle,
+    onLineVisibilityToggle,
+    onLineStrokeColorChange,
+    onLineWidthChange,
+    onLineStyleChange,
+    chartObjectSettingsTarget,
+    onChartObjectSettingsTargetChange,
+    disabled,
+  } = args
+
   const registration = useMemo<WidgetSettingsRegistration>(
     () => ({
       panelId,
@@ -94,6 +126,10 @@ export function useMarketWidgetSettings({
         ? onRollingVwapSettingsClick
         : undefined,
       onRollingVwapDelete: headerSettings.indicators ? onRollingVwapDelete : undefined,
+      onRollingVwapLockToggle: headerSettings.indicators ? onRollingVwapLockToggle : undefined,
+      onMarketIndicatorSettingsClick: headerSettings.indicators
+        ? onMarketIndicatorSettingsClick
+        : undefined,
       fixedRangeVolumeProfileInstances: headerSettings.tools === true
         ? fixedRangeVolumeProfileInstances
         : undefined,
@@ -101,10 +137,20 @@ export function useMarketWidgetSettings({
         headerSettings.tools === true ? onFixedRangeVolumeProfileArm : undefined,
       onFixedRangeVolumeProfileDelete:
         headerSettings.tools === true ? onFixedRangeVolumeProfileDelete : undefined,
+      onFixedRangeVolumeProfileToggle:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileToggle : undefined,
+      onFixedRangeVolumeProfileLockToggle:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileLockToggle : undefined,
+      onFixedRangeVolumeProfileRowCountChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileRowCountChange : undefined,
+      onFixedRangeVolumeProfileValueAreaChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileValueAreaChange : undefined,
       rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
       onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
       onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
       onRectangleLockToggle: headerSettings.tools === true ? onRectangleLockToggle : undefined,
+      onRectangleVisibilityToggle:
+        headerSettings.tools === true ? onRectangleVisibilityToggle : undefined,
       onRectangleFillColorChange:
         headerSettings.tools === true ? onRectangleFillColorChange : undefined,
       onRectangleFillOpacityChange:
@@ -112,6 +158,15 @@ export function useMarketWidgetSettings({
       lineInstances: headerSettings.tools === true ? lineInstances : undefined,
       onLineArm: headerSettings.tools === true ? onLineArm : undefined,
       onLineDelete: headerSettings.tools === true ? onLineDelete : undefined,
+      onLineLockToggle: headerSettings.tools === true ? onLineLockToggle : undefined,
+      onLineVisibilityToggle: headerSettings.tools === true ? onLineVisibilityToggle : undefined,
+      onLineStrokeColorChange: headerSettings.tools === true ? onLineStrokeColorChange : undefined,
+      onLineWidthChange: headerSettings.tools === true ? onLineWidthChange : undefined,
+      onLineStyleChange: headerSettings.tools === true ? onLineStyleChange : undefined,
+      chartObjectSettingsTarget:
+        headerSettings.tools === true ? chartObjectSettingsTarget : undefined,
+      onChartObjectSettingsTargetChange:
+        headerSettings.tools === true ? onChartObjectSettingsTargetChange : undefined,
     }),
     [
       disabled,
@@ -123,21 +178,35 @@ export function useMarketWidgetSettings({
       marketInterval,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
+      onFixedRangeVolumeProfileToggle,
+      onFixedRangeVolumeProfileLockToggle,
+      onFixedRangeVolumeProfileRowCountChange,
+      onFixedRangeVolumeProfileValueAreaChange,
       onRectangleArm,
       onRectangleDelete,
       onRectangleLockToggle,
+      onRectangleVisibilityToggle,
       onRectangleFillColorChange,
       onRectangleFillOpacityChange,
       onLineArm,
       onLineDelete,
+      onLineLockToggle,
+      onLineVisibilityToggle,
+      onLineStrokeColorChange,
+      onLineWidthChange,
+      onLineStyleChange,
       onMarketIndicatorsChange,
       onRollingVwapAdd,
       onRollingVwapDelete,
       onRollingVwapSettingsClick,
       onRollingVwapToggle,
+      onRollingVwapLockToggle,
+      onMarketIndicatorSettingsClick,
       onMarketIntervalChange,
       panelId,
       rollingVwapInstances,
+      chartObjectSettingsTarget,
+      onChartObjectSettingsTargetChange,
     ],
   )
 

@@ -10,8 +10,6 @@ import type {
 } from 'lightweight-charts'
 import { buildLineChartTimeContext, resolveLineTimeToCoordinate } from './lineChartTime.ts'
 import {
-  LINE_DASH_PATTERN_CSS_PX,
-  LINE_WIDTH_CSS_PX,
   readLineHandleFillStyle,
   readLineStrokeStyle,
 } from './lineColors.ts'
@@ -49,12 +47,9 @@ class LineRenderer implements IPrimitivePaneRenderer {
       context.rect(0, 0, bitmapSize.width, bitmapSize.height)
       context.clip()
 
-      const dashPattern = LINE_DASH_PATTERN_CSS_PX.map(
-        (value) => value * horizontalPixelRatio,
-      )
-      const lineWidth = LINE_WIDTH_CSS_PX * horizontalPixelRatio
-
       for (const model of this._models) {
+        const dashPattern = model.dashPatternCssPx.map((value) => value * horizontalPixelRatio)
+        const lineWidth = model.lineWidthCssPx * horizontalPixelRatio
         const ax = Math.round(model.ax * horizontalPixelRatio)
         const ay = Math.round(model.ay * verticalPixelRatio)
         const bx = Math.round(model.bx * horizontalPixelRatio)

@@ -15,7 +15,7 @@ import {
   type LineInteractionState,
 } from './lineInteraction.ts'
 import { hitTestLines } from './lineHitTest.ts'
-import type { LineInstance } from './lineInstances.ts'
+import { isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
@@ -42,6 +42,7 @@ export type LinePanePointerCallbacks = {
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
   getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
+  onChartObjectActivate?: (instanceId: string) => void
 }
 
 export type LinePanePointerController = {
@@ -159,9 +160,18 @@ export function attachLinePanePointer(
       event.preventDefault()
       event.stopPropagation()
       focusLineInteractionPane(paneElement)
+      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+      if (!instance) return
+      if (isLineInstanceLocked(instance)) {
+        const next = applyLineSelection(interaction, hit.instanceId)
+        if (next !== interaction) {
+          callbacks.onInteractionChange(next)
+          callbacks.onRequestRender()
+        }
+        callbacks.onChartObjectActivate?.(hit.instanceId)
+        return
+      }
       if (hit.kind !== 'body') {
-        const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
-        if (!instance) return
         const next = startLineResizeDraft(interaction, instance, hit.kind)
         if (next === interaction) return
         activePointerId = event.pointerId
@@ -170,8 +180,6 @@ export function attachLinePanePointer(
         callbacks.onInteractionChange(next)
         return
       }
-      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
-      if (!instance) return
       const series = callbacks.getSeries()
       if (!series) return
       const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
