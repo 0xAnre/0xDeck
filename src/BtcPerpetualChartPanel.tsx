@@ -323,24 +323,32 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const suppressViewportPersistRef = useRef(false)
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
-  const flushMarketChartViewportPersist = useCallback(() => {
-    if (suppressViewportPersistRef.current) return
-    if (!historyReadyRef.current) return
-    const chart = chartRef.current
-    if (!chart) return
-    const captured = captureMarketChartViewport(chart)
-    if (!captured) return
-    saveWidgetMarketChartViewport(panelId, activeIntervalRef.current, captured)
-  }, [panelId])
+  const flushMarketChartViewportPersist = useCallback(
+    (intervalOverride?: CandleInterval) => {
+      if (suppressViewportPersistRef.current) return
+      if (!historyReadyRef.current) return
+      const chart = chartRef.current
+      if (!chart) return
+      const captured = captureMarketChartViewport(chart)
+      if (!captured) return
+      saveWidgetMarketChartViewport(
+        panelId,
+        intervalOverride ?? activeIntervalRef.current,
+        captured,
+      )
+    },
+    [panelId],
+  )
 
   const scheduleMarketChartViewportPersist = useCallback(() => {
     if (suppressViewportPersistRef.current) return
+    const intervalAtSchedule = activeIntervalRef.current
     if (viewportPersistTimerRef.current) {
       clearTimeout(viewportPersistTimerRef.current)
     }
     viewportPersistTimerRef.current = setTimeout(() => {
       viewportPersistTimerRef.current = null
-      flushMarketChartViewportPersist()
+      flushMarketChartViewportPersist(intervalAtSchedule)
     }, 250)
   }, [flushMarketChartViewportPersist])
 

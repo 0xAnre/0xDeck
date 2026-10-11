@@ -33,6 +33,7 @@ function makeChartStub() {
       getVisibleLogicalRange: () => logicalRange,
       setVisibleRange: (range: { from: number; to: number }) => {
         visibleTimeRange = range
+        rightOffset = 0
       },
       getVisibleRange: () => visibleTimeRange,
     }),
