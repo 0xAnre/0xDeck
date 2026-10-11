@@ -14,6 +14,7 @@ import {
   type VwapContextLevel,
 } from './indicators.ts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
+import type { SessionVwapLineSeriesBundle } from './sessionVwapChartSeries.ts'
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
@@ -121,6 +122,26 @@ function hitTestFixedRangeVolumeProfiles(
   return null
 }
 
+function singletonVwapSeriesBundle(
+  bundle: ChartSeriesBundle,
+  indicatorId: MarketIndicatorId,
+): SessionVwapLineSeriesBundle<string> | null {
+  switch (indicatorId) {
+    case 'daily-vwap':
+      return bundle.dailyVwap
+    case 'weekly-vwap':
+      return bundle.weeklyVwap
+    case 'monthly-vwap':
+      return bundle.monthlyVwap
+    case 'quarterly-vwap':
+      return bundle.quarterlyVwap
+    case 'yearly-vwap':
+      return bundle.yearlyVwap
+    default:
+      return null
+  }
+}
+
 function hitTestRollingVwapInstances(
   ctx: ChartObjectSettingsHitTestContext,
 ): ChartObjectSettingsTarget | null {
@@ -172,17 +193,11 @@ function hitTestSingletonMarketIndicators(
     ) {
       continue
     }
-    const series =
-      indicatorId === 'daily-vwap'
-        ? ctx.bundle.dailyVwap.byKey.vwap
-        : indicatorId === 'weekly-vwap'
-          ? ctx.bundle.weeklyVwap.byKey.vwap
-          : indicatorId === 'monthly-vwap'
-            ? ctx.bundle.monthlyVwap.byKey.vwap
-            : indicatorId === 'quarterly-vwap'
-              ? ctx.bundle.quarterlyVwap.byKey.vwap
-              : ctx.bundle.yearlyVwap.byKey.vwap
-    candidates.push({ indicatorId, series })
+    const vwapBundle = singletonVwapSeriesBundle(ctx.bundle, indicatorId)
+    if (!vwapBundle) continue
+    for (const series of vwapBundle.ordered) {
+      candidates.push({ indicatorId, series })
+    }
   }
 
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
