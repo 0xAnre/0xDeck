@@ -196,7 +196,7 @@ import type { ServerEventMessage } from '@/widgets/stream/messages'
 import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
-const EMA_100_COLOR_VAR = '--chart-5'
+const EMA_100_COLOR_VAR = '--muted-foreground'
 const EMA_200_COLOR_VAR = '--chart-1'
 
 function readThemeColors() {
@@ -207,7 +207,7 @@ function readThemeColors() {
     ema: EMA_COLOR_VARS.map((token, index) =>
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
-    ema100: resolveCssColor(style.getPropertyValue(EMA_100_COLOR_VAR), '#525252'),
+    ema100: resolveCssColor(style.getPropertyValue(EMA_100_COLOR_VAR), '#a3a3a3'),
     ema200: resolveCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#dedede'),
   }
 }
