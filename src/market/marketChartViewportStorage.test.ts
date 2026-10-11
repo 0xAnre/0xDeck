@@ -10,6 +10,7 @@ const memory = new Map<string, string>()
 
 const sampleViewport = {
   version: 1 as const,
+  visibleLogicalRange: { from: 100, to: 200 },
   visibleTimeRange: { from: 1_700_000_000, to: 1_700_001_000 },
   autoScale: true,
   priceRange: null,
@@ -94,7 +95,11 @@ describe('marketChartViewportStorage', () => {
       WIDGET_MARKET_CHART_VIEWPORT_STORAGE_KEY,
       JSON.stringify({
         'panel-a': {
-          '1m': { version: 1, visibleTimeRange: { from: 5, to: 5 } },
+          '1m': {
+            version: 1,
+            visibleLogicalRange: { from: 0, to: 1 },
+            visibleTimeRange: { from: 5, to: 5 },
+          },
           '1h': sampleViewport,
           bogus: sampleViewport,
         },

@@ -106,6 +106,7 @@ const sampleCandles = (times: number[]): MarketCandle[] =>
 describe('parsePersistedMarketChartViewport', () => {
   const valid = {
     version: 1,
+    visibleLogicalRange: { from: 12, to: 28 },
     visibleTimeRange: { from: 1_700_000_000, to: 1_700_010_000 },
     autoScale: true,
     priceRange: null,
@@ -177,6 +178,7 @@ describe('restoreMarketChartViewport', () => {
     const { chart, getState } = makeChartStub(times)
     const saved = {
       version: 1 as const,
+      visibleLogicalRange: { from: 0, to: 2.5 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: false,
       priceRange: { from: 90_000, to: 92_000 },
@@ -185,17 +187,17 @@ describe('restoreMarketChartViewport', () => {
     }
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
     const state = getState()
-    assert.deepEqual(state.visibleTimeRange, saved.visibleTimeRange)
     assert.equal(state.autoScale, false)
     assert.deepEqual(state.priceVisible, saved.priceRange)
-    assert.equal(state.scrollPosition, 4)
-    assert.deepEqual(state.logicalRange, { from: 0, to: 2 })
+    assert.equal(state.scrollPosition, 0)
+    assert.deepEqual(state.logicalRange, saved.visibleLogicalRange)
   })
 
   it('requests older history when the saved window starts before loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
+      visibleLogicalRange: { from: -5, to: 2 },
       visibleTimeRange: { from: 1_699_999_000, to: 1_700_000_120 },
       autoScale: true,
       priceRange: null,
@@ -211,6 +213,7 @@ describe('restoreMarketChartViewport', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
+      visibleLogicalRange: { from: -20, to: -10 },
       visibleTimeRange: { from: 1_699_998_000, to: 1_699_999_500 },
       autoScale: true,
       priceRange: null,
@@ -226,6 +229,7 @@ describe('restoreMarketChartViewport', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
+      visibleLogicalRange: { from: 50, to: 60 },
       visibleTimeRange: { from: 1_800_000_000, to: 1_800_010_000 },
       autoScale: true,
       priceRange: null,
@@ -236,11 +240,12 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(getState().visibleTimeRange, null)
   })
 
-  it('restores visible timestamps then live scroll position', () => {
+  it('restores saved logical range including right-edge whitespace', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
       version: 1 as const,
+      visibleLogicalRange: { from: 0, to: 10 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
       priceRange: null,
@@ -248,16 +253,16 @@ describe('restoreMarketChartViewport', () => {
       rightOffset: 8,
     }
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
-    assert.deepEqual(getState().visibleTimeRange, saved.visibleTimeRange)
-    assert.equal(getState().scrollPosition, 8)
-    assert.deepEqual(getState().logicalRange, { from: 0, to: 2 })
+    assert.deepEqual(getState().logicalRange, saved.visibleLogicalRange)
+    assert.equal(getState().scrollPosition, 0)
   })
 
-  it('preserves logical width when restoring positive scroll offset', () => {
+  it('preserves logical width across repeated restore cycles', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
       version: 1 as const,
+      visibleLogicalRange: { from: 0, to: 10 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
       priceRange: null,
@@ -268,7 +273,6 @@ describe('restoreMarketChartViewport', () => {
     const first = getState()
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
     const second = getState()
-    assert.deepEqual(second.visibleTimeRange, first.visibleTimeRange)
     assert.deepEqual(second.logicalRange, first.logicalRange)
     assert.equal(second.scrollPosition, first.scrollPosition)
   })

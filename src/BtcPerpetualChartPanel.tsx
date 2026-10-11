@@ -36,7 +36,7 @@ import {
   applySavedVisibleTimeRange,
   captureMarketChartViewport,
   restoreMarketChartViewport,
-  savedVisibleTimeRangeIsRestorable,
+  savedVisibleLogicalRangeIsRestorable,
 } from '@/market/marketChartViewport'
 import { loadOlderHistoryUntilVisibleFrom } from '@/market/btcPerpetualViewportHistory'
 import {
@@ -1393,7 +1393,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                   if (!chartAfterHistory) return
                   const candlesAfterHistory = candlesRef.current
                   if (
-                    savedVisibleTimeRangeIsRestorable(
+                    savedVisibleLogicalRangeIsRestorable(
+                      saved.visibleLogicalRange,
                       saved.visibleTimeRange,
                       candlesAfterHistory,
                     )
@@ -1403,6 +1404,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                       saved.visibleTimeRange,
                       saved.rightOffset,
                       candlesAfterHistory,
+                      saved.visibleLogicalRange,
                     )
                   } else {
                     applyDefaultMarketChartPresentation(

@@ -15,6 +15,7 @@ export const MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET = 8
 
 export type PersistedMarketChartViewport = {
   version: 1
+  visibleLogicalRange: { from: number; to: number }
   visibleTimeRange: { from: number; to: number }
   autoScale: boolean
   priceRange: { from: number; to: number } | null
@@ -35,6 +36,14 @@ function isValidScaleMargins(margins: { top: number; bottom: number }): boolean 
   return top + bottom < 1
 }
 
+function parseVisibleLogicalRange(value: unknown): { from: number; to: number } | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  if (!isFiniteNumber(record.from) || !isFiniteNumber(record.to)) return null
+  if (record.from >= record.to) return null
+  return { from: record.from, to: record.to }
+}
+
 function parseVisibleTimeRange(value: unknown): { from: number; to: number } | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
@@ -52,6 +61,9 @@ export function parsePersistedMarketChartViewport(
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
   if (record.version !== 1) return null
+
+  const visibleLogicalRange = parseVisibleLogicalRange(record.visibleLogicalRange)
+  if (!visibleLogicalRange) return null
 
   const visibleTimeRange = parseVisibleTimeRange(record.visibleTimeRange)
   if (!visibleTimeRange) return null
@@ -80,6 +92,7 @@ export function parsePersistedMarketChartViewport(
 
   return {
     version: 1,
+    visibleLogicalRange,
     visibleTimeRange,
     autoScale: record.autoScale,
     priceRange,
@@ -89,6 +102,11 @@ export function parsePersistedMarketChartViewport(
 }
 
 export function captureMarketChartViewport(chart: IChartApi): PersistedMarketChartViewport | null {
+  const visibleLogicalRange = chart.timeScale().getVisibleLogicalRange()
+  if (!visibleLogicalRange) return null
+  const parsedLogical = parseVisibleLogicalRange(visibleLogicalRange)
+  if (!parsedLogical) return null
+
   const visibleTimeRange = chart.timeScale().getVisibleRange()
   if (!visibleTimeRange) return null
   const from = visibleTimeRange.from as number
@@ -119,6 +137,7 @@ export function captureMarketChartViewport(chart: IChartApi): PersistedMarketCha
 
   return {
     version: 1,
+    visibleLogicalRange: parsedLogical,
     visibleTimeRange: truncated,
     autoScale,
     priceRange,
@@ -177,6 +196,25 @@ export function savedVisibleTimeRangeIsRestorable(
   )
 }
 
+export function visibleLogicalRangeIsEntirelyAfterLoaded(
+  range: { from: number; to: number },
+  candles: readonly MarketCandle[],
+): boolean {
+  if (candles.length === 0) return false
+  const lastIndex = candles.length - 1
+  return range.from > lastIndex
+}
+
+export function savedVisibleLogicalRangeIsRestorable(
+  logicalRange: { from: number; to: number },
+  visibleTimeRange: { from: number; to: number },
+  candles: readonly MarketCandle[],
+): boolean {
+  if (candles.length === 0) return false
+  if (visibleLogicalRangeIsEntirelyAfterLoaded(logicalRange, candles)) return false
+  return savedVisibleTimeRangeIsRestorable(visibleTimeRange, candles)
+}
+
 function applyViewportPresentationOptions(
   chart: IChartApi,
   parsed: PersistedMarketChartViewport,
@@ -229,12 +267,7 @@ export function restoreMarketChartViewport(
     return 'needs_history'
   }
 
-  applySavedVisibleTimeRange(
-    chart,
-    parsed.visibleTimeRange,
-    parsed.rightOffset,
-    candles,
-  )
+  applySavedVisibleLogicalRange(chart, parsed.visibleLogicalRange)
   return 'restored'
 }
 
@@ -289,18 +322,35 @@ export function visibleTimeRangeToLogicalRange(
   return { from: fromIndex, to: toIndex } as LogicalRange
 }
 
+export function applySavedVisibleLogicalRange(
+  chart: IChartApi,
+  visibleLogicalRange: { from: number; to: number },
+): void {
+  chart.timeScale().setVisibleLogicalRange(visibleLogicalRange)
+}
+
 export function applySavedVisibleTimeRange(
   chart: IChartApi,
   visibleTimeRange: { from: number; to: number },
   scrollPosition: number,
   candles: readonly MarketCandle[],
+  visibleLogicalRange?: { from: number; to: number },
 ): void {
+  if (visibleLogicalRange) {
+    applySavedVisibleLogicalRange(chart, visibleLogicalRange)
+    return
+  }
+
   const logicalRange = visibleTimeRangeToLogicalRange(candles, visibleTimeRange)
   if (logicalRange) {
-    chart.timeScale().setVisibleLogicalRange(logicalRange)
-  } else {
-    chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
+    chart.timeScale().setVisibleLogicalRange({
+      from: logicalRange.from,
+      to: logicalRange.to + scrollPosition,
+    })
+    return
   }
+
+  chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
   chart.timeScale().scrollToPosition(scrollPosition, false)
 }
 
