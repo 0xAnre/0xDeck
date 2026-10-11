@@ -29,9 +29,22 @@ function hitBodySegment(
   return distanceSq(paneX, paneY, projX, projY) <= radiusSq
 }
 
+function findSeriesDataIndexByTime<T extends { time: Time }>(
+  data: readonly T[],
+  time: Time,
+): number {
+  for (let index = 0; index < data.length; index += 1) {
+    if (data[index].time === time) {
+      return index
+    }
+  }
+  return -1
+}
+
 /** Segment indices (inclusive) to scan for hits; includes one segment outside each visible edge. */
 export function resolveVisibleLineSegmentIndexBounds(
   chart: IChartApi,
+  series: ISeriesApi<'Line', Time>,
   dataLength: number,
 ): { startIndex: number; endIndex: number } {
   const maxSegmentIndex = dataLength - 2
@@ -44,8 +57,20 @@ export function resolveVisibleLineSegmentIndexBounds(
     return { startIndex: 0, endIndex: maxSegmentIndex }
   }
 
-  const startIndex = Math.max(0, Math.floor(logicalRange.from) - 1)
-  const endIndex = Math.min(maxSegmentIndex, Math.ceil(logicalRange.to) + 1)
+  const barsInfo = series.barsInLogicalRange(logicalRange)
+  if (barsInfo === null || barsInfo.from === undefined || barsInfo.to === undefined) {
+    return { startIndex: 0, endIndex: -1 }
+  }
+
+  const data = series.data()
+  const firstVisibleIndex = findSeriesDataIndexByTime(data, barsInfo.from)
+  const lastVisibleIndex = findSeriesDataIndexByTime(data, barsInfo.to)
+  if (firstVisibleIndex < 0 || lastVisibleIndex < 0) {
+    return { startIndex: 0, endIndex: -1 }
+  }
+
+  const startIndex = Math.max(0, firstVisibleIndex - 1)
+  const endIndex = Math.min(maxSegmentIndex, lastVisibleIndex + 1)
   if (startIndex > endIndex) {
     return { startIndex: 0, endIndex: -1 }
   }
@@ -66,7 +91,7 @@ export function hitTestLineSeriesAtPane(
 
   const timeScale = chart.timeScale()
   const radiusSq = hitRadiusPx * hitRadiusPx
-  const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, data.length)
+  const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, series, data.length)
   if (endIndex < startIndex) return false
 
   for (let index = startIndex; index <= endIndex; index += 1) {
