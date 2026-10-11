@@ -74,7 +74,7 @@ export function parsePersistedMarketChartViewport(
   const scaleMargins = { top: margins.top, bottom: margins.bottom }
   if (!isValidScaleMargins(scaleMargins)) return null
 
-  if (!isFiniteNumber(record.rightOffset) || record.rightOffset < 0) return null
+  if (!isFiniteNumber(record.rightOffset)) return null
 
   if (!record.autoScale && priceRange === null) return null
 

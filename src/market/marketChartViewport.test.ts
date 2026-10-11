@@ -112,6 +112,11 @@ describe('parsePersistedMarketChartViewport', () => {
     assert.deepEqual(parsePersistedMarketChartViewport(valid), valid)
   })
 
+  it('accepts negative scroll position from historical panning', () => {
+    const historical = { ...valid, rightOffset: -12 }
+    assert.deepEqual(parsePersistedMarketChartViewport(historical), historical)
+  })
+
   it('rejects invalid time range and margins', () => {
     assert.equal(parsePersistedMarketChartViewport(null), null)
     assert.equal(
