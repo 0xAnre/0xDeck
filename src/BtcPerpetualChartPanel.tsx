@@ -1411,6 +1411,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                       chartAfterHistory,
                       candlesAfterHistory.length,
                     )
+                    const fallbackViewport = captureMarketChartViewport(chartAfterHistory)
+                    if (fallbackViewport) {
+                      saveWidgetMarketChartViewport(
+                        panelId,
+                        currentInterval,
+                        fallbackViewport,
+                      )
+                    }
                   }
                 })
                 .finally(() => {
