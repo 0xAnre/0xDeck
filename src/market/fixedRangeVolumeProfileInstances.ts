@@ -9,6 +9,7 @@ import { setChartObjectLocked } from './chartObjectState.ts'
 import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
 
 export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
+export const MAX_FIXED_RANGE_VP_ROW_COUNT = 500
 export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 70
 
 export type FixedRangeVolumeProfileInstance = {
@@ -44,11 +45,18 @@ export function createFixedRangeVolumeProfileInstanceId(
   throw new Error('Failed to generate a unique Fixed Range Volume Profile instance id')
 }
 
-function sanitizePositiveInt(value: unknown, fallback: number): number {
+function sanitizeRowCount(value: unknown, fallback: number): number {
   if (!Number.isFinite(value) || !Number.isInteger(value) || (value as number) < 1) {
     return fallback
   }
-  return value as number
+  return Math.min(value as number, MAX_FIXED_RANGE_VP_ROW_COUNT)
+}
+
+export function clampFixedRangeVolumeProfileRowCount(rowCount: number): number {
+  if (!Number.isFinite(rowCount) || !Number.isInteger(rowCount) || rowCount < 1) {
+    return DEFAULT_FIXED_RANGE_VP_ROW_COUNT
+  }
+  return Math.min(rowCount, MAX_FIXED_RANGE_VP_ROW_COUNT)
 }
 
 function sanitizeValueAreaPercent(value: unknown): number {
@@ -109,7 +117,7 @@ export function sanitizeFixedRangeVolumeProfileInstance(
     fromTime: normalized.fromTime,
     toTime: normalized.toTime,
     selectionInterval,
-    rowCount: sanitizePositiveInt(record.rowCount, DEFAULT_FIXED_RANGE_VP_ROW_COUNT),
+    rowCount: sanitizeRowCount(record.rowCount, DEFAULT_FIXED_RANGE_VP_ROW_COUNT),
     valueAreaPercent: sanitizeValueAreaPercent(record.valueAreaPercent),
     enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
     displaySequence: isValidDisplaySequence(record.displaySequence) ? record.displaySequence : 0,
@@ -156,7 +164,7 @@ export function createFixedRangeVolumeProfileInstance(params: {
     fromTime: normalized.fromTime,
     toTime: normalized.toTime,
     selectionInterval: params.selectionInterval,
-    rowCount: params.rowCount ?? DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
+    rowCount: sanitizeRowCount(params.rowCount, DEFAULT_FIXED_RANGE_VP_ROW_COUNT),
     valueAreaPercent: params.valueAreaPercent ?? DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
     enabled: params.enabled ?? true,
     displaySequence: nextDisplaySequence(siblings),

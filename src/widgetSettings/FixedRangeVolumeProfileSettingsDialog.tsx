@@ -11,6 +11,7 @@ import {
   DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
   DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
   formatFixedRangeVolumeProfileInstanceLabel,
+  MAX_FIXED_RANGE_VP_ROW_COUNT,
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 
@@ -57,10 +58,15 @@ export function FixedRangeVolumeProfileSettingsDialog({
                 id="frvp-row-count"
                 type="number"
                 min={1}
+                max={MAX_FIXED_RANGE_VP_ROW_COUNT}
                 value={instance.rowCount}
                 onChange={(event) => {
                   const value = Number.parseInt(event.target.value, 10)
-                  if (Number.isFinite(value) && value >= 1) {
+                  if (
+                    Number.isFinite(value) &&
+                    value >= 1 &&
+                    value <= MAX_FIXED_RANGE_VP_ROW_COUNT
+                  ) {
                     onRowCountChange(instance.id, value)
                   }
                 }}

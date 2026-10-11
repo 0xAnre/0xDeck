@@ -7,6 +7,7 @@ import {
 } from '../fixedRangeVolumeProfileInstancesStorage.ts'
 import {
   createFixedRangeVolumeProfileInstance,
+  MAX_FIXED_RANGE_VP_ROW_COUNT,
   normalizeFixedRangeVolumeProfileTimes,
   sanitizeFixedRangeVolumeProfileInstances,
 } from './fixedRangeVolumeProfileInstances.ts'
@@ -166,6 +167,22 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       },
     ])
     assert.equal(instances[0].selectionInterval, '1w')
+  })
+
+  it('clamps excessive rowCount when sanitizing persisted instances', () => {
+    const sanitized = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-huge-rows',
+        fromTime: 100,
+        toTime: 200,
+        selectionInterval: '1m',
+        rowCount: 1_000_000,
+        valueAreaPercent: 70,
+        enabled: true,
+      },
+    ])
+    assert.equal(sanitized.length, 1)
+    assert.equal(sanitized[0].rowCount, MAX_FIXED_RANGE_VP_ROW_COUNT)
   })
 
   it('keeps unix seconds without milliseconds', () => {
