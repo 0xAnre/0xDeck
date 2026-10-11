@@ -6,14 +6,25 @@ import {
 
 export const WIDGET_MARKET_INDICATORS_STORAGE_KEY = '0xdeck-widget-market-indicators'
 
+const LEGACY_MARKET_INDICATOR_IDS: Record<string, MarketIndicatorId> = {
+  'ema-200': 'dual-ema',
+}
+
+function normalizeStoredIndicatorId(item: string): MarketIndicatorId | null {
+  if (isMarketIndicatorId(item)) return item
+  return LEGACY_MARKET_INDICATOR_IDS[item] ?? null
+}
+
 function sanitizeIndicatorList(value: unknown): MarketIndicatorId[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<MarketIndicatorId>()
   const result: MarketIndicatorId[] = []
   for (const item of value) {
-    if (typeof item !== 'string' || !isMarketIndicatorId(item) || seen.has(item)) continue
-    seen.add(item)
-    result.push(item)
+    if (typeof item !== 'string') continue
+    const id = normalizeStoredIndicatorId(item)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    result.push(id)
   }
   return result
 }

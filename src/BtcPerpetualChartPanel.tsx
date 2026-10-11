@@ -4,6 +4,7 @@ import {
   ColorType,
   createChart,
   LineSeries,
+  LineStyle,
   type IChartApi,
   type LogicalRange,
 } from 'lightweight-charts'
@@ -195,6 +196,7 @@ import type { ServerEventMessage } from '@/widgets/stream/messages'
 import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 
 const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
+const EMA_100_COLOR_VAR = '--chart-5'
 const EMA_200_COLOR_VAR = '--chart-1'
 
 function readThemeColors() {
@@ -205,6 +207,7 @@ function readThemeColors() {
     ema: EMA_COLOR_VARS.map((token, index) =>
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
+    ema100: resolveCssColor(style.getPropertyValue(EMA_100_COLOR_VAR), '#525252'),
     ema200: resolveCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#dedede'),
   }
 }
@@ -1169,7 +1172,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       const candleSeries = chart.addSeries(CandlestickSeries, BTC_PERPETUAL_CANDLESTICK_COLORS)
 
-      const { tripleEma: emaVisible, ema200: ema200SeriesVisible } =
+      const { tripleEma: emaVisible, dualEma: dualEmaSeriesVisible } =
         getEmaIndicatorSeriesVisibility(activeIndicatorsRef.current)
       const emaSeries = EMA_PERIODS.map((_, index) =>
         chart!.addSeries(LineSeries, {
@@ -1180,12 +1183,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           visible: emaVisible,
         }),
       )
+      const ema100Series = chart!.addSeries(LineSeries, {
+        color: colors.ema100,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        visible: dualEmaSeriesVisible,
+      })
       const ema200Series = chart!.addSeries(LineSeries, {
         color: colors.ema200,
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: false,
-        visible: ema200SeriesVisible,
+        visible: dualEmaSeriesVisible,
       })
 
       const dailyVwapSeries = createDailyVwapLineSeries(chart!, false)
@@ -1205,6 +1216,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       seriesRef.current = {
         candle: candleSeries,
         emas: emaSeries,
+        ema100: ema100Series,
         ema200: ema200Series,
         dailyVwap: dailyVwapSeries,
         weeklyVwap: weeklyVwapSeries,
@@ -1290,6 +1302,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (bundle) {
       bundle.candle.setData([])
       bundle.emas.forEach((series) => series.setData([]))
+      bundle.ema100.setData([])
       bundle.ema200.setData([])
       clearDailyVwapLineSeriesData(bundle.dailyVwap)
       clearWeeklyVwapLineSeriesData(bundle.weeklyVwap)
