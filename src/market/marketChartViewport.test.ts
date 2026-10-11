@@ -6,6 +6,7 @@ import {
   MARKET_CHART_INITIAL_VISIBLE_BARS,
   applyDefaultMarketChartPresentation,
   parsePersistedMarketChartViewport,
+  rebaseSavedVisibleLogicalRange,
   restoreMarketChartViewport,
   savedVisibleTimeRangeIsRestorable,
   visibleTimeRangeNeedsHistoryLoad,
@@ -257,6 +258,22 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(getState().scrollPosition, 0)
   })
 
+  it('rebases stale logical indices onto saved timestamps', () => {
+    const times = candles.map((c) => c.time)
+    const { chart, getState } = makeChartStub(times)
+    const saved = {
+      version: 1 as const,
+      visibleLogicalRange: { from: 500, to: 510 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
+    assert.deepEqual(getState().logicalRange, { from: 0, to: 10 })
+  })
+
   it('preserves logical width across repeated restore cycles', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
@@ -275,6 +292,21 @@ describe('restoreMarketChartViewport', () => {
     const second = getState()
     assert.deepEqual(second.logicalRange, first.logicalRange)
     assert.equal(second.scrollPosition, first.scrollPosition)
+  })
+})
+
+describe('rebaseSavedVisibleLogicalRange', () => {
+  const candles = sampleCandles([100, 200, 300, 400])
+
+  it('anchors from saved timestamps and keeps logical width', () => {
+    assert.deepEqual(
+      rebaseSavedVisibleLogicalRange(
+        candles,
+        { from: 200, to: 400 },
+        { from: 99, to: 109 },
+      ),
+      { from: 1, to: 11 },
+    )
   })
 })
 

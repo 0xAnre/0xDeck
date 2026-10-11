@@ -267,7 +267,13 @@ export function restoreMarketChartViewport(
     return 'needs_history'
   }
 
-  applySavedVisibleLogicalRange(chart, parsed.visibleLogicalRange)
+  applySavedVisibleTimeRange(
+    chart,
+    parsed.visibleTimeRange,
+    parsed.rightOffset,
+    candles,
+    parsed.visibleLogicalRange,
+  )
   return 'restored'
 }
 
@@ -329,6 +335,18 @@ export function applySavedVisibleLogicalRange(
   chart.timeScale().setVisibleLogicalRange(visibleLogicalRange)
 }
 
+export function rebaseSavedVisibleLogicalRange(
+  candles: readonly MarketCandle[],
+  visibleTimeRange: { from: number; to: number },
+  visibleLogicalRange: { from: number; to: number },
+): { from: number; to: number } | null {
+  if (candles.length === 0) return null
+  const width = visibleLogicalRange.to - visibleLogicalRange.from
+  if (!Number.isFinite(width) || width <= 0) return null
+  const fromIndex = findCandleIndexAtOrAfter(candles, visibleTimeRange.from)
+  return { from: fromIndex, to: fromIndex + width }
+}
+
 export function applySavedVisibleTimeRange(
   chart: IChartApi,
   visibleTimeRange: { from: number; to: number },
@@ -337,8 +355,15 @@ export function applySavedVisibleTimeRange(
   visibleLogicalRange?: { from: number; to: number },
 ): void {
   if (visibleLogicalRange) {
-    applySavedVisibleLogicalRange(chart, visibleLogicalRange)
-    return
+    const rebased = rebaseSavedVisibleLogicalRange(
+      candles,
+      visibleTimeRange,
+      visibleLogicalRange,
+    )
+    if (rebased) {
+      chart.timeScale().setVisibleLogicalRange(rebased)
+      return
+    }
   }
 
   const logicalRange = visibleTimeRangeToLogicalRange(candles, visibleTimeRange)
