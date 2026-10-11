@@ -1247,6 +1247,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [flushMarketChartViewportPersist, scheduleMarketChartViewportPersist])
 
   useEffect(() => {
+    if (viewportPersistTimerRef.current) {
+      clearTimeout(viewportPersistTimerRef.current)
+      viewportPersistTimerRef.current = null
+      flushMarketChartViewportPersist()
+    }
     activeIntervalRef.current = interval
     loadGenerationRef.current += 1
     const generation = loadGenerationRef.current
@@ -1432,7 +1437,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       streamRef.current?.disconnect()
       streamRef.current = null
     }
-  }, [interval, panelId, syncAllVwapVisibility, liveVwapContext])
+  }, [flushMarketChartViewportPersist, interval, panelId, syncAllVwapVisibility, liveVwapContext])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) return
