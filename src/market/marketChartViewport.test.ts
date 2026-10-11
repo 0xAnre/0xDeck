@@ -170,6 +170,21 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(getState().rightOffset, 0)
   })
 
+  it('requests older history when the saved window is entirely before loaded candles', () => {
+    const { chart, getState } = makeChartStub()
+    const saved = {
+      version: 1 as const,
+      visibleTimeRange: { from: 1_699_998_000, to: 1_699_999_500 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 8,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'needs_history')
+    assert.deepEqual(getState().scaleMargins, saved.scaleMargins)
+    assert.equal(getState().visibleTimeRange, null)
+  })
+
   it('falls back when the saved window does not overlap loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {

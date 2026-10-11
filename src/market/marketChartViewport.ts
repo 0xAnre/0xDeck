@@ -191,15 +191,17 @@ export function restoreMarketChartViewport(
 ): RestoreMarketChartViewportResult {
   const parsed = parsePersistedMarketChartViewport(viewport)
   if (!parsed) return 'invalid'
+
+  if (visibleTimeRangeNeedsOlderHistory(parsed.visibleTimeRange, candles)) {
+    applyViewportPresentationOptions(chart, parsed)
+    return 'needs_history'
+  }
+
   if (!visibleTimeRangeOverlapsLoadedCandles(parsed.visibleTimeRange, candles)) {
     return 'invalid'
   }
 
   applyViewportPresentationOptions(chart, parsed)
-
-  if (visibleTimeRangeNeedsOlderHistory(parsed.visibleTimeRange, candles)) {
-    return 'needs_history'
-  }
 
   chart.timeScale().setVisibleRange(parsed.visibleTimeRange as IRangeTime)
   chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
