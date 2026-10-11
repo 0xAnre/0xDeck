@@ -56,6 +56,15 @@ function hasPresentationOverrides(presentation: MarketIndicatorPresentation): bo
   )
 }
 
+function applyPresentationToOrderedLineSeries(
+  ordered: readonly { applyOptions: (options: LineSeriesPartialOptions) => void }[],
+  options: LineSeriesPartialOptions,
+): void {
+  for (const series of ordered) {
+    series.applyOptions(options)
+  }
+}
+
 export function applyMarketIndicatorPresentationToBundle(
   bundle: ChartSeriesBundle,
   indicatorId: MarketIndicatorId,
@@ -75,19 +84,19 @@ export function applyMarketIndicatorPresentationToBundle(
       bundle.ema200.applyOptions(options)
       return
     case 'daily-vwap':
-      bundle.dailyVwap.byKey.vwap.applyOptions(options)
+      applyPresentationToOrderedLineSeries(bundle.dailyVwap.ordered, options)
       return
     case 'weekly-vwap':
-      bundle.weeklyVwap.byKey.vwap.applyOptions(options)
+      applyPresentationToOrderedLineSeries(bundle.weeklyVwap.ordered, options)
       return
     case 'monthly-vwap':
-      bundle.monthlyVwap.byKey.vwap.applyOptions(options)
+      applyPresentationToOrderedLineSeries(bundle.monthlyVwap.ordered, options)
       return
     case 'quarterly-vwap':
-      bundle.quarterlyVwap.byKey.vwap.applyOptions(options)
+      applyPresentationToOrderedLineSeries(bundle.quarterlyVwap.ordered, options)
       return
     case 'yearly-vwap':
-      bundle.yearlyVwap.byKey.vwap.applyOptions(options)
+      applyPresentationToOrderedLineSeries(bundle.yearlyVwap.ordered, options)
       return
     case 'rolling-vwap':
       for (const chartBundle of bundle.rollingVwaps.values()) {

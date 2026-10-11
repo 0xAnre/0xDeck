@@ -31,6 +31,13 @@ function createMockLineSeries(
   return {
     options: () => ({ visible }),
     data: () => points,
+    dataByIndex: (logicalIndex: number) => {
+      const dataIndex = logicalIndex - firstLogicalIndex
+      if (dataIndex < 0 || dataIndex >= points.length) {
+        return null
+      }
+      return points[dataIndex]
+    },
     priceToCoordinate: (value: number) => value,
     barsInLogicalRange: (range) => {
       if (points.length === 0) {
@@ -63,7 +70,7 @@ describe('resolveVisibleLineSegmentIndexBounds', () => {
     const series = createMockLineSeries(
       Array.from({ length: 100 }, (_, index) => ({ time: index, value: index })),
     )
-    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series, 100), {
+    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series), {
       startIndex: 0,
       endIndex: 98,
     })
@@ -74,7 +81,7 @@ describe('resolveVisibleLineSegmentIndexBounds', () => {
     const series = createMockLineSeries(
       Array.from({ length: 1000 }, (_, index) => ({ time: index, value: index })),
     )
-    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series, 1000), {
+    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series), {
       startIndex: 10,
       endIndex: 21,
     })
@@ -85,7 +92,7 @@ describe('resolveVisibleLineSegmentIndexBounds', () => {
     const series = createMockLineSeries(
       Array.from({ length: 100 }, (_, index) => ({ time: index, value: index })),
     )
-    const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, series, 100)
+    const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, series)
     assert.equal(Number.isInteger(startIndex), true)
     assert.equal(Number.isInteger(endIndex), true)
     assert.equal(hitTestLineSeriesAtPane(chart, series, 15.5, 15), true)
@@ -100,16 +107,16 @@ describe('resolveVisibleLineSegmentIndexBounds', () => {
       })),
       { firstLogicalIndex: 199 },
     )
-    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series, 801), {
-      startIndex: 700,
-      endIndex: 799,
+    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series), {
+      startIndex: 899,
+      endIndex: 1000,
     })
   })
 
   it('returns no segments when data is too short', () => {
     const chart = createMockChart({ from: 0, to: 10 })
     const series = createMockLineSeries([{ time: 0, value: 1 }])
-    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series, 1), {
+    assert.deepEqual(resolveVisibleLineSegmentIndexBounds(chart, series), {
       startIndex: 0,
       endIndex: -1,
     })
@@ -137,7 +144,15 @@ describe('hitTestLineSeriesAtPane', () => {
       value: index % 2 === 0 ? 0 : 100,
     }))
     const series = createMockLineSeries(points)
+    let dataCalls = 0
+    Object.defineProperty(series, 'data', {
+      get: () => {
+        dataCalls += 1
+        return points
+      },
+    })
     assert.equal(hitTestLineSeriesAtPane(chart, series, 400.5, 50), false)
+    assert.equal(dataCalls, 0)
   })
 
   it('hits indicators that omit leading bars when viewing recent history', () => {

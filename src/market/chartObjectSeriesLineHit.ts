@@ -29,44 +29,40 @@ function hitBodySegment(
   return distanceSq(paneX, paneY, projX, projY) <= radiusSq
 }
 
-function resolveVisibleDataIndexBounds(
-  logicalRange: { from: number; to: number },
-  barsBefore: number,
-  dataLength: number,
-): { firstVisibleIndex: number; lastVisibleIndex: number } | null {
-  const seriesOriginLogical = Math.floor(logicalRange.from - barsBefore)
-  const visibleFromLogical = Math.ceil(logicalRange.from)
-  const visibleToLogical = Math.floor(logicalRange.to)
-  const firstVisibleIndex = visibleFromLogical - seriesOriginLogical
-  const lastVisibleIndex = visibleToLogical - seriesOriginLogical
-  if (lastVisibleIndex < 0 || firstVisibleIndex >= dataLength || lastVisibleIndex < firstVisibleIndex) {
-    return null
+function resolveFullSeriesLogicalSegmentEnd(series: ISeriesApi<'Line', Time>): number {
+  let endLogicalIndex = -1
+  while (series.dataByIndex(endLogicalIndex + 2) !== null) {
+    endLogicalIndex += 1
   }
-  const clampedFirst = Math.max(0, firstVisibleIndex)
-  const clampedLast = Math.min(lastVisibleIndex, dataLength - 1)
-  if (clampedLast < clampedFirst) {
-    return null
-  }
-  return {
-    firstVisibleIndex: clampedFirst,
-    lastVisibleIndex: clampedLast,
-  }
+  return endLogicalIndex
 }
 
-/** Segment indices (inclusive) to scan for hits; includes one segment outside each visible edge. */
+const MAX_LOGICAL_INDEX_PROBE = 1_000_000
+
+function seriesHasLineSegments(series: ISeriesApi<'Line', Time>): boolean {
+  let logicalIndex = 0
+  while (series.dataByIndex(logicalIndex) === null) {
+    logicalIndex += 1
+    if (logicalIndex > MAX_LOGICAL_INDEX_PROBE) {
+      return false
+    }
+  }
+  return series.dataByIndex(logicalIndex + 1) !== null
+}
+
+/** Logical segment start indices (inclusive) to scan for hits; includes one segment outside each visible edge. */
 export function resolveVisibleLineSegmentIndexBounds(
   chart: IChartApi,
   series: ISeriesApi<'Line', Time>,
-  dataLength: number,
 ): { startIndex: number; endIndex: number } {
-  const maxSegmentIndex = dataLength - 2
-  if (maxSegmentIndex < 0) {
+  if (!seriesHasLineSegments(series)) {
     return { startIndex: 0, endIndex: -1 }
   }
 
   const logicalRange = chart.timeScale().getVisibleLogicalRange()
   if (!logicalRange) {
-    return { startIndex: 0, endIndex: maxSegmentIndex }
+    const endIndex = resolveFullSeriesLogicalSegmentEnd(series)
+    return { startIndex: 0, endIndex }
   }
 
   const barsInfo = series.barsInLogicalRange(logicalRange)
@@ -74,19 +70,11 @@ export function resolveVisibleLineSegmentIndexBounds(
     return { startIndex: 0, endIndex: -1 }
   }
 
-  const visibleBounds = resolveVisibleDataIndexBounds(
-    logicalRange,
-    barsInfo.barsBefore,
-    dataLength,
-  )
-  if (visibleBounds === null) {
-    return { startIndex: 0, endIndex: -1 }
-  }
-  const { firstVisibleIndex, lastVisibleIndex } = visibleBounds
-
-  const startIndex = Math.max(0, firstVisibleIndex - 1)
-  const endIndex = Math.min(maxSegmentIndex, lastVisibleIndex + 1)
-  if (startIndex > endIndex) {
+  const visibleFromLogical = Math.ceil(logicalRange.from)
+  const visibleToLogical = Math.floor(logicalRange.to)
+  const startIndex = visibleFromLogical - 1
+  const endIndex = visibleToLogical + 1
+  if (endIndex < startIndex) {
     return { startIndex: 0, endIndex: -1 }
   }
 
@@ -101,17 +89,16 @@ export function hitTestLineSeriesAtPane(
   hitRadiusPx: number = DEFAULT_HIT_RADIUS_PX,
 ): boolean {
   if (!series.options().visible) return false
-  const data = series.data()
-  if (data.length < 2) return false
 
   const timeScale = chart.timeScale()
   const radiusSq = hitRadiusPx * hitRadiusPx
-  const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, series, data.length)
+  const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, series)
   if (endIndex < startIndex) return false
 
-  for (let index = startIndex; index <= endIndex; index += 1) {
-    const a = data[index]
-    const b = data[index + 1]
+  for (let logicalIndex = startIndex; logicalIndex <= endIndex; logicalIndex += 1) {
+    const a = series.dataByIndex(logicalIndex)
+    const b = series.dataByIndex(logicalIndex + 1)
+    if (a === null || b === null) continue
     if (!('value' in a) || !('value' in b)) continue
     if (a.value === undefined || b.value === undefined) continue
     const ax = timeScale.timeToCoordinate(a.time)

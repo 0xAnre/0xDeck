@@ -97,15 +97,23 @@ describe('applyMarketIndicatorPresentationToBundle', () => {
     }
   })
 
-  it('applies daily-vwap presentation to the center vwap line', () => {
+  it('applies daily-vwap presentation to every rendered line in the bundle', () => {
     const bundle = createMockBundle()
+    const previousUpper = createMockLineSeries()
+    const previousLower = createMockLineSeries()
+    bundle.dailyVwap.ordered.push(
+      previousUpper as ChartSeriesBundle['dailyVwap']['ordered'][number],
+      previousLower as ChartSeriesBundle['dailyVwap']['ordered'][number],
+    )
     applyMarketIndicatorPresentationToBundle(bundle, 'daily-vwap', {
       color: '#445566',
       lineStyle: 'dashed',
     })
-    const vwap = bundle.dailyVwap.byKey.vwap as ReturnType<typeof createMockLineSeries>
-    assert.equal(vwap.applied[0]?.color, '#445566')
-    assert.equal(vwap.applied[0]?.lineStyle, LineStyle.Dashed)
+    for (const series of bundle.dailyVwap.ordered) {
+      const mock = series as ReturnType<typeof createMockLineSeries>
+      assert.equal(mock.applied[0]?.color, '#445566')
+      assert.equal(mock.applied[0]?.lineStyle, LineStyle.Dashed)
+    }
   })
 
   it('applies rolling-vwap presentation to each instance center line', () => {
