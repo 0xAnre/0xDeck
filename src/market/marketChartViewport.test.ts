@@ -7,6 +7,7 @@ import {
   applyDefaultMarketChartPresentation,
   parsePersistedMarketChartViewport,
   restoreMarketChartViewport,
+  savedVisibleTimeRangeIsRestorable,
   visibleTimeRangeNeedsHistoryLoad,
   visibleTimeRangeNeedsOlderHistory,
   visibleTimeRangeOverlapsLoadedCandles,
@@ -139,6 +140,11 @@ describe('parsePersistedMarketChartViewport', () => {
       null,
     )
   })
+
+  it('accepts negative scroll positions from historical panning', () => {
+    const withNegativeScroll = { ...valid, rightOffset: -12 }
+    assert.deepEqual(parsePersistedMarketChartViewport(withNegativeScroll), withNegativeScroll)
+  })
 })
 
 describe('applyDefaultMarketChartPresentation', () => {
@@ -260,5 +266,11 @@ describe('visibleTimeRange helpers', () => {
     assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 10, to: 90 }, candles), true)
     assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 150, to: 250 }, candles), false)
     assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 400, to: 500 }, candles), false)
+  })
+
+  it('detects when a saved range can be restored after history load', () => {
+    assert.equal(savedVisibleTimeRangeIsRestorable({ from: 150, to: 250 }, candles), true)
+    assert.equal(savedVisibleTimeRangeIsRestorable({ from: 50, to: 150 }, candles), false)
+    assert.equal(savedVisibleTimeRangeIsRestorable({ from: 10, to: 90 }, candles), false)
   })
 })

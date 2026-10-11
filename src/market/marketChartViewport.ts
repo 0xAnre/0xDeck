@@ -166,6 +166,17 @@ export function visibleTimeRangeNeedsHistoryLoad(
   return visibleTimeRangeNeedsOlderHistory(range, candles)
 }
 
+export function savedVisibleTimeRangeIsRestorable(
+  range: { from: number; to: number },
+  candles: readonly MarketCandle[],
+): boolean {
+  if (candles.length === 0) return false
+  return (
+    visibleTimeRangeOverlapsLoadedCandles(range, candles) &&
+    !visibleTimeRangeNeedsHistoryLoad(range, candles)
+  )
+}
+
 function applyViewportPresentationOptions(
   chart: IChartApi,
   parsed: PersistedMarketChartViewport,
