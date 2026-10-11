@@ -192,6 +192,10 @@ import {
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { EMA_PERIODS } from '@/market/ema'
 import {
+  applyMarketIndicatorPresentationToBundle,
+  syncWidgetMarketIndicatorPresentations,
+} from '@/market/marketIndicatorPresentationApply'
+import {
   requiredVwapContextLevel,
   type MarketIndicatorId,
   type VwapContextLevel,
@@ -774,6 +778,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => {
       setMarketIndicatorPresentation(presentation)
       saveWidgetMarketIndicatorPresentation(panelId, indicatorId, presentation)
+      const bundle = seriesRef.current
+      if (bundle) {
+        applyMarketIndicatorPresentationToBundle(bundle, indicatorId, presentation)
+      }
     },
     [panelId],
   )
@@ -1440,6 +1448,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         yearlyVwap: yearlyVwapSeries,
         rollingVwaps,
       }
+      syncWidgetMarketIndicatorPresentations(panelId, seriesRef.current)
       attachInfiniteHistoryListener(chart)
       return chart
     }
