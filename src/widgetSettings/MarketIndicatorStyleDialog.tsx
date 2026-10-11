@@ -18,6 +18,7 @@ import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSel
 type MarketIndicatorStyleDialogProps = {
   indicatorId: MarketIndicatorId | null
   presentation: MarketIndicatorPresentation
+  seriesColor?: string
   returnFocusId: string
   onOpenChange: (open: boolean) => void
   onPresentationChange: (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => void
@@ -26,11 +27,13 @@ type MarketIndicatorStyleDialogProps = {
 export function MarketIndicatorStyleDialog({
   indicatorId,
   presentation,
+  seriesColor,
   returnFocusId,
   onOpenChange,
   onPresentationChange,
 }: MarketIndicatorStyleDialogProps) {
   const label = indicatorId ? MARKET_INDICATOR_DEFINITIONS[indicatorId].label : 'Indicator'
+  const colorControlValue = presentation.color ?? seriesColor ?? '#9e9e9e'
 
   return (
     <Dialog
@@ -57,7 +60,7 @@ export function MarketIndicatorStyleDialog({
               <Input
                 id="indicator-color"
                 type="color"
-                value={presentation.color ?? '#9e9e9e'}
+                value={colorControlValue}
                 onChange={(event) =>
                   onPresentationChange(indicatorId, {
                     ...presentation,

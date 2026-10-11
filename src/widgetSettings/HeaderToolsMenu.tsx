@@ -92,7 +92,7 @@ export function HeaderToolsMenu({
   onChartObjectSettingsTargetChange,
 }: HeaderToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const styleInstanceIdRef = useRef<string | null>(null)
+  const suppressMenuCloseAutoFocusRef = useRef(false)
 
   const rectangleStyleInstance =
     chartObjectSettingsTarget?.kind === 'rectangle'
@@ -110,14 +110,13 @@ export function HeaderToolsMenu({
       : null
 
   const openSettings = (target: ChartObjectSettingsTarget) => {
+    suppressMenuCloseAutoFocusRef.current = true
+    setMenuOpen(false)
     onChartObjectSettingsTargetChange?.(target)
-    if (target.kind === 'rectangle') {
-      styleInstanceIdRef.current = target.instanceId
-    }
   }
 
   const closeSettings = () => {
-    styleInstanceIdRef.current = null
+    suppressMenuCloseAutoFocusRef.current = false
     onChartObjectSettingsTargetChange?.(null)
   }
 
@@ -161,7 +160,7 @@ export function HeaderToolsMenu({
           align="start"
           className="min-w-[18rem]"
           onCloseAutoFocus={(event) => {
-            if (styleInstanceIdRef.current !== null) {
+            if (suppressMenuCloseAutoFocusRef.current) {
               event.preventDefault()
             }
           }}
