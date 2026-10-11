@@ -15,9 +15,10 @@ import {
   type LineInteractionState,
 } from './lineInteraction.ts'
 import { hitTestLines } from './lineHitTest.ts'
-import type { LineInstance } from './lineInstances.ts'
+import { isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
+import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
   buildLineChartTimeContext,
@@ -42,6 +43,7 @@ export type LinePanePointerCallbacks = {
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
   getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
+  onChartObjectActivate?: (instanceId: string) => void
 }
 
 export type LinePanePointerController = {
@@ -65,6 +67,12 @@ export function attachLinePanePointer(
   }
 
   let activePointerId: number | null = null
+  let pendingChartObjectActivation: {
+    pointerId: number
+    startPaneX: number
+    startPaneY: number
+    instanceId: string
+  } | null = null
 
   const resolvePaneY = (event: PointerEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -156,12 +164,26 @@ export function attachLinePanePointer(
       ) {
         return
       }
+      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+      if (!instance) return
+      if (isLineInstanceLocked(instance)) {
+        const next = applyLineSelection(interaction, hit.instanceId)
+        if (next !== interaction) {
+          callbacks.onInteractionChange(next)
+          callbacks.onRequestRender()
+        }
+        pendingChartObjectActivation = {
+          pointerId: event.pointerId,
+          startPaneX: paneX,
+          startPaneY: paneY,
+          instanceId: hit.instanceId,
+        }
+        return
+      }
       event.preventDefault()
       event.stopPropagation()
       focusLineInteractionPane(paneElement)
       if (hit.kind !== 'body') {
-        const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
-        if (!instance) return
         const next = startLineResizeDraft(interaction, instance, hit.kind)
         if (next === interaction) return
         activePointerId = event.pointerId
@@ -170,8 +192,6 @@ export function attachLinePanePointer(
         callbacks.onInteractionChange(next)
         return
       }
-      const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
-      if (!instance) return
       const series = callbacks.getSeries()
       if (!series) return
       const point = resolvePointerChartPoint(chart, series, paneX, paneY, resolveTimeContext())
@@ -186,6 +206,23 @@ export function attachLinePanePointer(
   }
 
   const onPointerMove = (event: PointerEvent) => {
+    if (
+      pendingChartObjectActivation &&
+      pendingChartObjectActivation.pointerId === event.pointerId
+    ) {
+      const paneX = resolvePaneRelativePointerX(event, paneElement)
+      const paneY = resolvePaneY(event)
+      if (
+        !pointerMovementWithinClickTolerance(
+          pendingChartObjectActivation.startPaneX,
+          pendingChartObjectActivation.startPaneY,
+          paneX,
+          paneY,
+        )
+      ) {
+        pendingChartObjectActivation = null
+      }
+    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (!isLineChartNavigationLocked(snapshot.interaction)) return
@@ -202,8 +239,27 @@ export function attachLinePanePointer(
     activePointerId = null
   }
 
+  const tryCompletePendingChartObjectActivation = (event: PointerEvent) => {
+    const pending = pendingChartObjectActivation
+    if (!pending || pending.pointerId !== event.pointerId) return
+    pendingChartObjectActivation = null
+    const paneX = resolvePaneRelativePointerX(event, paneElement)
+    const paneY = resolvePaneY(event)
+    if (
+      pointerMovementWithinClickTolerance(
+        pending.startPaneX,
+        pending.startPaneY,
+        paneX,
+        paneY,
+      )
+    ) {
+      callbacks.onChartObjectActivate?.(pending.instanceId)
+    }
+  }
+
   const onPointerUp = (event: PointerEvent) => {
     if (event.button !== 0) return
+    tryCompletePendingChartObjectActivation(event)
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     const series = callbacks.getSeries()
@@ -281,6 +337,9 @@ export function attachLinePanePointer(
   }
 
   const onPointerCancel = (event: PointerEvent) => {
+    if (pendingChartObjectActivation?.pointerId === event.pointerId) {
+      pendingChartObjectActivation = null
+    }
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (isLineChartNavigationLocked(snapshot.interaction)) {

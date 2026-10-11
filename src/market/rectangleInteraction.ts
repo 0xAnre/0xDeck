@@ -277,6 +277,7 @@ export function commitRectangleCreate(
     lowPrice: draft.anchorPrice,
     highPrice: draft.previewPrice,
     existingIds: new Set(existingInstances.map((item) => item.id)),
+    siblingInstances: existingInstances,
   })
   if (!instance) {
     return {

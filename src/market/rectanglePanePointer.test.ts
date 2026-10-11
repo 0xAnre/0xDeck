@@ -432,4 +432,65 @@ describe('rectanglePanePointer', () => {
     assert.equal(interaction.phase, 'inactive')
     assert.equal(interaction.draft, null)
   })
+
+  it('defers locked-rectangle settings activation until pointerup within click tolerance', () => {
+    const { listeners, chart } = createPaneHarness()
+    let activated: string | null = null
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction: INITIAL_RECTANGLE_INTERACTION_STATE,
+        instances: [
+          {
+            id: 'rect-locked',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+            locked: true,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: () => {},
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+      onChartObjectActivate: (instanceId) => {
+        activated = instanceId
+      },
+    })
+
+    listeners.get('pointerdown')?.({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 8,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+
+    assert.equal(activated, null)
+
+    listeners.get('pointerup')?.({
+      button: 0,
+      clientX: 151,
+      clientY: 51,
+      pointerId: 8,
+    } as PointerEvent)
+
+    assert.equal(activated, 'rect-locked')
+  })
 })

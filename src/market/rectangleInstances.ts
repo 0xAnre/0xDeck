@@ -1,3 +1,10 @@
+import {
+  formatNumberedChartObjectLabel,
+  isValidDisplaySequence,
+  migrateChartObjectDisplaySequences,
+  nextDisplaySequence,
+} from './chartObjectDisplaySequence.ts'
+import { isChartObjectHidden, setChartObjectHidden } from './chartObjectState.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
 
 export type RectangleInstance = {
@@ -6,7 +13,9 @@ export type RectangleInstance = {
   toTime: number
   lowPrice: number
   highPrice: number
+  displaySequence: number
   locked?: boolean
+  hidden?: boolean
   fillColor?: string
   fillOpacity?: number
 }
@@ -99,9 +108,13 @@ export function sanitizeRectangleInstance(value: unknown): RectangleInstance | n
     toTime: normalized.toTime,
     lowPrice: normalized.lowPrice,
     highPrice: normalized.highPrice,
+    displaySequence: isValidDisplaySequence(record.displaySequence) ? record.displaySequence : 0,
   }
   if (record.locked === true) {
     instance.locked = true
+  }
+  if (record.hidden === true) {
+    instance.hidden = true
   }
   if (isRectangleHexColor(record.fillColor)) {
     instance.fillColor = record.fillColor
@@ -122,7 +135,7 @@ export function sanitizeRectangleInstances(value: unknown): RectangleInstance[] 
     seen.add(instance.id)
     instances.push(instance)
   }
-  return instances
+  return migrateChartObjectDisplaySequences(instances)
 }
 
 export function createRectangleInstance(params: {
@@ -131,6 +144,7 @@ export function createRectangleInstance(params: {
   lowPrice: number
   highPrice: number
   existingIds?: ReadonlySet<string>
+  siblingInstances?: readonly RectangleInstance[]
 }): RectangleInstance | null {
   const normalized = normalizeRectangleBounds(
     params.fromTime,
@@ -140,14 +154,32 @@ export function createRectangleInstance(params: {
   )
   if (!normalized) return null
 
+  const existing = params.existingIds ?? new Set()
+  const siblings = params.siblingInstances ?? []
   return {
-    id: createRectangleInstanceId(params.existingIds ?? new Set()),
+    id: createRectangleInstanceId(existing),
+    displaySequence: nextDisplaySequence(siblings),
     ...normalized,
   }
 }
 
+export function rectangleInstanceDisplaySequence(instance: RectangleInstance): number {
+  return instance.displaySequence
+}
+
+export function isRectangleInstanceHidden(instance: RectangleInstance): boolean {
+  return isChartObjectHidden(instance.hidden)
+}
+
+export function setRectangleInstanceHidden(
+  instance: RectangleInstance,
+  hidden: boolean,
+): RectangleInstance {
+  return setChartObjectHidden(instance, hidden)
+}
+
 export function formatRectangleInstanceLabel(instance: RectangleInstance): string {
-  return `${instance.fromTime}–${instance.toTime} @ ${instance.lowPrice.toFixed(2)}–${instance.highPrice.toFixed(2)}`
+  return formatNumberedChartObjectLabel('box', rectangleInstanceDisplaySequence(instance))
 }
 
 export function updateRectangleInstanceBounds(

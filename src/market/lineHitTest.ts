@@ -1,4 +1,4 @@
-import type { LineInstance } from './lineInstances.ts'
+import { isLineInstanceHidden, isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 
 export type LineEndpointKind = 'endpoint-a' | 'endpoint-b'
 
@@ -101,9 +101,10 @@ export function hitTestLines(
 
   for (let index = instances.length - 1; index >= 0; index -= 1) {
     const instance = instances[index]
+    if (isLineInstanceHidden(instance)) continue
     const segment = project(instance)
     if (!segment) continue
-    const allowHandles = selectedId === instance.id
+    const allowHandles = selectedId === instance.id && !isLineInstanceLocked(instance)
     const hit = hitTestSingleLine(
       instance.id,
       index,

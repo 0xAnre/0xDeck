@@ -243,6 +243,7 @@ export function commitLineCreate(
     timeB: draft.previewTime,
     priceB: draft.previewPrice,
     existingIds: new Set(existingInstances.map((item) => item.id)),
+    siblingInstances: existingInstances,
   })
   if (!instance) {
     return {

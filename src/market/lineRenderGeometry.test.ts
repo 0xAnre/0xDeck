@@ -6,8 +6,17 @@ import {
   armLineTool,
   INITIAL_LINE_INTERACTION_STATE,
   startLineCreateDraft,
+  startLineMoveDraft,
+  startLineResizeDraft,
   updateLineCreatePreview,
 } from './lineInteraction.ts'
+import { lineChartStrokeDashPattern } from './lineChartStroke.ts'
+import { readLineStrokeStyleForInstance } from './lineColors.ts'
+import {
+  createLineInstance,
+  lineInstanceStrokeStyle,
+  lineInstanceStrokeWidth,
+} from './lineInstances.ts'
 import { buildLineDrawModels, projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
 
 function chartWithBars(barTimes: number[], spacing = 10): IChartApi {
@@ -137,5 +146,71 @@ describe('lineRenderGeometry', () => {
     assert.equal(futureRightToLeft.ax, 30)
     assert.equal(futureRightToLeft.bx, 20)
     assert.ok(futureRightToLeft.ax > futureRightToLeft.bx)
+  })
+
+  it('keeps custom stroke presentation on move and resize previews', () => {
+    const colored = {
+      ...createLineInstance({
+        timeA: 100,
+        priceA: 10,
+        timeB: 200,
+        priceB: 20,
+      })!,
+      strokeColor: '#ff0000',
+      lineWidth: 3,
+      lineStyle: 'solid' as const,
+    }
+    const other = createLineInstance({
+      timeA: 300,
+      priceA: 10,
+      timeB: 400,
+      priceB: 20,
+    })!
+    const defaultStroke = 'gray'
+    const shared = {
+      strokeStyle: defaultStroke,
+      pointerTime: 250,
+      pointerPrice: 5,
+      timeToCoordinate: (time: number) => time,
+      priceToY: (price: number) => 100 - price,
+    }
+
+    const resizeModels = buildLineDrawModels({
+      ...shared,
+      instances: [colored, other],
+      interaction: startLineResizeDraft(INITIAL_LINE_INTERACTION_STATE, colored, 'endpoint-b'),
+    })
+    assert.equal(resizeModels.length, 2)
+    const resizePreview = resizeModels[1]
+    assert.equal(resizePreview.strokeStyle, readLineStrokeStyleForInstance(colored, defaultStroke))
+    assert.equal(resizePreview.lineWidthCssPx, lineInstanceStrokeWidth(colored))
+    assert.deepEqual(
+      resizePreview.dashPatternCssPx,
+      lineChartStrokeDashPattern(lineInstanceStrokeStyle(colored)),
+    )
+
+    const moveModels = buildLineDrawModels({
+      ...shared,
+      instances: [colored],
+      interaction: startLineMoveDraft(INITIAL_LINE_INTERACTION_STATE, colored, 150, 15),
+    })
+    assert.equal(moveModels.length, 1)
+    assert.equal(moveModels[0].strokeStyle, readLineStrokeStyleForInstance(colored, defaultStroke))
+    assert.equal(moveModels[0].lineWidthCssPx, 3)
+
+    const creating = updateLineCreatePreview(
+      startLineCreateDraft(armLineTool(INITIAL_LINE_INTERACTION_STATE), 100, 10),
+      200,
+      20,
+    )
+    const createModels = buildLineDrawModels({
+      ...shared,
+      instances: [colored],
+      interaction: creating,
+    })
+    const createPreview = createModels.at(-1)
+    assert.equal(createPreview?.strokeStyle, defaultStroke)
+    assert.equal(createPreview?.lineWidthCssPx, 1)
+    assert.deepEqual(createPreview?.dashPatternCssPx, lineChartStrokeDashPattern('dashed'))
   })
 })

@@ -1,28 +1,38 @@
 import { useRef, useState } from 'react'
-import { ChevronDownIcon, LockIcon, LockOpenIcon, Trash2Icon } from 'lucide-react'
+import { ChevronDownIcon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
-import { formatFixedRangeVolumeProfileInstanceLabel } from '@/market/fixedRangeVolumeProfileInstances'
-import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
-import { formatLineInstanceLabel } from '@/market/lineInstances'
-import type { LineInstance } from '@/market/lineInstances'
+import {
+  formatFixedRangeVolumeProfileInstanceLabel,
+  isFixedRangeVolumeProfileInstanceHidden,
+  type FixedRangeVolumeProfileInstance,
+} from '@/market/fixedRangeVolumeProfileInstances'
+import {
+  formatLineInstanceLabel,
+  isLineInstanceHidden,
+  isLineInstanceLocked,
+  type LineInstance,
+} from '@/market/lineInstances'
 import {
   formatRectangleInstanceLabel,
+  isRectangleInstanceHidden,
   isRectangleInstanceLocked,
+  type RectangleInstance,
 } from '@/market/rectangleInstances'
-import type { RectangleInstance } from '@/market/rectangleInstances'
+import { ChartObjectListRow } from '@/widgetSettings/ChartObjectListRow'
+import { numberedChartObjectIcon } from '@/widgetSettings/chartObjectIcons'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 import { RectangleFillStyleDialog } from '@/widgetSettings/RectangleFillStyleDialog'
+import { LineStyleDialog } from '@/widgetSettings/LineStyleDialog'
+import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
+import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 
 type HeaderToolsMenuProps = {
   id: string
@@ -30,15 +40,27 @@ type HeaderToolsMenuProps = {
   fixedRangeVolumeProfileInstances: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  onFixedRangeVolumeProfileToggle?: (instanceId: string, enabled: boolean) => void
+  onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
+  onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
+  onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
   onRectangleLockToggle?: (instanceId: string, locked: boolean) => void
+  onRectangleVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   onRectangleFillColorChange?: (instanceId: string, fillColor: string) => void
   onRectangleFillOpacityChange?: (instanceId: string, fillOpacity: number) => void
   lineInstances: LineInstance[]
   onLineArm?: () => void
   onLineDelete?: (instanceId: string) => void
+  onLineLockToggle?: (instanceId: string, locked: boolean) => void
+  onLineVisibilityToggle?: (instanceId: string, hidden: boolean) => void
+  onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
+  onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
+  onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
+  chartObjectSettingsTarget?: ChartObjectSettingsTarget | null
+  onChartObjectSettingsTargetChange?: (target: ChartObjectSettingsTarget | null) => void
 }
 
 export function HeaderToolsMenu({
@@ -47,30 +69,55 @@ export function HeaderToolsMenu({
   fixedRangeVolumeProfileInstances,
   onFixedRangeVolumeProfileArm,
   onFixedRangeVolumeProfileDelete,
+  onFixedRangeVolumeProfileToggle,
+  onFixedRangeVolumeProfileLockToggle,
+  onFixedRangeVolumeProfileRowCountChange,
+  onFixedRangeVolumeProfileValueAreaChange,
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
   onRectangleLockToggle,
+  onRectangleVisibilityToggle,
   onRectangleFillColorChange,
   onRectangleFillOpacityChange,
   lineInstances,
   onLineArm,
   onLineDelete,
+  onLineLockToggle,
+  onLineVisibilityToggle,
+  onLineStrokeColorChange,
+  onLineWidthChange,
+  onLineStyleChange,
+  chartObjectSettingsTarget = null,
+  onChartObjectSettingsTargetChange,
 }: HeaderToolsMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [styleInstanceId, setStyleInstanceId] = useState<string | null>(null)
-  const styleInstanceIdRef = useRef<string | null>(null)
-  const styleInstance =
-    rectangleInstances.find((instance) => instance.id === styleInstanceId) ?? null
+  const suppressMenuCloseAutoFocusRef = useRef(false)
 
-  const openRectangleFillStyle = (instanceId: string) => {
-    styleInstanceIdRef.current = instanceId
-    setStyleInstanceId(instanceId)
+  const rectangleStyleInstance =
+    chartObjectSettingsTarget?.kind === 'rectangle'
+      ? (rectangleInstances.find((item) => item.id === chartObjectSettingsTarget.instanceId) ?? null)
+      : null
+  const lineStyleInstance =
+    chartObjectSettingsTarget?.kind === 'line'
+      ? (lineInstances.find((item) => item.id === chartObjectSettingsTarget.instanceId) ?? null)
+      : null
+  const frvpStyleInstance =
+    chartObjectSettingsTarget?.kind === 'fixed-range-volume-profile'
+      ? (fixedRangeVolumeProfileInstances.find(
+          (item) => item.id === chartObjectSettingsTarget.instanceId,
+        ) ?? null)
+      : null
+
+  const openSettings = (target: ChartObjectSettingsTarget) => {
+    suppressMenuCloseAutoFocusRef.current = true
+    setMenuOpen(false)
+    onChartObjectSettingsTargetChange?.(target)
   }
 
-  const closeRectangleFillStyle = () => {
-    styleInstanceIdRef.current = null
-    setStyleInstanceId(null)
+  const closeSettings = () => {
+    suppressMenuCloseAutoFocusRef.current = false
+    onChartObjectSettingsTargetChange?.(null)
   }
 
   const armFixedRangeVolumeProfile = () => {
@@ -87,6 +134,11 @@ export function HeaderToolsMenu({
     onLineArm?.()
     setMenuOpen(false)
   }
+
+  const hasObjects =
+    fixedRangeVolumeProfileInstances.length > 0 ||
+    lineInstances.length > 0 ||
+    rectangleInstances.length > 0
 
   return (
     <>
@@ -106,9 +158,9 @@ export function HeaderToolsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="min-w-[16rem]"
+          className="min-w-[18rem]"
           onCloseAutoFocus={(event) => {
-            if (styleInstanceIdRef.current !== null) {
+            if (suppressMenuCloseAutoFocusRef.current) {
               event.preventDefault()
             }
           }}
@@ -122,112 +174,123 @@ export function HeaderToolsMenu({
           <DropdownMenuItem disabled={disabled} onSelect={armLine}>
             Line
           </DropdownMenuItem>
-          {fixedRangeVolumeProfileInstances.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              {fixedRangeVolumeProfileInstances.map((instance) => (
-                <DropdownMenuItem
-                  key={instance.id}
-                  className="flex items-center justify-between gap-2"
-                  onSelect={(event) => event.preventDefault()}
-                >
-                  <span className="min-w-0 truncate text-xs">
-                    {formatFixedRangeVolumeProfileInstanceLabel(instance.fromTime, instance.toTime)}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Delete range"
-                    className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onFixedRangeVolumeProfileDelete?.(instance.id)
-                    }}
-                  >
-                    <Trash2Icon className="size-3.5" />
-                  </button>
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
-          {lineInstances.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              {lineInstances.map((instance) => (
-                <DropdownMenuItem
-                  key={instance.id}
-                  className="flex items-center justify-between gap-2"
-                  onSelect={(event) => event.preventDefault()}
-                >
-                  <span className="min-w-0 truncate text-xs">{formatLineInstanceLabel(instance)}</span>
-                  <button
-                    type="button"
-                    aria-label="Delete line"
-                    className="inline-flex shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onLineDelete?.(instance.id)
-                    }}
-                  >
-                    <Trash2Icon className="size-3.5" />
-                  </button>
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
-          {rectangleInstances.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              {rectangleInstances.map((instance) => {
-                const locked = isRectangleInstanceLocked(instance)
-                const label = formatRectangleInstanceLabel(instance)
-                return (
-                  <DropdownMenuSub key={instance.id}>
-                    <DropdownMenuSubTrigger>
-                      <span className="min-w-0 truncate">
-                        {label}
-                        {locked ? ' (locked)' : ''}
-                      </span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="min-w-40">
-                      <DropdownMenuGroup>
-                        <DropdownMenuItem
-                          onSelect={() => onRectangleLockToggle?.(instance.id, !locked)}
-                        >
-                          {locked ? <LockOpenIcon /> : <LockIcon />}
-                          {locked ? 'Unlock' : 'Lock'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => openRectangleFillStyle(instance.id)}>
-                          Fill style
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onSelect={() => onRectangleDelete?.(instance.id)}
-                        >
-                          <Trash2Icon />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )
-              })}
-            </>
-          )}
+          {hasObjects && <DropdownMenuSeparator />}
+          {fixedRangeVolumeProfileInstances.map((instance) => (
+            <ChartObjectListRow
+              key={instance.id}
+              icon={numberedChartObjectIcon('frvp')}
+              label={formatFixedRangeVolumeProfileInstanceLabel(instance)}
+              hidden={isFixedRangeVolumeProfileInstanceHidden(instance)}
+              locked={instance.locked === true}
+              disabled={disabled}
+              onToggleHidden={
+                onFixedRangeVolumeProfileToggle
+                  ? () =>
+                      onFixedRangeVolumeProfileToggle(instance.id, !instance.enabled)
+                  : undefined
+              }
+              onToggleLocked={
+                onFixedRangeVolumeProfileLockToggle
+                  ? () => onFixedRangeVolumeProfileLockToggle(instance.id, !instance.locked)
+                  : undefined
+              }
+              onSettings={() =>
+                openSettings({ kind: 'fixed-range-volume-profile', instanceId: instance.id })
+              }
+              onDelete={
+                onFixedRangeVolumeProfileDelete
+                  ? () => onFixedRangeVolumeProfileDelete(instance.id)
+                  : undefined
+              }
+            />
+          ))}
+          {lineInstances.map((instance) => (
+            <ChartObjectListRow
+              key={instance.id}
+              icon={numberedChartObjectIcon('line')}
+              label={formatLineInstanceLabel(instance)}
+              hidden={isLineInstanceHidden(instance)}
+              locked={isLineInstanceLocked(instance)}
+              disabled={disabled}
+              onToggleHidden={
+                onLineVisibilityToggle
+                  ? () => onLineVisibilityToggle(instance.id, !isLineInstanceHidden(instance))
+                  : undefined
+              }
+              onToggleLocked={
+                onLineLockToggle
+                  ? () => onLineLockToggle(instance.id, !isLineInstanceLocked(instance))
+                  : undefined
+              }
+              onSettings={() => openSettings({ kind: 'line', instanceId: instance.id })}
+              onDelete={onLineDelete ? () => onLineDelete(instance.id) : undefined}
+            />
+          ))}
+          {rectangleInstances.map((instance) => (
+            <ChartObjectListRow
+              key={instance.id}
+              icon={numberedChartObjectIcon('box')}
+              label={formatRectangleInstanceLabel(instance)}
+              hidden={isRectangleInstanceHidden(instance)}
+              locked={isRectangleInstanceLocked(instance)}
+              disabled={disabled}
+              onToggleHidden={
+                onRectangleVisibilityToggle
+                  ? () =>
+                      onRectangleVisibilityToggle(instance.id, !isRectangleInstanceHidden(instance))
+                  : undefined
+              }
+              onToggleLocked={
+                onRectangleLockToggle
+                  ? () => onRectangleLockToggle(instance.id, !isRectangleInstanceLocked(instance))
+                  : undefined
+              }
+              onSettings={() => openSettings({ kind: 'rectangle', instanceId: instance.id })}
+              onDelete={onRectangleDelete ? () => onRectangleDelete(instance.id) : undefined}
+            />
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
       <RectangleFillStyleDialog
-        instance={styleInstance}
+        instance={rectangleStyleInstance}
         returnFocusId={id}
         onOpenChange={(open) => {
-          if (!open) closeRectangleFillStyle()
+          if (!open) closeSettings()
         }}
         onFillColorChange={(instanceId, fillColor) => {
           onRectangleFillColorChange?.(instanceId, fillColor)
         }}
         onFillOpacityChange={(instanceId, fillOpacity) => {
           onRectangleFillOpacityChange?.(instanceId, fillOpacity)
+        }}
+      />
+      <LineStyleDialog
+        instance={lineStyleInstance}
+        returnFocusId={id}
+        onOpenChange={(open) => {
+          if (!open) closeSettings()
+        }}
+        onStrokeColorChange={(instanceId, strokeColor) => {
+          onLineStrokeColorChange?.(instanceId, strokeColor)
+        }}
+        onLineWidthChange={(instanceId, lineWidth) => {
+          onLineWidthChange?.(instanceId, lineWidth)
+        }}
+        onLineStyleChange={(instanceId, lineStyle) => {
+          onLineStyleChange?.(instanceId, lineStyle)
+        }}
+      />
+      <FixedRangeVolumeProfileSettingsDialog
+        instance={frvpStyleInstance}
+        returnFocusId={id}
+        onOpenChange={(open) => {
+          if (!open) closeSettings()
+        }}
+        onRowCountChange={(instanceId, rowCount) => {
+          onFixedRangeVolumeProfileRowCountChange?.(instanceId, rowCount)
+        }}
+        onValueAreaPercentChange={(instanceId, valueAreaPercent) => {
+          onFixedRangeVolumeProfileValueAreaChange?.(instanceId, valueAreaPercent)
         }}
       />
     </>

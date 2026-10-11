@@ -324,6 +324,7 @@ export function setRollingVwapChartSeriesVisibility(
     id: 'legacy',
     enabled: params.activeIndicators.includes('rolling-vwap'),
     settings: params.settings,
+    displaySequence: 1,
   }
   setRollingVwapInstanceSeriesVisibility(bundle, legacyInstance, params.interval)
 }

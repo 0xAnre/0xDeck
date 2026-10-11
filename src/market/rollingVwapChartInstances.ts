@@ -12,7 +12,11 @@ import {
   type RollingVwapChartSeriesBundle,
 } from './rollingVwapChartSeries.ts'
 import { computeRollingVwapPointsForSettings } from './rollingVwapSettings.ts'
-import { rollingVwapInstancePeriodLabel, type RollingVwapInstance } from './rollingVwapInstances.ts'
+import {
+  rollingVwapInstanceDisplayLabel,
+  rollingVwapInstancePeriodLabel,
+  type RollingVwapInstance,
+} from './rollingVwapInstances.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 
 export type RollingVwapChartInstanceMap = Map<string, RollingVwapChartSeriesBundle>
@@ -25,7 +29,7 @@ export function rollingVwapInstanceMenuLabel(
   instance: RollingVwapInstance,
   interval: CandleInterval,
 ): string {
-  return `Rolling VWAP · ${rollingVwapInstancePeriodLabel(instance, interval)}`
+  return `${rollingVwapInstanceDisplayLabel(instance)} · ${rollingVwapInstancePeriodLabel(instance, interval)}`
 }
 
 export function reconcileRollingVwapChartBundles(

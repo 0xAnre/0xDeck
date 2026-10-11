@@ -138,6 +138,8 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onRollingVwapToggle={settings.onRollingVwapToggle}
             onRollingVwapSettingsClick={settings.onRollingVwapSettingsClick}
             onRollingVwapDelete={settings.onRollingVwapDelete}
+            onRollingVwapLockToggle={settings.onRollingVwapLockToggle}
+            onMarketIndicatorSettingsClick={settings.onMarketIndicatorSettingsClick}
           />
         )}
 
@@ -169,6 +171,18 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             lineInstances={settings.lineInstances}
             onLineArm={settings.onLineArm}
             onLineDelete={settings.onLineDelete}
+            onFixedRangeVolumeProfileToggle={settings.onFixedRangeVolumeProfileToggle}
+            onFixedRangeVolumeProfileLockToggle={settings.onFixedRangeVolumeProfileLockToggle}
+            onFixedRangeVolumeProfileRowCountChange={settings.onFixedRangeVolumeProfileRowCountChange}
+            onFixedRangeVolumeProfileValueAreaChange={settings.onFixedRangeVolumeProfileValueAreaChange}
+            onRectangleVisibilityToggle={settings.onRectangleVisibilityToggle}
+            onLineLockToggle={settings.onLineLockToggle}
+            onLineVisibilityToggle={settings.onLineVisibilityToggle}
+            onLineStrokeColorChange={settings.onLineStrokeColorChange}
+            onLineWidthChange={settings.onLineWidthChange}
+            onLineStyleChange={settings.onLineStyleChange}
+            chartObjectSettingsTarget={settings.chartObjectSettingsTarget}
+            onChartObjectSettingsTargetChange={settings.onChartObjectSettingsTargetChange}
           />
         )}
     </div>

@@ -95,6 +95,7 @@ export function applyFixedRangeVolumeProfileClick(
     toTime: time,
     selectionInterval,
     existingIds: new Set(existingInstances.map((item) => item.id)),
+    siblingInstances: existingInstances,
   })
 
   if (!instance) {

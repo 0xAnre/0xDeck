@@ -1,4 +1,11 @@
 import {
+  formatNumberedChartObjectLabel,
+  isValidDisplaySequence,
+  migrateChartObjectDisplaySequences,
+  nextDisplaySequence,
+} from './chartObjectDisplaySequence.ts'
+import { setChartObjectLocked } from './chartObjectState.ts'
+import {
   fixedTimePeriodWindowMs,
   formatRollingVwapTimePeriodLabel,
   rollingVwapAutoWindowMs,
@@ -14,6 +21,8 @@ export type RollingVwapInstance = {
   id: string
   enabled: boolean
   settings: RollingVwapSettings
+  displaySequence: number
+  locked?: boolean
 }
 
 export const ROLLING_VWAP_LEGACY_MIGRATED_INSTANCE_ID = 'rolling-vwap-legacy'
@@ -40,6 +49,8 @@ export function cloneRollingVwapInstance(instance: RollingVwapInstance): Rolling
     id: instance.id,
     enabled: instance.enabled,
     settings: sanitizeRollingVwapSettings(instance.settings),
+    displaySequence: instance.displaySequence,
+    locked: instance.locked,
   }
 }
 
@@ -48,11 +59,16 @@ export function sanitizeRollingVwapInstance(value: unknown): RollingVwapInstance
   const record = value as Record<string, unknown>
   if (!isRollingVwapInstanceId(record.id)) return null
   const id = record.id.trim()
-  return {
+  const instance: RollingVwapInstance = {
     id,
     enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
     settings: sanitizeRollingVwapSettings(record.settings),
+    displaySequence: isValidDisplaySequence(record.displaySequence) ? record.displaySequence : 0,
   }
+  if (record.locked === true) {
+    instance.locked = true
+  }
+  return instance
 }
 
 /** Keeps the first valid instance per id; drops invalid entries. */
@@ -66,7 +82,7 @@ export function sanitizeRollingVwapInstances(value: unknown): RollingVwapInstanc
     seen.add(instance.id)
     instances.push(instance)
   }
-  return instances
+  return migrateChartObjectDisplaySequences(instances)
 }
 
 export function createRollingVwapInstance(params?: {
@@ -74,6 +90,7 @@ export function createRollingVwapInstance(params?: {
   enabled?: boolean
   settings?: RollingVwapSettings
   existingIds?: ReadonlySet<string>
+  siblingInstances?: readonly RollingVwapInstance[]
   randomId?: () => string
 }): RollingVwapInstance {
   const existingIds = params?.existingIds ?? new Set<string>()
@@ -84,11 +101,31 @@ export function createRollingVwapInstance(params?: {
   if (existingIds.has(id)) {
     throw new Error(`Rolling VWAP instance id already exists: ${id}`)
   }
+  const siblings = params?.siblingInstances ?? []
   return {
     id,
     enabled: params?.enabled ?? true,
     settings: sanitizeRollingVwapSettings(params?.settings ?? createDefaultRollingVwapSettings()),
+    displaySequence: nextDisplaySequence(siblings),
   }
+}
+
+export function rollingVwapInstanceDisplayLabel(instance: RollingVwapInstance): string {
+  return formatNumberedChartObjectLabel('rolling-vwap', instance.displaySequence)
+}
+
+export function setRollingVwapInstanceLocked(
+  instance: RollingVwapInstance,
+  locked: boolean,
+): RollingVwapInstance {
+  return setChartObjectLocked(instance, locked)
+}
+
+export function assignRollingVwapDisplaySequenceOnCreate(
+  instance: RollingVwapInstance,
+  siblings: readonly RollingVwapInstance[],
+): RollingVwapInstance {
+  return { ...instance, displaySequence: nextDisplaySequence(siblings) }
 }
 
 export function findRollingVwapInstance(
@@ -117,16 +154,20 @@ export function updateRollingVwapInstance(
   patch: {
     enabled?: boolean
     settings?: RollingVwapSettings
+    locked?: boolean
   },
 ): RollingVwapInstance[] {
   let changed = false
   const next = instances.map((instance) => {
     if (instance.id !== id) return cloneRollingVwapInstance(instance)
     changed = true
+    const locked = patch.locked ?? instance.locked
     const updated = sanitizeRollingVwapInstance({
       id: instance.id,
       enabled: patch.enabled ?? instance.enabled,
       settings: patch.settings ?? instance.settings,
+      displaySequence: instance.displaySequence,
+      locked,
     })
     return updated ?? cloneRollingVwapInstance(instance)
   })

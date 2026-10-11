@@ -5,6 +5,8 @@ import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeP
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
+import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import type { CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
 
@@ -49,18 +51,32 @@ export type WidgetSettingsRegistration = {
   onRollingVwapToggle?: (instanceId: string, enabled: boolean) => void
   onRollingVwapSettingsClick?: (instanceId: string) => void
   onRollingVwapDelete?: (instanceId: string) => void
+  onRollingVwapLockToggle?: (instanceId: string, locked: boolean) => void
+  onMarketIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
   fixedRangeVolumeProfileInstances?: FixedRangeVolumeProfileInstance[]
   onFixedRangeVolumeProfileArm?: () => void
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
+  onFixedRangeVolumeProfileToggle?: (instanceId: string, enabled: boolean) => void
+  onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
+  onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
+  onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
   rectangleInstances?: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
   onRectangleLockToggle?: (instanceId: string, locked: boolean) => void
+  onRectangleVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   onRectangleFillColorChange?: (instanceId: string, fillColor: string) => void
   onRectangleFillOpacityChange?: (instanceId: string, fillOpacity: number) => void
   lineInstances?: LineInstance[]
   onLineArm?: () => void
   onLineDelete?: (instanceId: string) => void
+  onLineLockToggle?: (instanceId: string, locked: boolean) => void
+  onLineVisibilityToggle?: (instanceId: string, hidden: boolean) => void
+  onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
+  onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
+  onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
+  chartObjectSettingsTarget?: ChartObjectSettingsTarget | null
+  onChartObjectSettingsTargetChange?: (target: ChartObjectSettingsTarget | null) => void
 }
 
 export const DEFAULT_WIDGET_SETTINGS_FIELDS: WidgetSettingsFields = {
