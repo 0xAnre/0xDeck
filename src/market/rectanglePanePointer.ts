@@ -18,6 +18,7 @@ import {
 import { isRectangleInstanceLocked, type RectangleInstance } from './rectangleInstances.ts'
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
+import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import { shouldSuppressPanePointerDownForDoubleClick } from './paneDoubleClickPointerGuard.ts'
 import {
@@ -66,6 +67,7 @@ export function attachRectanglePanePointer(
   }
 
   let activePointerId: number | null = null
+  let activeDragStartPane: { paneX: number; paneY: number } | null = null
 
   const resolvePaneY = (event: PointerEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -183,6 +185,7 @@ export function attachRectanglePanePointer(
         const next = startRectangleResizeDraft(interaction, instance, hit.kind)
         if (next === interaction) return
         activePointerId = event.pointerId
+        activeDragStartPane = { paneX, paneY }
         paneElement.setPointerCapture(event.pointerId)
         syncPointerPreview(paneX, paneY)
         callbacks.onInteractionChange(next)
@@ -195,6 +198,7 @@ export function attachRectanglePanePointer(
       const next = startRectangleMoveDraft(interaction, instance, point.time, point.price)
       if (next === interaction) return
       activePointerId = event.pointerId
+      activeDragStartPane = { paneX, paneY }
       paneElement.setPointerCapture(event.pointerId)
       syncPointerPreview(paneX, paneY)
       callbacks.onInteractionChange(next)
@@ -216,6 +220,7 @@ export function attachRectanglePanePointer(
       paneElement.releasePointerCapture(event.pointerId)
     }
     activePointerId = null
+    activeDragStartPane = null
   }
 
   const onPointerUp = (event: PointerEvent) => {
@@ -245,47 +250,39 @@ export function attachRectanglePanePointer(
       return
     }
 
-    if (snapshot.interaction.phase === 'resizing') {
-      const preview = callbacks.getPointerPreview()
-      const commitTime = point?.time ?? preview.time
-      const commitPrice = point?.price ?? preview.price
-      if (commitTime !== null && commitPrice !== null) {
-        const result = commitRectangleResize(
-          snapshot.interaction,
-          snapshot.instances,
-          commitTime,
-          commitPrice,
-        )
-        callbacks.onInteractionChange(result.state)
-        if (result.updatedInstance) {
-          callbacks.onInstanceUpdated(result.updatedInstance)
-        }
-      } else {
+    if (snapshot.interaction.phase === 'resizing' || snapshot.interaction.phase === 'moving') {
+      const dragStart = activeDragStartPane
+      const wasClick =
+        dragStart !== null &&
+        pointerMovementWithinClickTolerance(dragStart.paneX, dragStart.paneY, paneX, paneY)
+      if (wasClick) {
         callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
-      }
-      callbacks.onPointerPreviewChange(null, null)
-      releasePointer(event)
-      callbacks.onRequestRender()
-      return
-    }
-
-    if (snapshot.interaction.phase === 'moving') {
-      const preview = callbacks.getPointerPreview()
-      const commitTime = point?.time ?? preview.time
-      const commitPrice = point?.price ?? preview.price
-      if (commitTime !== null && commitPrice !== null) {
-        const result = commitRectangleMove(
-          snapshot.interaction,
-          snapshot.instances,
-          commitTime,
-          commitPrice,
-        )
-        callbacks.onInteractionChange(result.state)
-        if (result.updatedInstance) {
-          callbacks.onInstanceUpdated(result.updatedInstance)
-        }
       } else {
-        callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
+        const preview = callbacks.getPointerPreview()
+        const commitTime = point?.time ?? preview.time
+        const commitPrice = point?.price ?? preview.price
+        if (commitTime !== null && commitPrice !== null) {
+          const result =
+            snapshot.interaction.phase === 'resizing'
+              ? commitRectangleResize(
+                  snapshot.interaction,
+                  snapshot.instances,
+                  commitTime,
+                  commitPrice,
+                )
+              : commitRectangleMove(
+                  snapshot.interaction,
+                  snapshot.instances,
+                  commitTime,
+                  commitPrice,
+                )
+          callbacks.onInteractionChange(result.state)
+          if (result.updatedInstance) {
+            callbacks.onInstanceUpdated(result.updatedInstance)
+          }
+        } else {
+          callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
+        }
       }
       callbacks.onPointerPreviewChange(null, null)
       releasePointer(event)

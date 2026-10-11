@@ -18,6 +18,7 @@ import { hitTestLines } from './lineHitTest.ts'
 import { isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
+import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
   buildLineChartTimeContext,
@@ -66,6 +67,7 @@ export function attachLinePanePointer(
   }
 
   let activePointerId: number | null = null
+  let activeDragStartPane: { paneX: number; paneY: number } | null = null
 
   const resolvePaneY = (event: PointerEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -183,6 +185,7 @@ export function attachLinePanePointer(
         const next = startLineResizeDraft(interaction, instance, hit.kind)
         if (next === interaction) return
         activePointerId = event.pointerId
+        activeDragStartPane = { paneX, paneY }
         paneElement.setPointerCapture(event.pointerId)
         syncPointerPreview(paneX, paneY)
         callbacks.onInteractionChange(next)
@@ -195,6 +198,7 @@ export function attachLinePanePointer(
       const next = startLineMoveDraft(interaction, instance, point.time, point.price)
       if (next === interaction) return
       activePointerId = event.pointerId
+      activeDragStartPane = { paneX, paneY }
       paneElement.setPointerCapture(event.pointerId)
       syncPointerPreview(paneX, paneY)
       callbacks.onInteractionChange(next)
@@ -216,6 +220,7 @@ export function attachLinePanePointer(
       paneElement.releasePointerCapture(event.pointerId)
     }
     activePointerId = null
+    activeDragStartPane = null
   }
 
   const onPointerUp = (event: PointerEvent) => {
@@ -245,47 +250,39 @@ export function attachLinePanePointer(
       return
     }
 
-    if (snapshot.interaction.phase === 'resizing') {
-      const preview = callbacks.getPointerPreview()
-      const commitTime = point?.time ?? preview.time
-      const commitPrice = point?.price ?? preview.price
-      if (commitTime !== null && commitPrice !== null) {
-        const result = commitLineResize(
-          snapshot.interaction,
-          snapshot.instances,
-          commitTime,
-          commitPrice,
-        )
-        callbacks.onInteractionChange(result.state)
-        if (result.updatedInstance) {
-          callbacks.onInstanceUpdated(result.updatedInstance)
-        }
-      } else {
+    if (snapshot.interaction.phase === 'resizing' || snapshot.interaction.phase === 'moving') {
+      const dragStart = activeDragStartPane
+      const wasClick =
+        dragStart !== null &&
+        pointerMovementWithinClickTolerance(dragStart.paneX, dragStart.paneY, paneX, paneY)
+      if (wasClick) {
         callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
-      }
-      callbacks.onPointerPreviewChange(null, null)
-      releasePointer(event)
-      callbacks.onRequestRender()
-      return
-    }
-
-    if (snapshot.interaction.phase === 'moving') {
-      const preview = callbacks.getPointerPreview()
-      const commitTime = point?.time ?? preview.time
-      const commitPrice = point?.price ?? preview.price
-      if (commitTime !== null && commitPrice !== null) {
-        const result = commitLineMove(
-          snapshot.interaction,
-          snapshot.instances,
-          commitTime,
-          commitPrice,
-        )
-        callbacks.onInteractionChange(result.state)
-        if (result.updatedInstance) {
-          callbacks.onInstanceUpdated(result.updatedInstance)
-        }
       } else {
-        callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
+        const preview = callbacks.getPointerPreview()
+        const commitTime = point?.time ?? preview.time
+        const commitPrice = point?.price ?? preview.price
+        if (commitTime !== null && commitPrice !== null) {
+          const result =
+            snapshot.interaction.phase === 'resizing'
+              ? commitLineResize(
+                  snapshot.interaction,
+                  snapshot.instances,
+                  commitTime,
+                  commitPrice,
+                )
+              : commitLineMove(
+                  snapshot.interaction,
+                  snapshot.instances,
+                  commitTime,
+                  commitPrice,
+                )
+          callbacks.onInteractionChange(result.state)
+          if (result.updatedInstance) {
+            callbacks.onInstanceUpdated(result.updatedInstance)
+          }
+        } else {
+          callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
+        }
       }
       callbacks.onPointerPreviewChange(null, null)
       releasePointer(event)

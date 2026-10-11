@@ -447,7 +447,6 @@ describe('rectanglePanePointer', () => {
             toTime: 200,
             lowPrice: 20,
             highPrice: 80,
-            locked: true,
           },
         ],
       }),
@@ -472,7 +471,10 @@ describe('rectanglePanePointer', () => {
       getLastBarUnixTime: () => 200,
     })
 
-    listeners.get('pointerdown')?.({
+    const pointerDown = listeners.get('pointerdown') as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup') as (event: PointerEvent) => void
+
+    pointerDown({
       button: 0,
       clientX: 150,
       clientY: 50,
@@ -480,12 +482,18 @@ describe('rectanglePanePointer', () => {
       preventDefault: () => {},
       stopPropagation: () => {},
     } as PointerEvent)
+    assert.equal(interaction.phase, 'moving')
 
-    const now = performance.now()
-    const originalNow = performance.now
-    performance.now = () => now + 100
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 8,
+    } as PointerEvent)
+    assert.equal(interaction.phase, 'inactive')
+    assert.equal(interaction.draft, null)
 
-    listeners.get('pointerdown')?.({
+    pointerDown({
       button: 0,
       clientX: 150,
       clientY: 50,
@@ -493,8 +501,6 @@ describe('rectanglePanePointer', () => {
       preventDefault: () => {},
       stopPropagation: () => {},
     } as PointerEvent)
-
-    performance.now = originalNow
 
     assert.equal(interaction.phase, 'inactive')
     assert.equal(interaction.draft, null)
