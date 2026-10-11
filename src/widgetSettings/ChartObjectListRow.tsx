@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { EyeIcon, EyeOffIcon, LockIcon, LockOpenIcon, SettingsIcon, Trash2Icon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { DropdownMenuItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 type ChartObjectListRowProps = {
@@ -15,6 +15,9 @@ type ChartObjectListRowProps = {
   onDelete?: () => void
   className?: string
 }
+
+const ROW_ACTION_ITEM_CLASS =
+  'size-6 min-h-6 shrink-0 justify-center gap-0 px-0 py-0 focus:bg-accent'
 
 export function ChartObjectListRow({
   icon: Icon,
@@ -31,81 +34,65 @@ export function ChartObjectListRow({
   return (
     <div
       className={cn(
-        'flex min-w-0 items-center gap-1 py-0.5 pl-1 pr-0.5',
+        'flex min-w-0 items-center gap-0.5 py-0.5 pl-0.5 pr-0',
         hidden && 'opacity-60',
         className,
       )}
     >
-      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
+      <DropdownMenuLabel className="flex min-w-0 flex-1 items-center gap-1 py-0 pl-1 pr-0 font-normal">
+        <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0 truncate text-xs text-foreground">{label}</span>
+      </DropdownMenuLabel>
       {onToggleHidden && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={hidden ? 'Show object' : 'Hide object'}
+        <DropdownMenuItem
           disabled={disabled}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
+          className={ROW_ACTION_ITEM_CLASS}
+          aria-label={hidden ? 'Show object' : 'Hide object'}
+          onSelect={(event) => {
             event.preventDefault()
-            event.stopPropagation()
             onToggleHidden()
           }}
         >
-          {hidden ? <EyeOffIcon data-icon="inline-start" /> : <EyeIcon data-icon="inline-start" />}
-        </Button>
+          {hidden ? <EyeOffIcon /> : <EyeIcon />}
+        </DropdownMenuItem>
       )}
       {onToggleLocked && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={locked ? 'Unlock object' : 'Lock object'}
+        <DropdownMenuItem
           disabled={disabled}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
+          className={ROW_ACTION_ITEM_CLASS}
+          aria-label={locked ? 'Unlock object' : 'Lock object'}
+          onSelect={(event) => {
             event.preventDefault()
-            event.stopPropagation()
             onToggleLocked()
           }}
         >
-          {locked ? <LockIcon data-icon="inline-start" /> : <LockOpenIcon data-icon="inline-start" />}
-        </Button>
+          {locked ? <LockIcon /> : <LockOpenIcon />}
+        </DropdownMenuItem>
       )}
       {onSettings && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`${label} settings`}
+        <DropdownMenuItem
           disabled={disabled}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
+          className={ROW_ACTION_ITEM_CLASS}
+          aria-label={`${label} settings`}
+          onSelect={() => {
             onSettings()
           }}
         >
-          <SettingsIcon data-icon="inline-start" />
-        </Button>
+          <SettingsIcon />
+        </DropdownMenuItem>
       )}
       {onDelete && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="hover:text-destructive"
-          aria-label={`Delete ${label}`}
+        <DropdownMenuItem
           disabled={disabled}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
+          variant="destructive"
+          className={cn(ROW_ACTION_ITEM_CLASS, 'hover:text-destructive')}
+          aria-label={`Delete ${label}`}
+          onSelect={() => {
             onDelete()
           }}
         >
-          <Trash2Icon data-icon="inline-start" />
-        </Button>
+          <Trash2Icon />
+        </DropdownMenuItem>
       )}
     </div>
   )
