@@ -78,6 +78,7 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
   startClientY: number,
   clientX: number,
   clientY: number,
+  now: number = performance.now(),
 ): void {
   if (
     !isWithinDoubleClickDistance(
@@ -87,7 +88,7 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
     )
   ) {
     pendingClickByPane.delete(paneElement)
-    setDragTaintForSettingsSuppression(paneElement, performance.now())
+    setDragTaintForSettingsSuppression(paneElement, now)
   }
 }
 

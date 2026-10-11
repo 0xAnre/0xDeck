@@ -73,7 +73,7 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
   it('does not suppress settings double-click after the double-click interval', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
-    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20, 0)
     assert.equal(
       shouldSuppressChartObjectSettingsDoubleClick(pane, DOUBLE_CLICK_INTERVAL_MS + 1),
       false,
