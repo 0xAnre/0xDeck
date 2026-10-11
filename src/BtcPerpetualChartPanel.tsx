@@ -208,7 +208,11 @@ function readThemeColors() {
       resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
     ),
     ema100: resolveThemeCssColor(style.getPropertyValue(EMA_100_COLOR_VAR), '#a3a3a3'),
+<<<<<<< HEAD
     ema200: resolveCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#dedede'),
+=======
+    ema200: resolveThemeCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#dedede'),
+>>>>>>> 9d376ce (fix(btc-perp): resolve dual-EMA theme colors with resolveThemeCssColor)
   }
 }
 
