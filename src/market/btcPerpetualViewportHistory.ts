@@ -1,12 +1,13 @@
 import type { IChartApi } from 'lightweight-charts'
+import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import {
   loadOlderBtcPerpHistory,
   type FetchBtcPerpHistory,
   type InfiniteHistoryState,
-} from '@/market/btcPerpetualInfiniteHistory'
-import type { ChartSeriesBundle } from '@/market/applyChartLiveCandle'
-import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
-import type { CandleInterval, MarketCandle } from '@/market/types'
+} from './btcPerpetualInfiniteHistory.ts'
+import { visibleTimeRangeNeedsHistoryLoad } from './marketChartViewport.ts'
+import type { RollingVwapInstance } from './rollingVwapInstances.ts'
+import type { CandleInterval, MarketCandle } from './types.ts'
 
 const MAX_OLDER_HISTORY_PAGES_FOR_VIEWPORT = 40
 
@@ -15,7 +16,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
     state: InfiniteHistoryState
     generation: number
     interval: CandleInterval
-    targetFrom: number
+    visibleTimeRange: { from: number; to: number }
     candlesRef: { current: MarketCandle[] }
     bundle: ChartSeriesBundle
     chart: IChartApi
@@ -28,7 +29,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
     state,
     generation,
     interval,
-    targetFrom,
+    visibleTimeRange,
     candlesRef,
     bundle,
     chart,
@@ -43,7 +44,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
 
     const candles = candlesRef.current
     if (candles.length === 0) return
-    if (targetFrom >= candles[0].time) return
+    if (!visibleTimeRangeNeedsHistoryLoad(visibleTimeRange, candles)) return
 
     const candleCountBefore = candles.length
     const oldestTimeBefore = candles[0].time

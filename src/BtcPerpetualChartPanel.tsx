@@ -1367,7 +1367,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 state: infiniteHistoryRef.current,
                 generation: loadGenerationRef.current,
                 interval: currentInterval,
-                targetFrom: saved.visibleTimeRange.from,
+                visibleTimeRange: saved.visibleTimeRange,
                 candlesRef,
                 bundle: bundleForHistory,
                 chart,

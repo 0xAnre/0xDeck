@@ -106,8 +106,7 @@ export function captureMarketChartViewport(chart: IChartApi): PersistedMarketCha
   }
   if (!isValidScaleMargins(scaleMargins)) return null
 
-  const timeScaleOptions = chart.timeScale().options()
-  const rightOffset = timeScaleOptions.rightOffset
+  const rightOffset = chart.timeScale().scrollPosition()
 
   let priceRange: { from: number; to: number } | null = null
   if (!autoScale) {
@@ -146,6 +145,25 @@ export function visibleTimeRangeNeedsOlderHistory(
 ): boolean {
   if (candles.length === 0) return false
   return range.from < candles[0].time
+}
+
+export function visibleTimeRangeIsEntirelyAfterLoaded(
+  range: { from: number; to: number },
+  candles: readonly MarketCandle[],
+): boolean {
+  if (candles.length === 0) return false
+  return range.from > candles[candles.length - 1].time
+}
+
+export function visibleTimeRangeNeedsHistoryLoad(
+  range: { from: number; to: number },
+  candles: readonly MarketCandle[],
+): boolean {
+  if (candles.length === 0) return false
+  if (!visibleTimeRangeOverlapsLoadedCandles(range, candles)) {
+    return range.to < candles[0].time
+  }
+  return visibleTimeRangeNeedsOlderHistory(range, candles)
 }
 
 function applyViewportPresentationOptions(
@@ -192,23 +210,17 @@ export function restoreMarketChartViewport(
   const parsed = parsePersistedMarketChartViewport(viewport)
   if (!parsed) return 'invalid'
   if (candles.length === 0) return 'invalid'
-  if (parsed.visibleTimeRange.from > candles[candles.length - 1].time) {
-    return 'invalid'
-  }
-
-  if (visibleTimeRangeNeedsOlderHistory(parsed.visibleTimeRange, candles)) {
-    applyViewportPresentationOptions(chart, parsed)
-    return 'needs_history'
-  }
-
-  if (!visibleTimeRangeOverlapsLoadedCandles(parsed.visibleTimeRange, candles)) {
+  if (visibleTimeRangeIsEntirelyAfterLoaded(parsed.visibleTimeRange, candles)) {
     return 'invalid'
   }
 
   applyViewportPresentationOptions(chart, parsed)
 
-  chart.timeScale().applyOptions({ rightOffset: parsed.rightOffset })
-  chart.timeScale().setVisibleRange(parsed.visibleTimeRange as IRangeTime)
+  if (visibleTimeRangeNeedsHistoryLoad(parsed.visibleTimeRange, candles)) {
+    return 'needs_history'
+  }
+
+  applySavedVisibleTimeRange(chart, parsed.visibleTimeRange, parsed.rightOffset)
   return 'restored'
 }
 
@@ -217,10 +229,10 @@ type IRangeTime = { from: Time; to: Time }
 export function applySavedVisibleTimeRange(
   chart: IChartApi,
   visibleTimeRange: { from: number; to: number },
-  rightOffset: number,
+  scrollPosition: number,
 ): void {
-  chart.timeScale().applyOptions({ rightOffset })
   chart.timeScale().setVisibleRange(visibleTimeRange as IRangeTime)
+  chart.timeScale().scrollToPosition(scrollPosition, false)
 }
 
 export { MARKET_CHART_INITIAL_VISIBLE_BARS }

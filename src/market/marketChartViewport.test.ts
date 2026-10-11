@@ -7,6 +7,7 @@ import {
   applyDefaultMarketChartPresentation,
   parsePersistedMarketChartViewport,
   restoreMarketChartViewport,
+  visibleTimeRangeNeedsHistoryLoad,
   visibleTimeRangeNeedsOlderHistory,
   visibleTimeRangeOverlapsLoadedCandles,
 } from './marketChartViewport.ts'
@@ -20,6 +21,7 @@ function makeChartStub(barDurationSeconds = 60) {
   let scaleMargins = { top: 0.2, bottom: 0.1 }
   let priceVisible: { from: number; to: number } | null = null
 
+  let scrollPosition = 0
   const chart = {
     timeScale: () => ({
       applyOptions: (options: { rightOffset?: number }) => {
@@ -34,6 +36,10 @@ function makeChartStub(barDurationSeconds = 60) {
         }
       },
       options: () => ({ rightOffset }),
+      scrollPosition: () => scrollPosition,
+      scrollToPosition: (position: number) => {
+        scrollPosition = position
+      },
       setVisibleLogicalRange: (range: { from: number; to: number }) => {
         logicalRange = range
       },
@@ -66,10 +72,14 @@ function makeChartStub(barDurationSeconds = 60) {
       logicalRange,
       visibleTimeRange,
       rightOffset,
+      scrollPosition,
       autoScale,
       scaleMargins,
       priceVisible,
     }),
+    setScrollPosition: (position: number) => {
+      scrollPosition = position
+    },
   }
 }
 
@@ -158,7 +168,7 @@ describe('restoreMarketChartViewport', () => {
     assert.deepEqual(state.visibleTimeRange, saved.visibleTimeRange)
     assert.equal(state.autoScale, false)
     assert.deepEqual(state.priceVisible, saved.priceRange)
-    assert.equal(state.rightOffset, 4)
+    assert.equal(state.scrollPosition, 4)
   })
 
   it('requests older history when the saved window starts before loaded candles', () => {
@@ -191,7 +201,7 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(getState().visibleTimeRange, null)
   })
 
-  it('falls back when the saved window does not overlap loaded candles', () => {
+  it('falls back when the saved window is entirely after loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
@@ -205,21 +215,7 @@ describe('restoreMarketChartViewport', () => {
     assert.equal(getState().visibleTimeRange, null)
   })
 
-  it('requests older history when the saved window is entirely before loaded candles', () => {
-    const { chart, getState } = makeChartStub()
-    const saved = {
-      version: 1 as const,
-      visibleTimeRange: { from: 1_699_998_000, to: 1_699_999_500 },
-      autoScale: true,
-      priceRange: null,
-      scaleMargins: { top: 0.1, bottom: 0.1 },
-      rightOffset: 8,
-    }
-    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'needs_history')
-    assert.equal(getState().visibleTimeRange, null)
-  })
-
-  it('applies right offset before visible range so timestamps are not shifted', () => {
+  it('restores visible timestamps then live scroll position', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
       version: 1 as const,
@@ -231,7 +227,7 @@ describe('restoreMarketChartViewport', () => {
     }
     assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
     assert.deepEqual(getState().visibleTimeRange, saved.visibleTimeRange)
-    assert.equal(getState().rightOffset, 8)
+    assert.equal(getState().scrollPosition, 8)
   })
 })
 
@@ -251,5 +247,9 @@ describe('visibleTimeRange helpers', () => {
       visibleTimeRangeOverlapsLoadedCandles({ from: 400, to: 500 }, candles),
       false,
     )
+    assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 50, to: 150 }, candles), true)
+    assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 10, to: 90 }, candles), true)
+    assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 150, to: 250 }, candles), false)
+    assert.equal(visibleTimeRangeNeedsHistoryLoad({ from: 400, to: 500 }, candles), false)
   })
 })
