@@ -129,10 +129,10 @@ function hitTestRollingVwapInstances(
     if (!instance.enabled) continue
     const chartBundle = ctx.bundle.rollingVwaps.get(instance.id)
     if (!chartBundle) continue
-    if (
-      hitTestLineSeriesAtPane(ctx.chart, chartBundle.center, ctx.paneX, ctx.paneY)
-    ) {
-      return { kind: 'rolling-vwap', instanceId: instance.id }
+    for (const series of chartBundle.ordered) {
+      if (hitTestLineSeriesAtPane(ctx.chart, series, ctx.paneX, ctx.paneY)) {
+        return { kind: 'rolling-vwap', instanceId: instance.id }
+      }
     }
   }
   return null

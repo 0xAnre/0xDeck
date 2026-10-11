@@ -43,7 +43,18 @@ export function hitTestLineSeriesAtPane(
   const timeScale = chart.timeScale()
   const radiusSq = hitRadiusPx * hitRadiusPx
 
-  for (let index = 0; index < data.length - 1; index += 1) {
+  const segmentCount = data.length - 1
+  if (segmentCount <= 0) return false
+
+  const visibleLogicalRange = timeScale.getVisibleLogicalRange()
+  let startIndex = 0
+  let endIndex = segmentCount - 1
+  if (visibleLogicalRange) {
+    startIndex = Math.max(0, Math.floor(visibleLogicalRange.from) - 1)
+    endIndex = Math.min(segmentCount - 1, Math.ceil(visibleLogicalRange.to) + 1)
+  }
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
     const a = data[index]
     const b = data[index + 1]
     if (!('value' in a) || !('value' in b)) continue
