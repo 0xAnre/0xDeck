@@ -29,6 +29,30 @@ function hitBodySegment(
   return distanceSq(paneX, paneY, projX, projY) <= radiusSq
 }
 
+/** Segment indices (inclusive) to scan for hits; includes one segment outside each visible edge. */
+export function resolveVisibleLineSegmentIndexBounds(
+  chart: IChartApi,
+  dataLength: number,
+): { startIndex: number; endIndex: number } {
+  const maxSegmentIndex = dataLength - 2
+  if (maxSegmentIndex < 0) {
+    return { startIndex: 0, endIndex: -1 }
+  }
+
+  const logicalRange = chart.timeScale().getVisibleLogicalRange()
+  if (!logicalRange) {
+    return { startIndex: 0, endIndex: maxSegmentIndex }
+  }
+
+  const startIndex = Math.max(0, Math.floor(logicalRange.from) - 1)
+  const endIndex = Math.min(maxSegmentIndex, Math.ceil(logicalRange.to) + 1)
+  if (startIndex > endIndex) {
+    return { startIndex: 0, endIndex: -1 }
+  }
+
+  return { startIndex, endIndex }
+}
+
 export function hitTestLineSeriesAtPane(
   chart: IChartApi,
   series: ISeriesApi<'Line', Time>,
@@ -42,17 +66,8 @@ export function hitTestLineSeriesAtPane(
 
   const timeScale = chart.timeScale()
   const radiusSq = hitRadiusPx * hitRadiusPx
-
-  const segmentCount = data.length - 1
-  if (segmentCount <= 0) return false
-
-  const visibleLogicalRange = timeScale.getVisibleLogicalRange()
-  let startIndex = 0
-  let endIndex = segmentCount - 1
-  if (visibleLogicalRange) {
-    startIndex = Math.max(0, Math.floor(visibleLogicalRange.from) - 1)
-    endIndex = Math.min(segmentCount - 1, Math.ceil(visibleLogicalRange.to) + 1)
-  }
+  const { startIndex, endIndex } = resolveVisibleLineSegmentIndexBounds(chart, data.length)
+  if (endIndex < startIndex) return false
 
   for (let index = startIndex; index <= endIndex; index += 1) {
     const a = data[index]
