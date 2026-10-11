@@ -32,3 +32,19 @@ export function shouldSuppressPanePointerDownForDoubleClick(
   lastPointerDownByPane.set(paneElement, { time: now, clientX, clientY })
   return false
 }
+
+export function clearPaneDoubleClickPointerRecord(paneElement: HTMLElement): void {
+  lastPointerDownByPane.delete(paneElement)
+}
+
+export function pointerClientMovementExceedsDoubleClickPairTolerance(
+  startClientX: number,
+  startClientY: number,
+  clientX: number,
+  clientY: number,
+): boolean {
+  return (
+    Math.hypot(clientX - startClientX, clientY - startClientY) >
+    DOUBLE_CLICK_MAX_POINTER_MOVE_PX
+  )
+}

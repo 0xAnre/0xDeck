@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { shouldSuppressPanePointerDownForDoubleClick } from './paneDoubleClickPointerGuard.ts'
+import {
+  clearPaneDoubleClickPointerRecord,
+  pointerClientMovementExceedsDoubleClickPairTolerance,
+  shouldSuppressPanePointerDownForDoubleClick,
+} from './paneDoubleClickPointerGuard.ts'
 
 const DOUBLE_CLICK_INTERVAL_MS = 500
 
@@ -28,5 +32,18 @@ describe('shouldSuppressPanePointerDownForDoubleClick', () => {
       shouldSuppressPanePointerDownForDoubleClick(pane, 100, 100, 50),
       false,
     )
+  })
+
+  it('does not suppress the next press after the pending record is cleared', () => {
+    const pane = {} as HTMLElement
+    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 10, 20, 0), false)
+    clearPaneDoubleClickPointerRecord(pane)
+    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 100), false)
+    assert.equal(shouldSuppressPanePointerDownForDoubleClick(pane, 12, 22, 150), true)
+  })
+
+  it('detects client movement beyond the double-click pair tolerance', () => {
+    assert.equal(pointerClientMovementExceedsDoubleClickPairTolerance(0, 0, 10, 0), false)
+    assert.equal(pointerClientMovementExceedsDoubleClickPairTolerance(0, 0, 11, 0), true)
   })
 })
