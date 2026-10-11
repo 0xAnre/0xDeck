@@ -275,6 +275,22 @@ describe('restoreMarketChartViewport', () => {
     assert.deepEqual(getState().logicalRange, { from: 0, to: 10 })
   })
 
+  it('preserves fractional logical boundaries on restore', () => {
+    const times = candles.map((c) => c.time)
+    const { chart, getState } = makeChartStub(times)
+    const saved = {
+      version: 1 as const,
+      visibleLogicalRange: { from: 0.65, to: 2.65 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
+      autoScale: true,
+      priceRange: null,
+      scaleMargins: { top: 0.1, bottom: 0.1 },
+      rightOffset: 0,
+    }
+    assert.equal(restoreMarketChartViewport(chart as never, saved, candles), 'restored')
+    assert.deepEqual(getState().logicalRange, saved.visibleLogicalRange)
+  })
+
   it('rebases saved logical range onto current candle indices after history grows', () => {
     const shifted = sampleCandles([
       1_699_990_000,
