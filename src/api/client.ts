@@ -12,7 +12,9 @@ import type {
 import type { BinanceKlinesResponse, CandleInterval } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
 
-const DEFAULT_BINANCE_KLINES_LIMIT = 500
+import { MARKET_CHART_MIN_INITIAL_HISTORY_BARS } from '../market/chartInitialVisibleRange.ts'
+
+const DEFAULT_BINANCE_KLINES_LIMIT = MARKET_CHART_MIN_INITIAL_HISTORY_BARS
 
 const API_BASE = '/api'
 

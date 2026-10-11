@@ -200,6 +200,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |
 | `0xdeck-widget-rectangle-instances` | Rectangle/box drawing instances (BTC Perp) |
 | `0xdeck-widget-line-instances` | Line drawing instances (BTC Perp) |
+| `0xdeck-widget-market-chart-viewports` | Per-instance BTC Perp chart viewport by candle interval |
 
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
 
