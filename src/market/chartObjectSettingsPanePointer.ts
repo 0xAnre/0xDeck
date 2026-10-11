@@ -5,6 +5,7 @@ import {
   hitTestChartObjectSettingsTarget,
   type ChartObjectSettingsHitTestContext,
 } from './chartObjectSettingsHitTest.ts'
+import { shouldSuppressChartObjectSettingsDoubleClick } from './paneDoubleClickPointerGuard.ts'
 
 export type ChartObjectSettingsPanePointerCallbacks = {
   getHitTestContext: (paneX: number, paneY: number) => ChartObjectSettingsHitTestContext | null
@@ -32,6 +33,9 @@ export function attachChartObjectSettingsPanePointer(
 
   const onDoubleClick = (event: MouseEvent) => {
     if (event.button !== 0) return
+    if (shouldSuppressChartObjectSettingsDoubleClick(paneElement)) {
+      return
+    }
     const paneX = resolvePaneRelativePointerX(event, paneElement)
     const paneY = resolvePaneY(event)
     const ctx = callbacks.getHitTestContext(paneX, paneY)

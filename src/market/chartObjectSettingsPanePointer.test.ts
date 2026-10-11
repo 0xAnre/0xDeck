@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { attachChartObjectSettingsPanePointer } from './chartObjectSettingsPanePointer.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
+import { markPaneDoubleClickSequenceDragTainted } from './paneDoubleClickPointerGuard.ts'
 
 function createPaneHarness() {
   const listeners = new Map<string, EventListener>()
@@ -146,6 +147,68 @@ describe('chartObjectSettingsPanePointer', () => {
     assert.deepEqual(activated, { kind: 'rectangle', instanceId: 'rect-1' })
     assert.equal(prevented, true)
     assert.equal(stopped, true)
+  })
+
+  it('does not activate settings on double-click after a drag-tainted sequence', () => {
+    const { listeners, chart } = createPaneHarness()
+    const paneElement = chart.panes()[0].getHTMLElement()!
+    let activated = false
+
+    attachChartObjectSettingsPanePointer(chart as never, {
+      getHitTestContext: (paneX, paneY) => ({
+        chart: chart as never,
+        series: {
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        } as never,
+        paneX,
+        paneY,
+        interval: '1h',
+        intervalDurationSeconds: 3600,
+        lastBarUnixTime: 200,
+        activeIndicators: [],
+        loadedVwapLevel: null,
+        loadedVwapInterval: null,
+        bundle: {} as never,
+        rectangleInteraction: { phase: 'inactive', selectedId: null, draft: null },
+        lineInteraction: { phase: 'inactive', selectedId: null, draft: null },
+        fixedRangeVolumeProfileInteraction: {
+          phase: 'inactive',
+          selectedId: null,
+          draft: null,
+        },
+        rectangleInstances: [
+          {
+            id: 'rect-1',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+            locked: true,
+          },
+        ],
+        lineInstances: [],
+        fixedRangeVolumeProfileInstances: [],
+        fixedRangeVolumeProfileRuntime: {},
+        rollingVwapInstances: [],
+      }),
+      onActivate: () => {
+        activated = true
+      },
+    })
+
+    markPaneDoubleClickSequenceDragTainted(paneElement)
+
+    listeners.get('dblclick')?.({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as MouseEvent)
+
+    assert.equal(activated, false)
   })
 
   it('does nothing on double-click when hit test misses', () => {

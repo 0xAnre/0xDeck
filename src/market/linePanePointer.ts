@@ -31,6 +31,7 @@ import {
   commitPanePointerClickForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
+  markPaneDoubleClickSequenceDragTainted,
 } from './paneDoubleClickPointerGuard.ts'
 
 export type LinePanePointerCallbacks = {
@@ -272,6 +273,7 @@ export function attachLinePanePointer(
       ) {
         const pending = pendingDeferredLineDrag
         pendingDeferredLineDrag = null
+        markPaneDoubleClickSequenceDragTainted(paneElement)
         startDragFromLineHit(
           pending.hit,
           pending.instance,
@@ -328,6 +330,7 @@ export function attachLinePanePointer(
         commitPanePointerClickForDoubleClick(paneElement)
       } else {
         cancelPanePointerClickForDoubleClick(paneElement)
+        markPaneDoubleClickSequenceDragTainted(paneElement)
       }
       activePointerDownClient = null
       return
@@ -367,6 +370,7 @@ export function attachLinePanePointer(
         callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
       } else {
         cancelPanePointerClickForDoubleClick(paneElement)
+        markPaneDoubleClickSequenceDragTainted(paneElement)
         const preview = callbacks.getPointerPreview()
         const commitTime = point?.time ?? preview.time
         const commitPrice = point?.price ?? preview.price

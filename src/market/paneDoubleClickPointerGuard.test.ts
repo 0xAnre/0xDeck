@@ -6,6 +6,8 @@ import {
   commitPanePointerClickForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
+  markPaneDoubleClickSequenceDragTainted,
+  shouldSuppressChartObjectSettingsDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 
 const DOUBLE_CLICK_INTERVAL_MS = 500
@@ -49,5 +51,21 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     cancelPanePointerClickForDoubleClick(pane)
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), false)
+  })
+})
+
+describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
+  it('suppresses once after a drag-tainted sequence', () => {
+    const pane = {} as HTMLElement
+    markPaneDoubleClickSequenceDragTainted(pane)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane), true)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane), false)
+  })
+
+  it('marks tainted when drag invalidates pending click tracking', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane), true)
   })
 })
