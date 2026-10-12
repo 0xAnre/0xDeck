@@ -36,7 +36,13 @@ export function attachChartObjectSettingsPanePointer(
 
   const onDoubleClick = (event: MouseEvent) => {
     if (event.button !== 0) return
-    if (shouldSuppressChartObjectSettingsDoubleClick(paneElement)) {
+    if (
+      shouldSuppressChartObjectSettingsDoubleClick(
+        paneElement,
+        event.clientX,
+        event.clientY,
+      )
+    ) {
       return
     }
     const paneX = resolvePaneRelativePointerX(event, paneElement)

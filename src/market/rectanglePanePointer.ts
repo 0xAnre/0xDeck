@@ -276,7 +276,11 @@ export function attachRectanglePanePointer(
       ) {
         const pending = pendingDeferredRectangleDrag
         pendingDeferredRectangleDrag = null
-        markPanePointerDragCommittedForSettingsSuppression(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(
+          paneElement,
+          pending.startClientX,
+          pending.startClientY,
+        )
         startDragFromRectangleHit(
           pending.hit,
           pending.instance,
@@ -332,7 +336,11 @@ export function attachRectanglePanePointer(
       ) {
         commitPanePointerClickForDoubleClick(paneElement)
       } else {
-        markPanePointerDragCommittedForSettingsSuppression(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(
+          paneElement,
+          activePointerDownClient.clientX,
+          activePointerDownClient.clientY,
+        )
       }
       activePointerDownClient = null
       return
@@ -371,7 +379,15 @@ export function attachRectanglePanePointer(
         commitPanePointerClickForDoubleClick(paneElement)
         callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
       } else {
-        markPanePointerDragCommittedForSettingsSuppression(paneElement)
+        const dragTaintClient = activePointerDownClient ?? {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        }
+        markPanePointerDragCommittedForSettingsSuppression(
+          paneElement,
+          dragTaintClient.clientX,
+          dragTaintClient.clientY,
+        )
         const preview = callbacks.getPointerPreview()
         const commitTime = point?.time ?? preview.time
         const commitPrice = point?.price ?? preview.price

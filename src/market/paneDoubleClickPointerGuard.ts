@@ -12,13 +12,15 @@ type PointerClickRecord = {
 const lastCompletedClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const pendingClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const awaitingSecondPressForDoubleClickByPane = new WeakMap<HTMLElement, boolean>()
-const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, number>()
+const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 
 function setDragTaintForSettingsSuppression(
   paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
   now: number,
 ): void {
-  dragTaintedDoubleClickByPane.set(paneElement, now)
+  dragTaintedDoubleClickByPane.set(paneElement, { time: now, clientX, clientY })
 }
 
 export function clearAwaitingSecondPressForDoubleClick(paneElement: HTMLElement): void {
@@ -91,19 +93,21 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
     )
   ) {
     pendingClickByPane.delete(paneElement)
-    setDragTaintForSettingsSuppression(paneElement, now)
+    setDragTaintForSettingsSuppression(paneElement, startClientX, startClientY, now)
   }
 }
 
 /** Clear sequence state after a committed drag so later presses are not misclassified. */
 export function markPanePointerDragCommittedForSettingsSuppression(
   paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
   now: number = performance.now(),
 ): void {
   pendingClickByPane.delete(paneElement)
   lastCompletedClickByPane.delete(paneElement)
   awaitingSecondPressForDoubleClickByPane.delete(paneElement)
-  setDragTaintForSettingsSuppression(paneElement, now)
+  setDragTaintForSettingsSuppression(paneElement, clientX, clientY, now)
 }
 
 export function completePaneDoubleClickSequenceForSettings(paneElement: HTMLElement): void {
@@ -118,21 +122,32 @@ export function completePaneDoubleClickSequenceForSettings(paneElement: HTMLElem
  */
 export function markPaneDoubleClickSequenceDragTainted(
   paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
   now: number = performance.now(),
 ): void {
-  setDragTaintForSettingsSuppression(paneElement, now)
+  setDragTaintForSettingsSuppression(paneElement, clientX, clientY, now)
 }
 
 export function shouldSuppressChartObjectSettingsDoubleClick(
   paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
   now: number = performance.now(),
 ): boolean {
-  const taintedAt = dragTaintedDoubleClickByPane.get(paneElement)
-  if (taintedAt === undefined) {
+  const tainted = dragTaintedDoubleClickByPane.get(paneElement)
+  if (tainted === undefined) {
+    return false
+  }
+  if (now - tainted.time > DOUBLE_CLICK_INTERVAL_MS) {
+    dragTaintedDoubleClickByPane.delete(paneElement)
+    return false
+  }
+  if (!isWithinDoubleClickDistance(tainted, clientX, clientY)) {
     return false
   }
   dragTaintedDoubleClickByPane.delete(paneElement)
-  return now - taintedAt <= DOUBLE_CLICK_INTERVAL_MS
+  return true
 }
 
 export function commitPanePointerClickForDoubleClick(paneElement: HTMLElement): void {
