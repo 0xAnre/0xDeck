@@ -21,6 +21,11 @@ const pendingClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const awaitingSecondPressForDoubleClickByPane = new WeakMap<HTMLElement, boolean>()
 const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const observedDoubleClickIntervalMsByPane = new WeakMap<HTMLElement, number>()
+/**
+ * Native double-click sequence boundary (learned gap + slack, not raised to the conservative
+ * pointer fallback). Used to end drag-taint suppression when a new native click sequence starts.
+ */
+const nativeClickSequenceBoundaryMsByPane = new WeakMap<HTMLElement, number>()
 /** Set from the pane `click` event (`detail === 1`) so pointer logic can follow the native sequence. */
 const nativePrimaryClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 /** First native click of the current sequence; kept until interval is learned from `detail >= 2`. */
@@ -42,16 +47,16 @@ function getEffectiveDoubleClickIntervalMs(paneElement: HTMLElement): number {
   )
 }
 
-/** Max gap from a drag release to a `dblclick` that can belong to the same native click sequence. */
-function getDragTaintNativeSequenceIntervalMs(paneElement: HTMLElement): number {
-  const observed = observedDoubleClickIntervalMsByPane.get(paneElement)
-  if (observed === undefined) {
-    return MIN_DOUBLE_CLICK_INTERVAL_MS
+/** Max gap from a drag release to a `dblclick` in the same native click sequence. */
+function getNativeClickSequenceBoundaryMs(paneElement: HTMLElement): number {
+  const boundary = nativeClickSequenceBoundaryMsByPane.get(paneElement)
+  if (boundary !== undefined) {
+    return Math.max(boundary, MIN_DOUBLE_CLICK_INTERVAL_MS)
   }
-  return Math.max(observed, MIN_DOUBLE_CLICK_INTERVAL_MS)
+  return MIN_DOUBLE_CLICK_INTERVAL_MS
 }
 
-function clearDragTaintOutsideNativeClickSequence(
+function clearDragTaintPastNativeClickSequenceBoundary(
   paneElement: HTMLElement,
   now: number,
 ): void {
@@ -59,7 +64,7 @@ function clearDragTaintOutsideNativeClickSequence(
   if (tainted === undefined) {
     return
   }
-  if (now - tainted.time > getDragTaintNativeSequenceIntervalMs(paneElement)) {
+  if (now - tainted.time > getNativeClickSequenceBoundaryMs(paneElement)) {
     dragTaintedDoubleClickByPane.delete(paneElement)
   }
 }
@@ -90,6 +95,11 @@ function noteNativeDoubleClickInterval(
   observedDoubleClickIntervalMsByPane.set(
     paneElement,
     Math.max(conservativeBaseline, nextInterval),
+  )
+  const previousBoundary = nativeClickSequenceBoundaryMsByPane.get(paneElement) ?? 0
+  nativeClickSequenceBoundaryMsByPane.set(
+    paneElement,
+    Math.max(previousBoundary, nextInterval, MIN_DOUBLE_CLICK_INTERVAL_MS),
   )
   nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
 }
@@ -138,10 +148,12 @@ export function notePaneNativePrimaryClick(
   clientY: number,
   now: number = performance.now(),
 ): void {
+  clearDragTaintPastNativeClickSequenceBoundary(paneElement, now)
   const intervalMs = getEffectiveDoubleClickIntervalMs(paneElement)
   const priorNative = nativePrimaryClickByPane.get(paneElement)
   if (priorNative !== undefined) {
     if (now - priorNative.time > intervalMs) {
+      dragTaintedDoubleClickByPane.delete(paneElement)
       clearNativePrimaryClick(paneElement)
       nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
       lastCompletedClickByPane.delete(paneElement)
@@ -156,7 +168,6 @@ export function notePaneNativePrimaryClick(
   if (staleLast !== undefined && now - staleLast.time > intervalMs) {
     lastCompletedClickByPane.delete(paneElement)
   }
-  clearDragTaintOutsideNativeClickSequence(paneElement, now)
   const record = { time: now, clientX, clientY }
   nativePrimaryClickByPane.set(paneElement, record)
   nativeDoubleClickIntervalAnchorByPane.set(paneElement, record)
@@ -322,11 +333,12 @@ export function shouldSuppressChartObjectSettingsDoubleClick(
   if (tainted === undefined) {
     return false
   }
-  if (now - tainted.time > getDragTaintNativeSequenceIntervalMs(paneElement)) {
-    dragTaintedDoubleClickByPane.delete(paneElement)
+  clearDragTaintPastNativeClickSequenceBoundary(paneElement, now)
+  const taintedAfterBoundary = dragTaintedDoubleClickByPane.get(paneElement)
+  if (taintedAfterBoundary === undefined) {
     return false
   }
-  if (!isWithinDoubleClickDistance(tainted, clientX, clientY)) {
+  if (!isWithinDoubleClickDistance(taintedAfterBoundary, clientX, clientY)) {
     return false
   }
   dragTaintedDoubleClickByPane.delete(paneElement)
@@ -349,7 +361,7 @@ function clickCommitCouldBelongToTaintedDragSequence(
   if (tainted === undefined) {
     return false
   }
-  if (now - tainted.time > getDragTaintNativeSequenceIntervalMs(paneElement)) {
+  if (now - tainted.time > getNativeClickSequenceBoundaryMs(paneElement)) {
     return false
   }
   return isWithinDoubleClickDistance(tainted, clientX, clientY)

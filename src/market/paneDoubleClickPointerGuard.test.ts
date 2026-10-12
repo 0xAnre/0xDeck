@@ -243,6 +243,31 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     commitPanePointerClickForDoubleClick(pane, { clientX: 30, clientY: 20, time: 600 })
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20, 650), false)
   })
+
+  it('clears drag taint after the learned native click-sequence boundary', () => {
+    const listeners = new Map<string, EventListener>()
+    const pane = {
+      addEventListener: (type: string, listener: EventListener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type: string) => {
+        listeners.delete(type)
+      },
+    } as unknown as HTMLElement
+
+    attachPaneNativeDoubleClickIntervalObserver(pane)
+    notePaneNativePrimaryClick(pane, 10, 20, 0)
+    listeners.get('click')?.({
+      detail: 2,
+      clientX: 10,
+      clientY: 20,
+      timeStamp: 300,
+    } as MouseEvent)
+
+    markPanePointerDragCommittedForSettingsSuppression(pane, 10, 20, 0)
+    notePaneNativePrimaryClick(pane, 12, 22, 600)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 12, 22, 650), false)
+  })
 })
 
 describe('attachPaneNativeDoubleClickIntervalObserver', () => {
