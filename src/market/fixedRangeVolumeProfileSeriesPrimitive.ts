@@ -7,14 +7,13 @@ import type {
   IPrimitivePaneView,
   SeriesType,
   Time,
-  UTCTimestamp,
 } from 'lightweight-charts'
-import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
+import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
-  FRVP_LEVEL_LINE_WIDTH_CSS_PX,
   type FixedRangeVolumeProfileInstanceDrawModel,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
@@ -22,6 +21,8 @@ import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeP
 export type FixedRangeVolumeProfileSeriesPrimitiveContext = {
   instances: readonly FixedRangeVolumeProfileInstance[]
   runtimeById: FixedRangeVolumeProfileRuntimeSnapshot
+  getIntervalDurationSeconds: () => number
+  getLastBarUnixTime: () => number | null
 }
 
 function bitmapBox(start: number, end: number, pixelRatio: number): { position: number; length: number } {
@@ -50,18 +51,17 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
       for (const model of this._models) {
         for (const row of model.rows) {
           const rowTop = bitmapBox(row.top, row.bottom, verticalPixelRatio)
-          const rowRightBitmap = Math.round(row.right * horizontalPixelRatio)
+          const rowLeftBitmap = Math.round(row.left * horizontalPixelRatio)
           const downWidth = Math.round(row.downWidth * horizontalPixelRatio)
           const upWidth = Math.round(row.upWidth * horizontalPixelRatio)
-          const downLeft = rowRightBitmap - downWidth - upWidth
 
           if (downWidth > 0) {
             context.fillStyle = row.downColor
-            context.fillRect(downLeft, rowTop.position, downWidth, rowTop.length)
+            context.fillRect(rowLeftBitmap, rowTop.position, downWidth, rowTop.length)
           }
           if (upWidth > 0) {
             context.fillStyle = row.upColor
-            context.fillRect(rowRightBitmap - upWidth, rowTop.position, upWidth, rowTop.length)
+            context.fillRect(rowLeftBitmap + downWidth, rowTop.position, upWidth, rowTop.length)
           }
         }
 
@@ -73,7 +73,7 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
           context.beginPath()
           context.setLineDash(line.lineDash.map((value) => value * horizontalPixelRatio))
           context.strokeStyle = line.strokeStyle
-          context.lineWidth = FRVP_LEVEL_LINE_WIDTH_CSS_PX * verticalPixelRatio
+          context.lineWidth = line.lineWidthCssPx * verticalPixelRatio
           context.moveTo(x1, y)
           context.lineTo(x2, y)
           context.stroke()
@@ -124,14 +124,25 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
     const timeScale = chart.timeScale()
     const barSpacing = timeScale.options().barSpacing
+    const { fromTimeToCoordinate, toTimeToCoordinate } =
+      buildFixedRangeVolumeProfileTimeCoordinateResolvers(
+        chart,
+        context.getLastBarUnixTime(),
+        context.getIntervalDurationSeconds(),
+      )
+    const instanceById = new Map(context.instances.map((item) => [item.id, item]))
 
     this._models = buildFixedRangeVolumeProfileDrawModels({
       instances: context.instances,
       readyById,
       barSpacing,
-      timeToCoordinate: (time) => timeScale.timeToCoordinate(time as UTCTimestamp),
+      fromTimeToCoordinate,
+      toTimeToCoordinate,
       priceToY: (price) => series.priceToCoordinate(price),
-      pocStrokeStyle: readFrvpPocLineStrokeStyle(),
+      styleForInstance: (instanceId) => {
+        const instance = instanceById.get(instanceId)
+        return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()
+      },
     })
   }
 
@@ -148,6 +159,8 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
   private _getContext: () => FixedRangeVolumeProfileSeriesPrimitiveContext = () => ({
     instances: [],
     runtimeById: {},
+    getIntervalDurationSeconds: () => 60,
+    getLastBarUnixTime: () => null,
   })
   private readonly _view: FixedRangeVolumeProfilePaneView
 

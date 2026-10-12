@@ -175,6 +175,12 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onFixedRangeVolumeProfileLockToggle={settings.onFixedRangeVolumeProfileLockToggle}
             onFixedRangeVolumeProfileRowCountChange={settings.onFixedRangeVolumeProfileRowCountChange}
             onFixedRangeVolumeProfileValueAreaChange={settings.onFixedRangeVolumeProfileValueAreaChange}
+            onFixedRangeVolumeProfileLevelStrokeColorChange={
+              settings.onFixedRangeVolumeProfileLevelStrokeColorChange
+            }
+            onFixedRangeVolumeProfileLevelLineWidthChange={
+              settings.onFixedRangeVolumeProfileLevelLineWidthChange
+            }
             onRectangleVisibilityToggle={settings.onRectangleVisibilityToggle}
             onLineLockToggle={settings.onLineLockToggle}
             onLineVisibilityToggle={settings.onLineVisibilityToggle}

@@ -7,16 +7,12 @@ export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY = 0.25
 /** Max histogram bar width as a fraction of the selected time range width (peak volume row). */
 export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
 
-/** POC, VAH, and VAL line thickness in CSS pixels. */
-export const FRVP_LEVEL_LINE_WIDTH_CSS_PX = 3
-
-const FRVP_VAH_VAL_LINE_STROKE_STYLE = 'rgba(160, 160, 160, 0.55)'
 const FRVP_VAH_VAL_LINE_DASH: readonly number[] = [4, 4]
 
 export type FixedRangeVolumeProfileRowBarGeometry = {
   top: number
   bottom: number
-  right: number
+  left: number
   upWidth: number
   downWidth: number
   totalWidth: number
@@ -31,6 +27,7 @@ export type FixedRangeVolumeProfileLevelLineGeometry = {
   x2: number
   strokeStyle: string
   lineDash: readonly number[]
+  lineWidthCssPx: number
 }
 
 export type FixedRangeVolumeProfileInstanceDrawModel = {
@@ -60,11 +57,12 @@ function withOpacity(hex: string, opacity: number): string {
 export function computeSelectionRangeHorizontalBounds(params: {
   fromTime: number
   toTime: number
-  timeToCoordinate: (time: number) => number | null
+  fromTimeToCoordinate: (time: number) => number | null
+  toTimeToCoordinate: (time: number) => number | null
   barSpacing: number
 }): { left: number; right: number; width: number } | null {
-  const xFrom = params.timeToCoordinate(params.fromTime)
-  const xTo = params.timeToCoordinate(params.toTime)
+  const xFrom = params.fromTimeToCoordinate(params.fromTime)
+  const xTo = params.toTimeToCoordinate(params.toTime)
   if (xFrom === null || xTo === null) return null
   if (!Number.isFinite(xFrom) || !Number.isFinite(xTo)) return null
 
@@ -87,15 +85,15 @@ export function computeMaxRowVolume(rows: readonly FixedRangeVolumeProfileRow[])
 
 export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   row: FixedRangeVolumeProfileRow
-  rangeRight: number
+  rangeLeft: number
   rangeWidth: number
   maxRowVolume: number
   top: number
   bottom: number
   inValueArea: boolean
 }): FixedRangeVolumeProfileRowBarGeometry | null {
-  const { row, rangeRight, rangeWidth, maxRowVolume, top, bottom } = params
-  if (!Number.isFinite(rangeRight) || !Number.isFinite(rangeWidth) || rangeWidth <= 0) return null
+  const { row, rangeLeft, rangeWidth, maxRowVolume, top, bottom } = params
+  if (!Number.isFinite(rangeLeft) || !Number.isFinite(rangeWidth) || rangeWidth <= 0) return null
   if (!Number.isFinite(maxRowVolume) || maxRowVolume <= 0) return null
   if (!Number.isFinite(row.totalVolume) || row.totalVolume <= 0) return null
 
@@ -117,7 +115,7 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   return {
     top,
     bottom,
-    right: rangeRight,
+    left: rangeLeft,
     upWidth,
     downWidth,
     totalWidth,
@@ -130,6 +128,11 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
   rangeLeft: number
   rangeRight: number
   pocStrokeStyle: string
+  pocLineWidthCssPx: number
+  vahStrokeStyle: string
+  vahLineWidthCssPx: number
+  valStrokeStyle: string
+  valLineWidthCssPx: number
   pocPrice: number | null
   vah: number | null
   val: number | null
@@ -141,6 +144,7 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
     price: number | null,
     strokeStyle: string,
     lineDash: readonly number[],
+    lineWidthCssPx: number,
   ) => {
     if (price === null || !Number.isFinite(price)) return
     const y = params.priceToY(price)
@@ -152,12 +156,13 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
       x2: params.rangeRight,
       strokeStyle,
       lineDash,
+      lineWidthCssPx,
     })
   }
 
-  add('poc', params.pocPrice, params.pocStrokeStyle, [])
-  add('vah', params.vah, FRVP_VAH_VAL_LINE_STROKE_STYLE, FRVP_VAH_VAL_LINE_DASH)
-  add('val', params.val, FRVP_VAH_VAL_LINE_STROKE_STYLE, FRVP_VAH_VAL_LINE_DASH)
+  add('poc', params.pocPrice, params.pocStrokeStyle, [], params.pocLineWidthCssPx)
+  add('vah', params.vah, params.vahStrokeStyle, FRVP_VAH_VAL_LINE_DASH, params.vahLineWidthCssPx)
+  add('val', params.val, params.valStrokeStyle, FRVP_VAH_VAL_LINE_DASH, params.valLineWidthCssPx)
   return lines
 }
 
@@ -166,15 +171,22 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   fromTime: number
   toTime: number
   profile: FixedRangeVolumeProfileResult
-  timeToCoordinate: (time: number) => number | null
+  fromTimeToCoordinate: (time: number) => number | null
+  toTimeToCoordinate: (time: number) => number | null
   barSpacing: number
   priceToY: (price: number) => number | null
   pocStrokeStyle: string
+  pocLineWidthCssPx: number
+  vahStrokeStyle: string
+  vahLineWidthCssPx: number
+  valStrokeStyle: string
+  valLineWidthCssPx: number
 }): FixedRangeVolumeProfileInstanceDrawModel | null {
   const range = computeSelectionRangeHorizontalBounds({
     fromTime: params.fromTime,
     toTime: params.toTime,
-    timeToCoordinate: params.timeToCoordinate,
+    fromTimeToCoordinate: params.fromTimeToCoordinate,
+    toTimeToCoordinate: params.toTimeToCoordinate,
     barSpacing: params.barSpacing,
   })
   if (!range) return null
@@ -193,7 +205,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     const bottom = Math.max(yHigh, yLow)
     const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
       row,
-      rangeRight: range.right,
+      rangeLeft: range.left,
       rangeWidth: range.width,
       maxRowVolume,
       top,
@@ -209,6 +221,11 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     rangeLeft: range.left,
     rangeRight: range.right,
     pocStrokeStyle: params.pocStrokeStyle,
+    pocLineWidthCssPx: params.pocLineWidthCssPx,
+    vahStrokeStyle: params.vahStrokeStyle,
+    vahLineWidthCssPx: params.vahLineWidthCssPx,
+    valStrokeStyle: params.valStrokeStyle,
+    valLineWidthCssPx: params.valLineWidthCssPx,
     pocPrice: params.profile.pocPrice,
     vah: params.profile.vah,
     val: params.profile.val,
@@ -225,6 +242,15 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   }
 }
 
+export type FixedRangeVolumeProfileDrawStyleInput = {
+  pocStrokeStyle: string
+  pocLineWidthCssPx: number
+  vahStrokeStyle: string
+  vahLineWidthCssPx: number
+  valStrokeStyle: string
+  valLineWidthCssPx: number
+}
+
 export function buildFixedRangeVolumeProfileDrawModels(params: {
   instances: readonly {
     id: string
@@ -238,25 +264,28 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
       profile: FixedRangeVolumeProfileResult
     }
   >
-  timeToCoordinate: (time: number) => number | null
+  fromTimeToCoordinate: (time: number) => number | null
+  toTimeToCoordinate: (time: number) => number | null
   barSpacing: number
   priceToY: (price: number) => number | null
-  pocStrokeStyle: string
+  styleForInstance: (instanceId: string) => FixedRangeVolumeProfileDrawStyleInput
 }): FixedRangeVolumeProfileInstanceDrawModel[] {
   const models: FixedRangeVolumeProfileInstanceDrawModel[] = []
   for (const instance of params.instances) {
     if (!instance.enabled) continue
     const ready = params.readyById.get(instance.id)
     if (!ready) continue
+    const styles = params.styleForInstance(instance.id)
     const model = buildFixedRangeVolumeProfileInstanceDrawModel({
       instanceId: instance.id,
       fromTime: instance.fromTime,
       toTime: instance.toTime,
       profile: ready.profile,
-      timeToCoordinate: params.timeToCoordinate,
+      fromTimeToCoordinate: params.fromTimeToCoordinate,
+      toTimeToCoordinate: params.toTimeToCoordinate,
       barSpacing: params.barSpacing,
       priceToY: params.priceToY,
-      pocStrokeStyle: params.pocStrokeStyle,
+      ...styles,
     })
     if (model) models.push(model)
   }

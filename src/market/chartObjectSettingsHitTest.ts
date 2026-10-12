@@ -1,9 +1,10 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
-import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
+import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
   type FixedRangeVolumeProfileInstanceDrawModel,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import { hitTestLineSeriesAtPane } from './chartObjectSeriesLineHit.ts'
 import {
@@ -75,8 +76,8 @@ function hitTestFixedRangeVolumeProfileModel(
 
   for (const row of model.rows) {
     if (paneY < row.top - tolerancePx || paneY > row.bottom + tolerancePx) continue
-    const barLeft = row.right - row.totalWidth
-    if (paneX >= barLeft - tolerancePx && paneX <= row.right + tolerancePx) {
+    const barRight = row.left + row.totalWidth
+    if (paneX >= row.left - tolerancePx && paneX <= barRight + tolerancePx) {
       return true
     }
   }
@@ -108,13 +109,24 @@ function hitTestFixedRangeVolumeProfiles(
 ): ChartObjectSettingsTarget | null {
   const timeScale = ctx.chart.timeScale()
   const barSpacing = timeScale.options().barSpacing
+  const { fromTimeToCoordinate, toTimeToCoordinate } =
+    buildFixedRangeVolumeProfileTimeCoordinateResolvers(
+      ctx.chart,
+      ctx.lastBarUnixTime,
+      ctx.intervalDurationSeconds,
+    )
+  const instanceById = new Map(ctx.fixedRangeVolumeProfileInstances.map((item) => [item.id, item]))
   const models = buildFixedRangeVolumeProfileDrawModels({
     instances: ctx.fixedRangeVolumeProfileInstances,
     readyById: buildFrvpReadyById(ctx.fixedRangeVolumeProfileRuntime),
-    timeToCoordinate: (time) => timeScale.timeToCoordinate(time as Time),
+    fromTimeToCoordinate,
+    toTimeToCoordinate,
     barSpacing,
     priceToY: (price) => ctx.series.priceToCoordinate(price),
-    pocStrokeStyle: readFrvpPocLineStrokeStyle(),
+    styleForInstance: (instanceId) => {
+      const instance = instanceById.get(instanceId)
+      return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()
+    },
   })
 
   for (let index = models.length - 1; index >= 0; index -= 1) {

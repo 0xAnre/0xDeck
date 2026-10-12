@@ -22,6 +22,24 @@ function mockChart(times: Record<number, Time | null> = {}): IChartApi {
   } as unknown as IChartApi
 }
 
+function pointerCallbacks(
+  getInteraction: () => ReturnType<typeof armFixedRangeVolumeProfileTool>,
+  instances: unknown[],
+  onInteractionChange: (state: ReturnType<typeof armFixedRangeVolumeProfileTool>) => void,
+  lastBarUnixTime: number | null = null,
+) {
+  return {
+    getSnapshot: () => ({ interaction: getInteraction(), instances }),
+    getSelectionInterval: () => '1m' as const,
+    getIntervalDurationSeconds: () => 300,
+    getLastBarUnixTime: () => lastBarUnixTime,
+    onInteractionChange,
+    onInstanceCompleted: (instance: unknown) => {
+      instances.push(instance)
+    },
+  }
+}
+
 describe('fixedRangeVolumeProfilePanePointer', () => {
   it('resolves pane-relative pointer x', () => {
     const pane = {
@@ -35,16 +53,9 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
     const instances: unknown[] = []
     let interaction = armFixedRangeVolumeProfileTool()
     const chart = mockChart({ 10: 100 as Time, 20: 200 as Time })
-    const callbacks = {
-      getSnapshot: () => ({ interaction, instances }),
-      getSelectionInterval: () => '1m' as const,
-      onInteractionChange: (state: typeof interaction) => {
-        interaction = state
-      },
-      onInstanceCompleted: (instance: unknown) => {
-        instances.push(instance)
-      },
-    }
+    const callbacks = pointerCallbacks(() => interaction, instances, (state) => {
+      interaction = state
+    })
     applyFixedRangeVolumeProfilePanePointerUp(chart, 10, callbacks)
     applyFixedRangeVolumeProfilePanePointerUp(chart, 20, callbacks)
     assert.equal(instances.length, 1)
@@ -57,6 +68,8 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
     const callbacks = {
       getSnapshot: () => ({ interaction, instances: [] }),
       getSelectionInterval: () => '1m' as const,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => null,
       onInteractionChange: (state: typeof interaction) => {
         interaction = state
       },
@@ -70,20 +83,43 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
     const instances: unknown[] = []
     let interaction = armFixedRangeVolumeProfileTool()
     const chart = mockChart({ 10: 100 as Time, 20: 200 as Time })
-    const callbacks = {
-      getSnapshot: () => ({ interaction, instances }),
-      getSelectionInterval: () => '1m' as const,
-      onInteractionChange: (state: typeof interaction) => {
-        interaction = state
-      },
-      onInstanceCompleted: (instance: unknown) => {
-        instances.push(instance)
-      },
-    }
+    const callbacks = pointerCallbacks(() => interaction, instances, (state) => {
+      interaction = state
+    })
     applyFixedRangeVolumeProfilePanePointerUp(chart, 10, callbacks)
     applyFixedRangeVolumeProfilePanePointerUp(chart, 20, callbacks)
     applyFixedRangeVolumeProfilePanePointerUp(chart, 30, callbacks)
     assert.equal(instances.length, 1)
+  })
+
+  it('completes a range on the latest candle from whitespace past the last bar', () => {
+    const barTimes = [1_700_000_000, 1_700_000_300, 1_700_000_600]
+    const chart = {
+      timeScale: () => ({
+        coordinateToTime: (x: number) => barTimes[Math.round(x / 10)] ?? null,
+        timeToIndex: (time: number, findNearest?: boolean) => {
+          const lastIndex = barTimes.length - 1
+          if (time > barTimes[lastIndex]) return findNearest ? lastIndex : null
+          const index = barTimes.findIndex((bar) => bar >= time)
+          if (index === -1) return findNearest ? lastIndex : null
+          return index
+        },
+        logicalToCoordinate: (logical: number) => logical * 10,
+        coordinateToLogical: (x: number) => x / 10,
+      }),
+      panes: () => [{ getHTMLElement: () => null }],
+    } as unknown as IChartApi
+    const instances: unknown[] = []
+    let interaction = armFixedRangeVolumeProfileTool()
+    const lastBar = barTimes[barTimes.length - 1]
+    const callbacks = pointerCallbacks(() => interaction, instances, (state) => {
+      interaction = state
+    }, lastBar)
+    applyFixedRangeVolumeProfilePanePointerUp(chart, 0, callbacks)
+    applyFixedRangeVolumeProfilePanePointerUp(chart, 50, callbacks)
+    assert.equal(instances.length, 1)
+    const instance = instances[0] as { toTime: number }
+    assert.equal(instance.toTime, lastBar)
   })
 
   it('uses preview time fallback only when it differs from anchor', () => {
@@ -115,6 +151,8 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
     const controller = attachFixedRangeVolumeProfilePanePointer(chart, {
       getSnapshot: () => ({ interaction, instances: [] }),
       getSelectionInterval: () => '1m',
+      getIntervalDurationSeconds: () => 60,
+      getLastBarUnixTime: () => null,
       onInteractionChange: (state) => {
         interaction = state
       },

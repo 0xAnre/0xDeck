@@ -60,6 +60,16 @@ export type WidgetSettingsRegistration = {
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
+  onFixedRangeVolumeProfileLevelStrokeColorChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    strokeColor: string,
+  ) => void
+  onFixedRangeVolumeProfileLevelLineWidthChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    lineWidth: LineChartStrokeWidth,
+  ) => void
   rectangleInstances?: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void

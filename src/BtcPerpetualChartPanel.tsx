@@ -194,6 +194,11 @@ import {
   setFixedRangeVolumeProfileInstanceLocked,
   updateFixedRangeVolumeProfileInstancesById,
 } from '@/market/fixedRangeVolumeProfileInstances'
+import {
+  setFrvpInstanceLevelLineWidth,
+  setFrvpInstanceLevelStrokeColor,
+  type FrvpLevelLineKind,
+} from '@/market/frvpInstanceLineStyles'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettingsPanePointer'
 import { EMA_PERIODS } from '@/market/ema'
@@ -801,6 +806,32 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileLevelStrokeColorChange = useCallback(
+    (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceLevelStrokeColor(instance, kind, strokeColor),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileLevelLineWidthChange = useCallback(
+    (instanceId: string, kind: FrvpLevelLineKind, lineWidth: LineChartStrokeWidth) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceLevelLineWidth(instance, kind, lineWidth),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleMarketIndicatorSettingsClick = useCallback(
     (indicatorId: MarketIndicatorId) => {
       openChartObjectSettings({ kind: 'market-indicator', indicatorId })
@@ -1041,6 +1072,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onFixedRangeVolumeProfileLockToggle: handleFixedRangeVolumeProfileLockToggle,
     onFixedRangeVolumeProfileRowCountChange: handleFixedRangeVolumeProfileRowCountChange,
     onFixedRangeVolumeProfileValueAreaChange: handleFixedRangeVolumeProfileValueAreaChange,
+    onFixedRangeVolumeProfileLevelStrokeColorChange:
+      handleFixedRangeVolumeProfileLevelStrokeColorChange,
+    onFixedRangeVolumeProfileLevelLineWidthChange:
+      handleFixedRangeVolumeProfileLevelLineWidthChange,
     rectangleInstances,
     onRectangleArm: handleRectangleArm,
     onRectangleDelete: handleRectangleDelete,
@@ -1071,6 +1106,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         instances: fixedRangeVolumeProfileInstancesRef.current,
       }),
       getSelectionInterval: () => activeIntervalRef.current,
+      getIntervalDurationSeconds: () =>
+        candleIntervalDurationSeconds(activeIntervalRef.current),
+      getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),
       onInteractionChange: (state) => {
         fixedRangeVolumeProfileInteractionRef.current = state
         setFixedRangeVolumeProfileInteraction(state)
@@ -1257,6 +1295,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const attachment = attachFixedRangeVolumeProfileSeriesPrimitive(bundle.candle, () => ({
       instances: fixedRangeVolumeProfileInstancesRef.current,
       runtimeById: fixedRangeVolumeProfileRuntimeRef.current,
+      getIntervalDurationSeconds: () =>
+        candleIntervalDurationSeconds(activeIntervalRef.current),
+      getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),
     }))
     fixedRangeVolumeProfileSeriesAttachmentRef.current = attachment
 
