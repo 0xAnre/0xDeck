@@ -159,6 +159,10 @@ export function attachLinePanePointer(
           callbacks.getCompetingFrvpHit(paneX, paneY),
         ) !== 'line'
       ) {
+        if (interaction.selectedId !== null) {
+          callbacks.onInteractionChange(applyLineSelection(interaction, null))
+          callbacks.onRequestRender()
+        }
         return
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)

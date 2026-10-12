@@ -297,7 +297,7 @@ describe('rectanglePanePointer', () => {
     } as PointerEvent)
 
     assert.equal(interaction.phase, 'inactive')
-    assert.equal(interaction.selectedId, 'rect-1')
+    assert.equal(interaction.selectedId, null)
   })
 
   it('selects locked rectangles without starting move or resize drafts', () => {

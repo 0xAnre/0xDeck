@@ -5,6 +5,7 @@ import {
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
+  withExclusiveFrvpSelection,
   withExclusiveLineSelection,
   withExclusiveRectangleSelection,
 } from './drawingSelection.ts'
@@ -95,9 +96,11 @@ describe('drawingSelection', () => {
       selectedId: rectangle.id,
     }
     const movingLine = startLineMoveDraft(INITIAL_LINE_INTERACTION_STATE, line, 150, 15)
-    const lineClaim = withExclusiveLineSelection(movingLine, selectedRectangle)
+    const selectedFrvp = { ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE, selectedId: 'frvp-1' }
+    const lineClaim = withExclusiveLineSelection(movingLine, selectedRectangle, selectedFrvp)
     assert.equal(lineClaim.line.selectedId, line.id)
     assert.equal(lineClaim.rectangle.selectedId, null)
+    assert.equal(lineClaim.frvp.selectedId, null)
 
     const selectedLine = { ...INITIAL_LINE_INTERACTION_STATE, selectedId: line.id }
     const movingRectangle = startRectangleMoveDraft(
@@ -106,9 +109,27 @@ describe('drawingSelection', () => {
       1_700_000_100,
       1.5,
     )
-    const rectangleClaim = withExclusiveRectangleSelection(movingRectangle, selectedLine)
+    const rectangleClaim = withExclusiveRectangleSelection(
+      movingRectangle,
+      selectedLine,
+      selectedFrvp,
+    )
     assert.equal(rectangleClaim.rectangle.selectedId, rectangle.id)
     assert.equal(rectangleClaim.line.selectedId, null)
+    assert.equal(rectangleClaim.frvp.selectedId, null)
+  })
+
+  it('clears line and rectangle selection when FRVP claims the pointer', () => {
+    const selectedLine = { ...INITIAL_LINE_INTERACTION_STATE, selectedId: 'line-1' }
+    const selectedRectangle = {
+      ...INITIAL_RECTANGLE_INTERACTION_STATE,
+      selectedId: 'rect-1',
+    }
+    const selectedFrvp = { ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE, selectedId: 'frvp-1' }
+    const claim = withExclusiveFrvpSelection(selectedFrvp, selectedLine, selectedRectangle)
+    assert.equal(claim.frvp.selectedId, 'frvp-1')
+    assert.equal(claim.line.selectedId, null)
+    assert.equal(claim.rectangle.selectedId, null)
   })
 
   it('clears FRVP selection for peer claim without disturbing armed tool state', () => {

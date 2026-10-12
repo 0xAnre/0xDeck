@@ -137,7 +137,6 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
-  clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
@@ -1237,7 +1236,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         rectanglePointerPreviewRef.current = { pointerTime, pointerPrice }
       },
       onInteractionChange: (state) => {
-        const next = withExclusiveRectangleSelection(state, lineInteractionRef.current)
+        const next = withExclusiveRectangleSelection(
+          state,
+          lineInteractionRef.current,
+          fixedRangeVolumeProfileInteractionRef.current,
+        )
         rectangleInteractionRef.current = next.rectangle
         setRectangleInteraction(next.rectangle)
         if (next.line !== lineInteractionRef.current) {
@@ -1246,16 +1249,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           lineToolControllerRef.current?.sync()
           lineSeriesAttachmentRef.current?.update()
         }
-        if (next.rectangle.selectedId !== null) {
-          const clearedFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
-            fixedRangeVolumeProfileInteractionRef.current,
-          )
-          if (clearedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
-            fixedRangeVolumeProfileInteractionRef.current = clearedFrvp
-            setFixedRangeVolumeProfileInteraction(clearedFrvp)
-            fixedRangeVolumeProfileToolControllerRef.current?.sync()
-            fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
-          }
+        if (next.frvp !== fixedRangeVolumeProfileInteractionRef.current) {
+          fixedRangeVolumeProfileInteractionRef.current = next.frvp
+          setFixedRangeVolumeProfileInteraction(next.frvp)
+          fixedRangeVolumeProfileToolControllerRef.current?.sync()
+          fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
         }
       },
       onInstancesChange: (instances) => {
@@ -1309,7 +1307,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         linePointerPreviewRef.current = { pointerTime, pointerPrice }
       },
       onInteractionChange: (state) => {
-        const next = withExclusiveLineSelection(state, rectangleInteractionRef.current)
+        const next = withExclusiveLineSelection(
+          state,
+          rectangleInteractionRef.current,
+          fixedRangeVolumeProfileInteractionRef.current,
+        )
         lineInteractionRef.current = next.line
         setLineInteraction(next.line)
         if (next.rectangle !== rectangleInteractionRef.current) {
@@ -1318,16 +1320,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           rectangleToolControllerRef.current?.sync()
           rectangleSeriesAttachmentRef.current?.update()
         }
-        if (next.line.selectedId !== null) {
-          const clearedFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
-            fixedRangeVolumeProfileInteractionRef.current,
-          )
-          if (clearedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
-            fixedRangeVolumeProfileInteractionRef.current = clearedFrvp
-            setFixedRangeVolumeProfileInteraction(clearedFrvp)
-            fixedRangeVolumeProfileToolControllerRef.current?.sync()
-            fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
-          }
+        if (next.frvp !== fixedRangeVolumeProfileInteractionRef.current) {
+          fixedRangeVolumeProfileInteractionRef.current = next.frvp
+          setFixedRangeVolumeProfileInteraction(next.frvp)
+          fixedRangeVolumeProfileToolControllerRef.current?.sync()
+          fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
         }
       },
       onInstancesChange: (instances) => {

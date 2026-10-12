@@ -192,8 +192,11 @@ export function attachFixedRangeVolumeProfileChartTool(
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (isEditableKeyboardTarget(event.target)) return
-    if (!callbacks.shouldHandleKeyboardShortcut()) return
     const snapshot = callbacks.getSnapshot()
+    const frvpNavigationLocked = isFixedRangeVolumeProfileChartNavigationLocked(
+      snapshot.interaction,
+    )
+    if (!frvpNavigationLocked && !callbacks.shouldHandleKeyboardShortcut()) return
     if (event.key === 'Escape') {
       const next = cancelFixedRangeVolumeProfileInteraction(snapshot.interaction)
       if (next === snapshot.interaction) return

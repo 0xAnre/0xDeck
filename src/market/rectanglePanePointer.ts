@@ -159,6 +159,10 @@ export function attachRectanglePanePointer(
           callbacks.getCompetingFrvpHit(paneX, paneY),
         ) !== 'rectangle'
       ) {
+        if (interaction.selectedId !== null) {
+          callbacks.onInteractionChange(applyRectangleSelection(interaction, null))
+          callbacks.onRequestRender()
+        }
         return
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)

@@ -257,4 +257,54 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
     controller.dispose()
     Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: originalHtmlElement })
   })
+
+  it('cancels armed FRVP on Escape without keyboard panel claim', () => {
+    class FakeElement {
+      tagName = 'DIV'
+      isContentEditable = false
+    }
+
+    const originalHtmlElement = globalThis.HTMLElement
+    let onKeyDown: ((event: { key: string; target: FakeElement; preventDefault: () => void }) => void) | null =
+      null
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: FakeElement })
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        addEventListener: (type: string, listener: typeof onKeyDown) => {
+          if (type === 'keydown') onKeyDown = listener
+        },
+        removeEventListener: () => {},
+      },
+    })
+
+    let interaction = armFixedRangeVolumeProfileTool()
+    const chart = createMockChart().chart
+    const controller = attachFixedRangeVolumeProfileChartTool(chart, {
+      getSnapshot: () => ({ interaction, instances: [], runtimeById: {} }),
+      getSelectionInterval: () => '1m',
+      getIntervalDurationSeconds: () => 60,
+      getLastBarUnixTime: () => null,
+      getSeries: () => null,
+      isAlternateToolActive: () => false,
+      onInteractionChange: (state) => {
+        interaction = state
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onInstancesChange: () => {},
+      shouldHandleKeyboardShortcut: () => false,
+      getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+      getLineInstances: () => [],
+      getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+      getRectangleInstances: () => [],
+    })
+
+    onKeyDown?.({ key: 'Escape', target: new FakeElement(), preventDefault: () => {} })
+    assert.equal(interaction.phase, 'inactive')
+
+    controller.dispose()
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: originalHtmlElement })
+  })
 })
