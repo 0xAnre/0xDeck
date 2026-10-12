@@ -1,6 +1,13 @@
 import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 
-const DOUBLE_CLICK_INTERVAL_MS = 500
+/** Minimum window; browsers may use a longer OS-configured interval. */
+const MIN_DOUBLE_CLICK_INTERVAL_MS = 500
+/**
+ * Conservative default until a native `click` with `detail >= 2` is observed on the pane
+ * (matches common OS accessibility settings above 500 ms).
+ */
+export const FALLBACK_DOUBLE_CLICK_INTERVAL_MS = 1000
+const DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS = 50
 const DOUBLE_CLICK_MAX_POINTER_MOVE_PX = 10
 
 type PointerClickRecord = {
@@ -13,6 +20,61 @@ const lastCompletedClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const pendingClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const awaitingSecondPressForDoubleClickByPane = new WeakMap<HTMLElement, boolean>()
 const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
+const observedDoubleClickIntervalMsByPane = new WeakMap<HTMLElement, number>()
+
+function getEffectiveDoubleClickIntervalMs(paneElement: HTMLElement): number {
+  const observed = observedDoubleClickIntervalMsByPane.get(paneElement)
+  if (observed !== undefined) {
+    return Math.max(observed, MIN_DOUBLE_CLICK_INTERVAL_MS)
+  }
+  return FALLBACK_DOUBLE_CLICK_INTERVAL_MS
+}
+
+function noteNativeDoubleClickInterval(
+  paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
+  now: number,
+): void {
+  const last = lastCompletedClickByPane.get(paneElement)
+  if (!last || !isWithinDoubleClickDistance(last, clientX, clientY)) {
+    return
+  }
+  const observed = now - last.time
+  if (observed <= 0) {
+    return
+  }
+  const nextInterval = observed + DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS
+  const previous = observedDoubleClickIntervalMsByPane.get(paneElement) ?? 0
+  observedDoubleClickIntervalMsByPane.set(
+    paneElement,
+    Math.max(previous, nextInterval, MIN_DOUBLE_CLICK_INTERVAL_MS),
+  )
+}
+
+/**
+ * Learn the pane's effective double-click interval from native `click` events so pointer
+ * guards stay aligned with the browser/OS double-click threshold.
+ */
+export function attachPaneNativeDoubleClickIntervalObserver(
+  paneElement: HTMLElement,
+): () => void {
+  const onClick = (event: MouseEvent) => {
+    if (event.detail < 2) {
+      return
+    }
+    noteNativeDoubleClickInterval(
+      paneElement,
+      event.clientX,
+      event.clientY,
+      event.timeStamp,
+    )
+  }
+  paneElement.addEventListener('click', onClick)
+  return () => {
+    paneElement.removeEventListener('click', onClick)
+  }
+}
 
 function setDragTaintForSettingsSuppression(
   paneElement: HTMLElement,
@@ -55,7 +117,7 @@ export function consumeCompletedClickForDoubleClickSequence(
   const last = lastCompletedClickByPane.get(paneElement)
   if (
     last &&
-    now - last.time <= DOUBLE_CLICK_INTERVAL_MS &&
+    now - last.time <= getEffectiveDoubleClickIntervalMs(paneElement) &&
     isWithinDoubleClickDistance(last, clientX, clientY)
   ) {
     lastCompletedClickByPane.delete(paneElement)
@@ -139,7 +201,7 @@ export function shouldSuppressChartObjectSettingsDoubleClick(
   if (tainted === undefined) {
     return false
   }
-  if (now - tainted.time > DOUBLE_CLICK_INTERVAL_MS) {
+  if (now - tainted.time > getEffectiveDoubleClickIntervalMs(paneElement)) {
     dragTaintedDoubleClickByPane.delete(paneElement)
     return false
   }

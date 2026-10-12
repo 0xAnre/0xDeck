@@ -9,9 +9,11 @@ import {
   markPaneDoubleClickSequenceDragTainted,
   markPanePointerDragCommittedForSettingsSuppression,
   shouldSuppressChartObjectSettingsDoubleClick,
+  attachPaneNativeDoubleClickIntervalObserver,
+  FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
 } from './paneDoubleClickPointerGuard.ts'
 
-const DOUBLE_CLICK_INTERVAL_MS = 500
+const DOUBLE_CLICK_INTERVAL_MS = FALLBACK_DOUBLE_CLICK_INTERVAL_MS
 
 describe('consumeCompletedClickForDoubleClickSequence', () => {
   it('consumes only the second press within interval and distance after a completed click', () => {
@@ -132,5 +134,61 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), true)
     markPaneDoubleClickSequenceDragTainted(pane, 12, 22, 150)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 12, 22, 200), true)
+  })
+})
+
+describe('attachPaneNativeDoubleClickIntervalObserver', () => {
+  it('uses a fallback interval wider than the legacy 500 ms default', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 0, 0, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 0, 0, 750), true)
+
+    const panePastFallback = {} as HTMLElement
+    armPanePointerClickForDoubleClick(panePastFallback, 0, 0, 0)
+    commitPanePointerClickForDoubleClick(panePastFallback)
+    assert.equal(
+      consumeCompletedClickForDoubleClickSequence(
+        panePastFallback,
+        0,
+        0,
+        FALLBACK_DOUBLE_CLICK_INTERVAL_MS + 1,
+      ),
+      false,
+    )
+  })
+
+  it('learns a longer interval from native click detail >= 2', () => {
+    const listeners = new Map<string, EventListener>()
+    const pane = {
+      addEventListener: (type: string, listener: EventListener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type: string) => {
+        listeners.delete(type)
+      },
+    } as unknown as HTMLElement
+
+    attachPaneNativeDoubleClickIntervalObserver(pane)
+    armPanePointerClickForDoubleClick(pane, 5, 5, 0)
+    commitPanePointerClickForDoubleClick(pane)
+
+    const secondPressTime = 1100
+    assert.equal(
+      consumeCompletedClickForDoubleClickSequence(pane, 5, 5, secondPressTime),
+      false,
+    )
+
+    listeners.get('click')?.({
+      detail: 2,
+      clientX: 5,
+      clientY: 5,
+      timeStamp: secondPressTime,
+    } as MouseEvent)
+
+    assert.equal(
+      consumeCompletedClickForDoubleClickSequence(pane, 5, 5, secondPressTime),
+      true,
+    )
   })
 })

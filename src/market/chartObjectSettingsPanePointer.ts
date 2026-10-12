@@ -6,6 +6,7 @@ import {
   type ChartObjectSettingsHitTestContext,
 } from './chartObjectSettingsHitTest.ts'
 import {
+  attachPaneNativeDoubleClickIntervalObserver,
   completePaneDoubleClickSequenceForSettings,
   shouldSuppressChartObjectSettingsDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
@@ -58,10 +59,13 @@ export function attachChartObjectSettingsPanePointer(
   }
 
   paneElement.addEventListener('dblclick', onDoubleClick)
+  const disposeNativeDoubleClickIntervalObserver =
+    attachPaneNativeDoubleClickIntervalObserver(paneElement)
 
   return {
     dispose: () => {
       paneElement.removeEventListener('dblclick', onDoubleClick)
+      disposeNativeDoubleClickIntervalObserver()
     },
   }
 }
