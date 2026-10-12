@@ -36,6 +36,16 @@ type UseMarketWidgetSettingsArgs = {
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
+  onFixedRangeVolumeProfileLevelStrokeColorChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    strokeColor: string,
+  ) => void
+  onFixedRangeVolumeProfileLevelLineWidthChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    lineWidth: LineChartStrokeWidth,
+  ) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm: () => void
   onRectangleDelete: (instanceId: string) => void
@@ -80,6 +90,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onFixedRangeVolumeProfileLockToggle,
     onFixedRangeVolumeProfileRowCountChange,
     onFixedRangeVolumeProfileValueAreaChange,
+    onFixedRangeVolumeProfileLevelStrokeColorChange,
+    onFixedRangeVolumeProfileLevelLineWidthChange,
     rectangleInstances,
     onRectangleArm,
     onRectangleDelete,
@@ -145,6 +157,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
         headerSettings.tools === true ? onFixedRangeVolumeProfileRowCountChange : undefined,
       onFixedRangeVolumeProfileValueAreaChange:
         headerSettings.tools === true ? onFixedRangeVolumeProfileValueAreaChange : undefined,
+      onFixedRangeVolumeProfileLevelStrokeColorChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeColorChange : undefined,
+      onFixedRangeVolumeProfileLevelLineWidthChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelLineWidthChange : undefined,
       rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
       onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
       onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
@@ -182,6 +198,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onFixedRangeVolumeProfileLockToggle,
       onFixedRangeVolumeProfileRowCountChange,
       onFixedRangeVolumeProfileValueAreaChange,
+      onFixedRangeVolumeProfileLevelStrokeColorChange,
+      onFixedRangeVolumeProfileLevelLineWidthChange,
       onRectangleArm,
       onRectangleDelete,
       onRectangleLockToggle,

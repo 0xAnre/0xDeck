@@ -4,6 +4,7 @@ import { resolveThemeCssColor } from '../lib/resolveCssColor.ts'
 import {
   FRVP_POC_LINE_SEMANTIC_CSS_VAR,
   FRVP_POC_LINE_STROKE_OPACITY,
+  readFrvpPocLineColorInputHex,
   readFrvpPocLineStrokeStyle,
 } from './frvpLevelLineColors.ts'
 
@@ -15,6 +16,10 @@ describe('frvpLevelLineColors', () => {
   it('applies POC stroke opacity when resolving without document', () => {
     const stroke = readFrvpPocLineStrokeStyle()
     assert.match(stroke, new RegExp(`,\\s*${FRVP_POC_LINE_STROKE_OPACITY}\\)$`))
+  })
+
+  it('derives POC color input hex from the same resolved rgb as stroke (no document)', () => {
+    assert.equal(readFrvpPocLineColorInputHex(), '#dc2626')
   })
 
   it('resolves semantic down token color from oklch instead of fallback rgb', () => {

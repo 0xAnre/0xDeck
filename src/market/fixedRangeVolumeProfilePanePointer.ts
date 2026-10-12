@@ -7,7 +7,10 @@ import {
 } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { CandleInterval } from './types.ts'
-import { resolveChartTimeFromCoordinate } from './fixedRangeVolumeProfileChartTime.ts'
+import {
+  buildFixedRangeVolumeProfileChartTimeContext,
+  resolveChartTimeFromCoordinate,
+} from './fixedRangeVolumeProfileChartTime.ts'
 
 export type FixedRangeVolumeProfilePanePointerCallbacks = {
   getSnapshot: () => {
@@ -15,6 +18,8 @@ export type FixedRangeVolumeProfilePanePointerCallbacks = {
     instances: readonly FixedRangeVolumeProfileInstance[]
   }
   getSelectionInterval: () => CandleInterval
+  getIntervalDurationSeconds: () => number
+  getLastBarUnixTime: () => number | null
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
 }
@@ -31,8 +36,9 @@ export function resolveSelectionTimeFromPaneX(
   chart: IChartApi,
   paneX: number,
   interaction: FixedRangeVolumeProfileInteractionState,
+  timeContext: ReturnType<typeof buildFixedRangeVolumeProfileChartTimeContext> | null = null,
 ): number | null {
-  const fromCoordinate = resolveChartTimeFromCoordinate(chart, paneX)
+  const fromCoordinate = resolveChartTimeFromCoordinate(chart, paneX, timeContext)
   if (fromCoordinate !== null) return fromCoordinate
 
   if (interaction.phase === 'preview' && interaction.draft !== null) {
@@ -53,7 +59,13 @@ export function applyFixedRangeVolumeProfilePanePointerUp(
   let interaction = snapshot.interaction
   if (!isFixedRangeVolumeProfileToolActive(interaction)) return
 
-  const hoverTime = resolveChartTimeFromCoordinate(chart, paneX)
+  const timeContext = buildFixedRangeVolumeProfileChartTimeContext(
+    chart,
+    callbacks.getLastBarUnixTime(),
+    callbacks.getIntervalDurationSeconds(),
+  )
+
+  const hoverTime = resolveChartTimeFromCoordinate(chart, paneX, timeContext)
   if (interaction.phase === 'preview') {
     const previewState = applyFixedRangeVolumeProfileCrosshairTime(interaction, hoverTime)
     if (previewState !== interaction) {
@@ -62,7 +74,7 @@ export function applyFixedRangeVolumeProfilePanePointerUp(
     }
   }
 
-  const clickTime = resolveSelectionTimeFromPaneX(chart, paneX, interaction)
+  const clickTime = resolveSelectionTimeFromPaneX(chart, paneX, interaction, timeContext)
   const result = applyFixedRangeVolumeProfileClick(
     interaction,
     clickTime,

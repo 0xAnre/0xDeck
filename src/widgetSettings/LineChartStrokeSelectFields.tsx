@@ -21,6 +21,7 @@ type LineChartStrokeSelectFieldsProps = {
   lineStyle: LineChartStrokeStyle
   onLineWidthChange: (width: LineChartStrokeWidth) => void
   onLineStyleChange: (style: LineChartStrokeStyle) => void
+  showStyleSelect?: boolean
 }
 
 export function LineChartStrokeSelectFields({
@@ -30,6 +31,7 @@ export function LineChartStrokeSelectFields({
   lineStyle,
   onLineWidthChange,
   onLineStyleChange,
+  showStyleSelect = true,
 }: LineChartStrokeSelectFieldsProps) {
   return (
     <>
@@ -51,21 +53,23 @@ export function LineChartStrokeSelectFields({
           </SelectContent>
         </Select>
       </Field>
-      <Field>
-        <FieldLabel htmlFor={styleId}>Style</FieldLabel>
-        <Select value={lineStyle} onValueChange={(value) => onLineStyleChange(value as LineChartStrokeStyle)}>
-          <SelectTrigger id={styleId} className="w-full" size="default">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {LINE_CHART_STROKE_STYLES.map((style) => (
-                <SelectItem key={style} value={style}>{style}</SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </Field>
+      {showStyleSelect ? (
+        <Field>
+          <FieldLabel htmlFor={styleId}>Style</FieldLabel>
+          <Select value={lineStyle} onValueChange={(value) => onLineStyleChange(value as LineChartStrokeStyle)}>
+            <SelectTrigger id={styleId} className="w-full" size="default">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {LINE_CHART_STROKE_STYLES.map((style) => (
+                  <SelectItem key={style} value={style}>{style}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : null}
     </>
   )
 }

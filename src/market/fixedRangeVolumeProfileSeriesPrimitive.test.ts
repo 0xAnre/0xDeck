@@ -24,6 +24,8 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
     const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() => ({
       instances: [],
       runtimeById: {},
+      getIntervalDurationSeconds: () => 60,
+      getLastBarUnixTime: () => null,
     }))
     series.attachPrimitive(primitive)
     primitive.attached({
@@ -44,6 +46,8 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
     const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() => ({
       instances: [],
       runtimeById: {},
+      getIntervalDurationSeconds: () => 60,
+      getLastBarUnixTime: () => null,
     }))
     const chart = {
       timeScale: () => ({

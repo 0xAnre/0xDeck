@@ -10,9 +10,10 @@ import {
   FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY,
   FRVP_VALUE_AREA_ROW_OPACITY,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
 import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
 
-const TEST_POC_STROKE_STYLE = 'rgba(220, 38, 38, 0.85)'
+const TEST_STYLES = frvpDefaultDrawStyle()
 
 function row(overrides: Partial<FixedRangeVolumeProfileRow> = {}): FixedRangeVolumeProfileRow {
   return {
@@ -27,11 +28,11 @@ function row(overrides: Partial<FixedRangeVolumeProfileRow> = {}): FixedRangeVol
 }
 
 describe('fixedRangeVolumeProfileRenderGeometry', () => {
-  it('uses one-third of range width for the highest volume row', () => {
+  it('anchors histogram bars on the left boundary of the selected range', () => {
     const rangeWidth = 200
     const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ totalVolume: 100 }),
-      rangeRight: 300,
+      rangeLeft: 100,
       rangeWidth,
       maxRowVolume: 100,
       top: 10,
@@ -42,14 +43,14 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       geometry?.totalWidth,
       rangeWidth * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
     )
-    assert.equal(geometry?.right, 300)
+    assert.equal(geometry?.left, 100)
   })
 
   it('scales half-volume row to half of the histogram max width', () => {
     const rangeWidth = 200
     const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ totalVolume: 50 }),
-      rangeRight: 300,
+      rangeLeft: 100,
       rangeWidth,
       maxRowVolume: 100,
       top: 10,
@@ -65,7 +66,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
   it('splits up and down widths to the total bar width', () => {
     const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ upVolume: 30, downVolume: 70, totalVolume: 100 }),
-      rangeRight: 400,
+      rangeLeft: 200,
       rangeWidth: 200,
       maxRowVolume: 100,
       top: 10,
@@ -78,7 +79,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
   it('assigns stronger opacity to value area rows', () => {
     const inVa = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ inValueArea: true }),
-      rangeRight: 300,
+      rangeLeft: 200,
       rangeWidth: 100,
       maxRowVolume: 10,
       top: 0,
@@ -87,7 +88,7 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     })
     const outVa = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row({ inValueArea: false }),
-      rangeRight: 300,
+      rangeLeft: 200,
       rangeWidth: 100,
       maxRowVolume: 10,
       top: 0,
@@ -102,7 +103,12 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const lines = buildFixedRangeVolumeProfileLevelLines({
       rangeLeft: 10,
       rangeRight: 200,
-      pocStrokeStyle: TEST_POC_STROKE_STYLE,
+      pocStrokeStyle: TEST_STYLES.pocStrokeStyle,
+      pocLineWidthCssPx: 3,
+      vahStrokeStyle: TEST_STYLES.vahStrokeStyle,
+      vahLineWidthCssPx: 3,
+      valStrokeStyle: TEST_STYLES.valStrokeStyle,
+      valLineWidthCssPx: 3,
       pocPrice: null,
       vah: null,
       val: null,
@@ -111,11 +117,16 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     assert.equal(lines.length, 0)
   })
 
-  it('builds POC, VAH, and VAL lines', () => {
+  it('builds POC, VAH, and VAL lines with per-level width', () => {
     const lines = buildFixedRangeVolumeProfileLevelLines({
       rangeLeft: 10,
       rangeRight: 200,
       pocStrokeStyle: readFrvpPocLineStrokeStyle(),
+      pocLineWidthCssPx: 4,
+      vahStrokeStyle: 'rgba(160, 160, 160, 0.55)',
+      vahLineWidthCssPx: 2,
+      valStrokeStyle: 'rgba(160, 160, 160, 0.55)',
+      valLineWidthCssPx: 1,
       pocPrice: 105,
       vah: 110,
       val: 100,
@@ -129,13 +140,16 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
 
     assert.equal(poc?.strokeStyle, readFrvpPocLineStrokeStyle())
     assert.equal(poc?.lineDash.length, 0)
+    assert.equal(poc?.lineWidthCssPx, 4)
     assert.equal(poc?.x1, 10)
     assert.equal(poc?.x2, 200)
 
     assert.equal(vah?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
     assert.deepEqual(vah?.lineDash, [4, 4])
+    assert.equal(vah?.lineWidthCssPx, 2)
     assert.equal(val?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
     assert.deepEqual(val?.lineDash, [4, 4])
+    assert.equal(val?.lineWidthCssPx, 1)
   })
 
   it('keeps multi-instance geometry separate', () => {
@@ -191,12 +205,24 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
         ],
       ]),
       barSpacing: 6,
-      timeToCoordinate: (time) => time / 10,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
       priceToY: (price) => 500 - price,
-      pocStrokeStyle: TEST_POC_STROKE_STYLE,
+      styleForInstance: (id) =>
+        frvpDrawStyleForInstance({
+          id,
+          fromTime: 100,
+          toTime: 200,
+          selectionInterval: '1m',
+          rowCount: 24,
+          valueAreaPercent: 70,
+          enabled: true,
+          displaySequence: 1,
+        }),
     })
     assert.equal(models.length, 2)
     assert.notEqual(models[0].instanceId, models[1].instanceId)
+    assert.equal(models[0].rows[0]?.left, models[0].rangeLeft)
   })
 
   it('returns zero max volume for empty rows safely', () => {

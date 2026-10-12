@@ -7,9 +7,13 @@ import {
 } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { CandleInterval } from './types.ts'
-import { resolveFixedRangeVolumeProfileCrosshairTime } from './fixedRangeVolumeProfileChartTime.ts'
+import {
+  buildFixedRangeVolumeProfileChartTimeContext,
+  resolveFixedRangeVolumeProfileCrosshairTime,
+} from './fixedRangeVolumeProfileChartTime.ts'
 import {
   attachFixedRangeVolumeProfilePanePointer,
+  type FixedRangeVolumeProfilePanePointerCallbacks,
   type FixedRangeVolumeProfilePanePointerController,
 } from './fixedRangeVolumeProfilePanePointer.ts'
 
@@ -21,6 +25,8 @@ export type FixedRangeVolumeProfileChartToolSnapshot = {
 export type FixedRangeVolumeProfileChartToolCallbacks = {
   getSnapshot: () => FixedRangeVolumeProfileChartToolSnapshot
   getSelectionInterval: () => CandleInterval
+  getIntervalDurationSeconds: () => number
+  getLastBarUnixTime: () => number | null
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
 }
@@ -86,9 +92,11 @@ export function attachFixedRangeVolumeProfileChartTool(
     present(callbacks.getSnapshot().interaction)
   }
 
-  const pointerCallbacks: FixedRangeVolumeProfileChartToolCallbacks = {
+  const pointerCallbacks: FixedRangeVolumeProfilePanePointerCallbacks = {
     getSnapshot: callbacks.getSnapshot,
     getSelectionInterval: callbacks.getSelectionInterval,
+    getIntervalDurationSeconds: callbacks.getIntervalDurationSeconds,
+    getLastBarUnixTime: callbacks.getLastBarUnixTime,
     onInteractionChange: (state) => {
       commitInteraction(state)
     },
@@ -103,7 +111,12 @@ export function attachFixedRangeVolumeProfileChartTool(
   const onCrosshairMove = (param: MouseEventParams<Time>) => {
     const snapshot = callbacks.getSnapshot()
     if (snapshot.interaction.phase !== 'preview') return
-    const hoverTime = resolveFixedRangeVolumeProfileCrosshairTime(chart, param)
+    const timeContext = buildFixedRangeVolumeProfileChartTimeContext(
+      chart,
+      callbacks.getLastBarUnixTime(),
+      callbacks.getIntervalDurationSeconds(),
+    )
+    const hoverTime = resolveFixedRangeVolumeProfileCrosshairTime(chart, param, timeContext)
     const next = applyFixedRangeVolumeProfileCrosshairTime(snapshot.interaction, hoverTime)
     if (next === snapshot.interaction) return
     commitInteraction(next)

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
 import {
+  clampFixedRangeVolumeProfileSelectionTime,
   resolveChartEventTime,
+  resolveChartTimeFromCoordinate,
   resolveFixedRangeVolumeProfileCrosshairTime,
 } from './fixedRangeVolumeProfileChartTime.ts'
 
@@ -12,6 +14,32 @@ function clickParam(overrides: Partial<MouseEventParams<Time>> = {}): MouseEvent
     time: 1_700_000_000 as Time,
     ...overrides,
   } as MouseEventParams<Time>
+}
+
+const fiveMinuteOpen = 1_700_000_000
+const barTimes = [fiveMinuteOpen, fiveMinuteOpen + 300, fiveMinuteOpen + 600]
+
+function chartWithBars(barTimesList: number[], spacing = 10): IChartApi {
+  return {
+    timeScale: () => ({
+      timeToCoordinate: (time: number) => {
+        const index = barTimesList.indexOf(time)
+        return index === -1 ? null : index * spacing
+      },
+      timeToIndex: (time: number, findNearest?: boolean) => {
+        if (barTimesList.length === 0) return null
+        const lastIndex = barTimesList.length - 1
+        if (time > barTimesList[lastIndex]) return findNearest ? lastIndex : null
+        const index = barTimesList.findIndex((bar) => bar >= time)
+        if (index === -1) return findNearest ? lastIndex : null
+        if (barTimesList[index] > time) return findNearest ? index : null
+        return index
+      },
+      logicalToCoordinate: (logical: number) => logical * spacing,
+      coordinateToLogical: (x: number) => x / spacing,
+      coordinateToTime: (x: number) => barTimesList[Math.round(x / spacing)] ?? null,
+    }),
+  } as unknown as IChartApi
 }
 
 function mockChart(coordinateTime: Time | null = 1_700_000_060 as Time): IChartApi {
@@ -36,5 +64,28 @@ describe('resolveFixedRangeVolumeProfileCrosshairTime', () => {
       clickParam({ time: undefined }),
     )
     assert.equal(time, 150)
+  })
+})
+
+describe('resolveChartTimeFromCoordinate for latest candle', () => {
+  it('resolves whitespace past the last bar to the last loaded candle time', () => {
+    const chart = chartWithBars(barTimes)
+    const context = {
+      intervalDurationSeconds: 300,
+      lastBarUnixTime: barTimes[barTimes.length - 1],
+      lastBarLogicalIndex: barTimes.length - 1,
+    }
+    const time = resolveChartTimeFromCoordinate(chart, 50, context)
+    assert.equal(time, barTimes[barTimes.length - 1])
+  })
+
+  it('clamps projected future timestamps to the last loaded candle', () => {
+    const context = {
+      intervalDurationSeconds: 300,
+      lastBarUnixTime: fiveMinuteOpen + 600,
+      lastBarLogicalIndex: 2,
+    }
+    const clamped = clampFixedRangeVolumeProfileSelectionTime(fiveMinuteOpen + 1_500, context)
+    assert.equal(clamped, fiveMinuteOpen + 600)
   })
 })

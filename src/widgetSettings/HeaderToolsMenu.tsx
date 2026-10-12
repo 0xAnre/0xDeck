@@ -32,6 +32,7 @@ import { RectangleFillStyleDialog } from '@/widgetSettings/RectangleFillStyleDia
 import { LineStyleDialog } from '@/widgetSettings/LineStyleDialog'
 import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
+import type { FrvpLevelLineKind } from '@/market/frvpInstanceLineStyles'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 
 type HeaderToolsMenuProps = {
@@ -44,6 +45,16 @@ type HeaderToolsMenuProps = {
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
+  onFixedRangeVolumeProfileLevelStrokeColorChange?: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    strokeColor: string,
+  ) => void
+  onFixedRangeVolumeProfileLevelLineWidthChange?: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    lineWidth: LineChartStrokeWidth,
+  ) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
@@ -73,6 +84,8 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileLockToggle,
   onFixedRangeVolumeProfileRowCountChange,
   onFixedRangeVolumeProfileValueAreaChange,
+  onFixedRangeVolumeProfileLevelStrokeColorChange,
+  onFixedRangeVolumeProfileLevelLineWidthChange,
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
@@ -291,6 +304,12 @@ export function HeaderToolsMenu({
         }}
         onValueAreaPercentChange={(instanceId, valueAreaPercent) => {
           onFixedRangeVolumeProfileValueAreaChange?.(instanceId, valueAreaPercent)
+        }}
+        onLevelStrokeColorChange={(instanceId, kind, strokeColor) => {
+          onFixedRangeVolumeProfileLevelStrokeColorChange?.(instanceId, kind, strokeColor)
+        }}
+        onLevelLineWidthChange={(instanceId, kind, lineWidth) => {
+          onFixedRangeVolumeProfileLevelLineWidthChange?.(instanceId, kind, lineWidth)
         }}
       />
     </>

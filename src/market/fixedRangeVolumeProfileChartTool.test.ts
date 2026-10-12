@@ -123,6 +123,8 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
           instances: [],
         }),
         getSelectionInterval: () => '1m',
+        getIntervalDurationSeconds: () => 60,
+        getLastBarUnixTime: () => null,
         onInteractionChange: () => {},
         onInstanceCompleted: () => {},
       })
@@ -140,6 +142,8 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
       const controller = attachFixedRangeVolumeProfileChartTool(chart, {
         getSnapshot: () => ({ interaction, instances: [] }),
         getSelectionInterval: () => '1m',
+        getIntervalDurationSeconds: () => 60,
+        getLastBarUnixTime: () => null,
         onInteractionChange: (state) => {
           interaction = state
         },

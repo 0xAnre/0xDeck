@@ -1,4 +1,5 @@
 import { isCandleInterval } from './candleIntervalDuration.ts'
+import type { LineChartStrokeWidth } from './lineChartStroke.ts'
 import {
   formatNumberedChartObjectLabel,
   isValidDisplaySequence,
@@ -6,6 +7,7 @@ import {
   nextDisplaySequence,
 } from './chartObjectDisplaySequence.ts'
 import { setChartObjectLocked } from './chartObjectState.ts'
+import { sanitizeFrvpInstanceLevelLineStyles } from './frvpInstanceLineStyles.ts'
 import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
 
 export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
@@ -22,6 +24,12 @@ export type FixedRangeVolumeProfileInstance = {
   enabled: boolean
   displaySequence: number
   locked?: boolean
+  pocStrokeColor?: string
+  pocLineWidth?: LineChartStrokeWidth
+  vahStrokeColor?: string
+  vahLineWidth?: LineChartStrokeWidth
+  valStrokeColor?: string
+  valLineWidth?: LineChartStrokeWidth
 }
 
 export type SanitizeFixedRangeVolumeProfileOptions = {
@@ -125,7 +133,7 @@ export function sanitizeFixedRangeVolumeProfileInstance(
   if (record.locked === true) {
     instance.locked = true
   }
-  return instance
+  return sanitizeFrvpInstanceLevelLineStyles(record, instance)
 }
 
 export function sanitizeFixedRangeVolumeProfileInstances(

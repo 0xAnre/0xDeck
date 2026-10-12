@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import type { LineChartStrokeWidth } from '@/market/lineChartStroke'
 import {
   DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
   DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
@@ -14,6 +15,12 @@ import {
   MAX_FIXED_RANGE_VP_ROW_COUNT,
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
+import {
+  frvpInstanceLevelLineWidth,
+  frvpLevelStrokeColorInputValue,
+  type FrvpLevelLineKind,
+} from '@/market/frvpInstanceLineStyles'
+import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 
 type FixedRangeVolumeProfileSettingsDialogProps = {
   instance: FixedRangeVolumeProfileInstance | null
@@ -21,6 +28,58 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
   onOpenChange: (open: boolean) => void
   onRowCountChange: (instanceId: string, rowCount: number) => void
   onValueAreaPercentChange: (instanceId: string, valueAreaPercent: number) => void
+  onLevelStrokeColorChange: (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => void
+  onLevelLineWidthChange: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    lineWidth: LineChartStrokeWidth,
+  ) => void
+}
+
+function LevelLineStyleFields({
+  instance,
+  kind,
+  label,
+  colorId,
+  widthId,
+  onLevelStrokeColorChange,
+  onLevelLineWidthChange,
+}: {
+  instance: FixedRangeVolumeProfileInstance
+  kind: FrvpLevelLineKind
+  label: string
+  colorId: string
+  widthId: string
+  onLevelStrokeColorChange: (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => void
+  onLevelLineWidthChange: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    lineWidth: LineChartStrokeWidth,
+  ) => void
+}) {
+  return (
+    <FieldGroup className="gap-3 border-t border-border pt-3">
+      <p className="text-sm font-medium">{label}</p>
+      <Field>
+        <FieldLabel htmlFor={colorId}>Color</FieldLabel>
+        <Input
+          id={colorId}
+          type="color"
+          value={frvpLevelStrokeColorInputValue(instance, kind)}
+          onChange={(event) => onLevelStrokeColorChange(instance.id, kind, event.target.value)}
+        />
+      </Field>
+      <LineChartStrokeSelectFields
+        widthId={widthId}
+        styleId={`${widthId}-style-hidden`}
+        lineWidth={frvpInstanceLevelLineWidth(instance, kind)}
+        lineStyle="solid"
+        onLineWidthChange={(lineWidth) => onLevelLineWidthChange(instance.id, kind, lineWidth)}
+        onLineStyleChange={() => {}}
+        showStyleSelect={false}
+      />
+    </FieldGroup>
+  )
 }
 
 export function FixedRangeVolumeProfileSettingsDialog({
@@ -29,6 +88,8 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onOpenChange,
   onRowCountChange,
   onValueAreaPercentChange,
+  onLevelStrokeColorChange,
+  onLevelLineWidthChange,
 }: FixedRangeVolumeProfileSettingsDialogProps) {
   return (
     <Dialog
@@ -38,19 +99,20 @@ export function FixedRangeVolumeProfileSettingsDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-sm"
+        className="flex max-h-[calc(100dvh-2rem)] max-w-sm flex-col overflow-hidden sm:max-w-sm"
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           document.getElementById(returnFocusId)?.focus()
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Volume profile</DialogTitle>
           <DialogDescription>
             {instance ? formatFixedRangeVolumeProfileInstanceLabel(instance) : 'Profile settings'}
           </DialogDescription>
         </DialogHeader>
         {instance ? (
+          <div className="min-h-0 overflow-y-auto overscroll-y-contain">
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="frvp-row-count">Row count</FieldLabel>
@@ -88,10 +150,38 @@ export function FixedRangeVolumeProfileSettingsDialog({
                 }}
               />
             </Field>
+            <LevelLineStyleFields
+              instance={instance}
+              kind="poc"
+              label="POC line"
+              colorId="frvp-poc-color"
+              widthId="frvp-poc-width"
+              onLevelStrokeColorChange={onLevelStrokeColorChange}
+              onLevelLineWidthChange={onLevelLineWidthChange}
+            />
+            <LevelLineStyleFields
+              instance={instance}
+              kind="vah"
+              label="VAH line"
+              colorId="frvp-vah-color"
+              widthId="frvp-vah-width"
+              onLevelStrokeColorChange={onLevelStrokeColorChange}
+              onLevelLineWidthChange={onLevelLineWidthChange}
+            />
+            <LevelLineStyleFields
+              instance={instance}
+              kind="val"
+              label="VAL line"
+              colorId="frvp-val-color"
+              widthId="frvp-val-width"
+              onLevelStrokeColorChange={onLevelStrokeColorChange}
+              onLevelLineWidthChange={onLevelLineWidthChange}
+            />
             <p className="text-xs text-muted-foreground">
               Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows, {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area.
             </p>
           </FieldGroup>
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>
