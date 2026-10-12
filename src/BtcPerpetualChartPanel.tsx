@@ -120,7 +120,7 @@ import {
   type FixedRangeVolumeProfileInteractionState,
 } from '@/market/fixedRangeVolumeProfileInteraction'
 import { isLineDrawingBlockingPeerTools } from '@/market/lineInteraction'
-import { isRectangleChartNavigationLocked } from '@/market/rectangleInteraction'
+import { isRectangleDrawingBlockingPeerTools } from '@/market/rectanglePeerTools'
 import {
   sanitizeFixedRangeVolumeProfileInstances,
   type FixedRangeVolumeProfileInstance,
@@ -1115,8 +1115,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),
       getSeries: () => seriesRef.current?.candle ?? null,
       isAlternateToolActive: () =>
-        isRectangleChartNavigationLocked(rectangleInteractionRef.current) ||
+        isRectangleDrawingBlockingPeerTools(rectangleInteractionRef.current) ||
         isLineDrawingBlockingPeerTools(lineInteractionRef.current),
+      getLineInteraction: () => lineInteractionRef.current,
+      getLineInstances: () => lineInstancesRef.current,
+      getRectangleInteraction: () => rectangleInteractionRef.current,
+      getRectangleInstances: () => rectangleInstancesRef.current,
       onInteractionChange: (state) => {
         fixedRangeVolumeProfileInteractionRef.current = state
         setFixedRangeVolumeProfileInteraction(state)
@@ -1196,6 +1200,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         fixedRangeVolumeProfileInteractionRef.current,
       getLineInteraction: () => lineInteractionRef.current,
       getLineInstances: () => lineInstancesRef.current,
+      getFixedRangeVolumeProfileInstances: () => fixedRangeVolumeProfileInstancesRef.current,
+      getFixedRangeVolumeProfileRuntime: () => fixedRangeVolumeProfileRuntimeRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     rectangleToolControllerRef.current = controller
@@ -1253,6 +1259,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         fixedRangeVolumeProfileInteractionRef.current,
       getRectangleInteraction: () => rectangleInteractionRef.current,
       getRectangleInstances: () => rectangleInstancesRef.current,
+      getFixedRangeVolumeProfileInstances: () => fixedRangeVolumeProfileInstancesRef.current,
+      getFixedRangeVolumeProfileRuntime: () => fixedRangeVolumeProfileRuntimeRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     lineToolControllerRef.current = controller

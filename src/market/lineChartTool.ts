@@ -1,10 +1,12 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
-import { rectangleHitAtPanePoint } from './drawingPointerArbitration.ts'
+import { frvpHitAtPanePoint, rectangleHitAtPanePoint } from './drawingPointerArbitration.ts'
 import {
-  isFixedRangeVolumeProfileToolActive,
+  isFixedRangeVolumeProfileChartNavigationLocked,
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
+import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import {
   cancelLineInteraction,
   INITIAL_LINE_INTERACTION_STATE,
@@ -45,6 +47,8 @@ export type LineChartToolCallbacks = {
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
   getRectangleInteraction: () => RectangleInteractionState
   getRectangleInstances: () => readonly RectangleInstance[]
+  getFixedRangeVolumeProfileInstances: () => readonly FixedRangeVolumeProfileInstance[]
+  getFixedRangeVolumeProfileRuntime: () => FixedRangeVolumeProfileRuntimeSnapshot
 }
 
 export type LineChartToolController = {
@@ -125,7 +129,8 @@ export function attachLineChartTool(
       const frvp = callbacks.getFixedRangeVolumeProfileInteraction()
       const rectangle = callbacks.getRectangleInteraction()
       return (
-        isFixedRangeVolumeProfileToolActive(frvp) || isRectangleDrawingBlockingPeerTools(rectangle)
+        isFixedRangeVolumeProfileChartNavigationLocked(frvp) ||
+        isRectangleDrawingBlockingPeerTools(rectangle)
       )
     },
     getCompetingRectangleHit: (paneX, paneY) => {
@@ -136,6 +141,22 @@ export function attachLineChartTool(
         series,
         instances: callbacks.getRectangleInstances(),
         selectedId: callbacks.getRectangleInteraction().selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
+    },
+    getCompetingFrvpHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      if (!series) return null
+      const frvpInteraction = callbacks.getFixedRangeVolumeProfileInteraction()
+      return frvpHitAtPanePoint({
+        chart,
+        series,
+        instances: callbacks.getFixedRangeVolumeProfileInstances(),
+        runtimeById: callbacks.getFixedRangeVolumeProfileRuntime(),
+        selectedId: frvpInteraction.selectedId,
         paneX,
         paneY,
         intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),

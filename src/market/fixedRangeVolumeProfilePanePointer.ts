@@ -28,7 +28,10 @@ import {
   buildFixedRangeVolumeProfileChartTimeContext,
   resolveChartTimeFromCoordinate,
 } from './fixedRangeVolumeProfileChartTime.ts'
+import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
+import type { LineHitTarget } from './lineHitTest.ts'
 import type { RectangleChartTimeContext } from './rectangleChartTime.ts'
+import type { RectangleHitTarget } from './rectangleHitTest.ts'
 
 export type FixedRangeVolumeProfilePanePointerCallbacks = {
   getSnapshot: () => {
@@ -45,6 +48,8 @@ export type FixedRangeVolumeProfilePanePointerCallbacks = {
   onInstanceUpdated: (instance: FixedRangeVolumeProfileInstance) => void
   onRequestRender: () => void
   isAlternateToolActive: () => boolean
+  getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
+  getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
 }
 
 export function resolvePaneRelativePointerX(
@@ -218,6 +223,15 @@ export function attachFixedRangeVolumeProfilePanePointer(
           callbacks.onInteractionChange(applyFixedRangeVolumeProfileSelection(interaction, null))
           callbacks.onRequestRender()
         }
+        return
+      }
+      if (
+        preferDrawingPointerTargetAmongPeers(
+          callbacks.getCompetingLineHit(paneX, paneY),
+          callbacks.getCompetingRectangleHit(paneX, paneY),
+          hit,
+        ) !== 'frvp'
+      ) {
         return
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)

@@ -13,6 +13,14 @@ import {
   resolveFixedRangeVolumeProfileCrosshairTime,
 } from './fixedRangeVolumeProfileChartTime.ts'
 import {
+  lineHitAtPanePoint,
+  rectangleHitAtPanePoint,
+} from './drawingPointerArbitration.ts'
+import type { LineInteractionState } from './lineInteraction.ts'
+import type { LineInstance } from './lineInstances.ts'
+import type { RectangleInteractionState } from './rectangleInteraction.ts'
+import type { RectangleInstance } from './rectangleInstances.ts'
+import {
   attachFixedRangeVolumeProfilePanePointer,
   type FixedRangeVolumeProfilePanePointerCallbacks,
   type FixedRangeVolumeProfilePanePointerController,
@@ -35,6 +43,10 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getSeries: () => ISeriesApi<SeriesType, Time> | null
   onRequestRender: () => void
   isAlternateToolActive: () => boolean
+  getLineInteraction: () => LineInteractionState
+  getLineInstances: () => readonly LineInstance[]
+  getRectangleInteraction: () => RectangleInteractionState
+  getRectangleInstances: () => readonly RectangleInstance[]
 }
 
 export type FixedRangeVolumeProfileChartToolController = {
@@ -118,6 +130,34 @@ export function attachFixedRangeVolumeProfileChartTool(
       callbacks.onRequestRender()
     },
     isAlternateToolActive: callbacks.isAlternateToolActive,
+    getCompetingLineHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      if (!series) return null
+      return lineHitAtPanePoint({
+        chart,
+        series,
+        instances: callbacks.getLineInstances(),
+        selectedId: callbacks.getLineInteraction().selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
+    },
+    getCompetingRectangleHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      if (!series) return null
+      return rectangleHitAtPanePoint({
+        chart,
+        series,
+        instances: callbacks.getRectangleInstances(),
+        selectedId: callbacks.getRectangleInteraction().selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
+    },
   }
 
   panePointer = attachFixedRangeVolumeProfilePanePointer(chart, pointerCallbacks)

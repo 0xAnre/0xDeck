@@ -132,6 +132,10 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
         onInstanceCompleted: () => {},
         onInstanceUpdated: () => {},
         onRequestRender: () => {},
+        getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getLineInstances: () => [],
+        getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getRectangleInstances: () => [],
       })
       assert.equal(scrollMode(), 'locked')
       controller.dispose()
@@ -157,6 +161,10 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
         onInstanceCompleted: () => {},
         onInstanceUpdated: () => {},
         onRequestRender: () => {},
+        getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getLineInstances: () => [],
+        getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getRectangleInstances: () => [],
       })
       assert.equal(scrollMode(), 'locked')
       const first = applyFixedRangeVolumeProfileClick(interaction, 100, [], '1m')

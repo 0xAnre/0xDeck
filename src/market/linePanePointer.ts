@@ -1,5 +1,6 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
-import { preferDrawingPointerTarget } from './drawingPointerArbitration.ts'
+import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
+import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfileHitTest.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import {
   applyLineSelection,
@@ -42,6 +43,7 @@ export type LinePanePointerCallbacks = {
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
   getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
+  getCompetingFrvpHit: (paneX: number, paneY: number) => FixedRangeVolumeProfileHitTarget | null
 }
 
 export type LinePanePointerController = {
@@ -151,8 +153,11 @@ export function attachLinePanePointer(
         return
       }
       if (
-        preferDrawingPointerTarget(hit, callbacks.getCompetingRectangleHit(paneX, paneY)) !==
-        'line'
+        preferDrawingPointerTargetAmongPeers(
+          hit,
+          callbacks.getCompetingRectangleHit(paneX, paneY),
+          callbacks.getCompetingFrvpHit(paneX, paneY),
+        ) !== 'line'
       ) {
         return
       }
