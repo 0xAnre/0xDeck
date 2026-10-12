@@ -352,6 +352,98 @@ describe('rectanglePanePointer', () => {
     assert.equal(interaction.draft, null)
   })
 
+  it('clears double-click sequence state after the second press on a locked rectangle', () => {
+    const { listeners, chart } = createPaneHarness()
+    let interaction = applyRectangleSelection(INITIAL_RECTANGLE_INTERACTION_STATE, null)
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction,
+        instances: [
+          {
+            id: 'rect-locked',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+            locked: true,
+          },
+          {
+            id: 'rect-unlocked',
+            fromTime: 100,
+            toTime: 200,
+            lowPrice: 20,
+            highPrice: 80,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    const pointerDown = listeners.get('pointerdown') as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup') as (event: PointerEvent) => void
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 6,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 6,
+    } as PointerEvent)
+
+    pointerDown({
+      button: 0,
+      clientX: 152,
+      clientY: 52,
+      pointerId: 7,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 152,
+      clientY: 52,
+      pointerId: 7,
+    } as PointerEvent)
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 8,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+
+    assert.equal(interaction.phase, 'moving')
+    assert.equal(interaction.selectedId, 'rect-unlocked')
+  })
+
   it('does not swallow pointer events on hidden handles of a selected locked rectangle', () => {
     const { listeners, chart } = createPaneHarness()
     let interaction = applyRectangleSelection(INITIAL_RECTANGLE_INTERACTION_STATE, 'rect-locked')
