@@ -1,3 +1,5 @@
+import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
+
 const DOUBLE_CLICK_INTERVAL_MS = 500
 const DOUBLE_CLICK_MAX_POINTER_MOVE_PX = 10
 
@@ -81,8 +83,9 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
   now: number = performance.now(),
 ): void {
   if (
-    !isWithinDoubleClickDistance(
-      { time: 0, clientX: startClientX, clientY: startClientY },
+    !pointerMovementWithinClickTolerance(
+      startClientX,
+      startClientY,
       clientX,
       clientY,
     )
@@ -93,16 +96,13 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
 }
 
 /**
- * Second press of a double-click sequence moved enough to drag; ignore the ensuing
- * `dblclick` only while still within the double-click interval.
+ * A line/rectangle drag committed on this pane; ignore the next `dblclick` only while
+ * still within the double-click interval (including first-gesture drags in the 4–10 px gap).
  */
 export function markPaneDoubleClickSequenceDragTainted(
   paneElement: HTMLElement,
   now: number = performance.now(),
 ): void {
-  if (!awaitingSecondPressForDoubleClickByPane.get(paneElement)) {
-    return
-  }
   setDragTaintForSettingsSuppression(paneElement, now)
 }
 

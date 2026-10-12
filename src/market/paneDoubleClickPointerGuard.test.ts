@@ -80,10 +80,19 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     )
   })
 
-  it('does not taint settings suppression after an ordinary drag without a double-click sequence', () => {
+  it('taints settings suppression when a committed drag is marked tainted', () => {
     const pane = {} as HTMLElement
-    markPaneDoubleClickSequenceDragTainted(pane)
-    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane), false)
+    markPaneDoubleClickSequenceDragTainted(pane, 0)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 100), true)
+  })
+
+  it('taints when pointer movement exceeds click tolerance but stays within double-click distance', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 17, 20)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 50), true)
+    commitPanePointerClickForDoubleClick(pane)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), false)
   })
 
   it('taints settings suppression when the second press of a double-click drags', () => {
