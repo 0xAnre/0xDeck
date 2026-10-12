@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CandlestickSeries,
   ColorType,
@@ -345,16 +345,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
   const fixedRangeVolumeProfileToolControllerRef =
     useRef<FixedRangeVolumeProfileChartToolController | null>(null)
-  const fixedRangeVolumeProfileInstancesForDisplay = useMemo(
-    () =>
-      resolveFixedRangeVolumeProfileInstancesForDisplay(
-        fixedRangeVolumeProfileInstances,
-        fixedRangeVolumeProfileInteraction,
-      ),
-    [fixedRangeVolumeProfileInstances, fixedRangeVolumeProfileInteraction],
-  )
   const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
-    fixedRangeVolumeProfileInstancesForDisplay,
+    fixedRangeVolumeProfileInstances,
   )
   const fixedRangeVolumeProfileRuntimeRef = useRef<FixedRangeVolumeProfileRuntimeSnapshot>(
     fixedRangeVolumeProfileRuntimeById,
