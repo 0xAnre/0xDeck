@@ -189,6 +189,11 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   valStrokeStyle: string
   valLineWidthCssPx: number
 }): FixedRangeVolumeProfileInstanceDrawModel | null {
+  const xFrom = params.fromTimeToCoordinate(params.fromTime)
+  const xTo = params.toTimeToCoordinate(params.toTime)
+  if (xFrom === null || xTo === null) return null
+  if (!Number.isFinite(xFrom) || !Number.isFinite(xTo)) return null
+
   const range = computeSelectionRangeHorizontalBounds({
     fromTime: params.fromTime,
     toTime: params.toTime,
@@ -248,8 +253,8 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   const handleY = (profileTop + profileBottom) / 2
 
   const endpointHandles = {
-    startX: range.left,
-    endX: range.right,
+    startX: xFrom,
+    endX: xTo,
     y: handleY,
   }
 

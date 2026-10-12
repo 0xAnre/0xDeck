@@ -153,6 +153,41 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     assert.equal(val?.lineWidthCssPx, 1)
   })
 
+  it('places endpoint handles at candle centers, not half-bar range edges', () => {
+    const model = buildFixedRangeVolumeProfileInstanceDrawModel({
+      instanceId: 'a',
+      fromTime: 100,
+      toTime: 200,
+      profile: {
+        fromTime: 100,
+        toTime: 199,
+        candleCount: 1,
+        profileLow: 100,
+        profileHigh: 120,
+        rowHeight: 1,
+        rows: [row()],
+        totalVolume: 10,
+        pocRowIndex: 0,
+        pocPrice: 105,
+        pocVolume: 10,
+        vah: 110,
+        val: 100,
+        valueAreaVolume: 10,
+        valueAreaPercentAchieved: 70,
+      },
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      ...TEST_STYLES,
+    })
+    assert.notEqual(model, null)
+    assert.equal(model?.endpointHandles?.startX, 10)
+    assert.equal(model?.endpointHandles?.endX, 20)
+    assert.equal(model?.rangeLeft, 7)
+    assert.equal(model?.rangeRight, 23)
+  })
+
   it('places endpoint handles at the vertical center of the profile bounds', () => {
     const model = buildFixedRangeVolumeProfileInstanceDrawModel({
       instanceId: 'a',
