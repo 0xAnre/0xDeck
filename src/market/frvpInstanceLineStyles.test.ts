@@ -2,10 +2,12 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import { sanitizeFixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import { readFrvpPocLineColorInputHex } from './frvpLevelLineColors.ts'
 import {
   DEFAULT_FRVP_LEVEL_LINE_WIDTH,
   frvpInstanceLevelLineStrokeStyle,
   frvpInstanceLevelLineWidth,
+  frvpLevelStrokeColorInputValue,
   setFrvpInstanceLevelLineWidth,
   setFrvpInstanceLevelStrokeColor,
 } from './frvpInstanceLineStyles.ts'
@@ -28,6 +30,7 @@ describe('frvpInstanceLineStyles', () => {
     const instance = baseInstance()
     assert.equal(frvpInstanceLevelLineWidth(instance, 'poc'), DEFAULT_FRVP_LEVEL_LINE_WIDTH)
     assert.match(frvpInstanceLevelLineStrokeStyle(instance, 'vah'), /rgba\(/)
+    assert.equal(frvpLevelStrokeColorInputValue(instance, 'poc'), readFrvpPocLineColorInputHex())
   })
 
   it('persists custom colors and widths on the instance', () => {

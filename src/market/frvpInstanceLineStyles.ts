@@ -4,6 +4,7 @@ import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileI
 import type { FixedRangeVolumeProfileDrawStyleInput } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import {
   FRVP_POC_LINE_STROKE_OPACITY,
+  readFrvpPocLineColorInputHex,
   readFrvpPocLineStrokeStyle,
 } from './frvpLevelLineColors.ts'
 
@@ -40,6 +41,17 @@ function defaultStrokeStyleForKind(kind: FrvpLevelLineKind): string {
 
 function strokeStyleFromHex(hex: string, opacity: number): string {
   return rgbaFromResolvedCssColor(hex, opacity)
+}
+
+export function frvpLevelStrokeColorInputValue(
+  instance: FixedRangeVolumeProfileInstance,
+  kind: FrvpLevelLineKind,
+): string {
+  const colorKey = LEVEL_STROKE_COLOR_KEY[kind]
+  const custom = instance[colorKey]
+  if (isLineChartHexColor(custom)) return custom
+  if (kind === 'poc') return readFrvpPocLineColorInputHex()
+  return FRVP_VAH_VAL_DEFAULT_HEX
 }
 
 export function frvpInstanceLevelLineWidth(

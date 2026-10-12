@@ -16,13 +16,11 @@ import {
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import {
-  FRVP_VAH_VAL_DEFAULT_HEX,
   frvpInstanceLevelLineWidth,
+  frvpLevelStrokeColorInputValue,
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
-
-const POC_DEFAULT_HEX = '#dc2626'
 
 type FixedRangeVolumeProfileSettingsDialogProps = {
   instance: FixedRangeVolumeProfileInstance | null
@@ -36,21 +34,6 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
     kind: FrvpLevelLineKind,
     lineWidth: LineChartStrokeWidth,
   ) => void
-}
-
-function levelStrokeColorValue(instance: FixedRangeVolumeProfileInstance, kind: FrvpLevelLineKind): string {
-  switch (kind) {
-    case 'poc':
-      return instance.pocStrokeColor ?? POC_DEFAULT_HEX
-    case 'vah':
-      return instance.vahStrokeColor ?? FRVP_VAH_VAL_DEFAULT_HEX
-    case 'val':
-      return instance.valStrokeColor ?? FRVP_VAH_VAL_DEFAULT_HEX
-    default: {
-      const unreachable: never = kind
-      return unreachable
-    }
-  }
 }
 
 function LevelLineStyleFields({
@@ -82,7 +65,7 @@ function LevelLineStyleFields({
         <Input
           id={colorId}
           type="color"
-          value={levelStrokeColorValue(instance, kind)}
+          value={frvpLevelStrokeColorInputValue(instance, kind)}
           onChange={(event) => onLevelStrokeColorChange(instance.id, kind, event.target.value)}
         />
       </Field>
@@ -116,19 +99,20 @@ export function FixedRangeVolumeProfileSettingsDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-sm"
+        className="flex max-h-[calc(100dvh-2rem)] max-w-sm flex-col overflow-hidden sm:max-w-sm"
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           document.getElementById(returnFocusId)?.focus()
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Volume profile</DialogTitle>
           <DialogDescription>
             {instance ? formatFixedRangeVolumeProfileInstanceLabel(instance) : 'Profile settings'}
           </DialogDescription>
         </DialogHeader>
         {instance ? (
+          <div className="min-h-0 overflow-y-auto overscroll-y-contain">
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="frvp-row-count">Row count</FieldLabel>
@@ -197,6 +181,7 @@ export function FixedRangeVolumeProfileSettingsDialog({
               Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows, {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area.
             </p>
           </FieldGroup>
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>
