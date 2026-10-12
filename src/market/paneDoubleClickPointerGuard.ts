@@ -23,6 +23,11 @@ const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, PointerClickRecord
 const observedDoubleClickIntervalMsByPane = new WeakMap<HTMLElement, number>()
 /** Set from the pane `click` event (`detail === 1`) so pointer logic can follow the native sequence. */
 const nativePrimaryClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
+/** First native click of the current sequence; kept until interval is learned from `detail >= 2`. */
+const nativeDoubleClickIntervalAnchorByPane = new WeakMap<
+  HTMLElement,
+  PointerClickRecord
+>()
 
 function getEffectiveDoubleClickIntervalMs(paneElement: HTMLElement): number {
   const observed = observedDoubleClickIntervalMsByPane.get(paneElement)
@@ -38,13 +43,14 @@ function noteNativeDoubleClickInterval(
   clientY: number,
   now: number,
 ): void {
-  const first =
-    nativePrimaryClickByPane.get(paneElement) ??
-    lastCompletedClickByPane.get(paneElement)
-  if (!first || !isWithinDoubleClickDistance(first, clientX, clientY)) {
+  const firstNativeClick = nativeDoubleClickIntervalAnchorByPane.get(paneElement)
+  if (
+    !firstNativeClick ||
+    !isWithinDoubleClickDistance(firstNativeClick, clientX, clientY)
+  ) {
     return
   }
-  const observed = now - first.time
+  const observed = now - firstNativeClick.time
   if (observed <= 0) {
     return
   }
@@ -54,6 +60,7 @@ function noteNativeDoubleClickInterval(
     paneElement,
     Math.max(previous, nextInterval, MIN_DOUBLE_CLICK_INTERVAL_MS),
   )
+  nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
 }
 
 /**
@@ -100,7 +107,9 @@ export function notePaneNativePrimaryClick(
   clientY: number,
   now: number = performance.now(),
 ): void {
-  nativePrimaryClickByPane.set(paneElement, { time: now, clientX, clientY })
+  const record = { time: now, clientX, clientY }
+  nativePrimaryClickByPane.set(paneElement, record)
+  nativeDoubleClickIntervalAnchorByPane.set(paneElement, record)
 }
 
 function clearNativePrimaryClick(paneElement: HTMLElement): void {
@@ -219,6 +228,7 @@ export function completePaneDoubleClickSequenceForSettings(paneElement: HTMLElem
   pendingClickByPane.delete(paneElement)
   lastCompletedClickByPane.delete(paneElement)
   clearNativePrimaryClick(paneElement)
+  nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
   clearAwaitingSecondPressForDoubleClick(paneElement)
 }
 
