@@ -257,6 +257,7 @@ export function attachFixedRangeVolumeProfilePanePointer(
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
       if (isFixedRangeVolumeProfileInstanceLocked(instance)) {
+        callbacks.onExclusivePointerClaim?.()
         callbacks.onInteractionChange(applyFixedRangeVolumeProfileSelection(interaction, hit.instanceId))
         callbacks.onRequestRender()
         return
@@ -272,6 +273,7 @@ export function attachFixedRangeVolumeProfilePanePointer(
         syncResizePreview(paneX)
         return
       }
+      callbacks.onExclusivePointerClaim?.()
       callbacks.onInteractionChange(applyFixedRangeVolumeProfileSelection(interaction, hit.instanceId))
       callbacks.onRequestRender()
     }
