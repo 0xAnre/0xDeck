@@ -95,6 +95,23 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
   }
 }
 
+/** Clear sequence state after a committed drag so later presses are not misclassified. */
+export function markPanePointerDragCommittedForSettingsSuppression(
+  paneElement: HTMLElement,
+  now: number = performance.now(),
+): void {
+  pendingClickByPane.delete(paneElement)
+  lastCompletedClickByPane.delete(paneElement)
+  awaitingSecondPressForDoubleClickByPane.delete(paneElement)
+  setDragTaintForSettingsSuppression(paneElement, now)
+}
+
+export function completePaneDoubleClickSequenceForSettings(paneElement: HTMLElement): void {
+  pendingClickByPane.delete(paneElement)
+  lastCompletedClickByPane.delete(paneElement)
+  clearAwaitingSecondPressForDoubleClick(paneElement)
+}
+
 /**
  * A line/rectangle drag committed on this pane; ignore the next `dblclick` only while
  * still within the double-click interval (including first-gesture drags in the 4–10 px gap).

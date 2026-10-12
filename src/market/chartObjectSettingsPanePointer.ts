@@ -6,7 +6,7 @@ import {
   type ChartObjectSettingsHitTestContext,
 } from './chartObjectSettingsHitTest.ts'
 import {
-  clearAwaitingSecondPressForDoubleClick,
+  completePaneDoubleClickSequenceForSettings,
   shouldSuppressChartObjectSettingsDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 
@@ -47,8 +47,8 @@ export function attachChartObjectSettingsPanePointer(
     if (!target) return
     event.preventDefault()
     event.stopPropagation()
+    completePaneDoubleClickSequenceForSettings(paneElement)
     callbacks.onActivate(target)
-    clearAwaitingSecondPressForDoubleClick(paneElement)
   }
 
   paneElement.addEventListener('dblclick', onDoubleClick)

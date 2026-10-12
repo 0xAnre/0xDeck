@@ -7,6 +7,7 @@ import {
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
   markPaneDoubleClickSequenceDragTainted,
+  markPanePointerDragCommittedForSettingsSuppression,
   shouldSuppressChartObjectSettingsDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 
@@ -44,6 +45,22 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
     commitPanePointerClickForDoubleClick(pane)
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), false)
+  })
+
+  it('taints and clears completed click when a small committed drag exceeds click tolerance', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    markPanePointerDragCommittedForSettingsSuppression(pane, 50)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), false)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 100), true)
+  })
+
+  it('invalidates pending click when movement exceeds click tolerance but stays within double-click distance', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 15, 20, 0)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 50), true)
   })
 
   it('does not record a cancelled pending click', () => {

@@ -32,7 +32,7 @@ import {
   clearAwaitingSecondPressForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
-  markPaneDoubleClickSequenceDragTainted,
+  markPanePointerDragCommittedForSettingsSuppression,
 } from './paneDoubleClickPointerGuard.ts'
 
 export type LinePanePointerCallbacks = {
@@ -276,8 +276,7 @@ export function attachLinePanePointer(
       ) {
         const pending = pendingDeferredLineDrag
         pendingDeferredLineDrag = null
-        markPaneDoubleClickSequenceDragTainted(paneElement)
-        clearAwaitingSecondPressForDoubleClick(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(paneElement)
         startDragFromLineHit(
           pending.hit,
           pending.instance,
@@ -333,8 +332,7 @@ export function attachLinePanePointer(
       ) {
         commitPanePointerClickForDoubleClick(paneElement)
       } else {
-        cancelPanePointerClickForDoubleClick(paneElement)
-        markPaneDoubleClickSequenceDragTainted(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(paneElement)
       }
       activePointerDownClient = null
       return
@@ -373,8 +371,7 @@ export function attachLinePanePointer(
         commitPanePointerClickForDoubleClick(paneElement)
         callbacks.onInteractionChange(cancelLineInteraction(snapshot.interaction))
       } else {
-        cancelPanePointerClickForDoubleClick(paneElement)
-        markPaneDoubleClickSequenceDragTainted(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(paneElement)
         const preview = callbacks.getPointerPreview()
         const commitTime = point?.time ?? preview.time
         const commitPrice = point?.price ?? preview.price

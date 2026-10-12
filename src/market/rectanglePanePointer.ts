@@ -27,7 +27,7 @@ import {
   clearAwaitingSecondPressForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
-  markPaneDoubleClickSequenceDragTainted,
+  markPanePointerDragCommittedForSettingsSuppression,
 } from './paneDoubleClickPointerGuard.ts'
 import {
   buildRectangleChartTimeContext,
@@ -276,8 +276,7 @@ export function attachRectanglePanePointer(
       ) {
         const pending = pendingDeferredRectangleDrag
         pendingDeferredRectangleDrag = null
-        markPaneDoubleClickSequenceDragTainted(paneElement)
-        clearAwaitingSecondPressForDoubleClick(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(paneElement)
         startDragFromRectangleHit(
           pending.hit,
           pending.instance,
@@ -333,8 +332,7 @@ export function attachRectanglePanePointer(
       ) {
         commitPanePointerClickForDoubleClick(paneElement)
       } else {
-        cancelPanePointerClickForDoubleClick(paneElement)
-        markPaneDoubleClickSequenceDragTainted(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(paneElement)
       }
       activePointerDownClient = null
       return
@@ -373,8 +371,7 @@ export function attachRectanglePanePointer(
         commitPanePointerClickForDoubleClick(paneElement)
         callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
       } else {
-        cancelPanePointerClickForDoubleClick(paneElement)
-        markPaneDoubleClickSequenceDragTainted(paneElement)
+        markPanePointerDragCommittedForSettingsSuppression(paneElement)
         const preview = callbacks.getPointerPreview()
         const commitTime = point?.time ?? preview.time
         const commitPrice = point?.price ?? preview.price
