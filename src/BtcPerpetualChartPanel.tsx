@@ -137,7 +137,6 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
-  clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
@@ -904,17 +903,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       frvpArmClaimTimerRef.current = null
       claimRectangleKeyboardPanel(panelId)
     }, 0)
-    const cancelledRectangle = cancelRectangleInteraction(rectangleInteractionRef.current)
-    if (cancelledRectangle !== rectangleInteractionRef.current) {
-      rectangleInteractionRef.current = cancelledRectangle
-      setRectangleInteraction(cancelledRectangle)
+    const releasedRectangle = releaseRectangleInteractionForPeerTool(
+      rectangleInteractionRef.current,
+    )
+    if (releasedRectangle !== rectangleInteractionRef.current) {
+      rectangleInteractionRef.current = releasedRectangle
+      setRectangleInteraction(releasedRectangle)
       rectangleToolControllerRef.current?.sync()
       rectangleSeriesAttachmentRef.current?.update()
     }
-    const cancelledLine = cancelLineInteraction(lineInteractionRef.current)
-    if (cancelledLine !== lineInteractionRef.current) {
-      lineInteractionRef.current = cancelledLine
-      setLineInteraction(cancelledLine)
+    const releasedLine = releaseLineInteractionForPeerTool(lineInteractionRef.current)
+    if (releasedLine !== lineInteractionRef.current) {
+      lineInteractionRef.current = releasedLine
+      setLineInteraction(releasedLine)
       lineToolControllerRef.current?.sync()
       lineSeriesAttachmentRef.current?.update()
     }
