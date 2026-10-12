@@ -52,6 +52,7 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getLineInstances: () => readonly LineInstance[]
   getRectangleInteraction: () => RectangleInteractionState
   getRectangleInstances: () => readonly RectangleInstance[]
+  onExclusivePointerClaim?: () => void
 }
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -170,6 +171,7 @@ export function attachFixedRangeVolumeProfileChartTool(
         lastBarUnixTime: callbacks.getLastBarUnixTime(),
       })
     },
+    onExclusivePointerClaim: callbacks.onExclusivePointerClaim,
   }
 
   panePointer = attachFixedRangeVolumeProfilePanePointer(chart, pointerCallbacks)

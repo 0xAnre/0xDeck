@@ -50,6 +50,7 @@ export type FixedRangeVolumeProfilePanePointerCallbacks = {
   isAlternateToolActive: () => boolean
   getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
   getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
+  onExclusivePointerClaim?: () => void
 }
 
 export function resolvePaneRelativePointerX(
@@ -225,15 +226,19 @@ export function attachFixedRangeVolumeProfilePanePointer(
         }
         return
       }
-      if (
-        preferDrawingPointerTargetAmongPeers(
-          callbacks.getCompetingLineHit(paneX, paneY),
-          callbacks.getCompetingRectangleHit(paneX, paneY),
-          hit,
-        ) !== 'frvp'
-      ) {
+      const preferredTarget = preferDrawingPointerTargetAmongPeers(
+        callbacks.getCompetingLineHit(paneX, paneY),
+        callbacks.getCompetingRectangleHit(paneX, paneY),
+        hit,
+      )
+      if (preferredTarget !== 'frvp') {
+        if (interaction.selectedId !== null) {
+          callbacks.onInteractionChange(applyFixedRangeVolumeProfileSelection(interaction, null))
+          callbacks.onRequestRender()
+        }
         return
       }
+      callbacks.onExclusivePointerClaim?.()
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
       if (!instance) return
       if (isFixedRangeVolumeProfileInstanceLocked(instance)) {

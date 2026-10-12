@@ -1,4 +1,8 @@
 import {
+  isFixedRangeVolumeProfileChartNavigationLocked,
+  type FixedRangeVolumeProfileInteractionState,
+} from './fixedRangeVolumeProfileInteraction.ts'
+import {
   isLineChartNavigationLocked,
   type LineInteractionState,
 } from './lineInteraction.ts'
@@ -37,6 +41,27 @@ export function clearRectangleSelectionForPeerClaim(
 ): RectangleInteractionState {
   if (state.selectedId === null || isRectangleChartNavigationLocked(state)) return state
   return { ...state, selectedId: null }
+}
+
+export function clearFixedRangeVolumeProfileSelectionForPeerClaim(
+  state: FixedRangeVolumeProfileInteractionState,
+): FixedRangeVolumeProfileInteractionState {
+  if (state.selectedId === null || isFixedRangeVolumeProfileChartNavigationLocked(state)) {
+    return state
+  }
+  return { ...state, selectedId: null }
+}
+
+export function clearLineAndRectangleSelectionForFrvpClaim(
+  line: LineInteractionState,
+  rectangle: RectangleInteractionState,
+): { line: LineInteractionState; rectangle: RectangleInteractionState } {
+  const nextLine = clearLineSelectionForPeerClaim(line)
+  const nextRectangle = clearRectangleSelectionForPeerClaim(rectangle)
+  if (nextLine === line && nextRectangle === rectangle) {
+    return { line, rectangle }
+  }
+  return { line: nextLine, rectangle: nextRectangle }
 }
 
 export function withExclusiveLineSelection(

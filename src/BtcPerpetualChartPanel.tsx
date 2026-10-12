@@ -137,6 +137,8 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
+  clearFixedRangeVolumeProfileSelectionForPeerClaim,
+  clearLineAndRectangleSelectionForFrvpClaim,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
   withExclusiveLineSelection,
@@ -1159,6 +1161,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         setFixedRangeVolumeProfileInteraction(state)
         fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
       },
+      onExclusivePointerClaim: () => {
+        const peers = clearLineAndRectangleSelectionForFrvpClaim(
+          lineInteractionRef.current,
+          rectangleInteractionRef.current,
+        )
+        if (peers.line !== lineInteractionRef.current) {
+          lineInteractionRef.current = peers.line
+          setLineInteraction(peers.line)
+          lineToolControllerRef.current?.sync()
+          lineSeriesAttachmentRef.current?.update()
+        }
+        if (peers.rectangle !== rectangleInteractionRef.current) {
+          rectangleInteractionRef.current = peers.rectangle
+          setRectangleInteraction(peers.rectangle)
+          rectangleToolControllerRef.current?.sync()
+          rectangleSeriesAttachmentRef.current?.update()
+        }
+      },
       onInstanceCompleted: (instance) => {
         persistFixedRangeVolumeProfileInstances([
           ...fixedRangeVolumeProfileInstancesRef.current,
@@ -1210,6 +1230,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           setLineInteraction(next.line)
           lineToolControllerRef.current?.sync()
           lineSeriesAttachmentRef.current?.update()
+        }
+        if (next.rectangle.selectedId !== null) {
+          const clearedFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
+            fixedRangeVolumeProfileInteractionRef.current,
+          )
+          if (clearedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+            fixedRangeVolumeProfileInteractionRef.current = clearedFrvp
+            setFixedRangeVolumeProfileInteraction(clearedFrvp)
+            fixedRangeVolumeProfileToolControllerRef.current?.sync()
+            fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+          }
         }
       },
       onInstancesChange: (instances) => {
@@ -1271,6 +1302,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           setRectangleInteraction(next.rectangle)
           rectangleToolControllerRef.current?.sync()
           rectangleSeriesAttachmentRef.current?.update()
+        }
+        if (next.line.selectedId !== null) {
+          const clearedFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
+            fixedRangeVolumeProfileInteractionRef.current,
+          )
+          if (clearedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+            fixedRangeVolumeProfileInteractionRef.current = clearedFrvp
+            setFixedRangeVolumeProfileInteraction(clearedFrvp)
+            fixedRangeVolumeProfileToolControllerRef.current?.sync()
+            fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+          }
         }
       },
       onInstancesChange: (instances) => {
