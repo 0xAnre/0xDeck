@@ -237,6 +237,8 @@ export function attachLinePanePointer(
           callbacks.onInteractionChange(next)
           callbacks.onRequestRender()
         }
+        event.preventDefault()
+        event.stopPropagation()
         return
       }
       if (!isSecondClickOfSequence) {

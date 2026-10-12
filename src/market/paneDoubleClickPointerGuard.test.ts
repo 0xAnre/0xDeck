@@ -2,18 +2,17 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   armPanePointerClickForDoubleClick,
+  attachPaneNativeDoubleClickIntervalObserver,
   cancelPanePointerClickForDoubleClick,
   commitPanePointerClickForDoubleClick,
   consumeCompletedClickForDoubleClickSequence,
+  FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
   invalidatePanePointerClickForDoubleClickOnDrag,
   markPaneDoubleClickSequenceDragTainted,
   markPanePointerDragCommittedForSettingsSuppression,
+  notePaneNativePrimaryClick,
   shouldSuppressChartObjectSettingsDoubleClick,
-  attachPaneNativeDoubleClickIntervalObserver,
-  FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
 } from './paneDoubleClickPointerGuard.ts'
-
-const DOUBLE_CLICK_INTERVAL_MS = FALLBACK_DOUBLE_CLICK_INTERVAL_MS
 
 describe('consumeCompletedClickForDoubleClickSequence', () => {
   it('consumes only the second press within interval and distance after a completed click', () => {
@@ -29,9 +28,22 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     armPanePointerClickForDoubleClick(pane, 0, 0, 0)
     commitPanePointerClickForDoubleClick(pane)
     assert.equal(
-      consumeCompletedClickForDoubleClickSequence(pane, 0, 0, DOUBLE_CLICK_INTERVAL_MS + 1),
+      consumeCompletedClickForDoubleClickSequence(
+        pane,
+        0,
+        0,
+        FALLBACK_DOUBLE_CLICK_INTERVAL_MS + 1,
+      ),
       false,
     )
+  })
+
+  it('consumes the second press when native primary click extends the interval', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 10, 20, 0)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 700), true)
   })
 
   it('does not consume when presses are too far apart in position', () => {
@@ -98,7 +110,7 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
         pane,
         30,
         20,
-        DOUBLE_CLICK_INTERVAL_MS + 1,
+        FALLBACK_DOUBLE_CLICK_INTERVAL_MS + 1,
       ),
       false,
     )

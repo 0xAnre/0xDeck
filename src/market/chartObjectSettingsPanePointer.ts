@@ -8,6 +8,7 @@ import {
 import {
   attachPaneNativeDoubleClickIntervalObserver,
   completePaneDoubleClickSequenceForSettings,
+  notePaneNativePrimaryClick,
   shouldSuppressChartObjectSettingsDoubleClick,
 } from './paneDoubleClickPointerGuard.ts'
 
@@ -58,12 +59,19 @@ export function attachChartObjectSettingsPanePointer(
     callbacks.onActivate(target)
   }
 
+  const onClick = (event: MouseEvent) => {
+    if (event.button !== 0 || event.detail !== 1) return
+    notePaneNativePrimaryClick(paneElement, event.clientX, event.clientY)
+  }
+
+  paneElement.addEventListener('click', onClick)
   paneElement.addEventListener('dblclick', onDoubleClick)
   const disposeNativeDoubleClickIntervalObserver =
     attachPaneNativeDoubleClickIntervalObserver(paneElement)
 
   return {
     dispose: () => {
+      paneElement.removeEventListener('click', onClick)
       paneElement.removeEventListener('dblclick', onDoubleClick)
       disposeNativeDoubleClickIntervalObserver()
     },

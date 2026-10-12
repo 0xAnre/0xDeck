@@ -21,6 +21,8 @@ const pendingClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const awaitingSecondPressForDoubleClickByPane = new WeakMap<HTMLElement, boolean>()
 const dragTaintedDoubleClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 const observedDoubleClickIntervalMsByPane = new WeakMap<HTMLElement, number>()
+/** Set from the pane `click` event (`detail === 1`) so pointer logic can follow the native sequence. */
+const nativePrimaryClickByPane = new WeakMap<HTMLElement, PointerClickRecord>()
 
 function getEffectiveDoubleClickIntervalMs(paneElement: HTMLElement): number {
   const observed = observedDoubleClickIntervalMsByPane.get(paneElement)
@@ -89,6 +91,19 @@ export function clearAwaitingSecondPressForDoubleClick(paneElement: HTMLElement)
   awaitingSecondPressForDoubleClickByPane.delete(paneElement)
 }
 
+export function notePaneNativePrimaryClick(
+  paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
+  now: number = performance.now(),
+): void {
+  nativePrimaryClickByPane.set(paneElement, { time: now, clientX, clientY })
+}
+
+function clearNativePrimaryClick(paneElement: HTMLElement): void {
+  nativePrimaryClickByPane.delete(paneElement)
+}
+
 function isWithinDoubleClickDistance(
   a: PointerClickRecord,
   clientX: number,
@@ -97,6 +112,26 @@ function isWithinDoubleClickDistance(
   return (
     Math.hypot(clientX - a.clientX, clientY - a.clientY) <=
     DOUBLE_CLICK_MAX_POINTER_MOVE_PX
+  )
+}
+
+function matchesSecondPressTiming(
+  paneElement: HTMLElement,
+  last: PointerClickRecord,
+  clientX: number,
+  clientY: number,
+  now: number,
+): boolean {
+  if (now - last.time <= getEffectiveDoubleClickIntervalMs(paneElement)) {
+    return true
+  }
+  const nativePrimary = nativePrimaryClickByPane.get(paneElement)
+  if (nativePrimary === undefined) {
+    return false
+  }
+  return (
+    isWithinDoubleClickDistance(nativePrimary, clientX, clientY) &&
+    isWithinDoubleClickDistance(last, clientX, clientY)
   )
 }
 
@@ -117,11 +152,12 @@ export function consumeCompletedClickForDoubleClickSequence(
   const last = lastCompletedClickByPane.get(paneElement)
   if (
     last &&
-    now - last.time <= getEffectiveDoubleClickIntervalMs(paneElement) &&
-    isWithinDoubleClickDistance(last, clientX, clientY)
+    isWithinDoubleClickDistance(last, clientX, clientY) &&
+    matchesSecondPressTiming(paneElement, last, clientX, clientY, now)
   ) {
     lastCompletedClickByPane.delete(paneElement)
     pendingClickByPane.delete(paneElement)
+    clearNativePrimaryClick(paneElement)
     awaitingSecondPressForDoubleClickByPane.set(paneElement, true)
     return true
   }
@@ -175,6 +211,7 @@ export function markPanePointerDragCommittedForSettingsSuppression(
 export function completePaneDoubleClickSequenceForSettings(paneElement: HTMLElement): void {
   pendingClickByPane.delete(paneElement)
   lastCompletedClickByPane.delete(paneElement)
+  clearNativePrimaryClick(paneElement)
   clearAwaitingSecondPressForDoubleClick(paneElement)
 }
 

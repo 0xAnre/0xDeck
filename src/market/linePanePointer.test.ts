@@ -276,6 +276,104 @@ describe('linePanePointer', () => {
     assert.equal(interaction.phase, 'moving')
   })
 
+  it('does not arm rectangle drag tracking when a locked line is pressed with both tools attached', () => {
+    const { listeners, chart, paneElement } = createPaneHarness()
+    let lineInteraction: LineInteractionState = INITIAL_LINE_INTERACTION_STATE
+    let rectangleInteraction = INITIAL_RECTANGLE_INTERACTION_STATE
+    const series = {
+      coordinateToPrice: (y: number) => 100 - y,
+      priceToCoordinate: (price: number) => 100 - price,
+      data: () => [{ time: 100 }, { time: 200 }],
+    }
+    const lockedLine = {
+      id: 'line-locked',
+      timeA: 100,
+      priceA: 50,
+      timeB: 200,
+      priceB: 50,
+      locked: true,
+    }
+    const rectangle = {
+      id: 'rect-1',
+      fromTime: 100,
+      toTime: 200,
+      lowPrice: 20,
+      highPrice: 80,
+    }
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({ interaction: rectangleInteraction, instances: [rectangle] }),
+      getChart: () => chart as never,
+      getSeries: () => series as never,
+      onInteractionChange: (next) => {
+        rectangleInteraction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => ({
+        instanceId: 'line-locked',
+        kind: 'body',
+        priority: 1,
+        instanceIndex: 0,
+      }),
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+    attachLinePanePointer(chart as never, {
+      getSnapshot: () => ({ interaction: lineInteraction, instances: [lockedLine] }),
+      getChart: () => chart as never,
+      getSeries: () => series as never,
+      onInteractionChange: (next) => {
+        lineInteraction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingRectangleHit: () => ({
+        instanceId: 'rect-1',
+        kind: 'interior',
+        priority: 1,
+        instanceIndex: 0,
+      }),
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    const pointerDown = listeners.get('pointerdown')?.[0] as (event: PointerEvent) => void
+    const pointerMove = listeners.get('pointermove')?.[0] as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup')?.[0] as (event: PointerEvent) => void
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 40,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerMove({
+      clientX: 156,
+      clientY: 50,
+      pointerId: 40,
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 156,
+      clientY: 50,
+      pointerId: 40,
+    } as PointerEvent)
+
+    assert.equal(rectangleInteraction.phase, 'inactive')
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 156, 50), false)
+  })
+
   it('does not drag-taint double-click settings when a locked line press jitters', () => {
     const { listeners, chart, paneElement } = createPaneHarness()
     let interaction: LineInteractionState = INITIAL_LINE_INTERACTION_STATE
