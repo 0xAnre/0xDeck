@@ -73,6 +73,15 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, muchLater + 50), false)
   })
 
+  it('does not clear a drawing click when an unrelated native primary click occurs', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 100, 100, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, 0)
+    notePaneNativePrimaryClick(pane, 100, 100, 100)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 102, 102, 150), true)
+  })
+
   it('does not pair a stale completed click with a newer native primary click', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
@@ -213,6 +222,13 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 28, 22, 100), true)
   })
 
+  it('preserves drag taint when a click follows a committed drag before dblclick', () => {
+    const pane = {} as HTMLElement
+    markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20, 0)
+    commitPanePointerClickForDoubleClick(pane, { clientX: 30, clientY: 20, time: 50 })
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20, 100), true)
+  })
+
   it('clears drag taint when a click commit is outside the tainted sequence', () => {
     const pane = {} as HTMLElement
     markPaneDoubleClickSequenceDragTainted(pane, 30, 20, 50)
@@ -242,7 +258,7 @@ describe('attachPaneNativeDoubleClickIntervalObserver', () => {
     )
   })
 
-  it('does not shrink the interval after a fast native double-click', () => {
+  it('does not shrink the conservative interval after a fast native double-click', () => {
     const listeners = new Map<string, EventListener>()
     const pane = {
       addEventListener: (type: string, listener: EventListener) => {

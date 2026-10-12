@@ -60,15 +60,14 @@ function noteNativeDoubleClickInterval(
     return
   }
   const nextInterval = observed + DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS
-  const previous = observedDoubleClickIntervalMsByPane.get(paneElement) ?? 0
+  const previousObserved = observedDoubleClickIntervalMsByPane.get(paneElement)
+  const conservativeBaseline = Math.max(
+    previousObserved ?? 0,
+    FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
+  )
   observedDoubleClickIntervalMsByPane.set(
     paneElement,
-    Math.max(
-      previous,
-      nextInterval,
-      MIN_DOUBLE_CLICK_INTERVAL_MS,
-      FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
-    ),
+    Math.max(conservativeBaseline, nextInterval),
   )
   nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
 }
