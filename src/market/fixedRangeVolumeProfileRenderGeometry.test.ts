@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { FixedRangeVolumeProfileRow } from './fixedRangeVolumeProfile.ts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
+  buildFixedRangeVolumeProfileInstanceDrawModel,
   buildFixedRangeVolumeProfileLevelLines,
   buildFixedRangeVolumeProfileRowBarGeometry,
   computeMaxRowVolume,
@@ -150,6 +151,43 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     assert.equal(val?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
     assert.deepEqual(val?.lineDash, [4, 4])
     assert.equal(val?.lineWidthCssPx, 1)
+  })
+
+  it('places endpoint handles at the vertical center of the profile bounds', () => {
+    const model = buildFixedRangeVolumeProfileInstanceDrawModel({
+      instanceId: 'a',
+      fromTime: 100,
+      toTime: 200,
+      profile: {
+        fromTime: 100,
+        toTime: 199,
+        candleCount: 3,
+        profileLow: 100,
+        profileHigh: 130,
+        rowHeight: 10,
+        rows: [
+          row({ priceLow: 100, priceHigh: 110, totalVolume: 10, upVolume: 5, downVolume: 5 }),
+          row({ priceLow: 110, priceHigh: 120, totalVolume: 20, upVolume: 10, downVolume: 10 }),
+          row({ priceLow: 120, priceHigh: 130, totalVolume: 15, upVolume: 8, downVolume: 7 }),
+        ],
+        totalVolume: 45,
+        pocRowIndex: 1,
+        pocPrice: 115,
+        pocVolume: 20,
+        vah: 120,
+        val: 110,
+        valueAreaVolume: 30,
+        valueAreaPercentAchieved: 70,
+      },
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      ...TEST_STYLES,
+    })
+    assert.notEqual(model, null)
+    assert.notEqual(model?.endpointHandles, null)
+    assert.equal(model?.endpointHandles?.y, 385)
   })
 
   it('shows endpoint handles only for the selected unlocked instance', () => {

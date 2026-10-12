@@ -239,20 +239,19 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     priceToY: params.priceToY,
   })
 
-  let handleY: number | null = null
+  let profileTop = Infinity
+  let profileBottom = -Infinity
   for (const row of rowGeometries) {
-    const mid = (row.top + row.bottom) / 2
-    handleY = handleY === null ? mid : (handleY + mid) / 2
+    profileTop = Math.min(profileTop, row.top)
+    profileBottom = Math.max(profileBottom, row.bottom)
   }
+  const handleY = (profileTop + profileBottom) / 2
 
-  const endpointHandles =
-    handleY === null
-      ? null
-      : {
-          startX: range.left,
-          endX: range.right,
-          y: handleY,
-        }
+  const endpointHandles = {
+    startX: range.left,
+    endX: range.right,
+    y: handleY,
+  }
 
   return {
     instanceId: params.instanceId,
