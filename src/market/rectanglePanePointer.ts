@@ -166,7 +166,6 @@ export function attachRectanglePanePointer(
         }
         return
       }
-      event.preventDefault()
       event.stopPropagation()
       focusRectangleInteractionPane(paneElement)
       if (hit.kind !== 'interior') {

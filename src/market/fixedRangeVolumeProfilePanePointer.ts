@@ -19,7 +19,10 @@ export type FixedRangeVolumeProfilePanePointerCallbacks = {
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
 }
 
-export function resolvePaneRelativePointerX(event: PointerEvent, pane: HTMLElement): number {
+export function resolvePaneRelativePointerX(
+  event: Pick<PointerEvent, 'clientX'>,
+  pane: HTMLElement,
+): number {
   const rect = pane.getBoundingClientRect()
   return event.clientX - rect.left
 }

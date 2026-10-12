@@ -1,4 +1,5 @@
-import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
+import type { IChartApi } from 'lightweight-charts'
+import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import {
   hitTestChartObjectSettingsTarget,
@@ -18,10 +19,21 @@ export function attachChartObjectSettingsPanePointer(
   chart: IChartApi,
   callbacks: ChartObjectSettingsPanePointerCallbacks,
 ): ChartObjectSettingsPanePointerController {
-  const onDblClick = (param: MouseEventParams<Time>) => {
-    if (!param.point) return
-    const paneX = param.point.x
-    const paneY = param.point.y
+  const pane = chart.panes()[0]
+  const paneElement = pane.getHTMLElement()
+  if (!paneElement) {
+    return { dispose: () => {} }
+  }
+
+  const resolvePaneY = (event: MouseEvent): number => {
+    const rect = paneElement.getBoundingClientRect()
+    return event.clientY - rect.top
+  }
+
+  const onPaneDblClick = (event: MouseEvent) => {
+    if (event.button !== 0) return
+    const paneX = resolvePaneRelativePointerX(event, paneElement)
+    const paneY = resolvePaneY(event)
     const ctx = callbacks.getHitTestContext(paneX, paneY)
     if (!ctx) return
     const target = hitTestChartObjectSettingsTarget(ctx)
@@ -29,11 +41,14 @@ export function attachChartObjectSettingsPanePointer(
     callbacks.onActivate(target)
   }
 
-  chart.subscribeDblClick(onDblClick)
+  // Native pane dblclick: chart.subscribeDblClick misses drawing hits because
+  // line/rectangle pointerdown calls preventDefault (suppresses compat mouse clicks)
+  // and move/resize capture can cancel the chart's internal click-sequence dblclick.
+  paneElement.addEventListener('dblclick', onPaneDblClick)
 
   return {
     dispose: () => {
-      chart.unsubscribeDblClick(onDblClick)
+      paneElement.removeEventListener('dblclick', onPaneDblClick)
     },
   }
 }

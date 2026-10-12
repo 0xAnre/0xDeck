@@ -166,7 +166,6 @@ export function attachLinePanePointer(
         }
         return
       }
-      event.preventDefault()
       event.stopPropagation()
       focusLineInteractionPane(paneElement)
       if (hit.kind !== 'body') {

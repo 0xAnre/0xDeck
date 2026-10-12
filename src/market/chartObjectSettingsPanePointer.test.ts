@@ -1,43 +1,60 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { MouseEventParams, Time } from 'lightweight-charts'
 import { attachChartObjectSettingsPanePointer } from './chartObjectSettingsPanePointer.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 
 function createChartHarness() {
-  let dblClickHandler: ((param: MouseEventParams<Time>) => void) | null = null
-  const chart = {
-    subscribeDblClick: (handler: (param: MouseEventParams<Time>) => void) => {
-      dblClickHandler = handler
+  const listeners = new Map<string, EventListener>()
+  const paneElement = {
+    addEventListener: (type: string, listener: EventListener) => {
+      listeners.set(type, listener)
     },
-    unsubscribeDblClick: (handler: (param: MouseEventParams<Time>) => void) => {
-      if (dblClickHandler === handler) {
-        dblClickHandler = null
+    removeEventListener: (type: string, listener: EventListener) => {
+      if (listeners.get(type) === listener) {
+        listeners.delete(type)
       }
     },
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: 100,
+      height: 100,
+      right: 100,
+      bottom: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }),
+  } as unknown as HTMLElement
+
+  const chart = {
+    panes: () => [{ getHTMLElement: () => paneElement }],
   }
+
   return {
     chart,
-    fireDblClick: (param: MouseEventParams<Time>) => {
-      dblClickHandler?.(param)
+    paneElement,
+    listeners,
+    firePaneDblClick: (event: MouseEvent) => {
+      listeners.get('dblclick')?.(event)
     },
-    hasHandler: () => dblClickHandler !== null,
+    hasDblClickListener: () => listeners.has('dblclick'),
   }
 }
 
 describe('attachChartObjectSettingsPanePointer', () => {
-  it('subscribes to chart double-click and unsubscribes on dispose', () => {
+  it('attaches native pane dblclick and removes it on dispose', () => {
     const harness = createChartHarness()
     const controller = attachChartObjectSettingsPanePointer(harness.chart as never, {
       getHitTestContext: () => null,
       onActivate: () => {},
     })
-    assert.equal(harness.hasHandler(), true)
+    assert.equal(harness.hasDblClickListener(), true)
     controller.dispose()
-    assert.equal(harness.hasHandler(), false)
+    assert.equal(harness.hasDblClickListener(), false)
   })
 
-  it('does not activate when double-click has no point or no hit target', () => {
+  it('does not activate when double-click has no hit target', () => {
     const harness = createChartHarness()
     const activations: ChartObjectSettingsTarget[] = []
     attachChartObjectSettingsPanePointer(harness.chart as never, {
@@ -47,8 +64,11 @@ describe('attachChartObjectSettingsPanePointer', () => {
       },
     })
 
-    harness.fireDblClick({} as MouseEventParams<Time>)
-    harness.fireDblClick({ point: { x: 12, y: 34 } } as MouseEventParams<Time>)
+    harness.firePaneDblClick({
+      button: 0,
+      clientX: 12,
+      clientY: 34,
+    } as MouseEvent)
     assert.equal(activations.length, 0)
   })
 })
