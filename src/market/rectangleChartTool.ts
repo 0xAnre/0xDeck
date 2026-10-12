@@ -47,7 +47,6 @@ export type RectangleChartToolCallbacks = {
   getFixedRangeVolumeProfileInteraction: () => FixedRangeVolumeProfileInteractionState
   getLineInteraction: () => LineInteractionState
   getLineInstances: () => readonly LineInstance[]
-  onChartObjectActivate?: (instanceId: string) => void
 }
 
 export type RectangleChartToolController = {
@@ -128,9 +127,6 @@ export function attachRectangleChartTool(
       const frvp = callbacks.getFixedRangeVolumeProfileInteraction()
       const line = callbacks.getLineInteraction()
       return isFixedRangeVolumeProfileToolActive(frvp) || isLineDrawingBlockingPeerTools(line)
-    },
-    onChartObjectActivate: (instanceId) => {
-      callbacks.onChartObjectActivate?.(instanceId)
     },
     getCompetingLineHit: (paneX, paneY) => {
       const series = callbacks.getSeries()
