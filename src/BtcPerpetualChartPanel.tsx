@@ -113,6 +113,7 @@ import {
   type FixedRangeVolumeProfileChartToolController,
 } from '@/market/fixedRangeVolumeProfileChartTool'
 import {
+  applyFixedRangeVolumeProfileSelection,
   armFixedRangeVolumeProfileTool,
   cancelFixedRangeVolumeProfileInteraction,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
@@ -471,6 +472,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         lineInteractionRef.current = next
         setLineInteraction(next)
         lineSeriesAttachmentRef.current?.update()
+      }
+      if (fixedRangeVolumeProfileInteractionRef.current.selectedId !== null) {
+        const next = applyFixedRangeVolumeProfileSelection(
+          fixedRangeVolumeProfileInteractionRef.current,
+          null,
+        )
+        if (next !== fixedRangeVolumeProfileInteractionRef.current) {
+          fixedRangeVolumeProfileInteractionRef.current = next
+          setFixedRangeVolumeProfileInteraction(next)
+          fixedRangeVolumeProfileToolControllerRef.current?.sync()
+          fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+        }
       }
     }
 
