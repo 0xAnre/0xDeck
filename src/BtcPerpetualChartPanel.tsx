@@ -383,6 +383,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     pointerPrice: null,
   })
   const lineArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const frvpArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const suppressViewportPersistRef = useRef(false)
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
@@ -494,6 +495,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (lineArmClaimTimerRef.current !== null) {
         window.clearTimeout(lineArmClaimTimerRef.current)
         lineArmClaimTimerRef.current = null
+      }
+      if (frvpArmClaimTimerRef.current !== null) {
+        window.clearTimeout(frvpArmClaimTimerRef.current)
+        frvpArmClaimTimerRef.current = null
       }
       if (isActiveRectangleKeyboardPanel(panelId)) {
         claimRectangleKeyboardPanel(null)
@@ -886,6 +891,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
 
   const handleFixedRangeVolumeProfileArm = useCallback(() => {
+    claimRectangleKeyboardPanel(panelId)
+    if (frvpArmClaimTimerRef.current !== null) {
+      window.clearTimeout(frvpArmClaimTimerRef.current)
+    }
+    // The portalled menu returns focus to the header trigger after this runs,
+    // which releases the claim. Restore it once that focus move has settled.
+    frvpArmClaimTimerRef.current = window.setTimeout(() => {
+      frvpArmClaimTimerRef.current = null
+      claimRectangleKeyboardPanel(panelId)
+    }, 0)
     const cancelledRectangle = cancelRectangleInteraction(rectangleInteractionRef.current)
     if (cancelledRectangle !== rectangleInteractionRef.current) {
       rectangleInteractionRef.current = cancelledRectangle
@@ -904,7 +919,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileInteractionRef.current = armed
     setFixedRangeVolumeProfileInteraction(armed)
     fixedRangeVolumeProfileToolControllerRef.current?.sync()
-  }, [])
+  }, [panelId])
 
   const handleFixedRangeVolumeProfileDelete = useCallback(
     (instanceId: string) => {
