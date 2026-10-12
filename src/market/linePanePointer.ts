@@ -228,11 +228,10 @@ export function attachLinePanePointer(
         event.clientX,
         event.clientY,
       )
-      if (isSecondClickOfSequence && isLineInstanceLocked(instance)) {
-        completePaneDoubleClickSequenceForSettings(paneElement)
-        return
-      }
       if (isLineInstanceLocked(instance)) {
+        if (isSecondClickOfSequence) {
+          completePaneDoubleClickSequenceForSettings(paneElement)
+        }
         const next = applyLineSelection(interaction, hit.instanceId)
         if (next !== interaction) {
           callbacks.onInteractionChange(next)

@@ -851,6 +851,21 @@ describe('rectanglePanePointer', () => {
       pointerId: 30,
     } as PointerEvent)
 
+    pointerDown({
+      button: 0,
+      clientX: 156,
+      clientY: 50,
+      pointerId: 31,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 156,
+      clientY: 50,
+      pointerId: 31,
+    } as PointerEvent)
+
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 156, 50), false)
   })
 })

@@ -228,11 +228,10 @@ export function attachRectanglePanePointer(
         event.clientX,
         event.clientY,
       )
-      if (isSecondClickOfSequence && isRectangleInstanceLocked(instance)) {
-        completePaneDoubleClickSequenceForSettings(paneElement)
-        return
-      }
       if (isRectangleInstanceLocked(instance)) {
+        if (isSecondClickOfSequence) {
+          completePaneDoubleClickSequenceForSettings(paneElement)
+        }
         const next = applyRectangleSelection(interaction, hit.instanceId)
         if (next !== interaction) {
           callbacks.onInteractionChange(next)
