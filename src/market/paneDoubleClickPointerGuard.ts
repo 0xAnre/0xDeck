@@ -38,11 +38,13 @@ function noteNativeDoubleClickInterval(
   clientY: number,
   now: number,
 ): void {
-  const last = lastCompletedClickByPane.get(paneElement)
-  if (!last || !isWithinDoubleClickDistance(last, clientX, clientY)) {
+  const first =
+    nativePrimaryClickByPane.get(paneElement) ??
+    lastCompletedClickByPane.get(paneElement)
+  if (!first || !isWithinDoubleClickDistance(first, clientX, clientY)) {
     return
   }
-  const observed = now - last.time
+  const observed = now - first.time
   if (observed <= 0) {
     return
   }
@@ -71,6 +73,7 @@ export function attachPaneNativeDoubleClickIntervalObserver(
       event.clientY,
       event.timeStamp,
     )
+    clearNativePrimaryClick(paneElement)
   }
   paneElement.addEventListener('click', onClick)
   return () => {
@@ -162,7 +165,6 @@ export function consumeCompletedClickForDoubleClickSequence(
   ) {
     lastCompletedClickByPane.delete(paneElement)
     pendingClickByPane.delete(paneElement)
-    clearNativePrimaryClick(paneElement)
     awaitingSecondPressForDoubleClickByPane.set(paneElement, true)
     return true
   }

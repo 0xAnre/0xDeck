@@ -5,6 +5,7 @@ import {
   attachPaneNativeDoubleClickIntervalObserver,
   cancelPanePointerClickForDoubleClick,
   commitPanePointerClickForDoubleClick,
+  completePaneDoubleClickSequenceForSettings,
   consumeCompletedClickForDoubleClickSequence,
   FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
   invalidatePanePointerClickForDoubleClickOnDrag,
@@ -200,6 +201,7 @@ describe('attachPaneNativeDoubleClickIntervalObserver', () => {
     attachPaneNativeDoubleClickIntervalObserver(pane)
     armPanePointerClickForDoubleClick(pane, 5, 5, 0)
     commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, 0)
 
     const secondPressTime = 1100
     assert.equal(
@@ -217,6 +219,52 @@ describe('attachPaneNativeDoubleClickIntervalObserver', () => {
     assert.equal(
       consumeCompletedClickForDoubleClickSequence(pane, 5, 5, secondPressTime),
       true,
+    )
+  })
+
+  it('learns interval from the first native click after the second press consumes pointer state', () => {
+    const listeners = new Map<string, EventListener>()
+    const pane = {
+      addEventListener: (type: string, listener: EventListener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type: string) => {
+        listeners.delete(type)
+      },
+    } as unknown as HTMLElement
+
+    attachPaneNativeDoubleClickIntervalObserver(pane)
+    armPanePointerClickForDoubleClick(pane, 5, 5, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, 0)
+
+    const secondPressTime = 700
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 5, 5, secondPressTime), true)
+
+    listeners.get('click')?.({
+      detail: 2,
+      clientX: 5,
+      clientY: 5,
+      timeStamp: 900,
+    } as MouseEvent)
+
+    completePaneDoubleClickSequenceForSettings(pane)
+
+    const nextSequenceStart = 2000
+    armPanePointerClickForDoubleClick(pane, 5, 5, nextSequenceStart)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, nextSequenceStart)
+    assert.equal(
+      consumeCompletedClickForDoubleClickSequence(pane, 5, 5, nextSequenceStart + 850),
+      true,
+    )
+
+    armPanePointerClickForDoubleClick(pane, 5, 5, 4000)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, 4000)
+    assert.equal(
+      consumeCompletedClickForDoubleClickSequence(pane, 5, 5, 4000 + 1000),
+      false,
     )
   })
 })
