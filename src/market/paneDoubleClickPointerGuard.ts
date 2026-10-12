@@ -31,10 +31,15 @@ const nativeDoubleClickIntervalAnchorByPane = new WeakMap<
 
 function getEffectiveDoubleClickIntervalMs(paneElement: HTMLElement): number {
   const observed = observedDoubleClickIntervalMsByPane.get(paneElement)
-  if (observed !== undefined) {
-    return Math.max(observed, MIN_DOUBLE_CLICK_INTERVAL_MS)
+  if (observed === undefined) {
+    return FALLBACK_DOUBLE_CLICK_INTERVAL_MS
   }
-  return FALLBACK_DOUBLE_CLICK_INTERVAL_MS
+  // An observed cadence is only a lower bound on the OS threshold; never shrink below fallback.
+  return Math.max(
+    observed,
+    MIN_DOUBLE_CLICK_INTERVAL_MS,
+    FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
+  )
 }
 
 function noteNativeDoubleClickInterval(
@@ -58,7 +63,12 @@ function noteNativeDoubleClickInterval(
   const previous = observedDoubleClickIntervalMsByPane.get(paneElement) ?? 0
   observedDoubleClickIntervalMsByPane.set(
     paneElement,
-    Math.max(previous, nextInterval, MIN_DOUBLE_CLICK_INTERVAL_MS),
+    Math.max(
+      previous,
+      nextInterval,
+      MIN_DOUBLE_CLICK_INTERVAL_MS,
+      FALLBACK_DOUBLE_CLICK_INTERVAL_MS,
+    ),
   )
   nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
 }

@@ -219,6 +219,32 @@ describe('attachPaneNativeDoubleClickIntervalObserver', () => {
     )
   })
 
+  it('does not shrink the interval after a fast native double-click', () => {
+    const listeners = new Map<string, EventListener>()
+    const pane = {
+      addEventListener: (type: string, listener: EventListener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type: string) => {
+        listeners.delete(type)
+      },
+    } as unknown as HTMLElement
+
+    attachPaneNativeDoubleClickIntervalObserver(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, 0)
+    listeners.get('click')?.({
+      detail: 2,
+      clientX: 5,
+      clientY: 5,
+      timeStamp: 300,
+    } as MouseEvent)
+
+    armPanePointerClickForDoubleClick(pane, 5, 5, 1000)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 5, 5, 1000)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 5, 5, 1700), true)
+  })
+
   it('learns a longer interval from native click detail >= 2', () => {
     const listeners = new Map<string, EventListener>()
     const pane = {
