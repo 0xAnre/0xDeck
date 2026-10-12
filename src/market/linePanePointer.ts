@@ -232,10 +232,6 @@ export function attachLinePanePointer(
         completePaneDoubleClickSequenceForSettings(paneElement)
         return
       }
-      if (!isSecondClickOfSequence) {
-        armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
-        activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
-      }
       if (isLineInstanceLocked(instance)) {
         const next = applyLineSelection(interaction, hit.instanceId)
         if (next !== interaction) {
@@ -243,6 +239,10 @@ export function attachLinePanePointer(
           callbacks.onRequestRender()
         }
         return
+      }
+      if (!isSecondClickOfSequence) {
+        armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
+        activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
       }
       event.preventDefault()
       event.stopPropagation()

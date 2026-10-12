@@ -6,6 +6,7 @@ import {
   type LineInteractionState,
 } from './lineInteraction.ts'
 import { attachLinePanePointer } from './linePanePointer.ts'
+import { shouldSuppressChartObjectSettingsDoubleClick } from './paneDoubleClickPointerGuard.ts'
 import {
   INITIAL_RECTANGLE_INTERACTION_STATE,
   type RectangleInteractionState,
@@ -53,7 +54,7 @@ function createPaneHarness() {
     }),
   }
 
-  return { listeners, chart }
+  return { listeners, chart, paneElement }
 }
 
 describe('linePanePointer', () => {
@@ -273,5 +274,71 @@ describe('linePanePointer', () => {
       pointerId: 13,
     } as PointerEvent)
     assert.equal(interaction.phase, 'moving')
+  })
+
+  it('does not drag-taint double-click settings when a locked line press jitters', () => {
+    const { listeners, chart, paneElement } = createPaneHarness()
+    let interaction: LineInteractionState = INITIAL_LINE_INTERACTION_STATE
+
+    attachLinePanePointer(chart as never, {
+      getSnapshot: () => ({
+        interaction,
+        instances: [
+          {
+            id: 'line-locked',
+            timeA: 100,
+            priceA: 50,
+            timeB: 200,
+            priceB: 50,
+            locked: true,
+          },
+        ],
+      }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingRectangleHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    const pointerDown = listeners.get('pointerdown')?.[0] as (event: PointerEvent) => void
+    const pointerMove = listeners.get('pointermove')?.[0] as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup')?.[0] as (event: PointerEvent) => void
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 30,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerMove({
+      clientX: 156,
+      clientY: 50,
+      pointerId: 30,
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 156,
+      clientY: 50,
+      pointerId: 30,
+    } as PointerEvent)
+
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 156, 50), false)
   })
 })

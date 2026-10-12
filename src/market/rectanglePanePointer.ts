@@ -232,10 +232,6 @@ export function attachRectanglePanePointer(
         completePaneDoubleClickSequenceForSettings(paneElement)
         return
       }
-      if (!isSecondClickOfSequence) {
-        armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
-        activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
-      }
       if (isRectangleInstanceLocked(instance)) {
         const next = applyRectangleSelection(interaction, hit.instanceId)
         if (next !== interaction) {
@@ -243,6 +239,10 @@ export function attachRectanglePanePointer(
           callbacks.onRequestRender()
         }
         return
+      }
+      if (!isSecondClickOfSequence) {
+        armPanePointerClickForDoubleClick(paneElement, event.clientX, event.clientY)
+        activePointerDownClient = { clientX: event.clientX, clientY: event.clientY }
       }
       event.preventDefault()
       event.stopPropagation()
