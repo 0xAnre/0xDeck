@@ -17,6 +17,7 @@ import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRang
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import { readFrvpHandleFillStyle } from './frvpHandleColors.ts'
 
 export type FixedRangeVolumeProfileSeriesPrimitiveContext = {
   instances: readonly FixedRangeVolumeProfileInstance[]
@@ -34,9 +35,11 @@ function bitmapBox(start: number, end: number, pixelRatio: number): { position: 
 
 class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
   private readonly _models: FixedRangeVolumeProfileInstanceDrawModel[]
+  private readonly _handleFillStyle: string
 
-  constructor(models: FixedRangeVolumeProfileInstanceDrawModel[]) {
+  constructor(models: FixedRangeVolumeProfileInstanceDrawModel[], handleFillStyle: string) {
     this._models = models
+    this._handleFillStyle = handleFillStyle
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -88,7 +91,7 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
             const hx = Math.round(x * horizontalPixelRatio)
             context.beginPath()
             context.arc(hx, handleY, radius, 0, Math.PI * 2)
-            context.fillStyle = 'rgba(255, 255, 255, 0.85)'
+            context.fillStyle = this._handleFillStyle
             context.fill()
           }
         }
@@ -162,7 +165,7 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
   renderer(): IPrimitivePaneRenderer | null {
     if (this._models.length === 0) return null
-    return new FixedRangeVolumeProfileRenderer(this._models)
+    return new FixedRangeVolumeProfileRenderer(this._models, readFrvpHandleFillStyle())
   }
 }
 

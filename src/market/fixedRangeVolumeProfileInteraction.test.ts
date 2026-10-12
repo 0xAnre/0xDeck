@@ -3,11 +3,13 @@ import { describe, it } from 'node:test'
 import {
   applyFixedRangeVolumeProfileClick,
   applyFixedRangeVolumeProfileCrosshairTime,
+  applyFixedRangeVolumeProfileResizePreview,
   applyFixedRangeVolumeProfileSelection,
   armFixedRangeVolumeProfileTool,
   cancelFixedRangeVolumeProfileInteraction,
   commitFixedRangeVolumeProfileResize,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  resolveFixedRangeVolumeProfileInstancesForDisplay,
   startFixedRangeVolumeProfileResizeDraft,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import {
@@ -101,6 +103,35 @@ describe('fixedRangeVolumeProfileInteraction', () => {
     assert.equal(selected.selectedId, 'frvp-1')
     assert.equal(selected.phase, 'inactive')
     assert.equal(applyFixedRangeVolumeProfileSelection(armed, 'frvp-1'), armed)
+  })
+
+  it('keeps resize preview transient in interaction state for display only', () => {
+    const persisted = {
+      id: 'frvp-1',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+    }
+    const resizing = startFixedRangeVolumeProfileResizeDraft(
+      { phase: 'inactive', selectedId: 'frvp-1', draft: null },
+      persisted,
+      'end',
+    )
+    const previewed = applyFixedRangeVolumeProfileResizePreview(resizing, 260)
+    const displayed = resolveFixedRangeVolumeProfileInstancesForDisplay([persisted], previewed)
+    assert.equal(displayed[0].toTime, 260)
+    assert.equal(persisted.toTime, 200)
+    const cancelled = cancelFixedRangeVolumeProfileInteraction(previewed)
+    assert.equal(cancelled.phase, 'inactive')
+    assert.equal(cancelled.selectedId, 'frvp-1')
+    assert.equal(
+      resolveFixedRangeVolumeProfileInstancesForDisplay([persisted], cancelled)[0].toTime,
+      200,
+    )
   })
 
   it('resizes start and end endpoints with normalized times', () => {

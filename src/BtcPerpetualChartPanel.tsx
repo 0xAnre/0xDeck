@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CandlestickSeries,
   ColorType,
@@ -116,6 +116,7 @@ import {
   armFixedRangeVolumeProfileTool,
   cancelFixedRangeVolumeProfileInteraction,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  resolveFixedRangeVolumeProfileInstancesForDisplay,
   type FixedRangeVolumeProfileInteractionState,
 } from '@/market/fixedRangeVolumeProfileInteraction'
 import { isLineDrawingBlockingPeerTools } from '@/market/lineInteraction'
@@ -344,8 +345,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
   const fixedRangeVolumeProfileToolControllerRef =
     useRef<FixedRangeVolumeProfileChartToolController | null>(null)
+  const fixedRangeVolumeProfileInstancesForDisplay = useMemo(
+    () =>
+      resolveFixedRangeVolumeProfileInstancesForDisplay(
+        fixedRangeVolumeProfileInstances,
+        fixedRangeVolumeProfileInteraction,
+      ),
+    [fixedRangeVolumeProfileInstances, fixedRangeVolumeProfileInteraction],
+  )
   const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
-    fixedRangeVolumeProfileInstances,
+    fixedRangeVolumeProfileInstancesForDisplay,
   )
   const fixedRangeVolumeProfileRuntimeRef = useRef<FixedRangeVolumeProfileRuntimeSnapshot>(
     fixedRangeVolumeProfileRuntimeById,
@@ -1311,7 +1320,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (!chart || !bundle || !chartReady) return
 
     const attachment = attachFixedRangeVolumeProfileSeriesPrimitive(bundle.candle, () => ({
-      instances: fixedRangeVolumeProfileInstancesRef.current,
+      instances: resolveFixedRangeVolumeProfileInstancesForDisplay(
+        fixedRangeVolumeProfileInstancesRef.current,
+        fixedRangeVolumeProfileInteractionRef.current,
+      ),
       runtimeById: fixedRangeVolumeProfileRuntimeRef.current,
       selectedId: fixedRangeVolumeProfileInteractionRef.current.selectedId,
       getIntervalDurationSeconds: () =>

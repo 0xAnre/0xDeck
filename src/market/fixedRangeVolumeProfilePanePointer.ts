@@ -9,12 +9,12 @@ import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeP
 import {
   applyFixedRangeVolumeProfileClick,
   applyFixedRangeVolumeProfileCrosshairTime,
+  applyFixedRangeVolumeProfileResizePreview,
   applyFixedRangeVolumeProfileSelection,
   commitFixedRangeVolumeProfileResize,
   cancelFixedRangeVolumeProfileInteraction,
   isFixedRangeVolumeProfileChartNavigationLocked,
   isFixedRangeVolumeProfileToolActive,
-  previewFixedRangeVolumeProfileTimesFromResize,
   startFixedRangeVolumeProfileResizeDraft,
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
@@ -186,27 +186,9 @@ export function attachFixedRangeVolumeProfilePanePointer(
     const snapshot = callbacks.getSnapshot()
     if (snapshot.interaction.phase !== 'resizing') return
     const pointerTime = resolveSelectionTime(paneX)
-    if (pointerTime === null) return
-    const normalized = previewFixedRangeVolumeProfileTimesFromResize(
-      snapshot.interaction,
-      pointerTime,
-    )
-    if (!normalized || snapshot.interaction.draft?.kind !== 'resize') return
-    const resizeDraft =
-      snapshot.interaction.draft?.kind === 'resize' ? snapshot.interaction.draft : null
-    const existing = snapshot.instances.find((item) => item.id === resizeDraft?.instanceId)
-    if (!existing) return
-    if (
-      existing.fromTime === normalized.fromTime &&
-      existing.toTime === normalized.toTime
-    ) {
-      return
-    }
-    callbacks.onInstanceUpdated({
-      ...existing,
-      fromTime: normalized.fromTime,
-      toTime: normalized.toTime,
-    })
+    const next = applyFixedRangeVolumeProfileResizePreview(snapshot.interaction, pointerTime)
+    if (next === snapshot.interaction) return
+    callbacks.onInteractionChange(next)
     callbacks.onRequestRender()
   }
 
@@ -252,8 +234,8 @@ export function attachFixedRangeVolumeProfilePanePointer(
         if (next === interaction) return
         activePointerId = event.pointerId
         paneElement.setPointerCapture(event.pointerId)
-        syncResizePreview(paneX)
         callbacks.onInteractionChange(next)
+        syncResizePreview(paneX)
         return
       }
       callbacks.onInteractionChange(applyFixedRangeVolumeProfileSelection(interaction, hit.instanceId))

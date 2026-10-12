@@ -26,6 +26,7 @@ export type FixedRangeVolumeProfileResizeDraft = {
   endpoint: FixedRangeVolumeProfileEndpointKind
   initialFromTime: number
   initialToTime: number
+  previewPointerTime: number
 }
 
 export type FixedRangeVolumeProfileDraft =
@@ -63,6 +64,9 @@ export function armFixedRangeVolumeProfileTool(): FixedRangeVolumeProfileInterac
 export function cancelFixedRangeVolumeProfileInteraction(
   state: FixedRangeVolumeProfileInteractionState,
 ): FixedRangeVolumeProfileInteractionState {
+  if (state.phase === 'resizing') {
+    return { phase: 'inactive', selectedId: state.selectedId, draft: null }
+  }
   if (state.phase === 'inactive' && state.draft === null) {
     return { ...state, draft: null }
   }
@@ -163,6 +167,7 @@ export function startFixedRangeVolumeProfileResizeDraft(
   endpoint: FixedRangeVolumeProfileEndpointKind,
 ): FixedRangeVolumeProfileInteractionState {
   if (state.phase !== 'inactive') return state
+  const previewPointerTime = endpoint === 'start' ? instance.fromTime : instance.toTime
   return {
     phase: 'resizing',
     selectedId: instance.id,
@@ -172,8 +177,51 @@ export function startFixedRangeVolumeProfileResizeDraft(
       endpoint,
       initialFromTime: instance.fromTime,
       initialToTime: instance.toTime,
+      previewPointerTime,
     },
   }
+}
+
+export function applyFixedRangeVolumeProfileResizePreview(
+  state: FixedRangeVolumeProfileInteractionState,
+  pointerTime: number | null,
+): FixedRangeVolumeProfileInteractionState {
+  if (state.phase !== 'resizing' || state.draft?.kind !== 'resize' || pointerTime === null) {
+    return state
+  }
+  if (!Number.isFinite(pointerTime)) return state
+  const previewPointerTime = Math.trunc(pointerTime)
+  if (!isValidUnixChartTimeSeconds(previewPointerTime)) return state
+  if (state.draft.previewPointerTime === previewPointerTime) return state
+  return {
+    ...state,
+    draft: { ...state.draft, previewPointerTime },
+  }
+}
+
+export function resolveFixedRangeVolumeProfileInstancesForDisplay(
+  instances: readonly FixedRangeVolumeProfileInstance[],
+  interaction: FixedRangeVolumeProfileInteractionState,
+): readonly FixedRangeVolumeProfileInstance[] {
+  if (interaction.phase !== 'resizing' || interaction.draft?.kind !== 'resize') {
+    return instances
+  }
+  const normalized = previewFixedRangeVolumeProfileTimesFromResize(
+    interaction,
+    interaction.draft.previewPointerTime,
+  )
+  if (!normalized) return instances
+  const { instanceId } = interaction.draft
+  return instances.map((instance) => {
+    if (instance.id !== instanceId) return instance
+    if (
+      instance.fromTime === normalized.fromTime &&
+      instance.toTime === normalized.toTime
+    ) {
+      return instance
+    }
+    return { ...instance, fromTime: normalized.fromTime, toTime: normalized.toTime }
+  })
 }
 
 export function previewFixedRangeVolumeProfileTimesFromResize(

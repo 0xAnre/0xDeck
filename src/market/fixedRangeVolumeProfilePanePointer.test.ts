@@ -9,8 +9,10 @@ import {
 } from './fixedRangeVolumeProfilePanePointer.ts'
 import {
   applyFixedRangeVolumeProfileClick,
+  applyFixedRangeVolumeProfileResizePreview,
   armFixedRangeVolumeProfileTool,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  startFixedRangeVolumeProfileResizeDraft,
 } from './fixedRangeVolumeProfileInteraction.ts'
 
 function mockChart(times: Record<number, Time | null> = {}): IChartApi {
@@ -177,6 +179,49 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
       draft: { kind: 'create' as const, anchorTime: 100, previewTime: 150 },
     }
     assert.equal(resolveSelectionTimeFromPaneX(chart, 50, moved), 150)
+  })
+
+  it('does not persist instance updates while applying resize preview', () => {
+    const base = {
+      id: 'frvp-1',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+    }
+    let updateCount = 0
+    let interaction = startFixedRangeVolumeProfileResizeDraft(
+      { phase: 'inactive', selectedId: 'frvp-1', draft: null },
+      base,
+      'end',
+    )
+    const callbacks = {
+      getSnapshot: () => ({
+        interaction,
+        instances: [base],
+        runtimeById: {},
+      }),
+      getSeries: () => null,
+      getSelectionInterval: () => '1m' as const,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => null,
+      onInteractionChange: (state: typeof interaction) => {
+        interaction = state
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {
+        updateCount += 1
+      },
+      onRequestRender: () => {},
+      isAlternateToolActive: () => false,
+    }
+    interaction = applyFixedRangeVolumeProfileResizePreview(interaction, 260)
+    callbacks.onInteractionChange(interaction)
+    assert.equal(updateCount, 0)
+    assert.equal(base.toTime, 200)
   })
 
   it('disposes pane listener', () => {
