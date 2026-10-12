@@ -200,4 +200,29 @@ describe('drawingSelection', () => {
     assert.equal(peers.line.selectedId, null)
     assert.equal(peers.rectangle.selectedId, null)
   })
+
+  it('clears line and rectangle selection when arming FRVP from a peer tool', () => {
+    const line = createLineInstance({
+      timeA: 100,
+      priceA: 10,
+      timeB: 200,
+      priceB: 20,
+    })!
+    const rectangle = createRectangleInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_300,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    const releasedLine = releaseLineInteractionForPeerTool({
+      ...INITIAL_LINE_INTERACTION_STATE,
+      selectedId: line.id,
+    })
+    const releasedRectangle = releaseRectangleInteractionForPeerTool({
+      ...INITIAL_RECTANGLE_INTERACTION_STATE,
+      selectedId: rectangle.id,
+    })
+    assert.equal(releasedLine.selectedId, null)
+    assert.equal(releasedRectangle.selectedId, null)
+  })
 })
