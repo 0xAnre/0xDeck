@@ -17,7 +17,7 @@ import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRang
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
-import { readFrvpHandleFillStyle } from './frvpHandleColors.ts'
+import { readFrvpHandleFillStyle, readFrvpHandleStrokeStyle } from './frvpHandleColors.ts'
 
 export type FixedRangeVolumeProfileSeriesPrimitiveContext = {
   instances: readonly FixedRangeVolumeProfileInstance[]
@@ -36,10 +36,16 @@ function bitmapBox(start: number, end: number, pixelRatio: number): { position: 
 class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
   private readonly _models: FixedRangeVolumeProfileInstanceDrawModel[]
   private readonly _handleFillStyle: string
+  private readonly _handleStrokeStyle: string
 
-  constructor(models: FixedRangeVolumeProfileInstanceDrawModel[], handleFillStyle: string) {
+  constructor(
+    models: FixedRangeVolumeProfileInstanceDrawModel[],
+    handleFillStyle: string,
+    handleStrokeStyle: string,
+  ) {
     this._models = models
     this._handleFillStyle = handleFillStyle
+    this._handleStrokeStyle = handleStrokeStyle
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -93,6 +99,9 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
             context.arc(hx, handleY, radius, 0, Math.PI * 2)
             context.fillStyle = this._handleFillStyle
             context.fill()
+            context.strokeStyle = this._handleStrokeStyle
+            context.lineWidth = horizontalPixelRatio
+            context.stroke()
           }
         }
       }
@@ -165,7 +174,11 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
   renderer(): IPrimitivePaneRenderer | null {
     if (this._models.length === 0) return null
-    return new FixedRangeVolumeProfileRenderer(this._models, readFrvpHandleFillStyle())
+    return new FixedRangeVolumeProfileRenderer(
+      this._models,
+      readFrvpHandleFillStyle(),
+      readFrvpHandleStrokeStyle(),
+    )
   }
 }
 

@@ -139,6 +139,7 @@ import {
 import {
   clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
+  releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
   withExclusiveLineSelection,
@@ -560,12 +561,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       rectangleArmClaimTimerRef.current = null
       claimRectangleKeyboardPanel(panelId)
     }, 0)
-    const cancelledFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
-      cancelFixedRangeVolumeProfileInteraction(fixedRangeVolumeProfileInteractionRef.current),
+    const releasedFrvp = releaseFixedRangeVolumeProfileInteractionForPeerTool(
+      fixedRangeVolumeProfileInteractionRef.current,
     )
-    if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
-      fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
-      setFixedRangeVolumeProfileInteraction(cancelledFrvp)
+    if (releasedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+      fixedRangeVolumeProfileInteractionRef.current = releasedFrvp
+      setFixedRangeVolumeProfileInteraction(releasedFrvp)
       fixedRangeVolumeProfileToolControllerRef.current?.sync()
       fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
     }
@@ -634,12 +635,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       lineArmClaimTimerRef.current = null
       claimRectangleKeyboardPanel(panelId)
     }, 0)
-    const cancelledFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
-      cancelFixedRangeVolumeProfileInteraction(fixedRangeVolumeProfileInteractionRef.current),
+    const releasedFrvp = releaseFixedRangeVolumeProfileInteractionForPeerTool(
+      fixedRangeVolumeProfileInteractionRef.current,
     )
-    if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
-      fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
-      setFixedRangeVolumeProfileInteraction(cancelledFrvp)
+    if (releasedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+      fixedRangeVolumeProfileInteractionRef.current = releasedFrvp
+      setFixedRangeVolumeProfileInteraction(releasedFrvp)
       fixedRangeVolumeProfileToolControllerRef.current?.sync()
       fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
     }

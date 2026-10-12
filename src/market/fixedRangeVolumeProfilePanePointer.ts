@@ -27,6 +27,7 @@ import type { CandleInterval } from './types.ts'
 import {
   buildFixedRangeVolumeProfileChartTimeContext,
   resolveChartTimeFromCoordinate,
+  resolveFixedRangeVolumeProfileResizePointerTime,
 } from './fixedRangeVolumeProfileChartTime.ts'
 import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
@@ -158,7 +159,21 @@ export function attachFixedRangeVolumeProfilePanePointer(
   }
 
   const resolveSelectionTime = (paneX: number): number | null => {
-    return resolveChartTimeFromCoordinate(chart, paneX, resolveTimeContext())
+    const timeContext = resolveTimeContext()
+    const snapshot = callbacks.getSnapshot()
+    const resizeDraft =
+      snapshot.interaction.phase === 'resizing' && snapshot.interaction.draft?.kind === 'resize'
+        ? snapshot.interaction.draft
+        : null
+    if (resizeDraft) {
+      return resolveFixedRangeVolumeProfileResizePointerTime(
+        chart,
+        paneX,
+        timeContext,
+        resizeDraft,
+      )
+    }
+    return resolveChartTimeFromCoordinate(chart, paneX, timeContext)
   }
 
   const buildHitTestModels = (selectedId: string | null) => {

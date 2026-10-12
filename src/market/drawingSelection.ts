@@ -1,5 +1,7 @@
 import {
+  INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
   isFixedRangeVolumeProfileChartNavigationLocked,
+  isFixedRangeVolumeProfileToolActive,
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import {
@@ -24,6 +26,18 @@ export function releaseRectangleInteractionForPeerTool(
   state: RectangleInteractionState,
 ): RectangleInteractionState {
   if (state.phase === 'inactive' && state.draft === null && state.selectedId === null) {
+    return state
+  }
+  return { phase: 'inactive', selectedId: null, draft: null }
+}
+
+export function releaseFixedRangeVolumeProfileInteractionForPeerTool(
+  state: FixedRangeVolumeProfileInteractionState,
+): FixedRangeVolumeProfileInteractionState {
+  if (isFixedRangeVolumeProfileToolActive(state) || state.phase === 'resizing') {
+    return INITIAL_FIXED_RANGE_VP_INTERACTION_STATE
+  }
+  if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
     return state
   }
   return { phase: 'inactive', selectedId: null, draft: null }

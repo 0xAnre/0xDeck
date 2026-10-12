@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
+  releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
   withExclusiveFrvpSelection,
@@ -133,6 +134,28 @@ describe('drawingSelection', () => {
     assert.equal(claim.frvp.selectedId, 'frvp-1')
     assert.equal(claim.line.selectedId, null)
     assert.equal(claim.rectangle.selectedId, null)
+  })
+
+  it('releases FRVP selection when arming a peer drawing tool', () => {
+    const selectedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      selectedId: 'frvp-1',
+    }
+    const released = releaseFixedRangeVolumeProfileInteractionForPeerTool(selectedFrvp)
+    assert.equal(released.selectedId, null)
+    assert.equal(released.phase, 'inactive')
+  })
+
+  it('releases armed FRVP when arming a peer drawing tool', () => {
+    const armedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      phase: 'armed' as const,
+      selectedId: null,
+      draft: null,
+    }
+    const released = releaseFixedRangeVolumeProfileInteractionForPeerTool(armedFrvp)
+    assert.equal(released.phase, 'inactive')
+    assert.equal(released.selectedId, null)
   })
 
   it('clears FRVP selection for peer claim without disturbing armed tool state', () => {
