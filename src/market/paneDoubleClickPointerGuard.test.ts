@@ -235,6 +235,14 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     commitPanePointerClickForDoubleClick(pane, { clientX: 200, clientY: 200, time: 80 })
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20, 100), false)
   })
+
+  it('does not suppress a new native double-click after drag taint exceeds the platform interval', () => {
+    const pane = {} as HTMLElement
+    markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20, 0)
+    notePaneNativePrimaryClick(pane, 30, 20, 600)
+    commitPanePointerClickForDoubleClick(pane, { clientX: 30, clientY: 20, time: 600 })
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20, 650), false)
+  })
 })
 
 describe('attachPaneNativeDoubleClickIntervalObserver', () => {

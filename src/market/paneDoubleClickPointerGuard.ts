@@ -42,6 +42,28 @@ function getEffectiveDoubleClickIntervalMs(paneElement: HTMLElement): number {
   )
 }
 
+/** Max gap from a drag release to a `dblclick` that can belong to the same native click sequence. */
+function getDragTaintNativeSequenceIntervalMs(paneElement: HTMLElement): number {
+  const observed = observedDoubleClickIntervalMsByPane.get(paneElement)
+  if (observed === undefined) {
+    return MIN_DOUBLE_CLICK_INTERVAL_MS
+  }
+  return Math.max(observed, MIN_DOUBLE_CLICK_INTERVAL_MS)
+}
+
+function clearDragTaintOutsideNativeClickSequence(
+  paneElement: HTMLElement,
+  now: number,
+): void {
+  const tainted = dragTaintedDoubleClickByPane.get(paneElement)
+  if (tainted === undefined) {
+    return
+  }
+  if (now - tainted.time > getDragTaintNativeSequenceIntervalMs(paneElement)) {
+    dragTaintedDoubleClickByPane.delete(paneElement)
+  }
+}
+
 function noteNativeDoubleClickInterval(
   paneElement: HTMLElement,
   clientX: number,
@@ -134,6 +156,7 @@ export function notePaneNativePrimaryClick(
   if (staleLast !== undefined && now - staleLast.time > intervalMs) {
     lastCompletedClickByPane.delete(paneElement)
   }
+  clearDragTaintOutsideNativeClickSequence(paneElement, now)
   const record = { time: now, clientX, clientY }
   nativePrimaryClickByPane.set(paneElement, record)
   nativeDoubleClickIntervalAnchorByPane.set(paneElement, record)
@@ -299,7 +322,7 @@ export function shouldSuppressChartObjectSettingsDoubleClick(
   if (tainted === undefined) {
     return false
   }
-  if (now - tainted.time > getEffectiveDoubleClickIntervalMs(paneElement)) {
+  if (now - tainted.time > getDragTaintNativeSequenceIntervalMs(paneElement)) {
     dragTaintedDoubleClickByPane.delete(paneElement)
     return false
   }
@@ -326,7 +349,7 @@ function clickCommitCouldBelongToTaintedDragSequence(
   if (tainted === undefined) {
     return false
   }
-  if (now - tainted.time > getEffectiveDoubleClickIntervalMs(paneElement)) {
+  if (now - tainted.time > getDragTaintNativeSequenceIntervalMs(paneElement)) {
     return false
   }
   return isWithinDoubleClickDistance(tainted, clientX, clientY)
