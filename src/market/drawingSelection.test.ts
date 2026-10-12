@@ -9,7 +9,10 @@ import {
   withExclusiveLineSelection,
   withExclusiveRectangleSelection,
 } from './drawingSelection.ts'
-import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
+import {
+  cancelFixedRangeVolumeProfileInteraction,
+  INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+} from './fixedRangeVolumeProfileInteraction.ts'
 import {
   armLineTool,
   commitLineCreate,
@@ -140,6 +143,18 @@ describe('drawingSelection', () => {
     const cleared = clearFixedRangeVolumeProfileSelectionForPeerClaim(selectedFrvp)
     assert.equal(cleared.selectedId, null)
     assert.equal(cleared.phase, 'inactive')
+  })
+
+  it('clears inactive FRVP selection when arming a peer drawing tool', () => {
+    const selectedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      selectedId: 'frvp-1',
+    }
+    const released = clearFixedRangeVolumeProfileSelectionForPeerClaim(
+      cancelFixedRangeVolumeProfileInteraction(selectedFrvp),
+    )
+    assert.equal(released.selectedId, null)
+    assert.equal(released.phase, 'inactive')
   })
 
   it('clears line and rectangle when FRVP claims the pointer', () => {

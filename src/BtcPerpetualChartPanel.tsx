@@ -137,6 +137,7 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
+  clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
@@ -559,13 +560,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       rectangleArmClaimTimerRef.current = null
       claimRectangleKeyboardPanel(panelId)
     }, 0)
-    const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
-      fixedRangeVolumeProfileInteractionRef.current,
+    const cancelledFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
+      cancelFixedRangeVolumeProfileInteraction(fixedRangeVolumeProfileInteractionRef.current),
     )
     if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
       fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
       setFixedRangeVolumeProfileInteraction(cancelledFrvp)
       fixedRangeVolumeProfileToolControllerRef.current?.sync()
+      fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
     }
     const releasedLine = releaseLineInteractionForPeerTool(lineInteractionRef.current)
     if (releasedLine !== lineInteractionRef.current) {
@@ -632,13 +634,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       lineArmClaimTimerRef.current = null
       claimRectangleKeyboardPanel(panelId)
     }, 0)
-    const cancelledFrvp = cancelFixedRangeVolumeProfileInteraction(
-      fixedRangeVolumeProfileInteractionRef.current,
+    const cancelledFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
+      cancelFixedRangeVolumeProfileInteraction(fixedRangeVolumeProfileInteractionRef.current),
     )
     if (cancelledFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
       fixedRangeVolumeProfileInteractionRef.current = cancelledFrvp
       setFixedRangeVolumeProfileInteraction(cancelledFrvp)
       fixedRangeVolumeProfileToolControllerRef.current?.sync()
+      fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
     }
     const releasedRectangle = releaseRectangleInteractionForPeerTool(
       rectangleInteractionRef.current,
