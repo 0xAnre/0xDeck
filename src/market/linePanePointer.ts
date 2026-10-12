@@ -228,6 +228,7 @@ export function attachLinePanePointer(
         event.clientY,
       )
       if (isSecondClickOfSequence && isLineInstanceLocked(instance)) {
+        clearAwaitingSecondPressForDoubleClick(paneElement)
         return
       }
       if (!isSecondClickOfSequence) {

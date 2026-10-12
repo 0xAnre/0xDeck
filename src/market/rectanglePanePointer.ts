@@ -228,6 +228,7 @@ export function attachRectanglePanePointer(
         event.clientY,
       )
       if (isSecondClickOfSequence && isRectangleInstanceLocked(instance)) {
+        clearAwaitingSecondPressForDoubleClick(paneElement)
         return
       }
       if (!isSecondClickOfSequence) {

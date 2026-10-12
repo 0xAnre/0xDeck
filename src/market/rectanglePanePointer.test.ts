@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
+import { shouldSuppressChartObjectSettingsDoubleClick } from './paneDoubleClickPointerGuard.ts'
 import { attachRectanglePanePointer } from './rectanglePanePointer.ts'
 import {
   applyRectangleSelection,
@@ -589,5 +590,108 @@ describe('rectanglePanePointer', () => {
       pointerId: 11,
     } as PointerEvent)
     assert.equal(interaction.phase, 'moving')
+  })
+
+  it('clears double-click sequence state after the second press on a locked rectangle', () => {
+    const { listeners, chart, paneElement } = createPaneHarness()
+    let interaction = INITIAL_RECTANGLE_INTERACTION_STATE
+    const lockedInstance = {
+      id: 'rect-locked',
+      fromTime: 100,
+      toTime: 200,
+      lowPrice: 20,
+      highPrice: 80,
+      locked: true,
+    }
+    const unlockedInstance = {
+      id: 'rect-unlocked',
+      fromTime: 100,
+      toTime: 200,
+      lowPrice: 20,
+      highPrice: 80,
+    }
+    const instances = [lockedInstance]
+
+    attachRectanglePanePointer(chart as never, {
+      getSnapshot: () => ({ interaction, instances }),
+      getChart: () => chart as never,
+      getSeries: () =>
+        ({
+          coordinateToPrice: (y: number) => 100 - y,
+          priceToCoordinate: (price: number) => 100 - price,
+          data: () => [{ time: 100 }, { time: 200 }],
+        }) as never,
+      onInteractionChange: (next) => {
+        interaction = next
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onPointerPreviewChange: () => {},
+      getPointerPreview: () => ({ time: null, price: null }),
+      isAlternateToolActive: () => false,
+      getCompetingLineHit: () => null,
+      getIntervalDurationSeconds: () => 300,
+      getLastBarUnixTime: () => 200,
+    })
+
+    const pointerDown = listeners.get('pointerdown') as (event: PointerEvent) => void
+    const pointerUp = listeners.get('pointerup') as (event: PointerEvent) => void
+    const pointerMove = listeners.get('pointermove') as (event: PointerEvent) => void
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 20,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 20,
+    } as PointerEvent)
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 21,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 21,
+    } as PointerEvent)
+
+    instances.length = 0
+    instances.push(unlockedInstance)
+
+    pointerDown({
+      button: 0,
+      clientX: 150,
+      clientY: 50,
+      pointerId: 22,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as PointerEvent)
+    pointerMove({
+      clientX: 156,
+      clientY: 50,
+      pointerId: 22,
+    } as PointerEvent)
+    pointerUp({
+      button: 0,
+      clientX: 156,
+      clientY: 50,
+      pointerId: 22,
+    } as PointerEvent)
+
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement), false)
   })
 })
