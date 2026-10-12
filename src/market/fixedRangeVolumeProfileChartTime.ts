@@ -43,12 +43,30 @@ export function clampFixedRangeVolumeProfileSelectionTime(
   return time
 }
 
+function isCoordinatePastLastLoadedBar(
+  chart: IChartApi,
+  x: number,
+  context: RectangleChartTimeContext,
+): boolean {
+  const { lastBarLogicalIndex } = context
+  if (lastBarLogicalIndex === null) return false
+  const logical = chart.timeScale().coordinateToLogical(x)
+  if (logical === null) return false
+  return (logical as number) > lastBarLogicalIndex
+}
+
 export function resolveChartTimeFromCoordinate(
   chart: IChartApi,
   x: number,
   context: RectangleChartTimeContext | null = null,
 ): number | null {
   if (!Number.isFinite(x)) return null
+  if (context && isCoordinatePastLastLoadedBar(chart, x, context)) {
+    const fromLogical = resolveRectangleTimeFromCoordinate(chart, x, context)
+    if (fromLogical !== null) {
+      return clampFixedRangeVolumeProfileSelectionTime(fromLogical, context)
+    }
+  }
   const direct = resolveChartEventTime(chart.timeScale().coordinateToTime(x) ?? undefined)
   if (direct !== null) {
     return clampFixedRangeVolumeProfileSelectionTime(direct, context)

@@ -152,6 +152,69 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     assert.equal(val?.lineWidthCssPx, 1)
   })
 
+  it('shows endpoint handles only for the selected unlocked instance', () => {
+    const models = buildFixedRangeVolumeProfileDrawModels({
+      instances: [
+        { id: 'a', fromTime: 100, toTime: 200, enabled: true },
+        { id: 'b', fromTime: 300, toTime: 400, enabled: true, locked: true },
+      ],
+      selectedId: 'a',
+      readyById: new Map([
+        [
+          'a',
+          {
+            profile: {
+              fromTime: 100,
+              toTime: 199,
+              candleCount: 1,
+              profileLow: 100,
+              profileHigh: 120,
+              rowHeight: 1,
+              rows: [row()],
+              totalVolume: 10,
+              pocRowIndex: 0,
+              pocPrice: 105,
+              pocVolume: 10,
+              vah: 110,
+              val: 100,
+              valueAreaVolume: 10,
+              valueAreaPercentAchieved: 70,
+            },
+          },
+        ],
+        [
+          'b',
+          {
+            profile: {
+              fromTime: 300,
+              toTime: 399,
+              candleCount: 1,
+              profileLow: 200,
+              profileHigh: 220,
+              rowHeight: 1,
+              rows: [row({ priceLow: 200, priceHigh: 210 })],
+              totalVolume: 20,
+              pocRowIndex: 0,
+              pocPrice: 205,
+              pocVolume: 20,
+              vah: 210,
+              val: 200,
+              valueAreaVolume: 20,
+              valueAreaPercentAchieved: 70,
+            },
+          },
+        ],
+      ]),
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      styleForInstance: () => TEST_STYLES,
+    })
+    assert.notEqual(models[0].endpointHandles, null)
+    assert.equal(models[1].endpointHandles, null)
+  })
+
   it('keeps multi-instance geometry separate', () => {
     const models = buildFixedRangeVolumeProfileDrawModels({
       instances: [

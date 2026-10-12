@@ -3,9 +3,12 @@ import { describe, it } from 'node:test'
 import {
   applyFixedRangeVolumeProfileClick,
   applyFixedRangeVolumeProfileCrosshairTime,
+  applyFixedRangeVolumeProfileSelection,
   armFixedRangeVolumeProfileTool,
   cancelFixedRangeVolumeProfileInteraction,
+  commitFixedRangeVolumeProfileResize,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  startFixedRangeVolumeProfileResizeDraft,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import {
   DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
@@ -87,6 +90,47 @@ describe('fixedRangeVolumeProfileInteraction', () => {
     const preview = applyFixedRangeVolumeProfileClick(armed, 10, [], '4h').state
     const completed = applyFixedRangeVolumeProfileClick(preview, 20, [], '4h').completedInstance!
     assert.equal(completed.selectionInterval, '4h')
+  })
+
+  it('selects an instance without entering tool phases', () => {
+    const armed = armFixedRangeVolumeProfileTool()
+    const selected = applyFixedRangeVolumeProfileSelection(
+      INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      'frvp-1',
+    )
+    assert.equal(selected.selectedId, 'frvp-1')
+    assert.equal(selected.phase, 'inactive')
+    assert.equal(applyFixedRangeVolumeProfileSelection(armed, 'frvp-1'), armed)
+  })
+
+  it('resizes start and end endpoints with normalized times', () => {
+    const base = {
+      id: 'frvp-1',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+    }
+    const startResize = startFixedRangeVolumeProfileResizeDraft(
+      { phase: 'inactive', selectedId: 'frvp-1', draft: null },
+      base,
+      'start',
+    )
+    const movedStart = commitFixedRangeVolumeProfileResize(startResize, [base], 150)
+    assert.equal(movedStart.updatedInstance?.fromTime, 150)
+    assert.equal(movedStart.updatedInstance?.toTime, 200)
+
+    const endResize = startFixedRangeVolumeProfileResizeDraft(
+      { phase: 'inactive', selectedId: 'frvp-1', draft: null },
+      base,
+      'end',
+    )
+    const movedEnd = commitFixedRangeVolumeProfileResize(endResize, [base], 250)
+    assert.equal(movedEnd.updatedInstance?.fromTime, 100)
+    assert.equal(movedEnd.updatedInstance?.toTime, 250)
   })
 
   it('applies default rowCount and valueAreaPercent', () => {

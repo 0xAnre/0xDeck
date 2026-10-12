@@ -131,6 +131,33 @@ export function buildRectangleChartTimeContext(
   }
 }
 
+function resolveRectangleTimeFromLogicalIndex(
+  chart: IChartApi,
+  logicalIndex: number,
+  context: RectangleChartTimeContext,
+): number | null {
+  const timeScale = chart.timeScale()
+  const { lastBarLogicalIndex, lastBarUnixTime, intervalDurationSeconds } = context
+  if (
+    lastBarLogicalIndex === null ||
+    lastBarUnixTime === null ||
+    !Number.isFinite(intervalDurationSeconds) ||
+    intervalDurationSeconds <= 0
+  ) {
+    return null
+  }
+  if (logicalIndex <= lastBarLogicalIndex) {
+    const coordinate = timeScale.logicalToCoordinate(logicalIndex as Logical)
+    if (coordinate === null) return null
+    const fromLogical = resolveChartEventTime(timeScale.coordinateToTime(coordinate) ?? undefined)
+    if (fromLogical !== null) return fromLogical
+    return null
+  }
+  const barOffset = logicalIndex - lastBarLogicalIndex
+  const unixTime = Math.trunc(lastBarUnixTime + barOffset * intervalDurationSeconds)
+  return isValidUnixChartTimeSeconds(unixTime) ? unixTime : null
+}
+
 export function resolveRectangleTimeFromCoordinate(
   chart: IChartApi,
   x: number,
@@ -138,6 +165,21 @@ export function resolveRectangleTimeFromCoordinate(
 ): number | null {
   if (!Number.isFinite(x)) return null
   const timeScale = chart.timeScale()
+  if (
+    context &&
+    context.lastBarLogicalIndex !== null &&
+    context.lastBarLogicalIndex !== undefined
+  ) {
+    const logical = timeScale.coordinateToLogical(x)
+    if (logical !== null && (logical as number) > context.lastBarLogicalIndex) {
+      const fromFutureWhitespace = resolveRectangleTimeFromLogicalIndex(
+        chart,
+        logical as number,
+        context,
+      )
+      if (fromFutureWhitespace !== null) return fromFutureWhitespace
+    }
+  }
   const direct = resolveChartEventTime(timeScale.coordinateToTime(x) ?? undefined)
   if (direct !== null) return direct
 
@@ -154,16 +196,7 @@ export function resolveRectangleTimeFromCoordinate(
   ) {
     return null
   }
-  if (logicalIndex <= lastBarLogicalIndex) {
-    const coordinate = timeScale.logicalToCoordinate(logical)
-    if (coordinate === null) return null
-    const fromLogical = resolveChartEventTime(timeScale.coordinateToTime(coordinate) ?? undefined)
-    if (fromLogical !== null) return fromLogical
-    return null
-  }
-  const barOffset = logicalIndex - lastBarLogicalIndex
-  const unixTime = Math.trunc(lastBarUnixTime + barOffset * intervalDurationSeconds)
-  return isValidUnixChartTimeSeconds(unixTime) ? unixTime : null
+  return resolveRectangleTimeFromLogicalIndex(chart, logicalIndex, context)
 }
 
 export function resolveRectangleTimeToCoordinate(

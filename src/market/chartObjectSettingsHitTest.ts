@@ -61,6 +61,7 @@ function chartObjectSettingsHitTestBlocked(ctx: ChartObjectSettingsHitTestContex
   if (ctx.rectangleInteraction.phase !== 'inactive') return true
   if (ctx.lineInteraction.phase !== 'inactive') return true
   if (isFixedRangeVolumeProfileToolActive(ctx.fixedRangeVolumeProfileInteraction)) return true
+  if (ctx.fixedRangeVolumeProfileInteraction.phase === 'resizing') return true
   return false
 }
 
@@ -118,6 +119,7 @@ function hitTestFixedRangeVolumeProfiles(
   const instanceById = new Map(ctx.fixedRangeVolumeProfileInstances.map((item) => [item.id, item]))
   const models = buildFixedRangeVolumeProfileDrawModels({
     instances: ctx.fixedRangeVolumeProfileInstances,
+    selectedId: ctx.fixedRangeVolumeProfileInteraction.selectedId,
     readyById: buildFrvpReadyById(ctx.fixedRangeVolumeProfileRuntime),
     fromTimeToCoordinate,
     toTimeToCoordinate,

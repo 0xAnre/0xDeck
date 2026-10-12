@@ -79,6 +79,33 @@ describe('resolveChartTimeFromCoordinate for latest candle', () => {
     assert.equal(time, barTimes[barTimes.length - 1])
   })
 
+  it('prefers logical resolution past the last bar when coordinateToTime snaps early', () => {
+    const chart = {
+      timeScale: () => ({
+        coordinateToTime: (x: number) => {
+          if (x >= 25) return barTimes[1] as Time
+          return barTimes[Math.round(x / 10)] ?? null
+        },
+        coordinateToLogical: (x: number) => x / 10,
+        logicalToCoordinate: (logical: number) => logical * 10,
+        timeToIndex: (time: number, findNearest?: boolean) => {
+          const lastIndex = barTimes.length - 1
+          if (time > barTimes[lastIndex]) return findNearest ? lastIndex : null
+          const index = barTimes.findIndex((bar) => bar >= time)
+          if (index === -1) return findNearest ? lastIndex : null
+          return index
+        },
+      }),
+    } as unknown as IChartApi
+    const context = {
+      intervalDurationSeconds: 300,
+      lastBarUnixTime: barTimes[barTimes.length - 1],
+      lastBarLogicalIndex: barTimes.length - 1,
+    }
+    const time = resolveChartTimeFromCoordinate(chart, 50, context)
+    assert.equal(time, barTimes[barTimes.length - 1])
+  })
+
   it('clamps projected future timestamps to the last loaded candle', () => {
     const context = {
       intervalDurationSeconds: 300,

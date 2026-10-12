@@ -118,6 +118,8 @@ import {
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
   type FixedRangeVolumeProfileInteractionState,
 } from '@/market/fixedRangeVolumeProfileInteraction'
+import { isLineDrawingBlockingPeerTools } from '@/market/lineInteraction'
+import { isRectangleChartNavigationLocked } from '@/market/rectangleInteraction'
 import {
   sanitizeFixedRangeVolumeProfileInstances,
   type FixedRangeVolumeProfileInstance,
@@ -1104,20 +1106,36 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getSnapshot: () => ({
         interaction: fixedRangeVolumeProfileInteractionRef.current,
         instances: fixedRangeVolumeProfileInstancesRef.current,
+        runtimeById: fixedRangeVolumeProfileRuntimeRef.current,
       }),
       getSelectionInterval: () => activeIntervalRef.current,
       getIntervalDurationSeconds: () =>
         candleIntervalDurationSeconds(activeIntervalRef.current),
       getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),
+      getSeries: () => seriesRef.current?.candle ?? null,
+      isAlternateToolActive: () =>
+        isRectangleChartNavigationLocked(rectangleInteractionRef.current) ||
+        isLineDrawingBlockingPeerTools(lineInteractionRef.current),
       onInteractionChange: (state) => {
         fixedRangeVolumeProfileInteractionRef.current = state
         setFixedRangeVolumeProfileInteraction(state)
+        fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
       },
       onInstanceCompleted: (instance) => {
         persistFixedRangeVolumeProfileInstances([
           ...fixedRangeVolumeProfileInstancesRef.current,
           instance,
         ])
+      },
+      onInstanceUpdated: (instance) => {
+        persistFixedRangeVolumeProfileInstances(
+          fixedRangeVolumeProfileInstancesRef.current.map((item) =>
+            item.id === instance.id ? instance : item,
+          ),
+        )
+      },
+      onRequestRender: () => {
+        fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
       },
     })
     fixedRangeVolumeProfileToolControllerRef.current = controller
@@ -1295,6 +1313,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const attachment = attachFixedRangeVolumeProfileSeriesPrimitive(bundle.candle, () => ({
       instances: fixedRangeVolumeProfileInstancesRef.current,
       runtimeById: fixedRangeVolumeProfileRuntimeRef.current,
+      selectedId: fixedRangeVolumeProfileInteractionRef.current.selectedId,
       getIntervalDurationSeconds: () =>
         candleIntervalDurationSeconds(activeIntervalRef.current),
       getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),
@@ -1318,7 +1337,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   useEffect(() => {
     fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
-  }, [fixedRangeVolumeProfileInstances])
+  }, [fixedRangeVolumeProfileInstances, fixedRangeVolumeProfileInteraction])
 
   useEffect(() => {
     const chart = chartRef.current

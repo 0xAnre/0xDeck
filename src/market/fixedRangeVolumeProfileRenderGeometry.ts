@@ -30,6 +30,12 @@ export type FixedRangeVolumeProfileLevelLineGeometry = {
   lineWidthCssPx: number
 }
 
+export type FixedRangeVolumeProfileEndpointHandlesGeometry = {
+  startX: number
+  endX: number
+  y: number
+}
+
 export type FixedRangeVolumeProfileInstanceDrawModel = {
   instanceId: string
   rangeLeft: number
@@ -37,6 +43,7 @@ export type FixedRangeVolumeProfileInstanceDrawModel = {
   rangeWidth: number
   rows: FixedRangeVolumeProfileRowBarGeometry[]
   lines: FixedRangeVolumeProfileLevelLineGeometry[]
+  endpointHandles: FixedRangeVolumeProfileEndpointHandlesGeometry | null
 }
 
 function withOpacity(hex: string, opacity: number): string {
@@ -232,6 +239,21 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     priceToY: params.priceToY,
   })
 
+  let handleY: number | null = null
+  for (const row of rowGeometries) {
+    const mid = (row.top + row.bottom) / 2
+    handleY = handleY === null ? mid : (handleY + mid) / 2
+  }
+
+  const endpointHandles =
+    handleY === null
+      ? null
+      : {
+          startX: range.left,
+          endX: range.right,
+          y: handleY,
+        }
+
   return {
     instanceId: params.instanceId,
     rangeLeft: range.left,
@@ -239,6 +261,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     rangeWidth: range.width,
     rows: rowGeometries,
     lines,
+    endpointHandles,
   }
 }
 
@@ -257,7 +280,9 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
     fromTime: number
     toTime: number
     enabled: boolean
+    locked?: boolean
   }[]
+  selectedId?: string | null
   readyById: ReadonlyMap<
     string,
     {
@@ -287,7 +312,13 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
       priceToY: params.priceToY,
       ...styles,
     })
-    if (model) models.push(model)
+    if (!model) continue
+    const showHandles =
+      params.selectedId === instance.id && instance.locked !== true
+    models.push({
+      ...model,
+      endpointHandles: showHandles ? model.endpointHandles : null,
+    })
   }
   return models
 }

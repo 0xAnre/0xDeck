@@ -21,6 +21,7 @@ import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeP
 export type FixedRangeVolumeProfileSeriesPrimitiveContext = {
   instances: readonly FixedRangeVolumeProfileInstance[]
   runtimeById: FixedRangeVolumeProfileRuntimeSnapshot
+  selectedId: string | null
   getIntervalDurationSeconds: () => number
   getLastBarUnixTime: () => number | null
 }
@@ -79,6 +80,18 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
           context.stroke()
           context.restore()
         }
+
+        if (model.endpointHandles) {
+          const radius = 4 * horizontalPixelRatio
+          const handleY = Math.round(model.endpointHandles.y * verticalPixelRatio)
+          for (const x of [model.endpointHandles.startX, model.endpointHandles.endX]) {
+            const hx = Math.round(x * horizontalPixelRatio)
+            context.beginPath()
+            context.arc(hx, handleY, radius, 0, Math.PI * 2)
+            context.fillStyle = 'rgba(255, 255, 255, 0.85)'
+            context.fill()
+          }
+        }
       }
 
       context.restore()
@@ -134,6 +147,7 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
     this._models = buildFixedRangeVolumeProfileDrawModels({
       instances: context.instances,
+      selectedId: context.selectedId,
       readyById,
       barSpacing,
       fromTimeToCoordinate,
@@ -159,6 +173,7 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
   private _getContext: () => FixedRangeVolumeProfileSeriesPrimitiveContext = () => ({
     instances: [],
     runtimeById: {},
+    selectedId: null,
     getIntervalDurationSeconds: () => 60,
     getLastBarUnixTime: () => null,
   })

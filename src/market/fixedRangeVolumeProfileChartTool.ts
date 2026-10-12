@@ -1,11 +1,12 @@
-import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
+import type { IChartApi, ISeriesApi, MouseEventParams, SeriesType, Time } from 'lightweight-charts'
 import {
   applyFixedRangeVolumeProfileCrosshairTime,
   cancelFixedRangeVolumeProfileInteraction,
-  isFixedRangeVolumeProfileToolActive,
+  isFixedRangeVolumeProfileChartNavigationLocked,
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import type { CandleInterval } from './types.ts'
 import {
   buildFixedRangeVolumeProfileChartTimeContext,
@@ -20,6 +21,7 @@ import {
 export type FixedRangeVolumeProfileChartToolSnapshot = {
   interaction: FixedRangeVolumeProfileInteractionState
   instances: readonly FixedRangeVolumeProfileInstance[]
+  runtimeById: FixedRangeVolumeProfileRuntimeSnapshot
 }
 
 export type FixedRangeVolumeProfileChartToolCallbacks = {
@@ -29,6 +31,10 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getLastBarUnixTime: () => number | null
   onInteractionChange: (state: FixedRangeVolumeProfileInteractionState) => void
   onInstanceCompleted: (instance: FixedRangeVolumeProfileInstance) => void
+  onInstanceUpdated: (instance: FixedRangeVolumeProfileInstance) => void
+  getSeries: () => ISeriesApi<SeriesType, Time> | null
+  onRequestRender: () => void
+  isAlternateToolActive: () => boolean
 }
 
 export type FixedRangeVolumeProfileChartToolController = {
@@ -39,7 +45,7 @@ export type FixedRangeVolumeProfileChartToolController = {
 export function isFixedRangeVolumeProfileChartInteractionLocked(
   interaction: FixedRangeVolumeProfileInteractionState,
 ): boolean {
-  return isFixedRangeVolumeProfileToolActive(interaction)
+  return isFixedRangeVolumeProfileChartNavigationLocked(interaction)
 }
 
 export function applyFixedRangeVolumeProfileChartInteractionMode(
@@ -94,6 +100,7 @@ export function attachFixedRangeVolumeProfileChartTool(
 
   const pointerCallbacks: FixedRangeVolumeProfilePanePointerCallbacks = {
     getSnapshot: callbacks.getSnapshot,
+    getSeries: callbacks.getSeries,
     getSelectionInterval: callbacks.getSelectionInterval,
     getIntervalDurationSeconds: callbacks.getIntervalDurationSeconds,
     getLastBarUnixTime: callbacks.getLastBarUnixTime,
@@ -104,6 +111,13 @@ export function attachFixedRangeVolumeProfileChartTool(
       callbacks.onInstanceCompleted(instance)
       sync()
     },
+    onInstanceUpdated: (instance) => {
+      callbacks.onInstanceUpdated(instance)
+    },
+    onRequestRender: () => {
+      callbacks.onRequestRender()
+    },
+    isAlternateToolActive: callbacks.isAlternateToolActive,
   }
 
   panePointer = attachFixedRangeVolumeProfilePanePointer(chart, pointerCallbacks)
@@ -140,10 +154,11 @@ export function attachFixedRangeVolumeProfileChartTool(
     chart.unsubscribeCrosshairMove(onCrosshairMove)
     panePointer?.dispose()
     panePointer = null
-    applyFixedRangeVolumeProfileChartInteractionMode(
-      chart,
-      { phase: 'inactive', draft: null },
-    )
+    applyFixedRangeVolumeProfileChartInteractionMode(chart, {
+      phase: 'inactive',
+      selectedId: null,
+      draft: null,
+    })
   }
 
   return { sync, dispose }

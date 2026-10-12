@@ -28,6 +28,7 @@ export function applyChartDrawingInteractionMode(
   if (drawingLocked) {
     applyFixedRangeVolumeProfileChartInteractionMode(chart, {
       phase: 'armed',
+      selectedId: null,
       draft: null,
     })
     return

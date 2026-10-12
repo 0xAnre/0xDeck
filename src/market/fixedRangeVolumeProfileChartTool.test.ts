@@ -121,12 +121,17 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
         getSnapshot: () => ({
           interaction: armFixedRangeVolumeProfileTool(),
           instances: [],
+          runtimeById: {},
         }),
         getSelectionInterval: () => '1m',
         getIntervalDurationSeconds: () => 60,
         getLastBarUnixTime: () => null,
+        getSeries: () => null,
+        isAlternateToolActive: () => false,
         onInteractionChange: () => {},
         onInstanceCompleted: () => {},
+        onInstanceUpdated: () => {},
+        onRequestRender: () => {},
       })
       assert.equal(scrollMode(), 'locked')
       controller.dispose()
@@ -140,14 +145,18 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
       const { chart, scrollMode } = createMockChart()
       let interaction = armFixedRangeVolumeProfileTool()
       const controller = attachFixedRangeVolumeProfileChartTool(chart, {
-        getSnapshot: () => ({ interaction, instances: [] }),
+        getSnapshot: () => ({ interaction, instances: [], runtimeById: {} }),
         getSelectionInterval: () => '1m',
         getIntervalDurationSeconds: () => 60,
         getLastBarUnixTime: () => null,
+        getSeries: () => null,
+        isAlternateToolActive: () => false,
         onInteractionChange: (state) => {
           interaction = state
         },
         onInstanceCompleted: () => {},
+        onInstanceUpdated: () => {},
+        onRequestRender: () => {},
       })
       assert.equal(scrollMode(), 'locked')
       const first = applyFixedRangeVolumeProfileClick(interaction, 100, [], '1m')
