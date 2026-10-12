@@ -82,6 +82,15 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 950), false)
   })
 
+  it('keeps drawing completed click when an unrelated pane native click precedes double-click', () => {
+    const pane = {} as HTMLElement
+    notePaneNativePrimaryClick(pane, 200, 200, 100)
+    armPanePointerClickForDoubleClick(pane, 10, 20, 200)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 10, 20, 200)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 250), true)
+  })
+
   it('does not consume when presses are too far apart in position', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 0, 0, 0)

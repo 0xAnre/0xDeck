@@ -124,7 +124,10 @@ export function notePaneNativePrimaryClick(
       clearNativePrimaryClick(paneElement)
       nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
       lastCompletedClickByPane.delete(paneElement)
-    } else if (now - priorNative.time > DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS) {
+    } else if (
+      now - priorNative.time > DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS &&
+      isWithinDoubleClickDistance(priorNative, clientX, clientY)
+    ) {
       lastCompletedClickByPane.delete(paneElement)
     }
   }
