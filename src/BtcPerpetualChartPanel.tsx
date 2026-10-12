@@ -198,8 +198,10 @@ import {
   updateFixedRangeVolumeProfileInstancesById,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import {
+  setFrvpInstanceLevelLineStyle,
   setFrvpInstanceLevelLineWidth,
   setFrvpInstanceLevelStrokeColor,
+  setFrvpInstanceLevelStrokeOpacityPercent,
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
@@ -835,6 +837,33 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileLevelLineStyleChange = useCallback(
+    (instanceId: string, kind: FrvpLevelLineKind, lineStyle: LineChartStrokeStyle) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceLevelLineStyle(instance, kind, lineStyle),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileLevelStrokeOpacityChange = useCallback(
+    (instanceId: string, kind: FrvpLevelLineKind, opacityPercent: number) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) =>
+            setFrvpInstanceLevelStrokeOpacityPercent(instance, kind, opacityPercent),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleMarketIndicatorSettingsClick = useCallback(
     (indicatorId: MarketIndicatorId) => {
       openChartObjectSettings({ kind: 'market-indicator', indicatorId })
@@ -1079,6 +1108,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       handleFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange:
       handleFixedRangeVolumeProfileLevelLineWidthChange,
+    onFixedRangeVolumeProfileLevelLineStyleChange:
+      handleFixedRangeVolumeProfileLevelLineStyleChange,
+    onFixedRangeVolumeProfileLevelStrokeOpacityChange:
+      handleFixedRangeVolumeProfileLevelStrokeOpacityChange,
     rectangleInstances,
     onRectangleArm: handleRectangleArm,
     onRectangleDelete: handleRectangleDelete,
@@ -1142,6 +1175,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       onRequestRender: () => {
         fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
       },
+      onInstancesChange: (instances) => {
+        persistFixedRangeVolumeProfileInstances([...instances])
+      },
+      shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     fixedRangeVolumeProfileToolControllerRef.current = controller
     controller.sync()
@@ -1149,7 +1186,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
       fixedRangeVolumeProfileToolControllerRef.current = null
     }
-  }, [chartReady, persistFixedRangeVolumeProfileInstances])
+  }, [chartReady, panelId, persistFixedRangeVolumeProfileInstances])
 
   useEffect(() => {
     const chart = chartRef.current

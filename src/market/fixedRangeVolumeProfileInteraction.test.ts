@@ -9,6 +9,7 @@ import {
   cancelFixedRangeVolumeProfileInteraction,
   commitFixedRangeVolumeProfileResize,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  removeSelectedFixedRangeVolumeProfile,
   resolveFixedRangeVolumeProfileInstancesForDisplay,
   startFixedRangeVolumeProfileResizeDraft,
 } from './fixedRangeVolumeProfileInteraction.ts'
@@ -92,6 +93,33 @@ describe('fixedRangeVolumeProfileInteraction', () => {
     const preview = applyFixedRangeVolumeProfileClick(armed, 10, [], '4h').state
     const completed = applyFixedRangeVolumeProfileClick(preview, 20, [], '4h').completedInstance!
     assert.equal(completed.selectionInterval, '4h')
+  })
+
+  it('removes selected unlocked instance and ignores locked selection', () => {
+    const unlocked = {
+      id: 'frvp-open',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+    }
+    const locked = { ...unlocked, id: 'frvp-locked', locked: true }
+    const removed = removeSelectedFixedRangeVolumeProfile(
+      { phase: 'inactive', selectedId: 'frvp-open', draft: null },
+      [unlocked, locked],
+    )
+    assert.equal(removed.instances.length, 1)
+    assert.equal(removed.instances[0].id, 'frvp-locked')
+    assert.equal(removed.state.selectedId, null)
+    const blocked = removeSelectedFixedRangeVolumeProfile(
+      { phase: 'inactive', selectedId: 'frvp-locked', draft: null },
+      [locked],
+    )
+    assert.equal(blocked.instances.length, 1)
+    assert.equal(blocked.state.selectedId, 'frvp-locked')
   })
 
   it('selects an instance without entering tool phases', () => {

@@ -7,8 +7,6 @@ export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY = 0.25
 /** Max histogram bar width as a fraction of the selected time range width (peak volume row). */
 export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
 
-const FRVP_VAH_VAL_LINE_DASH: readonly number[] = [4, 4]
-
 export type FixedRangeVolumeProfileRowBarGeometry = {
   top: number
   bottom: number
@@ -136,10 +134,13 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
   rangeRight: number
   pocStrokeStyle: string
   pocLineWidthCssPx: number
+  pocLineDash: readonly number[]
   vahStrokeStyle: string
   vahLineWidthCssPx: number
+  vahLineDash: readonly number[]
   valStrokeStyle: string
   valLineWidthCssPx: number
+  valLineDash: readonly number[]
   pocPrice: number | null
   vah: number | null
   val: number | null
@@ -167,9 +168,9 @@ export function buildFixedRangeVolumeProfileLevelLines(params: {
     })
   }
 
-  add('poc', params.pocPrice, params.pocStrokeStyle, [], params.pocLineWidthCssPx)
-  add('vah', params.vah, params.vahStrokeStyle, FRVP_VAH_VAL_LINE_DASH, params.vahLineWidthCssPx)
-  add('val', params.val, params.valStrokeStyle, FRVP_VAH_VAL_LINE_DASH, params.valLineWidthCssPx)
+  add('poc', params.pocPrice, params.pocStrokeStyle, params.pocLineDash, params.pocLineWidthCssPx)
+  add('vah', params.vah, params.vahStrokeStyle, params.vahLineDash, params.vahLineWidthCssPx)
+  add('val', params.val, params.valStrokeStyle, params.valLineDash, params.valLineWidthCssPx)
   return lines
 }
 
@@ -184,10 +185,13 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   priceToY: (price: number) => number | null
   pocStrokeStyle: string
   pocLineWidthCssPx: number
+  pocLineDash: readonly number[]
   vahStrokeStyle: string
   vahLineWidthCssPx: number
+  vahLineDash: readonly number[]
   valStrokeStyle: string
   valLineWidthCssPx: number
+  valLineDash: readonly number[]
 }): FixedRangeVolumeProfileInstanceDrawModel | null {
   const xFrom = params.fromTimeToCoordinate(params.fromTime)
   const xTo = params.toTimeToCoordinate(params.toTime)
@@ -234,10 +238,13 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     rangeRight: range.right,
     pocStrokeStyle: params.pocStrokeStyle,
     pocLineWidthCssPx: params.pocLineWidthCssPx,
+    pocLineDash: params.pocLineDash,
     vahStrokeStyle: params.vahStrokeStyle,
     vahLineWidthCssPx: params.vahLineWidthCssPx,
+    vahLineDash: params.vahLineDash,
     valStrokeStyle: params.valStrokeStyle,
     valLineWidthCssPx: params.valLineWidthCssPx,
+    valLineDash: params.valLineDash,
     pocPrice: params.profile.pocPrice,
     vah: params.profile.vah,
     val: params.profile.val,
@@ -272,10 +279,13 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
 export type FixedRangeVolumeProfileDrawStyleInput = {
   pocStrokeStyle: string
   pocLineWidthCssPx: number
+  pocLineDash: readonly number[]
   vahStrokeStyle: string
   vahLineWidthCssPx: number
+  vahLineDash: readonly number[]
   valStrokeStyle: string
   valLineWidthCssPx: number
+  valLineDash: readonly number[]
 }
 
 export function buildFixedRangeVolumeProfileDrawModels(params: {

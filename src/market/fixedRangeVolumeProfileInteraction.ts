@@ -243,6 +243,25 @@ export type FixedRangeVolumeProfileResizeCommitResult = {
   updatedInstance: FixedRangeVolumeProfileInstance | null
 }
 
+export function removeSelectedFixedRangeVolumeProfile(
+  state: FixedRangeVolumeProfileInteractionState,
+  instances: readonly FixedRangeVolumeProfileInstance[],
+): {
+  state: FixedRangeVolumeProfileInteractionState
+  instances: FixedRangeVolumeProfileInstance[]
+} {
+  if (!state.selectedId) return { state, instances: [...instances] }
+  const selected = instances.find((item) => item.id === state.selectedId)
+  if (!selected || selected.locked === true) {
+    return { state, instances: [...instances] }
+  }
+  const nextInstances = instances.filter((item) => item.id !== state.selectedId)
+  return {
+    state: { phase: 'inactive', selectedId: null, draft: null },
+    instances: nextInstances,
+  }
+}
+
 export function commitFixedRangeVolumeProfileResize(
   state: FixedRangeVolumeProfileInteractionState,
   instances: readonly FixedRangeVolumeProfileInstance[],

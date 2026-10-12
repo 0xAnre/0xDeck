@@ -55,6 +55,16 @@ type HeaderToolsMenuProps = {
     kind: FrvpLevelLineKind,
     lineWidth: LineChartStrokeWidth,
   ) => void
+  onFixedRangeVolumeProfileLevelLineStyleChange?: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    lineStyle: LineChartStrokeStyle,
+  ) => void
+  onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    opacityPercent: number,
+  ) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
@@ -86,6 +96,8 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileValueAreaChange,
   onFixedRangeVolumeProfileLevelStrokeColorChange,
   onFixedRangeVolumeProfileLevelLineWidthChange,
+  onFixedRangeVolumeProfileLevelLineStyleChange,
+  onFixedRangeVolumeProfileLevelStrokeOpacityChange,
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
@@ -310,6 +322,12 @@ export function HeaderToolsMenu({
         }}
         onLevelLineWidthChange={(instanceId, kind, lineWidth) => {
           onFixedRangeVolumeProfileLevelLineWidthChange?.(instanceId, kind, lineWidth)
+        }}
+        onLevelLineStyleChange={(instanceId, kind, lineStyle) => {
+          onFixedRangeVolumeProfileLevelLineStyleChange?.(instanceId, kind, lineStyle)
+        }}
+        onLevelStrokeOpacityChange={(instanceId, kind, opacityPercent) => {
+          onFixedRangeVolumeProfileLevelStrokeOpacityChange?.(instanceId, kind, opacityPercent)
         }}
       />
     </>

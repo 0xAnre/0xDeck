@@ -46,6 +46,16 @@ type UseMarketWidgetSettingsArgs = {
     kind: 'poc' | 'vah' | 'val',
     lineWidth: LineChartStrokeWidth,
   ) => void
+  onFixedRangeVolumeProfileLevelLineStyleChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    lineStyle: LineChartStrokeStyle,
+  ) => void
+  onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    opacityPercent: number,
+  ) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm: () => void
   onRectangleDelete: (instanceId: string) => void
@@ -92,6 +102,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onFixedRangeVolumeProfileValueAreaChange,
     onFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange,
+    onFixedRangeVolumeProfileLevelLineStyleChange,
+    onFixedRangeVolumeProfileLevelStrokeOpacityChange,
     rectangleInstances,
     onRectangleArm,
     onRectangleDelete,
@@ -161,6 +173,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
         headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeColorChange : undefined,
       onFixedRangeVolumeProfileLevelLineWidthChange:
         headerSettings.tools === true ? onFixedRangeVolumeProfileLevelLineWidthChange : undefined,
+      onFixedRangeVolumeProfileLevelLineStyleChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelLineStyleChange : undefined,
+      onFixedRangeVolumeProfileLevelStrokeOpacityChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeOpacityChange : undefined,
       rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
       onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
       onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
@@ -200,6 +216,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onFixedRangeVolumeProfileValueAreaChange,
       onFixedRangeVolumeProfileLevelStrokeColorChange,
       onFixedRangeVolumeProfileLevelLineWidthChange,
+      onFixedRangeVolumeProfileLevelLineStyleChange,
+      onFixedRangeVolumeProfileLevelStrokeOpacityChange,
       onRectangleArm,
       onRectangleDelete,
       onRectangleLockToggle,

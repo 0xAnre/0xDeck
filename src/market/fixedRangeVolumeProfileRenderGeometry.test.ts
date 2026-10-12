@@ -106,10 +106,13 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       rangeRight: 200,
       pocStrokeStyle: TEST_STYLES.pocStrokeStyle,
       pocLineWidthCssPx: 3,
+      pocLineDash: TEST_STYLES.pocLineDash,
       vahStrokeStyle: TEST_STYLES.vahStrokeStyle,
       vahLineWidthCssPx: 3,
+      vahLineDash: TEST_STYLES.vahLineDash,
       valStrokeStyle: TEST_STYLES.valStrokeStyle,
       valLineWidthCssPx: 3,
+      valLineDash: TEST_STYLES.valLineDash,
       pocPrice: null,
       vah: null,
       val: null,
@@ -124,10 +127,13 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       rangeRight: 200,
       pocStrokeStyle: readFrvpPocLineStrokeStyle(),
       pocLineWidthCssPx: 4,
+      pocLineDash: [],
       vahStrokeStyle: 'rgba(160, 160, 160, 0.55)',
       vahLineWidthCssPx: 2,
+      vahLineDash: [6, 4],
       valStrokeStyle: 'rgba(160, 160, 160, 0.55)',
       valLineWidthCssPx: 1,
+      valLineDash: [6, 4],
       pocPrice: 105,
       vah: 110,
       val: 100,
@@ -140,16 +146,16 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const val = lines.find((line) => line.kind === 'val')
 
     assert.equal(poc?.strokeStyle, readFrvpPocLineStrokeStyle())
-    assert.equal(poc?.lineDash.length, 0)
+    assert.deepEqual(poc?.lineDash, [])
     assert.equal(poc?.lineWidthCssPx, 4)
     assert.equal(poc?.x1, 10)
     assert.equal(poc?.x2, 200)
 
     assert.equal(vah?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
-    assert.deepEqual(vah?.lineDash, [4, 4])
+    assert.deepEqual(vah?.lineDash, [6, 4])
     assert.equal(vah?.lineWidthCssPx, 2)
     assert.equal(val?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
-    assert.deepEqual(val?.lineDash, [4, 4])
+    assert.deepEqual(val?.lineDash, [6, 4])
     assert.equal(val?.lineWidthCssPx, 1)
   })
 
@@ -363,5 +369,34 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
 
   it('returns zero max volume for empty rows safely', () => {
     assert.equal(computeMaxRowVolume([]), 0)
+  })
+
+  it('maps dotted VAH stroke style and custom opacity into line geometry', () => {
+    const instance = {
+      id: 'frvp-style',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+      vahLineStyle: 'dotted' as const,
+      vahStrokeOpacityPercent: 25,
+      vahStrokeColor: '#ff0000',
+    }
+    const styles = frvpDrawStyleForInstance(instance)
+    const lines = buildFixedRangeVolumeProfileLevelLines({
+      rangeLeft: 0,
+      rangeRight: 100,
+      ...styles,
+      pocPrice: null,
+      vah: 105,
+      val: null,
+      priceToY: () => 50,
+    })
+    const vah = lines.find((line) => line.kind === 'vah')
+    assert.deepEqual(vah?.lineDash, [2, 3])
+    assert.match(vah?.strokeStyle ?? '', /rgba\(255,\s*0,\s*0/)
   })
 })
