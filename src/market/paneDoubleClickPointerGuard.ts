@@ -107,6 +107,21 @@ export function notePaneNativePrimaryClick(
   clientY: number,
   now: number = performance.now(),
 ): void {
+  const intervalMs = getEffectiveDoubleClickIntervalMs(paneElement)
+  const priorNative = nativePrimaryClickByPane.get(paneElement)
+  if (priorNative !== undefined) {
+    if (now - priorNative.time > intervalMs) {
+      clearNativePrimaryClick(paneElement)
+      nativeDoubleClickIntervalAnchorByPane.delete(paneElement)
+      lastCompletedClickByPane.delete(paneElement)
+    } else if (now - priorNative.time > DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS) {
+      lastCompletedClickByPane.delete(paneElement)
+    }
+  }
+  const staleLast = lastCompletedClickByPane.get(paneElement)
+  if (staleLast !== undefined && now - staleLast.time > intervalMs) {
+    lastCompletedClickByPane.delete(paneElement)
+  }
   const record = { time: now, clientX, clientY }
   nativePrimaryClickByPane.set(paneElement, record)
   nativeDoubleClickIntervalAnchorByPane.set(paneElement, record)
@@ -146,9 +161,17 @@ function matchesSecondPressTiming(
     clearNativePrimaryClick(paneElement)
     return false
   }
+  const nativeToLastMs = nativePrimary.time - last.time
+  if (
+    nativeToLastMs < -DOUBLE_CLICK_INTERVAL_LEARN_SLACK_MS ||
+    nativeToLastMs > intervalMs
+  ) {
+    return false
+  }
   return (
     isWithinDoubleClickDistance(nativePrimary, clientX, clientY) &&
-    isWithinDoubleClickDistance(last, clientX, clientY)
+    isWithinDoubleClickDistance(last, clientX, clientY) &&
+    isWithinDoubleClickDistance(nativePrimary, last.clientX, last.clientY)
   )
 }
 
@@ -275,9 +298,25 @@ export function shouldSuppressChartObjectSettingsDoubleClick(
   return true
 }
 
-export function commitPanePointerClickForDoubleClick(paneElement: HTMLElement): void {
+export type PanePointerClickRelease = {
+  clientX: number
+  clientY: number
+  time?: number
+}
+
+export function commitPanePointerClickForDoubleClick(
+  paneElement: HTMLElement,
+  release?: PanePointerClickRelease,
+): void {
   dragTaintedDoubleClickByPane.delete(paneElement)
-  const pending = pendingClickByPane.get(paneElement)
+  let pending = pendingClickByPane.get(paneElement)
+  if (!pending && release) {
+    pending = {
+      time: release.time ?? performance.now(),
+      clientX: release.clientX,
+      clientY: release.clientY,
+    }
+  }
   if (!pending) return
   lastCompletedClickByPane.set(paneElement, pending)
   pendingClickByPane.delete(paneElement)

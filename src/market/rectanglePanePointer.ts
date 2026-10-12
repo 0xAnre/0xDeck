@@ -336,7 +336,11 @@ export function attachRectanglePanePointer(
           event.clientY,
         )
       ) {
-        commitPanePointerClickForDoubleClick(paneElement)
+        commitPanePointerClickForDoubleClick(paneElement, {
+          clientX: event.clientX,
+          clientY: event.clientY,
+          time: event.timeStamp,
+        })
       } else {
         markPanePointerDragCommittedForSettingsSuppression(
           paneElement,
@@ -378,7 +382,11 @@ export function attachRectanglePanePointer(
         dragStart !== null &&
         pointerMovementWithinClickTolerance(dragStart.paneX, dragStart.paneY, paneX, paneY)
       if (wasClick) {
-        commitPanePointerClickForDoubleClick(paneElement)
+        commitPanePointerClickForDoubleClick(paneElement, {
+          clientX: event.clientX,
+          clientY: event.clientY,
+          time: event.timeStamp,
+        })
         callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
       } else {
         markPanePointerDragCommittedForSettingsSuppression(

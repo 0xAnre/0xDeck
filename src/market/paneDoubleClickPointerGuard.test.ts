@@ -63,6 +63,25 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     )
   })
 
+  it('does not consume when native primary click expired before the second press', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 10, 20, 0)
+    const muchLater = 60_000
+    notePaneNativePrimaryClick(pane, 10, 20, muchLater)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, muchLater + 50), false)
+  })
+
+  it('does not pair a stale completed click with a newer native primary click', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 10, 20, 0)
+    notePaneNativePrimaryClick(pane, 10, 20, 900)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 950), false)
+  })
+
   it('does not consume when presses are too far apart in position', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 0, 0, 0)
@@ -90,7 +109,7 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
   it('does not taint during pointer wobble before release classifies the gesture', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
-    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 15, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 15, 20)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 15, 20, 50), false)
   })
 
@@ -123,7 +142,7 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
   it('does not suppress settings double-click after the double-click interval', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
-    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
     markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20, 0)
     assert.equal(
       shouldSuppressChartObjectSettingsDoubleClick(
@@ -139,7 +158,7 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
   it('does not suppress double-click far from the drag-tainted location', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
-    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
     markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20, 0)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 200, 200, 50), false)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 28, 22, 50), true)
@@ -156,9 +175,17 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 17, 20)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 17, 20, 50), false)
-    commitPanePointerClickForDoubleClick(pane)
+    commitPanePointerClickForDoubleClick(pane, { clientX: 10, clientY: 20, time: 10 })
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), true)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 12, 22, 100), false)
+  })
+
+  it('restores a completed click after wobble invalidates pending tracking', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
+    commitPanePointerClickForDoubleClick(pane, { clientX: 10, clientY: 20, time: 10 })
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), true)
   })
 
   it('taints settings suppression when the second press of a double-click drags', () => {
