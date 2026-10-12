@@ -93,7 +93,7 @@ export function invalidatePanePointerClickForDoubleClickOnDrag(
     )
   ) {
     pendingClickByPane.delete(paneElement)
-    setDragTaintForSettingsSuppression(paneElement, startClientX, startClientY, now)
+    setDragTaintForSettingsSuppression(paneElement, clientX, clientY, now)
   }
 }
 

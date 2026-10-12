@@ -784,7 +784,7 @@ describe('rectanglePanePointer', () => {
       pointerId: 22,
     } as PointerEvent)
 
-    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 150, 50), true)
-    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 150, 50), false)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 156, 50), true)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(paneElement, 156, 50), false)
   })
 })

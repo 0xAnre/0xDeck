@@ -206,7 +206,7 @@ describe('chartObjectSettingsPanePointer', () => {
 
     listeners.get('dblclick')?.({
       button: 0,
-      clientX: 150,
+      clientX: 170,
       clientY: 50,
       preventDefault: () => {},
       stopPropagation: () => {},
