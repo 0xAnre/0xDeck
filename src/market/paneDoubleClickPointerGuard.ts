@@ -190,25 +190,34 @@ export function armPanePointerClickForDoubleClick(
   pendingClickByPane.set(paneElement, { time: now, clientX, clientY })
 }
 
+/**
+ * Pointer wobble within the double-click distance keeps the pending click until release.
+ * Drag taint is applied only when the gesture commits as a drag.
+ */
 export function invalidatePanePointerClickForDoubleClickOnDrag(
   paneElement: HTMLElement,
   startClientX: number,
   startClientY: number,
   clientX: number,
   clientY: number,
-  now: number = performance.now(),
 ): void {
   if (
-    !pointerMovementWithinClickTolerance(
+    pointerMovementWithinClickTolerance(
       startClientX,
       startClientY,
       clientX,
       clientY,
     )
   ) {
-    pendingClickByPane.delete(paneElement)
-    setDragTaintForSettingsSuppression(paneElement, clientX, clientY, now)
+    return
   }
+  if (
+    Math.hypot(clientX - startClientX, clientY - startClientY) <=
+    DOUBLE_CLICK_MAX_POINTER_MOVE_PX
+  ) {
+    return
+  }
+  pendingClickByPane.delete(paneElement)
 }
 
 /** Clear sequence state after a committed drag so later presses are not misclassified. */
@@ -267,6 +276,7 @@ export function shouldSuppressChartObjectSettingsDoubleClick(
 }
 
 export function commitPanePointerClickForDoubleClick(paneElement: HTMLElement): void {
+  dragTaintedDoubleClickByPane.delete(paneElement)
   const pending = pendingClickByPane.get(paneElement)
   if (!pending) return
   lastCompletedClickByPane.set(paneElement, pending)

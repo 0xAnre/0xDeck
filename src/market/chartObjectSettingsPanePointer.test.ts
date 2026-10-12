@@ -5,6 +5,7 @@ import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import {
   armPanePointerClickForDoubleClick,
   invalidatePanePointerClickForDoubleClickOnDrag,
+  markPanePointerDragCommittedForSettingsSuppression,
 } from './paneDoubleClickPointerGuard.ts'
 
 function createPaneHarness() {
@@ -203,6 +204,7 @@ describe('chartObjectSettingsPanePointer', () => {
 
     armPanePointerClickForDoubleClick(paneElement, 150, 50)
     invalidatePanePointerClickForDoubleClickOnDrag(paneElement, 150, 50, 170, 50)
+    markPanePointerDragCommittedForSettingsSuppression(paneElement, 170, 50)
 
     listeners.get('dblclick')?.({
       button: 0,

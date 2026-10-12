@@ -74,7 +74,7 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
-    commitPanePointerClickForDoubleClick(pane)
+    markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20)
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), false)
   })
 
@@ -87,11 +87,11 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 12, 22, 100), true)
   })
 
-  it('invalidates pending click when movement exceeds click tolerance but stays within double-click distance', () => {
+  it('does not taint during pointer wobble before release classifies the gesture', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 15, 20, 0)
-    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 15, 20, 50), true)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 15, 20, 50), false)
   })
 
   it('does not record a cancelled pending click', () => {
@@ -107,14 +107,16 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
+    markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20), true)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20), false)
   })
 
-  it('marks tainted when drag invalidates pending click tracking', () => {
+  it('marks tainted when a drag is committed after pending click tracking', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20)
+    markPanePointerDragCommittedForSettingsSuppression(pane, 28, 22)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 28, 22), true)
   })
 
@@ -122,6 +124,7 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20, 0)
+    markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20, 0)
     assert.equal(
       shouldSuppressChartObjectSettingsDoubleClick(
         pane,
@@ -137,6 +140,7 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 30, 20, 0)
+    markPanePointerDragCommittedForSettingsSuppression(pane, 30, 20, 0)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 200, 200, 50), false)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 28, 22, 50), true)
   })
@@ -147,13 +151,14 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 5, 5, 100), true)
   })
 
-  it('taints when pointer movement exceeds click tolerance but stays within double-click distance', () => {
+  it('clears drag taint when a wobble resolves as a click', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 10, 20, 0)
     invalidatePanePointerClickForDoubleClickOnDrag(pane, 10, 20, 17, 20)
-    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 17, 20, 50), true)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 17, 20, 50), false)
     commitPanePointerClickForDoubleClick(pane)
-    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), false)
+    assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 100), true)
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 12, 22, 100), false)
   })
 
   it('taints settings suppression when the second press of a double-click drags', () => {
