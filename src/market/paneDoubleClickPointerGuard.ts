@@ -122,11 +122,16 @@ function matchesSecondPressTiming(
   clientY: number,
   now: number,
 ): boolean {
-  if (now - last.time <= getEffectiveDoubleClickIntervalMs(paneElement)) {
+  const intervalMs = getEffectiveDoubleClickIntervalMs(paneElement)
+  if (now - last.time <= intervalMs) {
     return true
   }
   const nativePrimary = nativePrimaryClickByPane.get(paneElement)
   if (nativePrimary === undefined) {
+    return false
+  }
+  if (now - nativePrimary.time > intervalMs) {
+    clearNativePrimaryClick(paneElement)
     return false
   }
   return (

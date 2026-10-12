@@ -46,6 +46,22 @@ describe('consumeCompletedClickForDoubleClickSequence', () => {
     assert.equal(consumeCompletedClickForDoubleClickSequence(pane, 12, 22, 700), true)
   })
 
+  it('does not consume when native primary click is outside the double-click interval', () => {
+    const pane = {} as HTMLElement
+    armPanePointerClickForDoubleClick(pane, 10, 20, 0)
+    commitPanePointerClickForDoubleClick(pane)
+    notePaneNativePrimaryClick(pane, 10, 20, 0)
+    assert.equal(
+      consumeCompletedClickForDoubleClickSequence(
+        pane,
+        12,
+        22,
+        FALLBACK_DOUBLE_CLICK_INTERVAL_MS + 100,
+      ),
+      false,
+    )
+  })
+
   it('does not consume when presses are too far apart in position', () => {
     const pane = {} as HTMLElement
     armPanePointerClickForDoubleClick(pane, 0, 0, 0)
