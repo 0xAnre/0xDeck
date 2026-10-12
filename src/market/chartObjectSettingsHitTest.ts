@@ -20,7 +20,11 @@ import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileI
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { CandleInterval } from './types.ts'
-import { lineHitAtPanePoint, rectangleHitAtPanePoint } from './drawingPointerArbitration.ts'
+import {
+  lineHitAtPanePoint,
+  preferDrawingPointerTarget,
+  rectangleHitAtPanePoint,
+} from './drawingPointerArbitration.ts'
 import type { LineInteractionState } from './lineInteraction.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
@@ -224,24 +228,22 @@ export function hitTestChartObjectSettingsTarget(
     lastBarUnixTime: ctx.lastBarUnixTime,
   }
 
-  if (
-    lineHitAtPanePoint({
-      ...paneHitArgs,
-      instances: ctx.lineInstances,
-      selectedId: ctx.lineInteraction.selectedId,
-    }) !== null
-  ) {
-    return null
+  const lineHit = lineHitAtPanePoint({
+    ...paneHitArgs,
+    instances: ctx.lineInstances,
+    selectedId: ctx.lineInteraction.selectedId,
+  })
+  const rectangleHit = rectangleHitAtPanePoint({
+    ...paneHitArgs,
+    instances: ctx.rectangleInstances,
+    selectedId: ctx.rectangleInteraction.selectedId,
+  })
+  const preferredDrawing = preferDrawingPointerTarget(lineHit, rectangleHit)
+  if (preferredDrawing === 'line' && lineHit) {
+    return { kind: 'line', instanceId: lineHit.instanceId }
   }
-
-  if (
-    rectangleHitAtPanePoint({
-      ...paneHitArgs,
-      instances: ctx.rectangleInstances,
-      selectedId: ctx.rectangleInteraction.selectedId,
-    }) !== null
-  ) {
-    return null
+  if (preferredDrawing === 'rectangle' && rectangleHit) {
+    return { kind: 'rectangle', instanceId: rectangleHit.instanceId }
   }
 
   const frvp = hitTestFixedRangeVolumeProfiles(ctx)

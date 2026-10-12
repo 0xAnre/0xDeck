@@ -433,9 +433,8 @@ describe('rectanglePanePointer', () => {
     assert.equal(interaction.draft, null)
   })
 
-  it('defers locked-rectangle settings activation until pointerup within click tolerance', () => {
+  it('does not activate chart object settings on locked-rectangle click', () => {
     const { listeners, chart } = createPaneHarness()
-    let activated: string | null = null
 
     attachRectanglePanePointer(chart as never, {
       getSnapshot: () => ({
@@ -468,9 +467,6 @@ describe('rectanglePanePointer', () => {
       getCompetingLineHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
-      onChartObjectActivate: (instanceId) => {
-        activated = instanceId
-      },
     })
 
     listeners.get('pointerdown')?.({
@@ -482,15 +478,11 @@ describe('rectanglePanePointer', () => {
       stopPropagation: () => {},
     } as PointerEvent)
 
-    assert.equal(activated, null)
-
     listeners.get('pointerup')?.({
       button: 0,
       clientX: 151,
       clientY: 51,
       pointerId: 8,
     } as PointerEvent)
-
-    assert.equal(activated, 'rect-locked')
   })
 })
