@@ -196,6 +196,20 @@ describe('shouldSuppressChartObjectSettingsDoubleClick', () => {
     markPaneDoubleClickSequenceDragTainted(pane, 12, 22, 150)
     assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 12, 22, 200), true)
   })
+
+  it('preserves drag taint when a click commits near the drag release before dblclick', () => {
+    const pane = {} as HTMLElement
+    markPaneDoubleClickSequenceDragTainted(pane, 30, 20, 50)
+    commitPanePointerClickForDoubleClick(pane, { clientX: 28, clientY: 22, time: 80 })
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 28, 22, 100), true)
+  })
+
+  it('clears drag taint when a click commit is outside the tainted sequence', () => {
+    const pane = {} as HTMLElement
+    markPaneDoubleClickSequenceDragTainted(pane, 30, 20, 50)
+    commitPanePointerClickForDoubleClick(pane, { clientX: 200, clientY: 200, time: 80 })
+    assert.equal(shouldSuppressChartObjectSettingsDoubleClick(pane, 30, 20, 100), false)
+  })
 })
 
 describe('attachPaneNativeDoubleClickIntervalObserver', () => {

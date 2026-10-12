@@ -314,11 +314,26 @@ export type PanePointerClickRelease = {
   time?: number
 }
 
+function clickCommitCouldBelongToTaintedDragSequence(
+  paneElement: HTMLElement,
+  clientX: number,
+  clientY: number,
+  now: number,
+): boolean {
+  const tainted = dragTaintedDoubleClickByPane.get(paneElement)
+  if (tainted === undefined) {
+    return false
+  }
+  if (now - tainted.time > getEffectiveDoubleClickIntervalMs(paneElement)) {
+    return false
+  }
+  return isWithinDoubleClickDistance(tainted, clientX, clientY)
+}
+
 export function commitPanePointerClickForDoubleClick(
   paneElement: HTMLElement,
   release?: PanePointerClickRelease,
 ): void {
-  dragTaintedDoubleClickByPane.delete(paneElement)
   let pending = pendingClickByPane.get(paneElement)
   if (!pending && release) {
     pending = {
@@ -327,8 +342,16 @@ export function commitPanePointerClickForDoubleClick(
       clientY: release.clientY,
     }
   }
-  if (!pending) return
-  lastCompletedClickByPane.set(paneElement, pending)
+  if (!pending) {
+    return
+  }
+  const now = release?.time ?? pending.time
+  const clientX = release?.clientX ?? pending.clientX
+  const clientY = release?.clientY ?? pending.clientY
+  if (!clickCommitCouldBelongToTaintedDragSequence(paneElement, clientX, clientY, now)) {
+    dragTaintedDoubleClickByPane.delete(paneElement)
+  }
+  lastCompletedClickByPane.set(paneElement, { time: now, clientX, clientY })
   pendingClickByPane.delete(paneElement)
 }
 
