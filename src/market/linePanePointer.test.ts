@@ -96,6 +96,7 @@ describe('linePanePointer', () => {
         priority: 1,
         instanceIndex: 0,
       }),
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
@@ -158,6 +159,7 @@ describe('linePanePointer', () => {
         priority: 1,
         instanceIndex: 0,
       }),
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
@@ -180,6 +182,7 @@ describe('linePanePointer', () => {
         priority: 1,
         instanceIndex: 0,
       }),
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })

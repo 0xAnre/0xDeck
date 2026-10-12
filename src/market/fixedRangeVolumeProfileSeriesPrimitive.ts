@@ -17,10 +17,12 @@ import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRang
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import { readFrvpHandleFillStyle, readFrvpHandleStrokeStyle } from './frvpHandleColors.ts'
 
 export type FixedRangeVolumeProfileSeriesPrimitiveContext = {
   instances: readonly FixedRangeVolumeProfileInstance[]
   runtimeById: FixedRangeVolumeProfileRuntimeSnapshot
+  selectedId: string | null
   getIntervalDurationSeconds: () => number
   getLastBarUnixTime: () => number | null
 }
@@ -33,9 +35,17 @@ function bitmapBox(start: number, end: number, pixelRatio: number): { position: 
 
 class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
   private readonly _models: FixedRangeVolumeProfileInstanceDrawModel[]
+  private readonly _handleFillStyle: string
+  private readonly _handleStrokeStyle: string
 
-  constructor(models: FixedRangeVolumeProfileInstanceDrawModel[]) {
+  constructor(
+    models: FixedRangeVolumeProfileInstanceDrawModel[],
+    handleFillStyle: string,
+    handleStrokeStyle: string,
+  ) {
     this._models = models
+    this._handleFillStyle = handleFillStyle
+    this._handleStrokeStyle = handleStrokeStyle
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -78,6 +88,21 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
           context.lineTo(x2, y)
           context.stroke()
           context.restore()
+        }
+
+        if (model.endpointHandles) {
+          const radius = 4 * horizontalPixelRatio
+          const handleY = Math.round(model.endpointHandles.y * verticalPixelRatio)
+          for (const x of [model.endpointHandles.startX, model.endpointHandles.endX]) {
+            const hx = Math.round(x * horizontalPixelRatio)
+            context.beginPath()
+            context.arc(hx, handleY, radius, 0, Math.PI * 2)
+            context.fillStyle = this._handleFillStyle
+            context.fill()
+            context.strokeStyle = this._handleStrokeStyle
+            context.lineWidth = horizontalPixelRatio
+            context.stroke()
+          }
         }
       }
 
@@ -134,6 +159,7 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
     this._models = buildFixedRangeVolumeProfileDrawModels({
       instances: context.instances,
+      selectedId: context.selectedId,
       readyById,
       barSpacing,
       fromTimeToCoordinate,
@@ -148,7 +174,11 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
   renderer(): IPrimitivePaneRenderer | null {
     if (this._models.length === 0) return null
-    return new FixedRangeVolumeProfileRenderer(this._models)
+    return new FixedRangeVolumeProfileRenderer(
+      this._models,
+      readFrvpHandleFillStyle(),
+      readFrvpHandleStrokeStyle(),
+    )
   }
 }
 
@@ -159,6 +189,7 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
   private _getContext: () => FixedRangeVolumeProfileSeriesPrimitiveContext = () => ({
     instances: [],
     runtimeById: {},
+    selectedId: null,
     getIntervalDurationSeconds: () => 60,
     getLastBarUnixTime: () => null,
   })

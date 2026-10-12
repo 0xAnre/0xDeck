@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  clearFixedRangeVolumeProfileSelectionForPeerClaim,
+  clearLineAndRectangleSelectionForFrvpClaim,
+  releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
+  withExclusiveFrvpSelection,
   withExclusiveLineSelection,
   withExclusiveRectangleSelection,
 } from './drawingSelection.ts'
+import {
+  cancelFixedRangeVolumeProfileInteraction,
+  INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+} from './fixedRangeVolumeProfileInteraction.ts'
 import {
   armLineTool,
   commitLineCreate,
@@ -92,9 +100,11 @@ describe('drawingSelection', () => {
       selectedId: rectangle.id,
     }
     const movingLine = startLineMoveDraft(INITIAL_LINE_INTERACTION_STATE, line, 150, 15)
-    const lineClaim = withExclusiveLineSelection(movingLine, selectedRectangle)
+    const selectedFrvp = { ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE, selectedId: 'frvp-1' }
+    const lineClaim = withExclusiveLineSelection(movingLine, selectedRectangle, selectedFrvp)
     assert.equal(lineClaim.line.selectedId, line.id)
     assert.equal(lineClaim.rectangle.selectedId, null)
+    assert.equal(lineClaim.frvp.selectedId, null)
 
     const selectedLine = { ...INITIAL_LINE_INTERACTION_STATE, selectedId: line.id }
     const movingRectangle = startRectangleMoveDraft(
@@ -103,8 +113,116 @@ describe('drawingSelection', () => {
       1_700_000_100,
       1.5,
     )
-    const rectangleClaim = withExclusiveRectangleSelection(movingRectangle, selectedLine)
+    const rectangleClaim = withExclusiveRectangleSelection(
+      movingRectangle,
+      selectedLine,
+      selectedFrvp,
+    )
     assert.equal(rectangleClaim.rectangle.selectedId, rectangle.id)
     assert.equal(rectangleClaim.line.selectedId, null)
+    assert.equal(rectangleClaim.frvp.selectedId, null)
+  })
+
+  it('clears line and rectangle selection when FRVP claims the pointer', () => {
+    const selectedLine = { ...INITIAL_LINE_INTERACTION_STATE, selectedId: 'line-1' }
+    const selectedRectangle = {
+      ...INITIAL_RECTANGLE_INTERACTION_STATE,
+      selectedId: 'rect-1',
+    }
+    const selectedFrvp = { ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE, selectedId: 'frvp-1' }
+    const claim = withExclusiveFrvpSelection(selectedFrvp, selectedLine, selectedRectangle)
+    assert.equal(claim.frvp.selectedId, 'frvp-1')
+    assert.equal(claim.line.selectedId, null)
+    assert.equal(claim.rectangle.selectedId, null)
+  })
+
+  it('releases FRVP selection when arming a peer drawing tool', () => {
+    const selectedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      selectedId: 'frvp-1',
+    }
+    const released = releaseFixedRangeVolumeProfileInteractionForPeerTool(selectedFrvp)
+    assert.equal(released.selectedId, null)
+    assert.equal(released.phase, 'inactive')
+  })
+
+  it('releases armed FRVP when arming a peer drawing tool', () => {
+    const armedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      phase: 'armed' as const,
+      selectedId: null,
+      draft: null,
+    }
+    const released = releaseFixedRangeVolumeProfileInteractionForPeerTool(armedFrvp)
+    assert.equal(released.phase, 'inactive')
+    assert.equal(released.selectedId, null)
+  })
+
+  it('clears FRVP selection for peer claim without disturbing armed tool state', () => {
+    const selectedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      selectedId: 'frvp-1',
+    }
+    const cleared = clearFixedRangeVolumeProfileSelectionForPeerClaim(selectedFrvp)
+    assert.equal(cleared.selectedId, null)
+    assert.equal(cleared.phase, 'inactive')
+  })
+
+  it('clears inactive FRVP selection when arming a peer drawing tool', () => {
+    const selectedFrvp = {
+      ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      selectedId: 'frvp-1',
+    }
+    const released = clearFixedRangeVolumeProfileSelectionForPeerClaim(
+      cancelFixedRangeVolumeProfileInteraction(selectedFrvp),
+    )
+    assert.equal(released.selectedId, null)
+    assert.equal(released.phase, 'inactive')
+  })
+
+  it('clears line and rectangle when FRVP claims the pointer', () => {
+    const line = createLineInstance({
+      timeA: 100,
+      priceA: 10,
+      timeB: 200,
+      priceB: 20,
+    })!
+    const rectangle = createRectangleInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_300,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    const peers = clearLineAndRectangleSelectionForFrvpClaim(
+      { ...INITIAL_LINE_INTERACTION_STATE, selectedId: line.id },
+      { ...INITIAL_RECTANGLE_INTERACTION_STATE, selectedId: rectangle.id },
+    )
+    assert.equal(peers.line.selectedId, null)
+    assert.equal(peers.rectangle.selectedId, null)
+  })
+
+  it('clears line and rectangle selection when arming FRVP from a peer tool', () => {
+    const line = createLineInstance({
+      timeA: 100,
+      priceA: 10,
+      timeB: 200,
+      priceB: 20,
+    })!
+    const rectangle = createRectangleInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_300,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    const releasedLine = releaseLineInteractionForPeerTool({
+      ...INITIAL_LINE_INTERACTION_STATE,
+      selectedId: line.id,
+    })
+    const releasedRectangle = releaseRectangleInteractionForPeerTool({
+      ...INITIAL_RECTANGLE_INTERACTION_STATE,
+      selectedId: rectangle.id,
+    })
+    assert.equal(releasedLine.selectedId, null)
+    assert.equal(releasedRectangle.selectedId, null)
   })
 })

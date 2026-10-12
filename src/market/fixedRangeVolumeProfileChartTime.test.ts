@@ -6,6 +6,7 @@ import {
   resolveChartEventTime,
   resolveChartTimeFromCoordinate,
   resolveFixedRangeVolumeProfileCrosshairTime,
+  resolveFixedRangeVolumeProfileResizePointerTime,
 } from './fixedRangeVolumeProfileChartTime.ts'
 
 function clickParam(overrides: Partial<MouseEventParams<Time>> = {}): MouseEventParams<Time> {
@@ -77,6 +78,55 @@ describe('resolveChartTimeFromCoordinate for latest candle', () => {
     }
     const time = resolveChartTimeFromCoordinate(chart, 50, context)
     assert.equal(time, barTimes[barTimes.length - 1])
+  })
+
+  it('prefers logical resolution past the last bar when coordinateToTime snaps early', () => {
+    const chart = {
+      timeScale: () => ({
+        coordinateToTime: (x: number) => {
+          if (x >= 25) return barTimes[1] as Time
+          return barTimes[Math.round(x / 10)] ?? null
+        },
+        coordinateToLogical: (x: number) => x / 10,
+        logicalToCoordinate: (logical: number) => logical * 10,
+        timeToIndex: (time: number, findNearest?: boolean) => {
+          const lastIndex = barTimes.length - 1
+          if (time > barTimes[lastIndex]) return findNearest ? lastIndex : null
+          const index = barTimes.findIndex((bar) => bar >= time)
+          if (index === -1) return findNearest ? lastIndex : null
+          return index
+        },
+      }),
+    } as unknown as IChartApi
+    const context = {
+      intervalDurationSeconds: 300,
+      lastBarUnixTime: barTimes[barTimes.length - 1],
+      lastBarLogicalIndex: barTimes.length - 1,
+    }
+    const time = resolveChartTimeFromCoordinate(chart, 50, context)
+    assert.equal(time, barTimes[barTimes.length - 1])
+  })
+
+  it('keeps the start endpoint on its candle when the pointer is at the handle center', () => {
+    const chart = {
+      timeScale: () => ({
+        options: () => ({ barSpacing: 10 }),
+        timeToCoordinate: (time: number) => (time === barTimes[0] ? 5 : null),
+        coordinateToTime: (x: number) => {
+          if (x <= 5) return barTimes[0] - 300
+          return barTimes[0]
+        },
+      }),
+    } as unknown as IChartApi
+    const time = resolveFixedRangeVolumeProfileResizePointerTime(chart, 5, null, {
+      kind: 'resize',
+      instanceId: 'frvp-1',
+      endpoint: 'start',
+      initialFromTime: barTimes[0],
+      initialToTime: barTimes[2],
+      previewPointerTime: barTimes[0],
+    })
+    assert.equal(time, barTimes[0])
   })
 
   it('clamps projected future timestamps to the last loaded candle', () => {

@@ -121,12 +121,23 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
         getSnapshot: () => ({
           interaction: armFixedRangeVolumeProfileTool(),
           instances: [],
+          runtimeById: {},
         }),
         getSelectionInterval: () => '1m',
         getIntervalDurationSeconds: () => 60,
         getLastBarUnixTime: () => null,
+        getSeries: () => null,
+        isAlternateToolActive: () => false,
         onInteractionChange: () => {},
         onInstanceCompleted: () => {},
+        onInstanceUpdated: () => {},
+        onRequestRender: () => {},
+        onInstancesChange: () => {},
+        shouldHandleKeyboardShortcut: () => true,
+        getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getLineInstances: () => [],
+        getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getRectangleInstances: () => [],
       })
       assert.equal(scrollMode(), 'locked')
       controller.dispose()
@@ -140,14 +151,24 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
       const { chart, scrollMode } = createMockChart()
       let interaction = armFixedRangeVolumeProfileTool()
       const controller = attachFixedRangeVolumeProfileChartTool(chart, {
-        getSnapshot: () => ({ interaction, instances: [] }),
+        getSnapshot: () => ({ interaction, instances: [], runtimeById: {} }),
         getSelectionInterval: () => '1m',
         getIntervalDurationSeconds: () => 60,
         getLastBarUnixTime: () => null,
+        getSeries: () => null,
+        isAlternateToolActive: () => false,
         onInteractionChange: (state) => {
           interaction = state
         },
         onInstanceCompleted: () => {},
+        onInstanceUpdated: () => {},
+        onRequestRender: () => {},
+        onInstancesChange: () => {},
+        shouldHandleKeyboardShortcut: () => true,
+        getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getLineInstances: () => [],
+        getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+        getRectangleInstances: () => [],
       })
       assert.equal(scrollMode(), 'locked')
       const first = applyFixedRangeVolumeProfileClick(interaction, 100, [], '1m')
@@ -159,5 +180,131 @@ describe('fixedRangeVolumeProfileChartTool lifecycle', () => {
       controller.sync()
       assert.equal(scrollMode(), 'unlocked')
     })
+  })
+
+  it('deletes selected unlocked instance on Delete and ignores editable targets', () => {
+    class FakeElement {
+      tagName = 'DIV'
+      isContentEditable = false
+      ownerDocument: { body: FakeElement }
+      parent: FakeElement | null = null
+
+      constructor(parent: FakeElement | null = null) {
+        this.parent = parent
+        this.ownerDocument = { body: this }
+      }
+    }
+
+    const originalHtmlElement = globalThis.HTMLElement
+    let onKeyDown: ((event: { key: string; target: FakeElement; preventDefault: () => void }) => void) | null =
+      null
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: FakeElement })
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        addEventListener: (type: string, listener: typeof onKeyDown) => {
+          if (type === 'keydown') onKeyDown = listener
+        },
+        removeEventListener: () => {},
+      },
+    })
+
+    const body = new FakeElement()
+    const input = new FakeElement()
+    input.tagName = 'INPUT'
+    const instance = {
+      id: 'frvp-1',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+    }
+    let instanceCount = 1
+    const chart = createMockChart().chart
+    const controller = attachFixedRangeVolumeProfileChartTool(chart, {
+      getSnapshot: () => ({
+        interaction: { phase: 'inactive', selectedId: 'frvp-1', draft: null },
+        instances: [instance],
+        runtimeById: {},
+      }),
+      getSelectionInterval: () => '1m',
+      getIntervalDurationSeconds: () => 60,
+      getLastBarUnixTime: () => null,
+      getSeries: () => null,
+      isAlternateToolActive: () => false,
+      onInteractionChange: () => {},
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onInstancesChange: (next) => {
+        instanceCount = next.length
+      },
+      shouldHandleKeyboardShortcut: () => true,
+      getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+      getLineInstances: () => [],
+      getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+      getRectangleInstances: () => [],
+    })
+
+    onKeyDown?.({ key: 'Delete', target: input, preventDefault: () => {} })
+    assert.equal(instanceCount, 1)
+    onKeyDown?.({ key: 'Delete', target: body, preventDefault: () => {} })
+    assert.equal(instanceCount, 0)
+
+    controller.dispose()
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: originalHtmlElement })
+  })
+
+  it('cancels armed FRVP on Escape without keyboard panel claim', () => {
+    class FakeElement {
+      tagName = 'DIV'
+      isContentEditable = false
+    }
+
+    const originalHtmlElement = globalThis.HTMLElement
+    let onKeyDown: ((event: { key: string; target: FakeElement; preventDefault: () => void }) => void) | null =
+      null
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: FakeElement })
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        addEventListener: (type: string, listener: typeof onKeyDown) => {
+          if (type === 'keydown') onKeyDown = listener
+        },
+        removeEventListener: () => {},
+      },
+    })
+
+    let interaction = armFixedRangeVolumeProfileTool()
+    const chart = createMockChart().chart
+    const controller = attachFixedRangeVolumeProfileChartTool(chart, {
+      getSnapshot: () => ({ interaction, instances: [], runtimeById: {} }),
+      getSelectionInterval: () => '1m',
+      getIntervalDurationSeconds: () => 60,
+      getLastBarUnixTime: () => null,
+      getSeries: () => null,
+      isAlternateToolActive: () => false,
+      onInteractionChange: (state) => {
+        interaction = state
+      },
+      onInstanceCompleted: () => {},
+      onInstanceUpdated: () => {},
+      onRequestRender: () => {},
+      onInstancesChange: () => {},
+      shouldHandleKeyboardShortcut: () => false,
+      getLineInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+      getLineInstances: () => [],
+      getRectangleInteraction: () => ({ phase: 'inactive', selectedId: null, draft: null }),
+      getRectangleInstances: () => [],
+    })
+
+    onKeyDown?.({ key: 'Escape', target: new FakeElement(), preventDefault: () => {} })
+    assert.equal(interaction.phase, 'inactive')
+
+    controller.dispose()
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: originalHtmlElement })
   })
 })

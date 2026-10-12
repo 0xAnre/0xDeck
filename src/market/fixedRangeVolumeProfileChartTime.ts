@@ -1,5 +1,6 @@
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
+import type { FixedRangeVolumeProfileResizeDraft } from './fixedRangeVolumeProfileInteraction.ts'
 import {
   buildRectangleChartTimeContext,
   resolveRectangleTimeFromCoordinate,
@@ -43,12 +44,30 @@ export function clampFixedRangeVolumeProfileSelectionTime(
   return time
 }
 
+function isCoordinatePastLastLoadedBar(
+  chart: IChartApi,
+  x: number,
+  context: RectangleChartTimeContext,
+): boolean {
+  const { lastBarLogicalIndex } = context
+  if (lastBarLogicalIndex === null) return false
+  const logical = chart.timeScale().coordinateToLogical(x)
+  if (logical === null) return false
+  return (logical as number) > lastBarLogicalIndex
+}
+
 export function resolveChartTimeFromCoordinate(
   chart: IChartApi,
   x: number,
   context: RectangleChartTimeContext | null = null,
 ): number | null {
   if (!Number.isFinite(x)) return null
+  if (context && isCoordinatePastLastLoadedBar(chart, x, context)) {
+    const fromLogical = resolveRectangleTimeFromCoordinate(chart, x, context)
+    if (fromLogical !== null) {
+      return clampFixedRangeVolumeProfileSelectionTime(fromLogical, context)
+    }
+  }
   const direct = resolveChartEventTime(chart.timeScale().coordinateToTime(x) ?? undefined)
   if (direct !== null) {
     return clampFixedRangeVolumeProfileSelectionTime(direct, context)
@@ -57,6 +76,24 @@ export function resolveChartTimeFromCoordinate(
   const fromLogical = resolveRectangleTimeFromCoordinate(chart, x, context)
   if (fromLogical === null) return null
   return clampFixedRangeVolumeProfileSelectionTime(fromLogical, context)
+}
+
+export function resolveFixedRangeVolumeProfileResizePointerTime(
+  chart: IChartApi,
+  x: number,
+  context: RectangleChartTimeContext | null,
+  resizeDraft: FixedRangeVolumeProfileResizeDraft | null,
+): number | null {
+  const resolved = resolveChartTimeFromCoordinate(chart, x, context)
+  if (!resizeDraft || resizeDraft.endpoint !== 'start') return resolved
+  if (resolved === null) return null
+  const anchorX = chart.timeScale().timeToCoordinate(resizeDraft.initialFromTime as Time)
+  if (anchorX === null || !Number.isFinite(anchorX)) return resolved
+  const halfBar = chart.timeScale().options().barSpacing / 2
+  if (Math.abs(x - anchorX) <= halfBar + 1) {
+    return resizeDraft.initialFromTime
+  }
+  return resolved
 }
 
 export function resolveFixedRangeVolumeProfileCrosshairTime(

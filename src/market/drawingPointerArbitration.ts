@@ -1,4 +1,15 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
+import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
+import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
+import { buildFixedRangeVolumeProfileDrawModels } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
+import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import {
+  hitTestFixedRangeVolumeProfiles,
+  type FixedRangeVolumeProfileHandleKind,
+  type FixedRangeVolumeProfileHitTarget,
+} from './fixedRangeVolumeProfileHitTest.ts'
+import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import { hitTestLines, type LineHandleKind, type LineHitTarget } from './lineHitTest.ts'
 import type { LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
@@ -14,13 +25,15 @@ import {
 import type { RectangleInstance } from './rectangleInstances.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
 
-export type DrawingPointerTool = 'line' | 'rectangle'
+export type DrawingPointerTool = 'line' | 'rectangle' | 'frvp'
 
 const LINE_ENDPOINT_SPECIFICITY = 40
 const RECTANGLE_CORNER_SPECIFICITY = 40
 const RECTANGLE_EDGE_SPECIFICITY = 30
 const LINE_BODY_SPECIFICITY = 20
 const RECTANGLE_INTERIOR_SPECIFICITY = 10
+const FRVP_ENDPOINT_SPECIFICITY = 40
+const FRVP_BODY_SPECIFICITY = 8
 
 function lineHitSpecificity(kind: LineHandleKind): number {
   switch (kind) {
@@ -29,6 +42,20 @@ function lineHitSpecificity(kind: LineHandleKind): number {
       return LINE_ENDPOINT_SPECIFICITY
     case 'body':
       return LINE_BODY_SPECIFICITY
+    default: {
+      const unreachable: never = kind
+      return unreachable
+    }
+  }
+}
+
+function frvpHitSpecificity(kind: FixedRangeVolumeProfileHandleKind): number {
+  switch (kind) {
+    case 'start':
+    case 'end':
+      return FRVP_ENDPOINT_SPECIFICITY
+    case 'body':
+      return FRVP_BODY_SPECIFICITY
     default: {
       const unreachable: never = kind
       return unreachable
@@ -66,13 +93,35 @@ export function preferDrawingPointerTarget(
   lineHit: LineHitTarget | null,
   rectangleHit: RectangleHitTarget | null,
 ): DrawingPointerTool | null {
-  if (lineHit && !rectangleHit) return 'line'
-  if (rectangleHit && !lineHit) return 'rectangle'
-  if (!lineHit || !rectangleHit) return null
-  const lineScore = lineHitSpecificity(lineHit.kind)
-  const rectangleScore = rectangleHitSpecificity(rectangleHit.kind)
-  if (lineScore >= rectangleScore) return 'line'
-  return 'rectangle'
+  return preferDrawingPointerTargetAmongPeers(lineHit, rectangleHit, null)
+}
+
+/**
+ * Chooses which drawing receives the pointer when line, rectangle, and FRVP overlap.
+ * Higher handle/body specificity wins; ties prefer line, then rectangle, then FRVP (z-order).
+ */
+export function preferDrawingPointerTargetAmongPeers(
+  lineHit: LineHitTarget | null,
+  rectangleHit: RectangleHitTarget | null,
+  frvpHit: FixedRangeVolumeProfileHitTarget | null,
+): DrawingPointerTool | null {
+  type ScoredTool = { tool: DrawingPointerTool; score: number }
+  const scored: ScoredTool[] = []
+  if (lineHit) scored.push({ tool: 'line', score: lineHitSpecificity(lineHit.kind) })
+  if (rectangleHit) {
+    scored.push({ tool: 'rectangle', score: rectangleHitSpecificity(rectangleHit.kind) })
+  }
+  if (frvpHit) scored.push({ tool: 'frvp', score: frvpHitSpecificity(frvpHit.kind) })
+  if (scored.length === 0) return null
+  if (scored.length === 1) return scored[0].tool
+
+  const maxScore = Math.max(...scored.map((entry) => entry.score))
+  const top = scored.filter((entry) => entry.score === maxScore)
+  if (top.length === 1) return top[0].tool
+
+  if (top.some((entry) => entry.tool === 'line')) return 'line'
+  if (top.some((entry) => entry.tool === 'rectangle')) return 'rectangle'
+  return 'frvp'
 }
 
 type PaneHitArgs = {
@@ -121,5 +170,54 @@ export function rectangleHitAtPanePoint(
       (time, edge) => resolveRectangleTimeToCoordinate(args.chart, time, edge, timeContext),
       (price) => args.series.priceToCoordinate(price),
     ),
+  )
+}
+
+function buildFrvpReadyById(
+  runtime: FixedRangeVolumeProfileRuntimeSnapshot,
+): Map<string, { profile: FixedRangeVolumeProfileResult }> {
+  const readyById = new Map<string, { profile: FixedRangeVolumeProfileResult }>()
+  for (const [id, state] of Object.entries(runtime)) {
+    if (state.status === 'ready') {
+      readyById.set(id, { profile: state.profile })
+    }
+  }
+  return readyById
+}
+
+export function frvpHitAtPanePoint(
+  args: PaneHitArgs & {
+    instances: readonly FixedRangeVolumeProfileInstance[]
+    runtimeById: FixedRangeVolumeProfileRuntimeSnapshot
+    selectedId: string | null
+  },
+): FixedRangeVolumeProfileHitTarget | null {
+  const timeScale = args.chart.timeScale()
+  const { fromTimeToCoordinate, toTimeToCoordinate } =
+    buildFixedRangeVolumeProfileTimeCoordinateResolvers(
+      args.chart,
+      args.lastBarUnixTime,
+      args.intervalDurationSeconds,
+    )
+  const instanceById = new Map(args.instances.map((item) => [item.id, item]))
+  const models = buildFixedRangeVolumeProfileDrawModels({
+    instances: args.instances,
+    selectedId: args.selectedId,
+    readyById: buildFrvpReadyById(args.runtimeById),
+    fromTimeToCoordinate,
+    toTimeToCoordinate,
+    barSpacing: timeScale.options().barSpacing,
+    priceToY: (price) => args.series.priceToCoordinate(price),
+    styleForInstance: (instanceId) => {
+      const instance = instanceById.get(instanceId)
+      return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()
+    },
+  })
+  return hitTestFixedRangeVolumeProfiles(
+    args.instances,
+    models,
+    args.selectedId,
+    args.paneX,
+    args.paneY,
   )
 }

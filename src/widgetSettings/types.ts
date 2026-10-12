@@ -70,6 +70,16 @@ export type WidgetSettingsRegistration = {
     kind: 'poc' | 'vah' | 'val',
     lineWidth: LineChartStrokeWidth,
   ) => void
+  onFixedRangeVolumeProfileLevelLineStyleChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    lineStyle: LineChartStrokeStyle,
+  ) => void
+  onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
+    instanceId: string,
+    kind: 'poc' | 'vah' | 'val',
+    opacityPercent: number,
+  ) => void
   rectangleInstances?: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void

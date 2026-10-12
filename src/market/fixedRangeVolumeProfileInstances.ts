@@ -1,5 +1,5 @@
 import { isCandleInterval } from './candleIntervalDuration.ts'
-import type { LineChartStrokeWidth } from './lineChartStroke.ts'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from './lineChartStroke.ts'
 import {
   formatNumberedChartObjectLabel,
   isValidDisplaySequence,
@@ -26,10 +26,16 @@ export type FixedRangeVolumeProfileInstance = {
   locked?: boolean
   pocStrokeColor?: string
   pocLineWidth?: LineChartStrokeWidth
+  pocLineStyle?: LineChartStrokeStyle
+  pocStrokeOpacityPercent?: number
   vahStrokeColor?: string
   vahLineWidth?: LineChartStrokeWidth
+  vahLineStyle?: LineChartStrokeStyle
+  vahStrokeOpacityPercent?: number
   valStrokeColor?: string
   valLineWidth?: LineChartStrokeWidth
+  valLineStyle?: LineChartStrokeStyle
+  valStrokeOpacityPercent?: number
 }
 
 export type SanitizeFixedRangeVolumeProfileOptions = {

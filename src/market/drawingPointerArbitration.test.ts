@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { preferDrawingPointerTarget } from './drawingPointerArbitration.ts'
+import {
+  preferDrawingPointerTarget,
+  preferDrawingPointerTargetAmongPeers,
+} from './drawingPointerArbitration.ts'
+import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfileHitTest.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
 
@@ -10,6 +14,10 @@ function lineHit(kind: LineHitTarget['kind']): LineHitTarget {
 
 function rectangleHit(kind: RectangleHitTarget['kind']): RectangleHitTarget {
   return { instanceId: 'rect-1', kind, priority: 1, instanceIndex: 0 }
+}
+
+function frvpHit(kind: FixedRangeVolumeProfileHitTarget['kind']): FixedRangeVolumeProfileHitTarget {
+  return { instanceId: 'frvp-1', kind, priority: 1, instanceIndex: 0 }
 }
 
 describe('preferDrawingPointerTarget', () => {
@@ -30,6 +38,33 @@ describe('preferDrawingPointerTarget', () => {
   it('prefers the line when handle specificity ties', () => {
     assert.equal(
       preferDrawingPointerTarget(lineHit('endpoint-b'), rectangleHit('corner-se')),
+      'line',
+    )
+  })
+})
+
+describe('preferDrawingPointerTargetAmongPeers', () => {
+  it('lets line and rectangle beat FRVP body hits', () => {
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(lineHit('body'), rectangleHit('interior'), frvpHit('body')),
+      'line',
+    )
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(null, rectangleHit('interior'), frvpHit('body')),
+      'rectangle',
+    )
+  })
+
+  it('lets FRVP endpoint beat rectangle interior', () => {
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(null, rectangleHit('interior'), frvpHit('end')),
+      'frvp',
+    )
+  })
+
+  it('prefers line over FRVP endpoint when specificity ties', () => {
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(lineHit('endpoint-a'), null, frvpHit('start')),
       'line',
     )
   })

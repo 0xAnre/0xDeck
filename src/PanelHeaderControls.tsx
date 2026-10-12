@@ -181,6 +181,12 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onFixedRangeVolumeProfileLevelLineWidthChange={
               settings.onFixedRangeVolumeProfileLevelLineWidthChange
             }
+            onFixedRangeVolumeProfileLevelLineStyleChange={
+              settings.onFixedRangeVolumeProfileLevelLineStyleChange
+            }
+            onFixedRangeVolumeProfileLevelStrokeOpacityChange={
+              settings.onFixedRangeVolumeProfileLevelStrokeOpacityChange
+            }
             onRectangleVisibilityToggle={settings.onRectangleVisibilityToggle}
             onLineLockToggle={settings.onLineLockToggle}
             onLineVisibilityToggle={settings.onLineVisibilityToggle}

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { FixedRangeVolumeProfileRow } from './fixedRangeVolumeProfile.ts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
+  buildFixedRangeVolumeProfileInstanceDrawModel,
   buildFixedRangeVolumeProfileLevelLines,
   buildFixedRangeVolumeProfileRowBarGeometry,
   computeMaxRowVolume,
@@ -105,10 +106,13 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       rangeRight: 200,
       pocStrokeStyle: TEST_STYLES.pocStrokeStyle,
       pocLineWidthCssPx: 3,
+      pocLineDash: TEST_STYLES.pocLineDash,
       vahStrokeStyle: TEST_STYLES.vahStrokeStyle,
       vahLineWidthCssPx: 3,
+      vahLineDash: TEST_STYLES.vahLineDash,
       valStrokeStyle: TEST_STYLES.valStrokeStyle,
       valLineWidthCssPx: 3,
+      valLineDash: TEST_STYLES.valLineDash,
       pocPrice: null,
       vah: null,
       val: null,
@@ -123,10 +127,13 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       rangeRight: 200,
       pocStrokeStyle: readFrvpPocLineStrokeStyle(),
       pocLineWidthCssPx: 4,
+      pocLineDash: [],
       vahStrokeStyle: 'rgba(160, 160, 160, 0.55)',
       vahLineWidthCssPx: 2,
+      vahLineDash: [6, 4],
       valStrokeStyle: 'rgba(160, 160, 160, 0.55)',
       valLineWidthCssPx: 1,
+      valLineDash: [6, 4],
       pocPrice: 105,
       vah: 110,
       val: 100,
@@ -139,17 +146,152 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const val = lines.find((line) => line.kind === 'val')
 
     assert.equal(poc?.strokeStyle, readFrvpPocLineStrokeStyle())
-    assert.equal(poc?.lineDash.length, 0)
+    assert.deepEqual(poc?.lineDash, [])
     assert.equal(poc?.lineWidthCssPx, 4)
     assert.equal(poc?.x1, 10)
     assert.equal(poc?.x2, 200)
 
     assert.equal(vah?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
-    assert.deepEqual(vah?.lineDash, [4, 4])
+    assert.deepEqual(vah?.lineDash, [6, 4])
     assert.equal(vah?.lineWidthCssPx, 2)
     assert.equal(val?.strokeStyle, 'rgba(160, 160, 160, 0.55)')
-    assert.deepEqual(val?.lineDash, [4, 4])
+    assert.deepEqual(val?.lineDash, [6, 4])
     assert.equal(val?.lineWidthCssPx, 1)
+  })
+
+  it('places endpoint handles at candle centers, not half-bar range edges', () => {
+    const model = buildFixedRangeVolumeProfileInstanceDrawModel({
+      instanceId: 'a',
+      fromTime: 100,
+      toTime: 200,
+      profile: {
+        fromTime: 100,
+        toTime: 199,
+        candleCount: 1,
+        profileLow: 100,
+        profileHigh: 120,
+        rowHeight: 1,
+        rows: [row()],
+        totalVolume: 10,
+        pocRowIndex: 0,
+        pocPrice: 105,
+        pocVolume: 10,
+        vah: 110,
+        val: 100,
+        valueAreaVolume: 10,
+        valueAreaPercentAchieved: 70,
+      },
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      ...TEST_STYLES,
+    })
+    assert.notEqual(model, null)
+    assert.equal(model?.endpointHandles?.startX, 10)
+    assert.equal(model?.endpointHandles?.endX, 20)
+    assert.equal(model?.rangeLeft, 7)
+    assert.equal(model?.rangeRight, 23)
+  })
+
+  it('places endpoint handles at the vertical center of the profile bounds', () => {
+    const model = buildFixedRangeVolumeProfileInstanceDrawModel({
+      instanceId: 'a',
+      fromTime: 100,
+      toTime: 200,
+      profile: {
+        fromTime: 100,
+        toTime: 199,
+        candleCount: 3,
+        profileLow: 100,
+        profileHigh: 130,
+        rowHeight: 10,
+        rows: [
+          row({ priceLow: 100, priceHigh: 110, totalVolume: 10, upVolume: 5, downVolume: 5 }),
+          row({ priceLow: 110, priceHigh: 120, totalVolume: 20, upVolume: 10, downVolume: 10 }),
+          row({ priceLow: 120, priceHigh: 130, totalVolume: 15, upVolume: 8, downVolume: 7 }),
+        ],
+        totalVolume: 45,
+        pocRowIndex: 1,
+        pocPrice: 115,
+        pocVolume: 20,
+        vah: 120,
+        val: 110,
+        valueAreaVolume: 30,
+        valueAreaPercentAchieved: 70,
+      },
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      ...TEST_STYLES,
+    })
+    assert.notEqual(model, null)
+    assert.notEqual(model?.endpointHandles, null)
+    assert.equal(model?.endpointHandles?.y, 385)
+  })
+
+  it('shows endpoint handles only for the selected unlocked instance', () => {
+    const models = buildFixedRangeVolumeProfileDrawModels({
+      instances: [
+        { id: 'a', fromTime: 100, toTime: 200, enabled: true },
+        { id: 'b', fromTime: 300, toTime: 400, enabled: true, locked: true },
+      ],
+      selectedId: 'a',
+      readyById: new Map([
+        [
+          'a',
+          {
+            profile: {
+              fromTime: 100,
+              toTime: 199,
+              candleCount: 1,
+              profileLow: 100,
+              profileHigh: 120,
+              rowHeight: 1,
+              rows: [row()],
+              totalVolume: 10,
+              pocRowIndex: 0,
+              pocPrice: 105,
+              pocVolume: 10,
+              vah: 110,
+              val: 100,
+              valueAreaVolume: 10,
+              valueAreaPercentAchieved: 70,
+            },
+          },
+        ],
+        [
+          'b',
+          {
+            profile: {
+              fromTime: 300,
+              toTime: 399,
+              candleCount: 1,
+              profileLow: 200,
+              profileHigh: 220,
+              rowHeight: 1,
+              rows: [row({ priceLow: 200, priceHigh: 210 })],
+              totalVolume: 20,
+              pocRowIndex: 0,
+              pocPrice: 205,
+              pocVolume: 20,
+              vah: 210,
+              val: 200,
+              valueAreaVolume: 20,
+              valueAreaPercentAchieved: 70,
+            },
+          },
+        ],
+      ]),
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      styleForInstance: () => TEST_STYLES,
+    })
+    assert.notEqual(models[0].endpointHandles, null)
+    assert.equal(models[1].endpointHandles, null)
   })
 
   it('keeps multi-instance geometry separate', () => {
@@ -227,5 +369,34 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
 
   it('returns zero max volume for empty rows safely', () => {
     assert.equal(computeMaxRowVolume([]), 0)
+  })
+
+  it('maps dotted VAH stroke style and custom opacity into line geometry', () => {
+    const instance = {
+      id: 'frvp-style',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m' as const,
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      displaySequence: 1,
+      vahLineStyle: 'dotted' as const,
+      vahStrokeOpacityPercent: 25,
+      vahStrokeColor: '#ff0000',
+    }
+    const styles = frvpDrawStyleForInstance(instance)
+    const lines = buildFixedRangeVolumeProfileLevelLines({
+      rangeLeft: 0,
+      rangeRight: 100,
+      ...styles,
+      pocPrice: null,
+      vah: 105,
+      val: null,
+      priceToY: () => 50,
+    })
+    const vah = lines.find((line) => line.kind === 'vah')
+    assert.deepEqual(vah?.lineDash, [2, 3])
+    assert.match(vah?.strokeStyle ?? '', /rgba\(255,\s*0,\s*0/)
   })
 })

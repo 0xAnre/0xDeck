@@ -24,6 +24,7 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
     const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() => ({
       instances: [],
       runtimeById: {},
+      selectedId: null,
       getIntervalDurationSeconds: () => 60,
       getLastBarUnixTime: () => null,
     }))
@@ -46,6 +47,7 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
     const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() => ({
       instances: [],
       runtimeById: {},
+      selectedId: null,
       getIntervalDurationSeconds: () => 60,
       getLastBarUnixTime: () => null,
     }))

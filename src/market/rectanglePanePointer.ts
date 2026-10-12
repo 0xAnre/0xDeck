@@ -1,5 +1,6 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
-import { preferDrawingPointerTarget } from './drawingPointerArbitration.ts'
+import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
+import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfileHitTest.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
 import {
@@ -42,6 +43,7 @@ export type RectanglePanePointerCallbacks = {
   getPointerPreview: () => { time: number | null; price: number | null }
   isAlternateToolActive: () => boolean
   getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
+  getCompetingFrvpHit: (paneX: number, paneY: number) => FixedRangeVolumeProfileHitTarget | null
 }
 
 export type RectanglePanePointerController = {
@@ -151,9 +153,16 @@ export function attachRectanglePanePointer(
         return
       }
       if (
-        preferDrawingPointerTarget(callbacks.getCompetingLineHit(paneX, paneY), hit) !==
-        'rectangle'
+        preferDrawingPointerTargetAmongPeers(
+          callbacks.getCompetingLineHit(paneX, paneY),
+          hit,
+          callbacks.getCompetingFrvpHit(paneX, paneY),
+        ) !== 'rectangle'
       ) {
+        if (interaction.selectedId !== null) {
+          callbacks.onInteractionChange(applyRectangleSelection(interaction, null))
+          callbacks.onRequestRender()
+        }
         return
       }
       const instance = snapshot.instances.find((item) => item.id === hit.instanceId)

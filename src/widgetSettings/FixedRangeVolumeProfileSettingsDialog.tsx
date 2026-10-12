@@ -5,9 +5,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import type { LineChartStrokeWidth } from '@/market/lineChartStroke'
+import { Slider } from '@/components/ui/slider'
+import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import {
   DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
   DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
@@ -16,7 +17,9 @@ import {
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import {
+  frvpInstanceLevelLineStyle,
   frvpInstanceLevelLineWidth,
+  frvpInstanceLevelStrokeOpacityPercent,
   frvpLevelStrokeColorInputValue,
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
@@ -34,6 +37,16 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
     kind: FrvpLevelLineKind,
     lineWidth: LineChartStrokeWidth,
   ) => void
+  onLevelLineStyleChange: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    lineStyle: LineChartStrokeStyle,
+  ) => void
+  onLevelStrokeOpacityChange: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    opacityPercent: number,
+  ) => void
 }
 
 function LevelLineStyleFields({
@@ -42,21 +55,39 @@ function LevelLineStyleFields({
   label,
   colorId,
   widthId,
+  styleId,
+  opacityId,
   onLevelStrokeColorChange,
   onLevelLineWidthChange,
+  onLevelLineStyleChange,
+  onLevelStrokeOpacityChange,
 }: {
   instance: FixedRangeVolumeProfileInstance
   kind: FrvpLevelLineKind
   label: string
   colorId: string
   widthId: string
+  styleId: string
+  opacityId: string
   onLevelStrokeColorChange: (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => void
   onLevelLineWidthChange: (
     instanceId: string,
     kind: FrvpLevelLineKind,
     lineWidth: LineChartStrokeWidth,
   ) => void
+  onLevelLineStyleChange: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    lineStyle: LineChartStrokeStyle,
+  ) => void
+  onLevelStrokeOpacityChange: (
+    instanceId: string,
+    kind: FrvpLevelLineKind,
+    opacityPercent: number,
+  ) => void
 }) {
+  const opacity = frvpInstanceLevelStrokeOpacityPercent(instance, kind)
+
   return (
     <FieldGroup className="gap-3 border-t border-border pt-3">
       <p className="text-sm font-medium">{label}</p>
@@ -71,13 +102,29 @@ function LevelLineStyleFields({
       </Field>
       <LineChartStrokeSelectFields
         widthId={widthId}
-        styleId={`${widthId}-style-hidden`}
+        styleId={styleId}
         lineWidth={frvpInstanceLevelLineWidth(instance, kind)}
-        lineStyle="solid"
+        lineStyle={frvpInstanceLevelLineStyle(instance, kind)}
         onLineWidthChange={(lineWidth) => onLevelLineWidthChange(instance.id, kind, lineWidth)}
-        onLineStyleChange={() => {}}
-        showStyleSelect={false}
+        onLineStyleChange={(lineStyle) => onLevelLineStyleChange(instance.id, kind, lineStyle)}
       />
+      <Field>
+        <FieldLabel id={`${opacityId}-label`}>Opacity</FieldLabel>
+        <Slider
+          id={opacityId}
+          min={0}
+          max={100}
+          step={1}
+          value={[opacity]}
+          aria-labelledby={`${opacityId}-label`}
+          onValueChange={(value) => {
+            const next = value[0]
+            if (next === undefined) return
+            onLevelStrokeOpacityChange(instance.id, kind, Math.round(next))
+          }}
+        />
+        <FieldDescription>{opacity}%</FieldDescription>
+      </Field>
     </FieldGroup>
   )
 }
@@ -90,6 +137,8 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onValueAreaPercentChange,
   onLevelStrokeColorChange,
   onLevelLineWidthChange,
+  onLevelLineStyleChange,
+  onLevelStrokeOpacityChange,
 }: FixedRangeVolumeProfileSettingsDialogProps) {
   return (
     <Dialog
@@ -156,8 +205,12 @@ export function FixedRangeVolumeProfileSettingsDialog({
               label="POC line"
               colorId="frvp-poc-color"
               widthId="frvp-poc-width"
+              styleId="frvp-poc-style"
+              opacityId="frvp-poc-opacity"
               onLevelStrokeColorChange={onLevelStrokeColorChange}
               onLevelLineWidthChange={onLevelLineWidthChange}
+              onLevelLineStyleChange={onLevelLineStyleChange}
+              onLevelStrokeOpacityChange={onLevelStrokeOpacityChange}
             />
             <LevelLineStyleFields
               instance={instance}
@@ -165,8 +218,12 @@ export function FixedRangeVolumeProfileSettingsDialog({
               label="VAH line"
               colorId="frvp-vah-color"
               widthId="frvp-vah-width"
+              styleId="frvp-vah-style"
+              opacityId="frvp-vah-opacity"
               onLevelStrokeColorChange={onLevelStrokeColorChange}
               onLevelLineWidthChange={onLevelLineWidthChange}
+              onLevelLineStyleChange={onLevelLineStyleChange}
+              onLevelStrokeOpacityChange={onLevelStrokeOpacityChange}
             />
             <LevelLineStyleFields
               instance={instance}
@@ -174,8 +231,12 @@ export function FixedRangeVolumeProfileSettingsDialog({
               label="VAL line"
               colorId="frvp-val-color"
               widthId="frvp-val-width"
+              styleId="frvp-val-style"
+              opacityId="frvp-val-opacity"
               onLevelStrokeColorChange={onLevelStrokeColorChange}
               onLevelLineWidthChange={onLevelLineWidthChange}
+              onLevelLineStyleChange={onLevelLineStyleChange}
+              onLevelStrokeOpacityChange={onLevelStrokeOpacityChange}
             />
             <p className="text-xs text-muted-foreground">
               Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows, {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area.

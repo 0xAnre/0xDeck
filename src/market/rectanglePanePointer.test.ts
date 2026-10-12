@@ -85,6 +85,7 @@ describe('rectanglePanePointer', () => {
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -121,6 +122,7 @@ describe('rectanglePanePointer', () => {
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -166,6 +168,7 @@ describe('rectanglePanePointer', () => {
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => true,
       getCompetingLineHit: () => null,
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -219,6 +222,7 @@ describe('rectanglePanePointer', () => {
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -278,6 +282,7 @@ describe('rectanglePanePointer', () => {
         priority: 1,
         instanceIndex: 0,
       }),
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
@@ -292,7 +297,7 @@ describe('rectanglePanePointer', () => {
     } as PointerEvent)
 
     assert.equal(interaction.phase, 'inactive')
-    assert.equal(interaction.selectedId, 'rect-1')
+    assert.equal(interaction.selectedId, null)
   })
 
   it('selects locked rectangles without starting move or resize drafts', () => {
@@ -332,6 +337,7 @@ describe('rectanglePanePointer', () => {
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
@@ -391,6 +397,7 @@ describe('rectanglePanePointer', () => {
           priority: 1,
           instanceIndex: 0,
         }),
+        getCompetingFrvpHit: () => null,
         getIntervalDurationSeconds: () => 300,
         getLastBarUnixTime: () => 200,
       })
@@ -465,6 +472,7 @@ describe('rectanglePanePointer', () => {
       getPointerPreview: () => ({ time: null, price: null }),
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
+      getCompetingFrvpHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
