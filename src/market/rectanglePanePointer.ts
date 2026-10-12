@@ -25,6 +25,7 @@ import {
   cancelPanePointerClickForDoubleClick,
   commitPanePointerClickForDoubleClick,
   clearAwaitingSecondPressForDoubleClick,
+  completePaneDoubleClickSequenceForSettings,
   consumeCompletedClickForDoubleClickSequence,
   invalidatePanePointerClickForDoubleClickOnDrag,
   markPanePointerDragCommittedForSettingsSuppression,
@@ -228,7 +229,7 @@ export function attachRectanglePanePointer(
         event.clientY,
       )
       if (isSecondClickOfSequence && isRectangleInstanceLocked(instance)) {
-        clearAwaitingSecondPressForDoubleClick(paneElement)
+        completePaneDoubleClickSequenceForSettings(paneElement)
         return
       }
       if (!isSecondClickOfSequence) {
@@ -278,8 +279,8 @@ export function attachRectanglePanePointer(
         pendingDeferredRectangleDrag = null
         markPanePointerDragCommittedForSettingsSuppression(
           paneElement,
-          pending.startClientX,
-          pending.startClientY,
+          event.clientX,
+          event.clientY,
         )
         startDragFromRectangleHit(
           pending.hit,
@@ -338,8 +339,8 @@ export function attachRectanglePanePointer(
       } else {
         markPanePointerDragCommittedForSettingsSuppression(
           paneElement,
-          activePointerDownClient.clientX,
-          activePointerDownClient.clientY,
+          event.clientX,
+          event.clientY,
         )
       }
       activePointerDownClient = null
@@ -379,14 +380,10 @@ export function attachRectanglePanePointer(
         commitPanePointerClickForDoubleClick(paneElement)
         callbacks.onInteractionChange(cancelRectangleInteraction(snapshot.interaction))
       } else {
-        const dragTaintClient = activePointerDownClient ?? {
-          clientX: event.clientX,
-          clientY: event.clientY,
-        }
         markPanePointerDragCommittedForSettingsSuppression(
           paneElement,
-          dragTaintClient.clientX,
-          dragTaintClient.clientY,
+          event.clientX,
+          event.clientY,
         )
         const preview = callbacks.getPointerPreview()
         const commitTime = point?.time ?? preview.time
