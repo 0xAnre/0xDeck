@@ -10,6 +10,7 @@ import {
   createAnchoredVwapFromAnchorTime,
   isAnchoredVwapDrawingNavigationLocked,
   isAnchoredVwapDrawingToolArmed,
+  restoreAnchoredVwapDragAnchor,
   startAnchoredVwapAnchorDrag,
   type AnchoredVwapDrawingInteractionState,
 } from './anchoredVwapDrawingInteraction.ts'

@@ -825,6 +825,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const armed = armAnchoredVwapDrawingTool(anchoredVwapInteractionRef.current)
     anchoredVwapInteractionRef.current = armed
     setAnchoredVwapInteraction(armed)
+    anchoredVwapToolControllerRef.current?.sync()
     anchoredVwapSeriesAttachmentRef.current?.update()
   }, [panelId])
 
