@@ -14,6 +14,7 @@ import {
 import {
   armAnchoredVwapDrawingTool,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  startAnchoredVwapAnchorDrag,
 } from './anchoredVwapDrawingInteraction.ts'
 import {
   cancelFixedRangeVolumeProfileInteraction,
@@ -36,24 +37,8 @@ import {
   startRectangleMoveDraft,
 } from './rectangleInteraction.ts'
 import { createRectangleInstance } from './rectangleInstances.ts'
-import {
-  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
-  startAnchoredVwapAnchorDrag,
-} from './anchoredVwapDrawingInteraction.ts'
 
 describe('drawingSelection', () => {
-  it('fully releases anchored VWAP phase and selection for peer tools', () => {
-    const selected = {
-      ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
-      selectedId: 'avwap-1',
-    }
-    const dragging = startAnchoredVwapAnchorDrag(selected, 'avwap-1', 100)
-    const released = releaseAnchoredVwapDrawingInteractionForPeerTool(dragging)
-    assert.equal(released.phase, 'inactive')
-    assert.equal(released.selectedId, null)
-    assert.equal(released.draft, null)
-  })
-
   it('clears the rectangle selection when Line is armed and then drawn', () => {
     const rectangle = createRectangleInstance({
       fromTime: 1_700_000_000,
@@ -260,5 +245,11 @@ describe('drawingSelection', () => {
     const releasedArmed = releaseAnchoredVwapDrawingInteractionForPeerTool(armed)
     assert.equal(releasedArmed.phase, 'inactive')
     assert.equal(releasedArmed.selectedId, null)
+
+    const dragging = startAnchoredVwapAnchorDrag(selected, 'anchored-vwap-1', 100)
+    const releasedDragging = releaseAnchoredVwapDrawingInteractionForPeerTool(dragging)
+    assert.equal(releasedDragging.phase, 'inactive')
+    assert.equal(releasedDragging.selectedId, null)
+    assert.equal(releasedDragging.draft, null)
   })
 })
