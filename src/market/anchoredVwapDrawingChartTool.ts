@@ -4,6 +4,7 @@ import {
   cancelAnchoredVwapDrawingInteraction,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   removeSelectedAnchoredVwap,
+  restoreAnchoredVwapDragAnchor,
   type AnchoredVwapDrawingInteractionState,
 } from './anchoredVwapDrawingInteraction.ts'
 import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
@@ -169,6 +170,10 @@ export function attachAnchoredVwapDrawingChartTool(
     if (!callbacks.shouldHandleKeyboardShortcut()) return
     const snapshot = callbacks.getSnapshot()
     if (event.key === 'Escape') {
+      const restored = restoreAnchoredVwapDragAnchor(snapshot.interaction, snapshot.instances)
+      if (restored) {
+        callbacks.onInstanceUpdated(restored)
+      }
       const next = cancelAnchoredVwapDrawingInteraction(snapshot.interaction)
       if (next === snapshot.interaction) return
       event.preventDefault()

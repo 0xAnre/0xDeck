@@ -11,6 +11,7 @@ import {
 import {
   removeSelectedAnchoredVwap,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  restoreAnchoredVwapDragAnchor,
   startAnchoredVwapAnchorDrag,
 } from './anchoredVwapDrawingInteraction.ts'
 import { releaseAnchoredVwapDrawingInteractionForPeerTool } from './drawingSelection.ts'
@@ -163,6 +164,19 @@ describe('anchoredVwapDrawingInteraction', () => {
     )
     assert.equal(options[0]?.handleScroll.horzTouchDrag, true)
     assert.equal(options[1]?.handleScroll.horzTouchDrag, false)
+  })
+
+  it('restoreAnchoredVwapDragAnchor reverts anchorTime from drag draft', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 100 })!
+    const moved = { ...instance, anchorTime: 300 }
+    const interaction = startAnchoredVwapAnchorDrag(
+      { ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE, selectedId: instance.id },
+      instance.id,
+      100,
+    )
+    const restored = restoreAnchoredVwapDragAnchor(interaction, [moved])
+    assert.equal(restored?.anchorTime, 100)
+    assert.equal(restoreAnchoredVwapDragAnchor(interaction, [instance]), null)
   })
 
   it('delete removes unlocked selection only', () => {

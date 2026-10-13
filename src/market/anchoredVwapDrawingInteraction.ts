@@ -48,6 +48,17 @@ export function armAnchoredVwapDrawingTool(
   return { ...state, phase: 'armed', draft: null }
 }
 
+export function restoreAnchoredVwapDragAnchor(
+  state: AnchoredVwapDrawingInteractionState,
+  instances: readonly AnchoredVwapInstance[],
+): AnchoredVwapInstance | null {
+  if (state.phase !== 'dragging-anchor' || state.draft === null) return null
+  const draft = state.draft
+  const instance = instances.find((item) => item.id === draft.instanceId)
+  if (!instance || instance.anchorTime === draft.initialAnchorTime) return null
+  return { ...instance, anchorTime: draft.initialAnchorTime }
+}
+
 export function cancelAnchoredVwapDrawingInteraction(
   state: AnchoredVwapDrawingInteractionState,
 ): AnchoredVwapDrawingInteractionState {

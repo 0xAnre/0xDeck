@@ -6,6 +6,7 @@ import {
   applyAnchoredVwapDrawingSelection,
   cancelAnchoredVwapDrawingInteraction,
   commitAnchoredVwapAnchorDrag,
+  restoreAnchoredVwapDragAnchor,
   createAnchoredVwapFromAnchorTime,
   isAnchoredVwapDrawingNavigationLocked,
   isAnchoredVwapDrawingToolArmed,
@@ -220,13 +221,8 @@ export function attachAnchoredVwapDrawingPanePointer(
     if (activePointerId !== event.pointerId) return
     const snapshot = callbacks.getSnapshot()
     if (isAnchoredVwapDrawingNavigationLocked(snapshot.interaction)) {
-      const draft = snapshot.interaction.draft
-      if (draft) {
-        const instance = snapshot.instances.find((item) => item.id === draft.instanceId)
-        if (instance && instance.anchorTime !== draft.initialAnchorTime) {
-          callbacks.onInstanceUpdated({ ...instance, anchorTime: draft.initialAnchorTime })
-        }
-      }
+      const restored = restoreAnchoredVwapDragAnchor(snapshot.interaction, snapshot.instances)
+      if (restored) callbacks.onInstanceUpdated(restored)
       callbacks.onInteractionChange(cancelAnchoredVwapDrawingInteraction(snapshot.interaction))
       callbacks.onRequestRender()
     }
