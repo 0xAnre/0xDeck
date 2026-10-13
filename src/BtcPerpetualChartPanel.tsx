@@ -120,7 +120,6 @@ import {
 import {
   armAnchoredVwapDrawingTool,
   cancelAnchoredVwapDrawingInteraction,
-  releaseAnchoredVwapDrawingInteractionForPeerTool,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   type AnchoredVwapDrawingInteractionState,
 } from '@/market/anchoredVwapDrawingInteraction'

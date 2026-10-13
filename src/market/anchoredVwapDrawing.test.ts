@@ -11,9 +11,9 @@ import {
 import {
   removeSelectedAnchoredVwap,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
-  releaseAnchoredVwapDrawingInteractionForPeerTool,
   startAnchoredVwapAnchorDrag,
 } from './anchoredVwapDrawingInteraction.ts'
+import { releaseAnchoredVwapDrawingInteractionForPeerTool } from './drawingSelection.ts'
 import { applyAnchoredVwapDrawingChartInteractionMode } from './anchoredVwapDrawingChartTool.ts'
 import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
 import { INITIAL_LINE_INTERACTION_STATE } from './lineInteraction.ts'

@@ -61,19 +61,6 @@ export function cancelAnchoredVwapDrawingInteraction(
   }
 }
 
-export function releaseAnchoredVwapDrawingInteractionForPeerTool(
-  state: AnchoredVwapDrawingInteractionState,
-): AnchoredVwapDrawingInteractionState {
-  if (
-    state.phase === 'inactive' &&
-    state.selectedId === null &&
-    state.draft === null
-  ) {
-    return state
-  }
-  return INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE
-}
-
 export function applyAnchoredVwapDrawingSelection(
   state: AnchoredVwapDrawingInteractionState,
   selectedId: string | null,
