@@ -13,6 +13,7 @@ import {
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
 } from './anchoredVwapDrawingInteraction.ts'
 import { setAnchoredVwapDrawingInstanceSeriesVisibility } from './anchoredVwapDrawingChartSeries.ts'
+import { hitTestAnchoredVwapDrawings } from './anchoredVwapDrawingHitTest.ts'
 import type { MarketCandle } from './types.ts'
 import {
   loadWidgetAnchoredVwapInstances,
@@ -134,6 +135,27 @@ describe('resolveAnchoredVwapAnchorTimeFromPointer', () => {
     const candles = [candle(100, 1, 1, 1, 1), candle(200, 2, 2, 2, 1)]
     assert.equal(resolveAnchoredVwapAnchorTimeFromPointer(candles, 150), 100)
     assert.equal(resolveAnchoredVwapAnchorTimeFromPointer(candles, 200), 200)
+  })
+})
+
+describe('hitTestAnchoredVwapDrawings', () => {
+  it('prefers the newest overlapping unselected instance', () => {
+    const older = createAnchoredVwapInstance({ anchorTime: 100 })!
+    older.displaySequence = 1
+    const newer = createAnchoredVwapInstance({ anchorTime: 200 })!
+    newer.displaySequence = 2
+    const hit = hitTestAnchoredVwapDrawings(
+      [older, newer],
+      null,
+      50,
+      10,
+      () => ({
+        anchorX: 50,
+        anchorY: 10,
+        bodySegments: [],
+      }),
+    )
+    assert.equal(hit?.instanceId, newer.id)
   })
 })
 
