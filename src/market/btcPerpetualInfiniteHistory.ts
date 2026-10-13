@@ -31,15 +31,15 @@ type LoadOlderHistoryParams = {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
-  rollingVwapInstances?: readonly RollingVwapInstance[]
-  anchoredVwapInstances?: readonly AnchoredVwapInstance[]
+  getRollingVwapInstances?: () => readonly RollingVwapInstance[]
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
 }
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
   const {
     fetchHistory = fetchBinanceBtcusdtKlinesHistory,
-    rollingVwapInstances,
-    anchoredVwapInstances,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
     ...rest
   } = params
   return loadOlderBtcPerpHistoryCore({
@@ -49,8 +49,8 @@ export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): P
       applyChartHistorySeries(
         bundle as ChartSeriesBundle,
         candles,
-        rollingVwapInstances ?? [],
-        anchoredVwapInstances ?? [],
+        getRollingVwapInstances?.() ?? [],
+        getAnchoredVwapInstances?.() ?? [],
       ),
     mergeOlderCandles: mergeOlderMarketCandles,
   })
@@ -68,8 +68,8 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
-  rollingVwapInstances?: readonly RollingVwapInstance[]
-  anchoredVwapInstances?: readonly AnchoredVwapInstance[]
+  getRollingVwapInstances?: () => readonly RollingVwapInstance[]
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
 }): void {
   const {
     state,
@@ -83,8 +83,8 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
-    rollingVwapInstances,
-    anchoredVwapInstances,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
   } = params
 
   if (!historyReady || !range || state.exhausted || state.loading) return
@@ -108,7 +108,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
-    rollingVwapInstances,
-    anchoredVwapInstances,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
   })
 }

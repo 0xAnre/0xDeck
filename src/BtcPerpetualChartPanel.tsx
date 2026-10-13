@@ -1921,8 +1921,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         bundle,
         chart: activeChart,
         signal: abortRef.current?.signal,
-        rollingVwapInstances: rollingVwapInstancesRef.current,
-        anchoredVwapInstances: anchoredVwapInstancesRef.current,
+        getRollingVwapInstances: () => rollingVwapInstancesRef.current,
+        getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
       })
     }
 
@@ -2227,8 +2227,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 bundle: bundleForHistory,
                 chart,
                 signal: controller.signal,
-                rollingVwapInstances: rollingVwapInstancesRef.current,
-                anchoredVwapInstances: anchoredVwapInstancesRef.current,
+                getRollingVwapInstances: () => rollingVwapInstancesRef.current,
+                getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
               })
                 .then(() => {
                   if (generation !== loadGenerationRef.current) return

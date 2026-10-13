@@ -24,8 +24,8 @@ export async function loadOlderHistoryUntilVisibleFrom(
     chart: IChartApi
     signal?: AbortSignal
     fetchHistory?: FetchBtcPerpHistory
-    rollingVwapInstances?: readonly RollingVwapInstance[]
-    anchoredVwapInstances?: readonly AnchoredVwapInstance[]
+    getRollingVwapInstances?: () => readonly RollingVwapInstance[]
+    getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
   },
 ): Promise<void> {
   const {
@@ -38,8 +38,8 @@ export async function loadOlderHistoryUntilVisibleFrom(
     chart,
     signal,
     fetchHistory,
-    rollingVwapInstances,
-    anchoredVwapInstances,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
   } = params
 
   for (let page = 0; page < MAX_OLDER_HISTORY_PAGES_FOR_VIEWPORT; page += 1) {
@@ -63,8 +63,8 @@ export async function loadOlderHistoryUntilVisibleFrom(
       chart,
       signal,
       fetchHistory,
-      rollingVwapInstances,
-      anchoredVwapInstances,
+      getRollingVwapInstances,
+      getAnchoredVwapInstances,
     })
 
     if (state.generation !== generation) return
