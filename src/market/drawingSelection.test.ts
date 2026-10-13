@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
+  releaseAnchoredVwapDrawingInteractionForPeerTool,
   releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
@@ -10,6 +11,10 @@ import {
   withExclusiveLineSelection,
   withExclusiveRectangleSelection,
 } from './drawingSelection.ts'
+import {
+  armAnchoredVwapDrawingTool,
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+} from './anchoredVwapDrawingInteraction.ts'
 import {
   cancelFixedRangeVolumeProfileInteraction,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
@@ -224,5 +229,20 @@ describe('drawingSelection', () => {
     })
     assert.equal(releasedLine.selectedId, null)
     assert.equal(releasedRectangle.selectedId, null)
+  })
+
+  it('clears anchored VWAP phase and selection when arming a peer tool', () => {
+    const selected = {
+      ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+      selectedId: 'anchored-vwap-1',
+    }
+    const released = releaseAnchoredVwapDrawingInteractionForPeerTool(selected)
+    assert.equal(released.phase, 'inactive')
+    assert.equal(released.selectedId, null)
+
+    const armed = armAnchoredVwapDrawingTool(selected)
+    const releasedArmed = releaseAnchoredVwapDrawingInteractionForPeerTool(armed)
+    assert.equal(releasedArmed.phase, 'inactive')
+    assert.equal(releasedArmed.selectedId, null)
   })
 })

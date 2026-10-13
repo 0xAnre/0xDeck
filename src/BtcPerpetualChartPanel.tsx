@@ -172,6 +172,7 @@ import {
 import {
   clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
+  releaseAnchoredVwapDrawingInteractionForPeerTool,
   releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
   releaseRectangleInteractionForPeerTool,
@@ -669,6 +670,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       lineToolControllerRef.current?.sync()
       lineSeriesAttachmentRef.current?.update()
     }
+    const releasedAnchored = releaseAnchoredVwapDrawingInteractionForPeerTool(
+      anchoredVwapInteractionRef.current,
+    )
+    if (releasedAnchored !== anchoredVwapInteractionRef.current) {
+      anchoredVwapInteractionRef.current = releasedAnchored
+      setAnchoredVwapInteraction(releasedAnchored)
+      anchoredVwapSeriesAttachmentRef.current?.update()
+    }
     const armed = armRectangleTool(rectangleInteractionRef.current)
     rectangleInteractionRef.current = armed
     setRectangleInteraction(armed)
@@ -745,10 +754,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       rectangleToolControllerRef.current?.sync()
       rectangleSeriesAttachmentRef.current?.update()
     }
-    const cancelledAnchored = cancelAnchoredVwapDrawingInteraction(anchoredVwapInteractionRef.current)
-    if (cancelledAnchored !== anchoredVwapInteractionRef.current) {
-      anchoredVwapInteractionRef.current = cancelledAnchored
-      setAnchoredVwapInteraction(cancelledAnchored)
+    const releasedAnchored = releaseAnchoredVwapDrawingInteractionForPeerTool(
+      anchoredVwapInteractionRef.current,
+    )
+    if (releasedAnchored !== anchoredVwapInteractionRef.current) {
+      anchoredVwapInteractionRef.current = releasedAnchored
+      setAnchoredVwapInteraction(releasedAnchored)
       anchoredVwapSeriesAttachmentRef.current?.update()
     }
     const armed = armLineTool(lineInteractionRef.current)
@@ -1104,6 +1115,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setLineInteraction(releasedLine)
       lineToolControllerRef.current?.sync()
       lineSeriesAttachmentRef.current?.update()
+    }
+    const releasedAnchored = releaseAnchoredVwapDrawingInteractionForPeerTool(
+      anchoredVwapInteractionRef.current,
+    )
+    if (releasedAnchored !== anchoredVwapInteractionRef.current) {
+      anchoredVwapInteractionRef.current = releasedAnchored
+      setAnchoredVwapInteraction(releasedAnchored)
+      anchoredVwapSeriesAttachmentRef.current?.update()
     }
     const armed = armFixedRangeVolumeProfileTool()
     fixedRangeVolumeProfileInteractionRef.current = armed

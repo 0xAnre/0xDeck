@@ -12,6 +12,12 @@ import {
   isRectangleChartNavigationLocked,
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
+import {
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  isAnchoredVwapDrawingNavigationLocked,
+  isAnchoredVwapDrawingToolArmed,
+  type AnchoredVwapDrawingInteractionState,
+} from './anchoredVwapDrawingInteraction.ts'
 
 export function releaseLineInteractionForPeerTool(
   state: LineInteractionState,
@@ -36,6 +42,21 @@ export function releaseFixedRangeVolumeProfileInteractionForPeerTool(
 ): FixedRangeVolumeProfileInteractionState {
   if (isFixedRangeVolumeProfileToolActive(state) || state.phase === 'resizing') {
     return INITIAL_FIXED_RANGE_VP_INTERACTION_STATE
+  }
+  if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
+    return state
+  }
+  return { phase: 'inactive', selectedId: null, draft: null }
+}
+
+export function releaseAnchoredVwapDrawingInteractionForPeerTool(
+  state: AnchoredVwapDrawingInteractionState,
+): AnchoredVwapDrawingInteractionState {
+  if (
+    isAnchoredVwapDrawingNavigationLocked(state) ||
+    isAnchoredVwapDrawingToolArmed(state)
+  ) {
+    return INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE
   }
   if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
     return state
