@@ -6,7 +6,6 @@ import {
   applyAnchoredVwapDrawingSelection,
   cancelAnchoredVwapDrawingInteraction,
   commitAnchoredVwapAnchorDrag,
-  restoreAnchoredVwapDragAnchor,
   createAnchoredVwapFromAnchorTime,
   isAnchoredVwapDrawingNavigationLocked,
   isAnchoredVwapDrawingToolArmed,
