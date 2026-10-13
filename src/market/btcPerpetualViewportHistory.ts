@@ -7,6 +7,7 @@ import {
 } from './btcPerpetualInfiniteHistory.ts'
 import { olderHistoryPageMadeProgress } from './btcPerpetualHistoryPageProgress.ts'
 import { visibleTimeRangeNeedsHistoryLoad } from './marketChartViewport.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 
@@ -24,6 +25,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
     signal?: AbortSignal
     fetchHistory?: FetchBtcPerpHistory
     rollingVwapInstances?: readonly RollingVwapInstance[]
+    anchoredVwapInstances?: readonly AnchoredVwapInstance[]
   },
 ): Promise<void> {
   const {
@@ -37,6 +39,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
     signal,
     fetchHistory,
     rollingVwapInstances,
+    anchoredVwapInstances,
   } = params
 
   for (let page = 0; page < MAX_OLDER_HISTORY_PAGES_FOR_VIEWPORT; page += 1) {
@@ -61,6 +64,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
       signal,
       fetchHistory,
       rollingVwapInstances,
+      anchoredVwapInstances,
     })
 
     if (state.generation !== generation) return
