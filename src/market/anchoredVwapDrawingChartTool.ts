@@ -100,7 +100,6 @@ export function attachAnchoredVwapDrawingChartTool(
 
   const sync = () => {
     present()
-    callbacks.onRequestRender()
   }
 
   panePointer = attachAnchoredVwapDrawingPanePointer(chart, {

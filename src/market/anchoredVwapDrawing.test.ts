@@ -11,6 +11,7 @@ import {
 import {
   removeSelectedAnchoredVwap,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  releaseAnchoredVwapDrawingInteractionForPeerTool,
   startAnchoredVwapAnchorDrag,
 } from './anchoredVwapDrawingInteraction.ts'
 import { applyAnchoredVwapDrawingChartInteractionMode } from './anchoredVwapDrawingChartTool.ts'
@@ -121,6 +122,23 @@ describe('anchoredVwapInstances storage', () => {
 })
 
 describe('anchoredVwapDrawingInteraction', () => {
+  it('releases phase and selection for peer tool arming', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 1_700_000_000 })!
+    const selected = {
+      ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+      selectedId: instance.id,
+    }
+    const released = releaseAnchoredVwapDrawingInteractionForPeerTool(selected)
+    assert.equal(released.selectedId, null)
+    assert.equal(released.phase, 'inactive')
+    const armed = releaseAnchoredVwapDrawingInteractionForPeerTool({
+      ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+      phase: 'armed',
+    })
+    assert.equal(armed.phase, 'inactive')
+    assert.equal(armed.selectedId, null)
+  })
+
   it('locks chart navigation while dragging the anchor handle', () => {
     const options: Array<{ handleScroll: { horzTouchDrag: boolean } }> = []
     const chart = {

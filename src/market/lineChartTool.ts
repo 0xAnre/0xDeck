@@ -8,6 +8,11 @@ import {
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import {
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  isAnchoredVwapDrawingBlockingPeerTools,
+  type AnchoredVwapDrawingInteractionState,
+} from './anchoredVwapDrawingInteraction.ts'
+import {
   cancelLineInteraction,
   INITIAL_LINE_INTERACTION_STATE,
   removeSelectedLine,
@@ -17,11 +22,6 @@ import type { LineInstance } from './lineInstances.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
-import {
-  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
-  isAnchoredVwapDrawingBlockingPeerTools,
-  type AnchoredVwapDrawingInteractionState,
-} from './anchoredVwapDrawingInteraction.ts'
 import { isRectangleDrawingBlockingPeerTools } from './rectanglePeerTools.ts'
 import {
   attachLinePanePointer,

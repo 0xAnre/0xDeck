@@ -1,5 +1,6 @@
 import type { IChartApi } from 'lightweight-charts'
 import {
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   isAnchoredVwapDrawingNavigationLocked,
   type AnchoredVwapDrawingInteractionState,
 } from './anchoredVwapDrawingInteraction.ts'
@@ -14,7 +15,7 @@ import { isRectangleChartNavigationLocked, type RectangleInteractionState } from
 export function isAnyChartDrawingNavigationLocked(
   rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
-  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState = INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
 ): boolean {
   return (
     isRectangleChartNavigationLocked(rectangleInteraction) ||
@@ -28,7 +29,7 @@ export function applyChartDrawingInteractionMode(
   rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
   frvpInteraction: FixedRangeVolumeProfileInteractionState,
-  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState = INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
 ): void {
   const drawingLocked = isAnyChartDrawingNavigationLocked(
     rectangleInteraction,

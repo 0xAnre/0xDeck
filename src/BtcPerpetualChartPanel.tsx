@@ -120,6 +120,7 @@ import {
 import {
   armAnchoredVwapDrawingTool,
   cancelAnchoredVwapDrawingInteraction,
+  releaseAnchoredVwapDrawingInteractionForPeerTool,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   type AnchoredVwapDrawingInteractionState,
 } from '@/market/anchoredVwapDrawingInteraction'
@@ -676,6 +677,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (releasedAnchored !== anchoredVwapInteractionRef.current) {
       anchoredVwapInteractionRef.current = releasedAnchored
       setAnchoredVwapInteraction(releasedAnchored)
+      anchoredVwapToolControllerRef.current?.sync()
       anchoredVwapSeriesAttachmentRef.current?.update()
     }
     const armed = armRectangleTool(rectangleInteractionRef.current)
@@ -760,6 +762,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (releasedAnchored !== anchoredVwapInteractionRef.current) {
       anchoredVwapInteractionRef.current = releasedAnchored
       setAnchoredVwapInteraction(releasedAnchored)
+      anchoredVwapToolControllerRef.current?.sync()
       anchoredVwapSeriesAttachmentRef.current?.update()
     }
     const armed = armLineTool(lineInteractionRef.current)
@@ -1122,6 +1125,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (releasedAnchored !== anchoredVwapInteractionRef.current) {
       anchoredVwapInteractionRef.current = releasedAnchored
       setAnchoredVwapInteraction(releasedAnchored)
+      anchoredVwapToolControllerRef.current?.sync()
       anchoredVwapSeriesAttachmentRef.current?.update()
     }
     const armed = armFixedRangeVolumeProfileTool()
