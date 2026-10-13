@@ -4,8 +4,10 @@ import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfile
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import {
   applyAnchoredVwapDrawingSelection,
+  cancelAnchoredVwapDrawingInteraction,
   commitAnchoredVwapAnchorDrag,
   createAnchoredVwapFromAnchorTime,
+  isAnchoredVwapDrawingNavigationLocked,
   isAnchoredVwapDrawingToolArmed,
   startAnchoredVwapAnchorDrag,
   type AnchoredVwapDrawingInteractionState,
@@ -211,32 +213,53 @@ export function attachAnchoredVwapDrawingPanePointer(
     callbacks.onRequestRender()
   }
 
-  const onPointerUp = (event: PointerEvent) => {
-    if (activePointerId !== event.pointerId) return
-    const snapshot = callbacks.getSnapshot()
-    if (snapshot.interaction.phase === 'dragging-anchor') {
-      callbacks.onInteractionChange(commitAnchoredVwapAnchorDrag(snapshot.interaction))
-    }
+  const releasePointer = (event: PointerEvent) => {
     activePointerId = null
     try {
       paneElement.releasePointerCapture(event.pointerId)
     } catch {
       // ignore
     }
+  }
+
+  const onPointerUp = (event: PointerEvent) => {
+    if (activePointerId !== event.pointerId) return
+    const snapshot = callbacks.getSnapshot()
+    if (snapshot.interaction.phase === 'dragging-anchor') {
+      callbacks.onInteractionChange(commitAnchoredVwapAnchorDrag(snapshot.interaction))
+    }
+    releasePointer(event)
     callbacks.onRequestRender()
+  }
+
+  const onPointerCancel = (event: PointerEvent) => {
+    if (activePointerId !== event.pointerId) return
+    const snapshot = callbacks.getSnapshot()
+    if (isAnchoredVwapDrawingNavigationLocked(snapshot.interaction)) {
+      const draft = snapshot.interaction.draft
+      if (draft) {
+        const instance = snapshot.instances.find((item) => item.id === draft.instanceId)
+        if (instance && instance.anchorTime !== draft.initialAnchorTime) {
+          callbacks.onInstanceUpdated({ ...instance, anchorTime: draft.initialAnchorTime })
+        }
+      }
+      callbacks.onInteractionChange(cancelAnchoredVwapDrawingInteraction(snapshot.interaction))
+      callbacks.onRequestRender()
+    }
+    releasePointer(event)
   }
 
   paneElement.addEventListener('pointerdown', onPointerDown)
   paneElement.addEventListener('pointermove', onPointerMove)
   paneElement.addEventListener('pointerup', onPointerUp)
-  paneElement.addEventListener('pointercancel', onPointerUp)
+  paneElement.addEventListener('pointercancel', onPointerCancel)
 
   return {
     dispose: () => {
       paneElement.removeEventListener('pointerdown', onPointerDown)
       paneElement.removeEventListener('pointermove', onPointerMove)
       paneElement.removeEventListener('pointerup', onPointerUp)
-      paneElement.removeEventListener('pointercancel', onPointerUp)
+      paneElement.removeEventListener('pointercancel', onPointerCancel)
     },
   }
 }
