@@ -433,6 +433,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     update: () => void
     dispose: () => void
   } | null>(null)
+  const anchoredVwapArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const frvpArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const suppressViewportPersistRef = useRef(false)
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
@@ -569,6 +570,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (frvpArmClaimTimerRef.current !== null) {
         window.clearTimeout(frvpArmClaimTimerRef.current)
         frvpArmClaimTimerRef.current = null
+      }
+      if (anchoredVwapArmClaimTimerRef.current !== null) {
+        window.clearTimeout(anchoredVwapArmClaimTimerRef.current)
+        anchoredVwapArmClaimTimerRef.current = null
       }
       if (isActiveRectangleKeyboardPanel(panelId)) {
         claimRectangleKeyboardPanel(null)
@@ -762,6 +767,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleAnchoredVwapArm = useCallback(() => {
     claimRectangleKeyboardPanel(panelId)
+    if (anchoredVwapArmClaimTimerRef.current !== null) {
+      window.clearTimeout(anchoredVwapArmClaimTimerRef.current)
+    }
+    // The portalled menu returns focus to the header trigger after this runs,
+    // which releases the claim. Restore it once that focus move has settled.
+    anchoredVwapArmClaimTimerRef.current = window.setTimeout(() => {
+      anchoredVwapArmClaimTimerRef.current = null
+      claimRectangleKeyboardPanel(panelId)
+    }, 0)
     const releasedFrvp = releaseFixedRangeVolumeProfileInteractionForPeerTool(
       fixedRangeVolumeProfileInteractionRef.current,
     )
