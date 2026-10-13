@@ -14,6 +14,12 @@ import {
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import {
+  formatAnchoredVwapInstanceLabel,
+  isAnchoredVwapInstanceHidden,
+  isAnchoredVwapInstanceLocked,
+  type AnchoredVwapInstance,
+} from '@/market/anchoredVwapInstances'
+import {
   formatLineInstanceLabel,
   isLineInstanceHidden,
   isLineInstanceLocked,
@@ -80,6 +86,11 @@ type HeaderToolsMenuProps = {
   onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
   onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
+  anchoredVwapInstances: AnchoredVwapInstance[]
+  onAnchoredVwapArm?: () => void
+  onAnchoredVwapDelete?: (instanceId: string) => void
+  onAnchoredVwapLockToggle?: (instanceId: string, locked: boolean) => void
+  onAnchoredVwapVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   chartObjectSettingsTarget?: ChartObjectSettingsTarget | null
   onChartObjectSettingsTargetChange?: (target: ChartObjectSettingsTarget | null) => void
 }
@@ -113,6 +124,11 @@ export function HeaderToolsMenu({
   onLineStrokeColorChange,
   onLineWidthChange,
   onLineStyleChange,
+  anchoredVwapInstances,
+  onAnchoredVwapArm,
+  onAnchoredVwapDelete,
+  onAnchoredVwapLockToggle,
+  onAnchoredVwapVisibilityToggle,
   chartObjectSettingsTarget = null,
   onChartObjectSettingsTargetChange,
 }: HeaderToolsMenuProps) {
@@ -160,10 +176,16 @@ export function HeaderToolsMenu({
     setMenuOpen(false)
   }
 
+  const armAnchoredVwap = () => {
+    onAnchoredVwapArm?.()
+    setMenuOpen(false)
+  }
+
   const hasObjects =
     fixedRangeVolumeProfileInstances.length > 0 ||
     lineInstances.length > 0 ||
-    rectangleInstances.length > 0
+    rectangleInstances.length > 0 ||
+    anchoredVwapInstances.length > 0
 
   return (
     <>
@@ -198,6 +220,9 @@ export function HeaderToolsMenu({
           </DropdownMenuItem>
           <DropdownMenuItem disabled={disabled} onSelect={armLine}>
             Line
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={disabled} onSelect={armAnchoredVwap}>
+            Anchored VWAP
           </DropdownMenuItem>
           {hasObjects && <DropdownMenuSeparator />}
           {fixedRangeVolumeProfileInstances.map((instance) => (
@@ -249,6 +274,35 @@ export function HeaderToolsMenu({
               }
               onSettings={() => openSettings({ kind: 'line', instanceId: instance.id })}
               onDelete={onLineDelete ? () => onLineDelete(instance.id) : undefined}
+            />
+          ))}
+          {anchoredVwapInstances.map((instance) => (
+            <ChartObjectListRow
+              key={instance.id}
+              icon={numberedChartObjectIcon('anchored-vwap')}
+              label={formatAnchoredVwapInstanceLabel(instance)}
+              hidden={isAnchoredVwapInstanceHidden(instance)}
+              locked={isAnchoredVwapInstanceLocked(instance)}
+              disabled={disabled}
+              onToggleHidden={
+                onAnchoredVwapVisibilityToggle
+                  ? () =>
+                      onAnchoredVwapVisibilityToggle(
+                        instance.id,
+                        !isAnchoredVwapInstanceHidden(instance),
+                      )
+                  : undefined
+              }
+              onToggleLocked={
+                onAnchoredVwapLockToggle
+                  ? () =>
+                      onAnchoredVwapLockToggle(instance.id, !isAnchoredVwapInstanceLocked(instance))
+                  : undefined
+              }
+              onSettings={() => openSettings({ kind: 'anchored-vwap', instanceId: instance.id })}
+              onDelete={
+                onAnchoredVwapDelete ? () => onAnchoredVwapDelete(instance.id) : undefined
+              }
             />
           ))}
           {rectangleInstances.map((instance) => (

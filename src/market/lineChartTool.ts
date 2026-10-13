@@ -17,6 +17,11 @@ import type { LineInstance } from './lineInstances.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
+import {
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  isAnchoredVwapDrawingBlockingPeerTools,
+  type AnchoredVwapDrawingInteractionState,
+} from './anchoredVwapDrawingInteraction.ts'
 import { isRectangleDrawingBlockingPeerTools } from './rectanglePeerTools.ts'
 import {
   attachLinePanePointer,
@@ -49,6 +54,7 @@ export type LineChartToolCallbacks = {
   getRectangleInstances: () => readonly RectangleInstance[]
   getFixedRangeVolumeProfileInstances: () => readonly FixedRangeVolumeProfileInstance[]
   getFixedRangeVolumeProfileRuntime: () => FixedRangeVolumeProfileRuntimeSnapshot
+  getAnchoredVwapDrawingInteraction?: () => AnchoredVwapDrawingInteractionState
 }
 
 export type LineChartToolController = {
@@ -128,9 +134,13 @@ export function attachLineChartTool(
     isAlternateToolActive: () => {
       const frvp = callbacks.getFixedRangeVolumeProfileInteraction()
       const rectangle = callbacks.getRectangleInteraction()
+      const anchoredVwap =
+        callbacks.getAnchoredVwapDrawingInteraction?.() ??
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE
       return (
         isFixedRangeVolumeProfileChartNavigationLocked(frvp) ||
-        isRectangleDrawingBlockingPeerTools(rectangle)
+        isRectangleDrawingBlockingPeerTools(rectangle) ||
+        isAnchoredVwapDrawingBlockingPeerTools(anchoredVwap)
       )
     },
     getCompetingRectangleHit: (paneX, paneY) => {

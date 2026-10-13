@@ -1,5 +1,7 @@
 import type { UTCTimestamp } from 'lightweight-charts'
 import type { ChartSeriesBundle } from '@/market/applyChartLiveCandle'
+import { applyAnchoredVwapDrawingInstancesHistory } from '@/market/anchoredVwapDrawingChartInstances'
+import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import { applyRollingVwapInstancesHistory } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import { computeDailyVwap } from '@/market/dailyVwap'
@@ -31,6 +33,7 @@ export function applyChartHistorySeries(
   bundle: ChartSeriesBundle,
   candles: readonly MarketCandle[],
   rollingVwapInstances: readonly RollingVwapInstance[] = [],
+  anchoredVwapInstances: readonly AnchoredVwapInstance[] = [],
 ): void {
   bundle.candle.setData(candles.map(toCandlestickPoint))
   EMA_PERIODS.forEach((period, index) => {
@@ -49,4 +52,5 @@ export function applyChartHistorySeries(
   setQuarterlyVwapLineSeriesData(bundle.quarterlyVwap, computeQuarterlyVwap(candles))
   setYearlyVwapLineSeriesData(bundle.yearlyVwap, computeYearlyVwap(candles))
   applyRollingVwapInstancesHistory(bundle, candles, rollingVwapInstances)
+  applyAnchoredVwapDrawingInstancesHistory(bundle, candles, anchoredVwapInstances)
 }

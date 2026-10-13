@@ -68,6 +68,7 @@ function createMockBundle(): ChartSeriesBundle {
         },
       ],
     ]) as ChartSeriesBundle['rollingVwaps'],
+    anchoredVwaps: new Map(),
   }
 }
 

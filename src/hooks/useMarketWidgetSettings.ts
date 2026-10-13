@@ -4,6 +4,7 @@ import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/in
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
+import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
@@ -71,6 +72,11 @@ type UseMarketWidgetSettingsArgs = {
   onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
   onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
+  anchoredVwapInstances: AnchoredVwapInstance[]
+  onAnchoredVwapArm: () => void
+  onAnchoredVwapDelete: (instanceId: string) => void
+  onAnchoredVwapLockToggle?: (instanceId: string, locked: boolean) => void
+  onAnchoredVwapVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   chartObjectSettingsTarget?: ChartObjectSettingsTarget | null
   onChartObjectSettingsTargetChange?: (target: ChartObjectSettingsTarget | null) => void
   disabled: boolean
@@ -119,6 +125,11 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onLineStrokeColorChange,
     onLineWidthChange,
     onLineStyleChange,
+    anchoredVwapInstances,
+    onAnchoredVwapArm,
+    onAnchoredVwapDelete,
+    onAnchoredVwapLockToggle,
+    onAnchoredVwapVisibilityToggle,
     chartObjectSettingsTarget,
     onChartObjectSettingsTargetChange,
     disabled,
@@ -195,6 +206,12 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onLineStrokeColorChange: headerSettings.tools === true ? onLineStrokeColorChange : undefined,
       onLineWidthChange: headerSettings.tools === true ? onLineWidthChange : undefined,
       onLineStyleChange: headerSettings.tools === true ? onLineStyleChange : undefined,
+      anchoredVwapInstances: headerSettings.tools === true ? anchoredVwapInstances : undefined,
+      onAnchoredVwapArm: headerSettings.tools === true ? onAnchoredVwapArm : undefined,
+      onAnchoredVwapDelete: headerSettings.tools === true ? onAnchoredVwapDelete : undefined,
+      onAnchoredVwapLockToggle: headerSettings.tools === true ? onAnchoredVwapLockToggle : undefined,
+      onAnchoredVwapVisibilityToggle:
+        headerSettings.tools === true ? onAnchoredVwapVisibilityToggle : undefined,
       chartObjectSettingsTarget:
         headerSettings.tools === true ? chartObjectSettingsTarget : undefined,
       onChartObjectSettingsTargetChange:
@@ -205,6 +222,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       fixedRangeVolumeProfileInstances,
       rectangleInstances,
       lineInstances,
+      anchoredVwapInstances,
       headerSettings,
       marketIndicators,
       marketInterval,
@@ -231,6 +249,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onLineStrokeColorChange,
       onLineWidthChange,
       onLineStyleChange,
+      onAnchoredVwapArm,
+      onAnchoredVwapDelete,
+      onAnchoredVwapLockToggle,
+      onAnchoredVwapVisibilityToggle,
       onMarketIndicatorsChange,
       onRollingVwapAdd,
       onRollingVwapDelete,

@@ -68,6 +68,7 @@ function fakeBundle(): ChartSeriesBundle {
       band: { updateBandData: () => {}, setBandVisible: () => {}, update: () => {}, dispose: () => {} },
     },
     rollingVwaps: new Map(),
+    anchoredVwaps: new Map(),
   }
 }
 

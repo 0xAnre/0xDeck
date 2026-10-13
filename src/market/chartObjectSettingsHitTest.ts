@@ -19,6 +19,8 @@ import type { SessionVwapLineSeriesBundle } from './sessionVwapChartSeries.ts'
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
+import { isAnchoredVwapInstanceHidden } from './anchoredVwapInstances.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { CandleInterval } from './types.ts'
 import {
@@ -26,6 +28,8 @@ import {
   preferDrawingPointerTarget,
   rectangleHitAtPanePoint,
 } from './drawingPointerArbitration.ts'
+import { isAnchoredVwapDrawingBlockingPeerTools } from './anchoredVwapDrawingInteraction.ts'
+import type { AnchoredVwapDrawingInteractionState } from './anchoredVwapDrawingInteraction.ts'
 import type { LineInteractionState } from './lineInteraction.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
@@ -49,17 +53,20 @@ export type ChartObjectSettingsHitTestContext = {
   bundle: ChartSeriesBundle
   rectangleInteraction: RectangleInteractionState
   lineInteraction: LineInteractionState
+  anchoredVwapDrawingInteraction: AnchoredVwapDrawingInteractionState
   fixedRangeVolumeProfileInteraction: FixedRangeVolumeProfileInteractionState
   rectangleInstances: readonly RectangleInstance[]
   lineInstances: readonly LineInstance[]
   fixedRangeVolumeProfileInstances: readonly FixedRangeVolumeProfileInstance[]
   fixedRangeVolumeProfileRuntime: FixedRangeVolumeProfileRuntimeSnapshot
   rollingVwapInstances: readonly RollingVwapInstance[]
+  anchoredVwapInstances: readonly AnchoredVwapInstance[]
 }
 
 function chartObjectSettingsHitTestBlocked(ctx: ChartObjectSettingsHitTestContext): boolean {
   if (ctx.rectangleInteraction.phase !== 'inactive') return true
   if (ctx.lineInteraction.phase !== 'inactive') return true
+  if (isAnchoredVwapDrawingBlockingPeerTools(ctx.anchoredVwapDrawingInteraction)) return true
   if (isFixedRangeVolumeProfileToolActive(ctx.fixedRangeVolumeProfileInteraction)) return true
   if (ctx.fixedRangeVolumeProfileInteraction.phase === 'resizing') return true
   return false
@@ -158,6 +165,23 @@ function singletonVwapSeriesBundle(
     default:
       return null
   }
+}
+
+function hitTestAnchoredVwapDrawingInstances(
+  ctx: ChartObjectSettingsHitTestContext,
+): ChartObjectSettingsTarget | null {
+  for (let index = ctx.anchoredVwapInstances.length - 1; index >= 0; index -= 1) {
+    const instance = ctx.anchoredVwapInstances[index]
+    if (isAnchoredVwapInstanceHidden(instance)) continue
+    const chartBundle = ctx.bundle.anchoredVwaps.get(instance.id)
+    if (!chartBundle) continue
+    for (const series of chartBundle.ordered) {
+      if (hitTestLineSeriesAtPane(ctx.chart, series, ctx.paneX, ctx.paneY)) {
+        return { kind: 'anchored-vwap', instanceId: instance.id }
+      }
+    }
+  }
+  return null
 }
 
 function hitTestRollingVwapInstances(
@@ -265,6 +289,9 @@ export function hitTestChartObjectSettingsTarget(
 
   const rolling = hitTestRollingVwapInstances(ctx)
   if (rolling) return rolling
+
+  const anchored = hitTestAnchoredVwapDrawingInstances(ctx)
+  if (anchored) return anchored
 
   return hitTestSingletonMarketIndicators(ctx)
 }
