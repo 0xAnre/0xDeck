@@ -26,7 +26,7 @@ export function hitTestAnchoredVwapDrawings(
   const ordered = [...visible].sort((a, b) => {
     if (a.id === selectedId) return 1
     if (b.id === selectedId) return -1
-    return b.displaySequence - a.displaySequence
+    return a.displaySequence - b.displaySequence
   })
 
   for (let index = ordered.length - 1; index >= 0; index -= 1) {
