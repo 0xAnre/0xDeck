@@ -94,7 +94,6 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
       getCompetingLineHit: () => null,
       getCompetingRectangleHit: () => null,
       getCompetingAnchoredVwapHit: () => null,
-    getCompetingAnchoredVwapHit: () => null,
     }
     applyFixedRangeVolumeProfilePanePointerUp(chart, 10, callbacks)
     assert.equal(interaction.phase, 'inactive')
@@ -227,7 +226,6 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
       getCompetingLineHit: () => null,
       getCompetingRectangleHit: () => null,
       getCompetingAnchoredVwapHit: () => null,
-    getCompetingAnchoredVwapHit: () => null,
     }
     interaction = applyFixedRangeVolumeProfileResizePreview(interaction, 260)
     callbacks.onInteractionChange(interaction)
