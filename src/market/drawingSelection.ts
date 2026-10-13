@@ -37,18 +37,6 @@ export function releaseRectangleInteractionForPeerTool(
   return { phase: 'inactive', selectedId: null, draft: null }
 }
 
-export function releaseFixedRangeVolumeProfileInteractionForPeerTool(
-  state: FixedRangeVolumeProfileInteractionState,
-): FixedRangeVolumeProfileInteractionState {
-  if (isFixedRangeVolumeProfileToolActive(state) || state.phase === 'resizing') {
-    return INITIAL_FIXED_RANGE_VP_INTERACTION_STATE
-  }
-  if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
-    return state
-  }
-  return { phase: 'inactive', selectedId: null, draft: null }
-}
-
 export function releaseAnchoredVwapDrawingInteractionForPeerTool(
   state: AnchoredVwapDrawingInteractionState,
 ): AnchoredVwapDrawingInteractionState {
@@ -57,6 +45,18 @@ export function releaseAnchoredVwapDrawingInteractionForPeerTool(
     isAnchoredVwapDrawingToolArmed(state)
   ) {
     return INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE
+  }
+  if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
+    return state
+  }
+  return { phase: 'inactive', selectedId: null, draft: null }
+}
+
+export function releaseFixedRangeVolumeProfileInteractionForPeerTool(
+  state: FixedRangeVolumeProfileInteractionState,
+): FixedRangeVolumeProfileInteractionState {
+  if (isFixedRangeVolumeProfileToolActive(state) || state.phase === 'resizing') {
+    return INITIAL_FIXED_RANGE_VP_INTERACTION_STATE
   }
   if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
     return state
