@@ -1580,6 +1580,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
             setRectangleInteraction(clearedRectangle)
             rectangleSeriesAttachmentRef.current?.update()
           }
+          const clearedFrvp = applyFixedRangeVolumeProfileSelection(
+            fixedRangeVolumeProfileInteractionRef.current,
+            null,
+          )
+          if (clearedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
+            fixedRangeVolumeProfileInteractionRef.current = clearedFrvp
+            setFixedRangeVolumeProfileInteraction(clearedFrvp)
+            fixedRangeVolumeProfileToolControllerRef.current?.sync()
+            fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+          }
         }
         anchoredVwapSeriesAttachmentRef.current?.update()
       },
