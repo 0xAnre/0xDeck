@@ -1,6 +1,10 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
-import { frvpHitAtPanePoint, lineHitAtPanePoint } from './drawingPointerArbitration.ts'
+import {
+  anchoredVwapHitAtPanePoint,
+  frvpHitAtPanePoint,
+  lineHitAtPanePoint,
+} from './drawingPointerArbitration.ts'
 import {
   isFixedRangeVolumeProfileChartNavigationLocked,
   type FixedRangeVolumeProfileInteractionState,
@@ -14,11 +18,18 @@ import {
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
 import {
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  isAnchoredVwapDrawingBlockingPeerTools,
+  type AnchoredVwapDrawingInteractionState,
+} from './anchoredVwapDrawingInteraction.ts'
+import {
   isLineDrawingBlockingPeerTools,
   type LineInteractionState,
 } from './lineInteraction.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
+import type { MarketCandle } from './types.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import {
   attachRectanglePanePointer,
@@ -51,6 +62,9 @@ export type RectangleChartToolCallbacks = {
   getLineInstances: () => readonly LineInstance[]
   getFixedRangeVolumeProfileInstances: () => readonly FixedRangeVolumeProfileInstance[]
   getFixedRangeVolumeProfileRuntime: () => FixedRangeVolumeProfileRuntimeSnapshot
+  getAnchoredVwapDrawingInteraction?: () => AnchoredVwapDrawingInteractionState
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
+  getAnchoredVwapCandles?: () => readonly MarketCandle[]
 }
 
 export type RectangleChartToolController = {
@@ -70,8 +84,15 @@ export function applyRectangleChartInteractionMode(
   rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
   frvpInteraction: FixedRangeVolumeProfileInteractionState,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState = INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
 ): void {
-  applyChartDrawingInteractionMode(chart, rectangleInteraction, lineInteraction, frvpInteraction)
+  applyChartDrawingInteractionMode(
+    chart,
+    rectangleInteraction,
+    lineInteraction,
+    frvpInteraction,
+    anchoredVwapInteraction,
+  )
 }
 
 export function attachRectangleChartTool(
@@ -86,6 +107,8 @@ export function attachRectangleChartTool(
       callbacks.getSnapshot().interaction,
       callbacks.getLineInteraction(),
       callbacks.getFixedRangeVolumeProfileInteraction(),
+      callbacks.getAnchoredVwapDrawingInteraction?.() ??
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
     )
   }
 
@@ -130,9 +153,13 @@ export function attachRectangleChartTool(
     isAlternateToolActive: () => {
       const frvp = callbacks.getFixedRangeVolumeProfileInteraction()
       const line = callbacks.getLineInteraction()
+      const anchoredVwap =
+        callbacks.getAnchoredVwapDrawingInteraction?.() ??
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE
       return (
         isFixedRangeVolumeProfileChartNavigationLocked(frvp) ||
-        isLineDrawingBlockingPeerTools(line)
+        isLineDrawingBlockingPeerTools(line) ||
+        isAnchoredVwapDrawingBlockingPeerTools(anchoredVwap)
       )
     },
     getCompetingLineHit: (paneX, paneY) => {
@@ -159,6 +186,24 @@ export function attachRectangleChartTool(
         instances: callbacks.getFixedRangeVolumeProfileInstances(),
         runtimeById: callbacks.getFixedRangeVolumeProfileRuntime(),
         selectedId: frvpInteraction.selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
+    },
+    getCompetingAnchoredVwapHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      const getInstances = callbacks.getAnchoredVwapInstances
+      const getCandles = callbacks.getAnchoredVwapCandles
+      const getInteraction = callbacks.getAnchoredVwapDrawingInteraction
+      if (!series || !getInstances || !getCandles || !getInteraction) return null
+      return anchoredVwapHitAtPanePoint({
+        chart,
+        series,
+        instances: getInstances(),
+        selectedId: getInteraction().selectedId,
+        candles: getCandles(),
         paneX,
         paneY,
         intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
@@ -209,6 +254,8 @@ export function attachRectangleChartTool(
       INITIAL_RECTANGLE_INTERACTION_STATE,
       callbacks.getLineInteraction(),
       callbacks.getFixedRangeVolumeProfileInteraction(),
+      callbacks.getAnchoredVwapDrawingInteraction?.() ??
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
     )
   }
 

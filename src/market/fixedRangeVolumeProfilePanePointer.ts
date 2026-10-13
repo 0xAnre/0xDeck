@@ -32,6 +32,7 @@ import {
 import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
 import type { RectangleChartTimeContext } from './rectangleChartTime.ts'
+import type { AnchoredVwapDrawingHitTarget } from './anchoredVwapDrawingHitTest.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
 
 export type FixedRangeVolumeProfilePanePointerCallbacks = {
@@ -51,6 +52,10 @@ export type FixedRangeVolumeProfilePanePointerCallbacks = {
   isAlternateToolActive: () => boolean
   getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
   getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
+  getCompetingAnchoredVwapHit: (
+    paneX: number,
+    paneY: number,
+  ) => AnchoredVwapDrawingHitTarget | null
   onExclusivePointerClaim?: () => void
 }
 
@@ -245,6 +250,7 @@ export function attachFixedRangeVolumeProfilePanePointer(
         callbacks.getCompetingLineHit(paneX, paneY),
         callbacks.getCompetingRectangleHit(paneX, paneY),
         hit,
+        callbacks.getCompetingAnchoredVwapHit(paneX, paneY),
       )
       if (preferredTarget !== 'frvp') {
         if (interaction.selectedId !== null) {

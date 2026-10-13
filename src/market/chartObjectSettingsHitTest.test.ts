@@ -5,6 +5,7 @@ import { hitTestChartObjectSettingsTarget } from './chartObjectSettingsHitTest.t
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import { INITIAL_LINE_INTERACTION_STATE } from './lineInteraction.ts'
 import { INITIAL_RECTANGLE_INTERACTION_STATE } from './rectangleInteraction.ts'
+import { INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE } from './anchoredVwapDrawingInteraction.ts'
 import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
 import type { LineInstance } from './lineInstances.ts'
@@ -48,6 +49,7 @@ function buildContext(args: {
     quarterlyVwap: null,
     yearlyVwap: null,
     rollingVwaps: new Map(),
+    anchoredVwaps: new Map(),
   } as ChartSeriesBundle
 
   return {
@@ -70,6 +72,8 @@ function buildContext(args: {
     fixedRangeVolumeProfileInstances: [],
     fixedRangeVolumeProfileRuntime: {},
     rollingVwapInstances: [],
+    anchoredVwapInstances: [],
+    anchoredVwapDrawingInteraction: INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   }
 }
 

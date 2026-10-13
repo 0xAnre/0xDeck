@@ -16,13 +16,17 @@ import {
   resolveFixedRangeVolumeProfileCrosshairTime,
 } from './fixedRangeVolumeProfileChartTime.ts'
 import {
+  anchoredVwapHitAtPanePoint,
   lineHitAtPanePoint,
   rectangleHitAtPanePoint,
 } from './drawingPointerArbitration.ts'
 import type { LineInteractionState } from './lineInteraction.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
+import type { AnchoredVwapDrawingInteractionState } from './anchoredVwapDrawingInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
+import type { MarketCandle } from './types.ts'
 import {
   attachFixedRangeVolumeProfilePanePointer,
   type FixedRangeVolumeProfilePanePointerCallbacks,
@@ -53,6 +57,9 @@ export type FixedRangeVolumeProfileChartToolCallbacks = {
   getRectangleInteraction: () => RectangleInteractionState
   getRectangleInstances: () => readonly RectangleInstance[]
   onExclusivePointerClaim?: () => void
+  getAnchoredVwapDrawingInteraction?: () => AnchoredVwapDrawingInteractionState
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
+  getAnchoredVwapCandles?: () => readonly MarketCandle[]
 }
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -165,6 +172,24 @@ export function attachFixedRangeVolumeProfileChartTool(
         series,
         instances: callbacks.getRectangleInstances(),
         selectedId: callbacks.getRectangleInteraction().selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
+    },
+    getCompetingAnchoredVwapHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      const getInstances = callbacks.getAnchoredVwapInstances
+      const getCandles = callbacks.getAnchoredVwapCandles
+      const getInteraction = callbacks.getAnchoredVwapDrawingInteraction
+      if (!series || !getInstances || !getCandles || !getInteraction) return null
+      return anchoredVwapHitAtPanePoint({
+        chart,
+        series,
+        instances: getInstances(),
+        selectedId: getInteraction().selectedId,
+        candles: getCandles(),
         paneX,
         paneY,
         intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),

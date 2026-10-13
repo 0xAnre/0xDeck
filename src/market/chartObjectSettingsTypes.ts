@@ -5,6 +5,7 @@ export type ChartObjectSettingsTarget =
   | { kind: 'line'; instanceId: string }
   | { kind: 'fixed-range-volume-profile'; instanceId: string }
   | { kind: 'rolling-vwap'; instanceId: string }
+  | { kind: 'anchored-vwap'; instanceId: string }
   | { kind: 'market-indicator'; indicatorId: MarketIndicatorId }
 
 export function chartObjectSettingsTargetKey(target: ChartObjectSettingsTarget): string {
@@ -13,6 +14,7 @@ export function chartObjectSettingsTargetKey(target: ChartObjectSettingsTarget):
     case 'line':
     case 'fixed-range-volume-profile':
     case 'rolling-vwap':
+    case 'anchored-vwap':
       return `${target.kind}:${target.instanceId}`
     case 'market-indicator':
       return `market-indicator:${target.indicatorId}`

@@ -18,6 +18,7 @@ import {
 import { hitTestLines } from './lineHitTest.ts'
 import { isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
+import type { AnchoredVwapDrawingHitTarget } from './anchoredVwapDrawingHitTest.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
@@ -44,6 +45,10 @@ export type LinePanePointerCallbacks = {
   isAlternateToolActive: () => boolean
   getCompetingRectangleHit: (paneX: number, paneY: number) => RectangleHitTarget | null
   getCompetingFrvpHit: (paneX: number, paneY: number) => FixedRangeVolumeProfileHitTarget | null
+  getCompetingAnchoredVwapHit: (
+    paneX: number,
+    paneY: number,
+  ) => AnchoredVwapDrawingHitTarget | null
 }
 
 export type LinePanePointerController = {
@@ -157,6 +162,7 @@ export function attachLinePanePointer(
           hit,
           callbacks.getCompetingRectangleHit(paneX, paneY),
           callbacks.getCompetingFrvpHit(paneX, paneY),
+          callbacks.getCompetingAnchoredVwapHit(paneX, paneY),
         ) !== 'line'
       ) {
         if (interaction.selectedId !== null) {

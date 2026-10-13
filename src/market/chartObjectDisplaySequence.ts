@@ -1,10 +1,16 @@
-export type NumberedChartObjectKind = 'box' | 'line' | 'frvp' | 'rolling-vwap'
+export type NumberedChartObjectKind =
+  | 'box'
+  | 'line'
+  | 'frvp'
+  | 'rolling-vwap'
+  | 'anchored-vwap'
 
 export const NUMBERED_CHART_OBJECT_LABELS: Record<NumberedChartObjectKind, string> = {
   box: 'Box',
   line: 'Line',
   frvp: 'Volume Profile',
   'rolling-vwap': 'Rolling VWAP',
+  'anchored-vwap': 'Anchored VWAP',
 }
 
 export type WithDisplaySequence = {

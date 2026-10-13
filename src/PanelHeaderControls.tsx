@@ -155,7 +155,10 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
         settings.onRectangleFillOpacityChange &&
         settings.lineInstances &&
         settings.onLineArm &&
-        settings.onLineDelete && (
+        settings.onLineDelete &&
+        settings.anchoredVwapInstances &&
+        settings.onAnchoredVwapArm &&
+        settings.onAnchoredVwapDelete && (
           <HeaderToolsMenu
             id={`${panelId}-tools`}
             disabled={settings.disabled}
@@ -193,6 +196,11 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onLineStrokeColorChange={settings.onLineStrokeColorChange}
             onLineWidthChange={settings.onLineWidthChange}
             onLineStyleChange={settings.onLineStyleChange}
+            anchoredVwapInstances={settings.anchoredVwapInstances}
+            onAnchoredVwapArm={settings.onAnchoredVwapArm}
+            onAnchoredVwapDelete={settings.onAnchoredVwapDelete}
+            onAnchoredVwapLockToggle={settings.onAnchoredVwapLockToggle}
+            onAnchoredVwapVisibilityToggle={settings.onAnchoredVwapVisibilityToggle}
             chartObjectSettingsTarget={settings.chartObjectSettingsTarget}
             onChartObjectSettingsTargetChange={settings.onChartObjectSettingsTargetChange}
           />

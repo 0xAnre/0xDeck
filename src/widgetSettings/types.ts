@@ -4,6 +4,7 @@ import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
+import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
@@ -95,6 +96,11 @@ export type WidgetSettingsRegistration = {
   onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
   onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
+  anchoredVwapInstances?: AnchoredVwapInstance[]
+  onAnchoredVwapArm?: () => void
+  onAnchoredVwapDelete?: (instanceId: string) => void
+  onAnchoredVwapLockToggle?: (instanceId: string, locked: boolean) => void
+  onAnchoredVwapVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   chartObjectSettingsTarget?: ChartObjectSettingsTarget | null
   onChartObjectSettingsTargetChange?: (target: ChartObjectSettingsTarget | null) => void
 }

@@ -86,6 +86,7 @@ describe('rectanglePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -123,6 +124,7 @@ describe('rectanglePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -169,6 +171,7 @@ describe('rectanglePanePointer', () => {
       isAlternateToolActive: () => true,
       getCompetingLineHit: () => null,
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -223,6 +226,7 @@ describe('rectanglePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 120,
     })
@@ -283,6 +287,7 @@ describe('rectanglePanePointer', () => {
         instanceIndex: 0,
       }),
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
@@ -338,6 +343,7 @@ describe('rectanglePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })
@@ -398,6 +404,7 @@ describe('rectanglePanePointer', () => {
           instanceIndex: 0,
         }),
         getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
         getIntervalDurationSeconds: () => 300,
         getLastBarUnixTime: () => 200,
       })
@@ -473,6 +480,7 @@ describe('rectanglePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingFrvpHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
       getIntervalDurationSeconds: () => 300,
       getLastBarUnixTime: () => 200,
     })

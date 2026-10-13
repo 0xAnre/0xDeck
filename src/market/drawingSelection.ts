@@ -12,6 +12,12 @@ import {
   isRectangleChartNavigationLocked,
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
+import {
+  INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  isAnchoredVwapDrawingNavigationLocked,
+  isAnchoredVwapDrawingToolArmed,
+  type AnchoredVwapDrawingInteractionState,
+} from './anchoredVwapDrawingInteraction.ts'
 
 export function releaseLineInteractionForPeerTool(
   state: LineInteractionState,
@@ -26,6 +32,21 @@ export function releaseRectangleInteractionForPeerTool(
   state: RectangleInteractionState,
 ): RectangleInteractionState {
   if (state.phase === 'inactive' && state.draft === null && state.selectedId === null) {
+    return state
+  }
+  return { phase: 'inactive', selectedId: null, draft: null }
+}
+
+export function releaseAnchoredVwapDrawingInteractionForPeerTool(
+  state: AnchoredVwapDrawingInteractionState,
+): AnchoredVwapDrawingInteractionState {
+  if (
+    isAnchoredVwapDrawingNavigationLocked(state) ||
+    isAnchoredVwapDrawingToolArmed(state)
+  ) {
+    return INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE
+  }
+  if (state.phase === 'inactive' && state.selectedId === null && state.draft === null) {
     return state
   }
   return { phase: 'inactive', selectedId: null, draft: null }

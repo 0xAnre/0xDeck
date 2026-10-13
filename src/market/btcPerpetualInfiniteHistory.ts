@@ -9,6 +9,7 @@ import {
   type InfiniteHistoryState,
 } from '@/market/btcPerpetualInfiniteHistoryCore'
 import { mergeOlderMarketCandles } from '@/market/mergeMarketCandles'
+import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { CandleInterval, MarketCandle } from '@/market/types'
 
@@ -30,16 +31,27 @@ type LoadOlderHistoryParams = {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
-  rollingVwapInstances?: readonly RollingVwapInstance[]
+  getRollingVwapInstances?: () => readonly RollingVwapInstance[]
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
 }
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
-  const { fetchHistory = fetchBinanceBtcusdtKlinesHistory, rollingVwapInstances, ...rest } = params
+  const {
+    fetchHistory = fetchBinanceBtcusdtKlinesHistory,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
+    ...rest
+  } = params
   return loadOlderBtcPerpHistoryCore({
     ...rest,
     fetchHistory,
     applyMergedHistory: (bundle, candles) =>
-      applyChartHistorySeries(bundle as ChartSeriesBundle, candles, rollingVwapInstances ?? []),
+      applyChartHistorySeries(
+        bundle as ChartSeriesBundle,
+        candles,
+        getRollingVwapInstances?.() ?? [],
+        getAnchoredVwapInstances?.() ?? [],
+      ),
     mergeOlderCandles: mergeOlderMarketCandles,
   })
 }
@@ -56,7 +68,8 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   chart: IChartApi
   signal?: AbortSignal
   fetchHistory?: FetchBtcPerpHistory
-  rollingVwapInstances?: readonly RollingVwapInstance[]
+  getRollingVwapInstances?: () => readonly RollingVwapInstance[]
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
 }): void {
   const {
     state,
@@ -70,7 +83,8 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
-    rollingVwapInstances,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
   } = params
 
   if (!historyReady || !range || state.exhausted || state.loading) return
@@ -94,6 +108,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     chart,
     signal,
     fetchHistory,
-    rollingVwapInstances,
+    getRollingVwapInstances,
+    getAnchoredVwapInstances,
   })
 }

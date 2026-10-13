@@ -10,6 +10,9 @@ import {
   type WeeklyVwapLineSeriesBundle,
 } from '@/market/weeklyVwapChartSeries'
 import { applyYearlyVwapLiveFromCandles } from '@/market/yearlyVwapChartSeries'
+import { applyAnchoredVwapDrawingInstancesLive } from '@/market/anchoredVwapDrawingChartInstances'
+import type { AnchoredVwapDrawingChartInstanceMap } from '@/market/anchoredVwapDrawingChartInstances'
+import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import { applyRollingVwapInstancesLive } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapChartInstanceMap } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
@@ -44,6 +47,7 @@ export type ChartSeriesBundle = {
   quarterlyVwap: QuarterlyVwapLineSeriesBundle
   yearlyVwap: YearlyVwapLineSeriesBundle
   rollingVwaps: RollingVwapChartInstanceMap
+  anchoredVwaps: AnchoredVwapDrawingChartInstanceMap
 }
 
 export type LiveVwapUpdateContext = {
@@ -73,6 +77,7 @@ export function applyChartLiveCandle(
   bundle: ChartSeriesBundle,
   vwapContext?: LiveVwapUpdateContext,
   rollingVwapInstances: readonly RollingVwapInstance[] = [],
+  anchoredVwapInstances: readonly AnchoredVwapInstance[] = [],
 ): void {
   const applyResult = applyLiveCandle(candles, candle)
   if (applyResult === 'ignore') return
@@ -100,6 +105,7 @@ export function applyChartLiveCandle(
     applyQuarterlyVwapLiveFromCandles(candles, bundle.quarterlyVwap)
     applyYearlyVwapLiveFromCandles(candles, bundle.yearlyVwap)
     applyRollingVwapInstancesLive(candles, bundle, rollingVwapInstances, rollingInterval)
+    applyAnchoredVwapDrawingInstancesLive(candles, bundle, anchoredVwapInstances)
     return
   }
 
@@ -120,4 +126,5 @@ export function applyChartLiveCandle(
   }
 
   applyRollingVwapInstancesLive(candles, bundle, rollingVwapInstances, rollingInterval)
+  applyAnchoredVwapDrawingInstancesLive(candles, bundle, anchoredVwapInstances)
 }

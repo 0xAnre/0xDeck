@@ -19,6 +19,7 @@ export function numberedChartObjectIcon(kind: NumberedChartObjectKind): LucideIc
     case 'frvp':
       return ChartNoAxesColumnIncreasingIcon
     case 'rolling-vwap':
+    case 'anchored-vwap':
       return ActivityIcon
     default: {
       const unreachable: never = kind
