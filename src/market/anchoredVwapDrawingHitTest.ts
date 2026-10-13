@@ -24,12 +24,12 @@ export function hitTestAnchoredVwapDrawings(
 ): AnchoredVwapDrawingHitTarget | null {
   const visible = instances.filter((item) => !isAnchoredVwapInstanceHidden(item))
   const ordered = [...visible].sort((a, b) => {
-    if (a.id === selectedId) return 1
-    if (b.id === selectedId) return -1
-    return a.displaySequence - b.displaySequence
+    if (a.id === selectedId) return -1
+    if (b.id === selectedId) return 1
+    return b.displaySequence - a.displaySequence
   })
 
-  for (let index = ordered.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < ordered.length; index += 1) {
     const instance = ordered[index]
     const projection = project(instance)
     if (!projection) continue
