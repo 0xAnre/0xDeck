@@ -1,5 +1,9 @@
 import type { IChartApi } from 'lightweight-charts'
 import {
+  isAnchoredVwapDrawingNavigationLocked,
+  type AnchoredVwapDrawingInteractionState,
+} from './anchoredVwapDrawingInteraction.ts'
+import {
   applyFixedRangeVolumeProfileChartInteractionMode,
   isFixedRangeVolumeProfileChartInteractionLocked,
 } from './fixedRangeVolumeProfileChartTool.ts'
@@ -10,10 +14,12 @@ import { isRectangleChartNavigationLocked, type RectangleInteractionState } from
 export function isAnyChartDrawingNavigationLocked(
   rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState,
 ): boolean {
   return (
     isRectangleChartNavigationLocked(rectangleInteraction) ||
-    isLineChartNavigationLocked(lineInteraction)
+    isLineChartNavigationLocked(lineInteraction) ||
+    isAnchoredVwapDrawingNavigationLocked(anchoredVwapInteraction)
   )
 }
 
@@ -22,8 +28,13 @@ export function applyChartDrawingInteractionMode(
   rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
   frvpInteraction: FixedRangeVolumeProfileInteractionState,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState,
 ): void {
-  const drawingLocked = isAnyChartDrawingNavigationLocked(rectangleInteraction, lineInteraction)
+  const drawingLocked = isAnyChartDrawingNavigationLocked(
+    rectangleInteraction,
+    lineInteraction,
+    anchoredVwapInteraction,
+  )
   const frvpLocked = isFixedRangeVolumeProfileChartInteractionLocked(frvpInteraction)
   if (drawingLocked) {
     applyFixedRangeVolumeProfileChartInteractionMode(chart, {

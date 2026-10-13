@@ -1661,6 +1661,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     anchoredVwapToolControllerRef.current = controller
+    controller.sync()
     return () => {
       controller.dispose()
       anchoredVwapToolControllerRef.current = null

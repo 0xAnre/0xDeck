@@ -76,8 +76,15 @@ export function applyRectangleChartInteractionMode(
   rectangleInteraction: RectangleInteractionState,
   lineInteraction: LineInteractionState,
   frvpInteraction: FixedRangeVolumeProfileInteractionState,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState = INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
 ): void {
-  applyChartDrawingInteractionMode(chart, rectangleInteraction, lineInteraction, frvpInteraction)
+  applyChartDrawingInteractionMode(
+    chart,
+    rectangleInteraction,
+    lineInteraction,
+    frvpInteraction,
+    anchoredVwapInteraction,
+  )
 }
 
 export function attachRectangleChartTool(
@@ -92,6 +99,8 @@ export function attachRectangleChartTool(
       callbacks.getSnapshot().interaction,
       callbacks.getLineInteraction(),
       callbacks.getFixedRangeVolumeProfileInteraction(),
+      callbacks.getAnchoredVwapDrawingInteraction?.() ??
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
     )
   }
 
@@ -219,6 +228,8 @@ export function attachRectangleChartTool(
       INITIAL_RECTANGLE_INTERACTION_STATE,
       callbacks.getLineInteraction(),
       callbacks.getFixedRangeVolumeProfileInteraction(),
+      callbacks.getAnchoredVwapDrawingInteraction?.() ??
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
     )
   }
 

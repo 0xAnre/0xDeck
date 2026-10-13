@@ -1,4 +1,5 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
+import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
 import {
   cancelAnchoredVwapDrawingInteraction,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
@@ -47,7 +48,24 @@ export type AnchoredVwapDrawingChartToolCallbacks = {
 }
 
 export type AnchoredVwapDrawingChartToolController = {
+  sync: () => void
   dispose: () => void
+}
+
+export function applyAnchoredVwapDrawingChartInteractionMode(
+  chart: IChartApi,
+  anchoredVwapInteraction: AnchoredVwapDrawingInteractionState,
+  rectangleInteraction: RectangleInteractionState,
+  lineInteraction: LineInteractionState,
+  frvpInteraction: FixedRangeVolumeProfileInteractionState,
+): void {
+  applyChartDrawingInteractionMode(
+    chart,
+    rectangleInteraction,
+    lineInteraction,
+    frvpInteraction,
+    anchoredVwapInteraction,
+  )
 }
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -63,8 +81,25 @@ export function attachAnchoredVwapDrawingChartTool(
 ): AnchoredVwapDrawingChartToolController {
   let panePointer: AnchoredVwapDrawingPanePointerController | null = null
 
+  const present = () => {
+    const snapshot = callbacks.getSnapshot()
+    applyAnchoredVwapDrawingChartInteractionMode(
+      chart,
+      snapshot.interaction,
+      callbacks.getRectangleInteraction(),
+      callbacks.getLineInteraction(),
+      callbacks.getFixedRangeVolumeProfileInteraction(),
+    )
+  }
+
   const commitInteraction = (next: AnchoredVwapDrawingInteractionState) => {
     callbacks.onInteractionChange(next)
+    present()
+    callbacks.onRequestRender()
+  }
+
+  const sync = () => {
+    present()
     callbacks.onRequestRender()
   }
 
@@ -154,12 +189,21 @@ export function attachAnchoredVwapDrawingChartTool(
   }
 
   window.addEventListener('keydown', onKeyDown)
+  sync()
 
   return {
+    sync,
     dispose: () => {
       window.removeEventListener('keydown', onKeyDown)
       panePointer?.dispose()
       panePointer = null
+      applyAnchoredVwapDrawingChartInteractionMode(
+        chart,
+        INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+        callbacks.getRectangleInteraction(),
+        callbacks.getLineInteraction(),
+        callbacks.getFixedRangeVolumeProfileInteraction(),
+      )
       callbacks.onInteractionChange(INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE)
     },
   }

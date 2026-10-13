@@ -11,7 +11,12 @@ import {
 import {
   removeSelectedAnchoredVwap,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  startAnchoredVwapAnchorDrag,
 } from './anchoredVwapDrawingInteraction.ts'
+import { applyAnchoredVwapDrawingChartInteractionMode } from './anchoredVwapDrawingChartTool.ts'
+import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
+import { INITIAL_LINE_INTERACTION_STATE } from './lineInteraction.ts'
+import { INITIAL_RECTANGLE_INTERACTION_STATE } from './rectangleInteraction.ts'
 import { setAnchoredVwapDrawingInstanceSeriesVisibility } from './anchoredVwapDrawingChartSeries.ts'
 import { hitTestAnchoredVwapDrawings } from './anchoredVwapDrawingHitTest.ts'
 import type { MarketCandle } from './types.ts'
@@ -116,6 +121,32 @@ describe('anchoredVwapInstances storage', () => {
 })
 
 describe('anchoredVwapDrawingInteraction', () => {
+  it('locks chart navigation while dragging the anchor handle', () => {
+    const options: Array<{ handleScroll: { horzTouchDrag: boolean } }> = []
+    const chart = {
+      applyOptions: (value: { handleScroll: { horzTouchDrag: boolean } }) => {
+        options.push(value)
+      },
+    }
+
+    applyAnchoredVwapDrawingChartInteractionMode(
+      chart as never,
+      INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      INITIAL_LINE_INTERACTION_STATE,
+      INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+    )
+    applyAnchoredVwapDrawingChartInteractionMode(
+      chart as never,
+      startAnchoredVwapAnchorDrag(INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE, 'id', 100),
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      INITIAL_LINE_INTERACTION_STATE,
+      INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+    )
+    assert.equal(options[0]?.handleScroll.horzTouchDrag, true)
+    assert.equal(options[1]?.handleScroll.horzTouchDrag, false)
+  })
+
   it('delete removes unlocked selection only', () => {
     const instance = createAnchoredVwapInstance({ anchorTime: 1_700_000_000 })!
     const locked = { ...instance, locked: true }
