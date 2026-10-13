@@ -49,6 +49,7 @@ function pointerCallbacks(
     isAlternateToolActive: () => false,
     getCompetingLineHit: () => null,
     getCompetingRectangleHit: () => null,
+    getCompetingAnchoredVwapHit: () => null,
   }
 }
 
@@ -92,6 +93,8 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingRectangleHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
+    getCompetingAnchoredVwapHit: () => null,
     }
     applyFixedRangeVolumeProfilePanePointerUp(chart, 10, callbacks)
     assert.equal(interaction.phase, 'inactive')
@@ -223,6 +226,8 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
       isAlternateToolActive: () => false,
       getCompetingLineHit: () => null,
       getCompetingRectangleHit: () => null,
+      getCompetingAnchoredVwapHit: () => null,
+    getCompetingAnchoredVwapHit: () => null,
     }
     interaction = applyFixedRangeVolumeProfileResizePreview(interaction, 260)
     callbacks.onInteractionChange(interaction)
@@ -263,6 +268,7 @@ describe('fixedRangeVolumeProfilePanePointer', () => {
     isAlternateToolActive: () => false,
     getCompetingLineHit: () => null,
     getCompetingRectangleHit: () => null,
+    getCompetingAnchoredVwapHit: () => null,
   })
     assert.equal(handlers.length, 1)
     controller.dispose()

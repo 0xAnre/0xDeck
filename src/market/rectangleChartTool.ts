@@ -1,6 +1,10 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
-import { frvpHitAtPanePoint, lineHitAtPanePoint } from './drawingPointerArbitration.ts'
+import {
+  anchoredVwapHitAtPanePoint,
+  frvpHitAtPanePoint,
+  lineHitAtPanePoint,
+} from './drawingPointerArbitration.ts'
 import {
   isFixedRangeVolumeProfileChartNavigationLocked,
   type FixedRangeVolumeProfileInteractionState,
@@ -22,8 +26,10 @@ import {
   isLineDrawingBlockingPeerTools,
   type LineInteractionState,
 } from './lineInteraction.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
+import type { MarketCandle } from './types.ts'
 import { isRectangleKeyboardFocusOnOutsideControl } from './rectangleKeyboardScope.ts'
 import {
   attachRectanglePanePointer,
@@ -57,6 +63,8 @@ export type RectangleChartToolCallbacks = {
   getFixedRangeVolumeProfileInstances: () => readonly FixedRangeVolumeProfileInstance[]
   getFixedRangeVolumeProfileRuntime: () => FixedRangeVolumeProfileRuntimeSnapshot
   getAnchoredVwapDrawingInteraction?: () => AnchoredVwapDrawingInteractionState
+  getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
+  getAnchoredVwapCandles?: () => readonly MarketCandle[]
 }
 
 export type RectangleChartToolController = {
@@ -178,6 +186,24 @@ export function attachRectangleChartTool(
         instances: callbacks.getFixedRangeVolumeProfileInstances(),
         runtimeById: callbacks.getFixedRangeVolumeProfileRuntime(),
         selectedId: frvpInteraction.selectedId,
+        paneX,
+        paneY,
+        intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),
+        lastBarUnixTime: callbacks.getLastBarUnixTime(),
+      })
+    },
+    getCompetingAnchoredVwapHit: (paneX, paneY) => {
+      const series = callbacks.getSeries()
+      const getInstances = callbacks.getAnchoredVwapInstances
+      const getCandles = callbacks.getAnchoredVwapCandles
+      const getInteraction = callbacks.getAnchoredVwapDrawingInteraction
+      if (!series || !getInstances || !getCandles || !getInteraction) return null
+      return anchoredVwapHitAtPanePoint({
+        chart,
+        series,
+        instances: getInstances(),
+        selectedId: getInteraction().selectedId,
+        candles: getCandles(),
         paneX,
         paneY,
         intervalDurationSeconds: callbacks.getIntervalDurationSeconds(),

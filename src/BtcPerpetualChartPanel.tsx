@@ -1440,6 +1440,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         persistFixedRangeVolumeProfileInstances([...instances])
       },
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
+      getAnchoredVwapDrawingInteraction: () => anchoredVwapInteractionRef.current,
+      getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+      getAnchoredVwapCandles: () => candlesRef.current,
     })
     fixedRangeVolumeProfileToolControllerRef.current = controller
     controller.sync()
@@ -1511,6 +1514,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getFixedRangeVolumeProfileInstances: () => fixedRangeVolumeProfileInstancesRef.current,
       getFixedRangeVolumeProfileRuntime: () => fixedRangeVolumeProfileRuntimeRef.current,
       getAnchoredVwapDrawingInteraction: () => anchoredVwapInteractionRef.current,
+      getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+      getAnchoredVwapCandles: () => candlesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     rectangleToolControllerRef.current = controller
@@ -1581,6 +1586,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       getFixedRangeVolumeProfileInstances: () => fixedRangeVolumeProfileInstancesRef.current,
       getFixedRangeVolumeProfileRuntime: () => fixedRangeVolumeProfileRuntimeRef.current,
       getAnchoredVwapDrawingInteraction: () => anchoredVwapInteractionRef.current,
+      getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+      getAnchoredVwapCandles: () => candlesRef.current,
       shouldHandleKeyboardShortcut: () => isActiveRectangleKeyboardPanel(panelId),
     })
     lineToolControllerRef.current = controller

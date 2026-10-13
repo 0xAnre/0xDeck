@@ -13,8 +13,7 @@ import {
   type AnchoredVwapDrawingInteractionState,
 } from './anchoredVwapDrawingInteraction.ts'
 import { hitTestAnchoredVwapDrawings } from './anchoredVwapDrawingHitTest.ts'
-import { computeAnchoredVwapDrawingPointsForInstance } from './anchoredVwapDrawingChartSeries.ts'
-import { anchorScreenYFromPoints } from './anchoredVwapDrawingHitTest.ts'
+import { projectAnchoredVwapDrawingInstance } from './anchoredVwapDrawingRenderGeometry.ts'
 import {
   isAnchoredVwapInstanceHidden,
   isAnchoredVwapInstanceLocked,
@@ -23,10 +22,7 @@ import {
 import { resolveAnchoredVwapAnchorTimeFromPointer } from './anchoredVwapDrawing.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
-import {
-  buildRectangleChartTimeContext,
-  resolveRectangleTimeToCoordinate,
-} from './rectangleChartTime.ts'
+import { buildRectangleChartTimeContext } from './rectangleChartTime.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
 import type { MarketCandle } from './types.ts'
 
@@ -87,30 +83,13 @@ export function attachAnchoredVwapDrawingPanePointer(
   const projectInstance = (instance: AnchoredVwapInstance) => {
     const series = callbacks.getSeries()
     if (!series) return null
-    const anchorX = resolveRectangleTimeToCoordinate(
+    return projectAnchoredVwapDrawingInstance(
       chart,
-      instance.anchorTime,
-      'start',
-      timeContext(),
-    )
-    const points = computeAnchoredVwapDrawingPointsForInstance(
+      series,
       callbacks.getSnapshot().candles,
       instance,
+      timeContext(),
     )
-    const anchorY = anchorScreenYFromPoints(points, (price) => series.priceToCoordinate(price))
-    const bodySegments: { x1: number; y1: number; x2: number; y2: number }[] = []
-    let prev: { x: number; y: number } | null = null
-    for (const point of points) {
-      if (point.vwap === null) continue
-      const x = resolveRectangleTimeToCoordinate(chart, point.time, 'start', timeContext())
-      const y = series.priceToCoordinate(point.vwap)
-      if (x === null || y === null) continue
-      if (prev) {
-        bodySegments.push({ x1: prev.x, y1: prev.y, x2: x, y2: y })
-      }
-      prev = { x, y }
-    }
-    return { anchorX, anchorY, bodySegments }
   }
 
   const onPointerDown = (event: PointerEvent) => {
@@ -156,8 +135,13 @@ export function attachAnchoredVwapDrawingPanePointer(
       const lineHit = callbacks.getCompetingLineHit(paneX, paneY)
       const rectangleHit = callbacks.getCompetingRectangleHit(paneX, paneY)
       const frvpHit = callbacks.getCompetingFrvpHit(paneX, paneY)
-      const preferred = preferDrawingPointerTargetAmongPeers(lineHit, rectangleHit, frvpHit)
-      if (preferred !== null) {
+      const preferred = preferDrawingPointerTargetAmongPeers(
+        lineHit,
+        rectangleHit,
+        frvpHit,
+        avwapHit,
+      )
+      if (preferred !== null && preferred !== 'anchored-vwap') {
         if (interaction.selectedId !== null) {
           callbacks.onInteractionChange(applyAnchoredVwapDrawingSelection(interaction, null))
         }

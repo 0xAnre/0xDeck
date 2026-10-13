@@ -24,8 +24,15 @@ import {
 } from './rectangleHitTest.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
+import {
+  hitTestAnchoredVwapDrawings,
+  type AnchoredVwapDrawingHitTarget,
+} from './anchoredVwapDrawingHitTest.ts'
+import { projectAnchoredVwapDrawingInstance } from './anchoredVwapDrawingRenderGeometry.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
+import type { MarketCandle } from './types.ts'
 
-export type DrawingPointerTool = 'line' | 'rectangle' | 'frvp'
+export type DrawingPointerTool = 'line' | 'rectangle' | 'frvp' | 'anchored-vwap'
 
 const LINE_ENDPOINT_SPECIFICITY = 40
 const RECTANGLE_CORNER_SPECIFICITY = 40
@@ -34,6 +41,8 @@ const LINE_BODY_SPECIFICITY = 20
 const RECTANGLE_INTERIOR_SPECIFICITY = 10
 const FRVP_ENDPOINT_SPECIFICITY = 40
 const FRVP_BODY_SPECIFICITY = 8
+const ANCHORED_VWAP_ANCHOR_SPECIFICITY = 40
+const ANCHORED_VWAP_BODY_SPECIFICITY = 20
 
 function lineHitSpecificity(kind: LineHandleKind): number {
   switch (kind) {
@@ -89,11 +98,24 @@ function rectangleHitSpecificity(kind: RectangleHandleKind): number {
  * A line stroke outranks a rectangle fill. Equal specificity prefers the line
  * because the line primitive is attached above rectangles.
  */
+function anchoredVwapHitSpecificity(kind: AnchoredVwapDrawingHitTarget['kind']): number {
+  switch (kind) {
+    case 'anchor':
+      return ANCHORED_VWAP_ANCHOR_SPECIFICITY
+    case 'body':
+      return ANCHORED_VWAP_BODY_SPECIFICITY
+    default: {
+      const unreachable: never = kind
+      return unreachable
+    }
+  }
+}
+
 export function preferDrawingPointerTarget(
   lineHit: LineHitTarget | null,
   rectangleHit: RectangleHitTarget | null,
 ): DrawingPointerTool | null {
-  return preferDrawingPointerTargetAmongPeers(lineHit, rectangleHit, null)
+  return preferDrawingPointerTargetAmongPeers(lineHit, rectangleHit, null, null)
 }
 
 /**
@@ -104,6 +126,7 @@ export function preferDrawingPointerTargetAmongPeers(
   lineHit: LineHitTarget | null,
   rectangleHit: RectangleHitTarget | null,
   frvpHit: FixedRangeVolumeProfileHitTarget | null,
+  anchoredVwapHit: AnchoredVwapDrawingHitTarget | null = null,
 ): DrawingPointerTool | null {
   type ScoredTool = { tool: DrawingPointerTool; score: number }
   const scored: ScoredTool[] = []
@@ -112,6 +135,12 @@ export function preferDrawingPointerTargetAmongPeers(
     scored.push({ tool: 'rectangle', score: rectangleHitSpecificity(rectangleHit.kind) })
   }
   if (frvpHit) scored.push({ tool: 'frvp', score: frvpHitSpecificity(frvpHit.kind) })
+  if (anchoredVwapHit) {
+    scored.push({
+      tool: 'anchored-vwap',
+      score: anchoredVwapHitSpecificity(anchoredVwapHit.kind),
+    })
+  }
   if (scored.length === 0) return null
   if (scored.length === 1) return scored[0].tool
 
@@ -120,6 +149,7 @@ export function preferDrawingPointerTargetAmongPeers(
   if (top.length === 1) return top[0].tool
 
   if (top.some((entry) => entry.tool === 'line')) return 'line'
+  if (top.some((entry) => entry.tool === 'anchored-vwap')) return 'anchored-vwap'
   if (top.some((entry) => entry.tool === 'rectangle')) return 'rectangle'
   return 'frvp'
 }
@@ -219,5 +249,33 @@ export function frvpHitAtPanePoint(
     args.selectedId,
     args.paneX,
     args.paneY,
+  )
+}
+
+export function anchoredVwapHitAtPanePoint(
+  args: PaneHitArgs & {
+    instances: readonly AnchoredVwapInstance[]
+    selectedId: string | null
+    candles: readonly MarketCandle[]
+  },
+): AnchoredVwapDrawingHitTarget | null {
+  const timeContext = buildRectangleChartTimeContext(
+    args.chart,
+    args.lastBarUnixTime,
+    args.intervalDurationSeconds,
+  )
+  return hitTestAnchoredVwapDrawings(
+    args.instances,
+    args.selectedId,
+    args.paneX,
+    args.paneY,
+    (instance) =>
+      projectAnchoredVwapDrawingInstance(
+        args.chart,
+        args.series,
+        args.candles,
+        instance,
+        timeContext,
+      ),
   )
 }

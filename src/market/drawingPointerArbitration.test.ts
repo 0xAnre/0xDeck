@@ -6,6 +6,7 @@ import {
 } from './drawingPointerArbitration.ts'
 import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfileHitTest.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
+import type { AnchoredVwapDrawingHitTarget } from './anchoredVwapDrawingHitTest.ts'
 import type { RectangleHitTarget } from './rectangleHitTest.ts'
 
 function lineHit(kind: LineHitTarget['kind']): LineHitTarget {
@@ -18,6 +19,12 @@ function rectangleHit(kind: RectangleHitTarget['kind']): RectangleHitTarget {
 
 function frvpHit(kind: FixedRangeVolumeProfileHitTarget['kind']): FixedRangeVolumeProfileHitTarget {
   return { instanceId: 'frvp-1', kind, priority: 1, instanceIndex: 0 }
+}
+
+function anchoredVwapHit(
+  kind: AnchoredVwapDrawingHitTarget['kind'],
+): AnchoredVwapDrawingHitTarget {
+  return { instanceId: 'avwap-1', kind }
 }
 
 describe('preferDrawingPointerTarget', () => {
@@ -66,6 +73,37 @@ describe('preferDrawingPointerTargetAmongPeers', () => {
     assert.equal(
       preferDrawingPointerTargetAmongPeers(lineHit('endpoint-a'), null, frvpHit('start')),
       'line',
+    )
+  })
+
+  it('lets anchored VWAP anchor beat rectangle interior', () => {
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(
+        null,
+        rectangleHit('interior'),
+        null,
+        anchoredVwapHit('anchor'),
+      ),
+      'anchored-vwap',
+    )
+  })
+
+  it('prefers line endpoint over anchored VWAP anchor when specificity ties', () => {
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(
+        lineHit('endpoint-a'),
+        null,
+        null,
+        anchoredVwapHit('anchor'),
+      ),
+      'line',
+    )
+  })
+
+  it('lets anchored VWAP body beat FRVP body', () => {
+    assert.equal(
+      preferDrawingPointerTargetAmongPeers(null, null, frvpHit('body'), anchoredVwapHit('body')),
+      'anchored-vwap',
     )
   })
 })

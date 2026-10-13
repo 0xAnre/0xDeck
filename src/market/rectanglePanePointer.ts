@@ -2,6 +2,7 @@ import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts
 import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
 import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfileHitTest.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
+import type { AnchoredVwapDrawingHitTarget } from './anchoredVwapDrawingHitTest.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
 import {
   applyRectangleSelection,
@@ -44,6 +45,10 @@ export type RectanglePanePointerCallbacks = {
   isAlternateToolActive: () => boolean
   getCompetingLineHit: (paneX: number, paneY: number) => LineHitTarget | null
   getCompetingFrvpHit: (paneX: number, paneY: number) => FixedRangeVolumeProfileHitTarget | null
+  getCompetingAnchoredVwapHit: (
+    paneX: number,
+    paneY: number,
+  ) => AnchoredVwapDrawingHitTarget | null
 }
 
 export type RectanglePanePointerController = {
@@ -157,6 +162,7 @@ export function attachRectanglePanePointer(
           callbacks.getCompetingLineHit(paneX, paneY),
           hit,
           callbacks.getCompetingFrvpHit(paneX, paneY),
+          callbacks.getCompetingAnchoredVwapHit(paneX, paneY),
         ) !== 'rectangle'
       ) {
         if (interaction.selectedId !== null) {
