@@ -118,6 +118,7 @@ import {
   type AnchoredVwapDrawingChartToolController,
 } from '@/market/anchoredVwapDrawingChartTool'
 import {
+  applyAnchoredVwapDrawingSelection,
   armAnchoredVwapDrawingTool,
   cancelAnchoredVwapDrawingInteraction,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
@@ -542,6 +543,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           setFixedRangeVolumeProfileInteraction(next)
           fixedRangeVolumeProfileToolControllerRef.current?.sync()
           fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+        }
+      }
+      if (anchoredVwapInteractionRef.current.selectedId !== null) {
+        const next = applyAnchoredVwapDrawingSelection(
+          anchoredVwapInteractionRef.current,
+          null,
+        )
+        if (next !== anchoredVwapInteractionRef.current) {
+          anchoredVwapInteractionRef.current = next
+          setAnchoredVwapInteraction(next)
+          anchoredVwapToolControllerRef.current?.sync()
+          anchoredVwapSeriesAttachmentRef.current?.update()
         }
       }
     }
