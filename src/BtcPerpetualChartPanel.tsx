@@ -170,6 +170,7 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
+  clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseFixedRangeVolumeProfileInteractionForPeerTool,
   releaseLineInteractionForPeerTool,
@@ -1580,9 +1581,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
             setRectangleInteraction(clearedRectangle)
             rectangleSeriesAttachmentRef.current?.update()
           }
-          const clearedFrvp = applyFixedRangeVolumeProfileSelection(
+          const clearedFrvp = clearFixedRangeVolumeProfileSelectionForPeerClaim(
             fixedRangeVolumeProfileInteractionRef.current,
-            null,
           )
           if (clearedFrvp !== fixedRangeVolumeProfileInteractionRef.current) {
             fixedRangeVolumeProfileInteractionRef.current = clearedFrvp
