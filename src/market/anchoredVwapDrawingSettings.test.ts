@@ -74,4 +74,35 @@ describe('anchoredVwapDrawingSettings band fill', () => {
     assert.equal(sanitized.band1.fillColor, '#4caf50')
     assert.equal(sanitized.band1.fillOpacity, DEFAULT_ANCHORED_VWAP_DRAWING_BAND_FILL_OPACITY)
   })
+
+  it('defaults missing fill color from sanitized band line color for legacy saves', () => {
+    const sanitized = sanitizeAnchoredVwapDrawingSettings({
+      band1: {
+        visible: true,
+        multiplier: 1,
+        lineColor: '#112233',
+        lineOpacity: 100,
+        lineWidth: 1,
+        lineStyle: 'solid',
+      },
+    })
+    assert.equal(sanitized.band1.lineColor, '#112233')
+    assert.equal(sanitized.band1.fillColor, '#112233')
+  })
+
+  it('uses palette fill default when legacy line color is invalid', () => {
+    const defaults = createDefaultAnchoredVwapDrawingSettings()
+    const sanitized = sanitizeAnchoredVwapDrawingSettings({
+      band2: {
+        visible: false,
+        multiplier: 2,
+        lineColor: 'bad',
+        lineOpacity: 100,
+        lineWidth: 1,
+        lineStyle: 'solid',
+      },
+    })
+    assert.equal(sanitized.band2.lineColor, defaults.band2.lineColor)
+    assert.equal(sanitized.band2.fillColor, defaults.band2.lineColor)
+  })
 })

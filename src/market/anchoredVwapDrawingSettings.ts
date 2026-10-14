@@ -128,7 +128,7 @@ function sanitizeBandPair(
   return {
     ...line,
     multiplier: sanitizeMultiplier(record.multiplier, defaults.multiplier),
-    fillColor: isRollingVwapHexColor(record.fillColor) ? record.fillColor : defaults.fillColor,
+    fillColor: isRollingVwapHexColor(record.fillColor) ? record.fillColor : line.lineColor,
     fillOpacity: isRollingVwapLineOpacity(record.fillOpacity)
       ? record.fillOpacity
       : defaults.fillOpacity,
