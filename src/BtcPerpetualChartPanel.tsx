@@ -2195,6 +2195,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           rollingVwapInstancesRef.current,
           anchoredVwapInstancesRef.current,
         )
+        anchoredVwapSeriesAttachmentRef.current?.update()
       },
     })
     streamRef.current = client
@@ -2362,6 +2363,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 anchoredVwapInstancesRef.current,
               )
             }
+            anchoredVwapSeriesAttachmentRef.current?.update()
           }
         }
 

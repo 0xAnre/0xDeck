@@ -82,6 +82,28 @@ function BandPairSection({
           />
         </label>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="space-y-1">
+          <span className="text-muted-foreground">Fill opacity (%)</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            className={inputClassName}
+            value={draft.fillOpacity}
+            onChange={(event) => onChange({ ...draft, fillOpacity: Number(event.target.value) })}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-muted-foreground">Fill color</span>
+          <input
+            type="color"
+            className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+            value={draft.fillColor}
+            onChange={(event) => onChange({ ...draft, fillColor: event.target.value })}
+          />
+        </label>
+      </div>
     </div>
   )
 }

@@ -8,7 +8,18 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts'
-import { computeAnchoredVwapDrawingPointsForInstance } from './anchoredVwapDrawingChartSeries.ts'
+import {
+  bandPairVisible,
+  computeAnchoredVwapDrawingPointsForInstance,
+} from './anchoredVwapDrawingChartSeries.ts'
+import {
+  anchoredVwapDrawingPointsToBandFillPoints,
+  buildAnchoredVwapBandFillDrawModels,
+  type AnchoredVwapBandFillDrawModel,
+  type AnchoredVwapBandFillLowerKey,
+  type AnchoredVwapBandFillUpperKey,
+} from './anchoredVwapBandFillGeometry.ts'
+import { anchoredVwapDrawingLineRgba } from './anchoredVwapDrawingSettings.ts'
 import { anchorScreenYFromPoints } from './anchoredVwapDrawingHitTest.ts'
 import type { AnchoredVwapDrawingInteractionState } from './anchoredVwapDrawingInteraction.ts'
 import {
@@ -126,6 +137,141 @@ class AnchoredVwapHandlePaneView implements IPrimitivePaneView {
   }
 }
 
+const ANCHORED_VWAP_FILL_PAIRS: readonly {
+  upper: AnchoredVwapBandFillUpperKey
+  lower: AnchoredVwapBandFillLowerKey
+  settingsKey: 'band1' | 'band2' | 'band3'
+}[] = [
+  { upper: 'upper1', lower: 'lower1', settingsKey: 'band1' },
+  { upper: 'upper2', lower: 'lower2', settingsKey: 'band2' },
+  { upper: 'upper3', lower: 'lower3', settingsKey: 'band3' },
+]
+
+class AnchoredVwapBandFillRenderer implements IPrimitivePaneRenderer {
+  private readonly _models: AnchoredVwapBandFillDrawModel[]
+
+  constructor(models: AnchoredVwapBandFillDrawModel[]) {
+    this._models = models
+  }
+
+  draw(target: CanvasRenderingTarget2D): void {
+    if (this._models.length === 0) return
+    target.useBitmapCoordinateSpace((scope) => {
+      const { context, horizontalPixelRatio, verticalPixelRatio, bitmapSize } = scope
+      context.save()
+      context.beginPath()
+      context.rect(0, 0, bitmapSize.width, bitmapSize.height)
+      context.clip()
+      for (const model of this._models) {
+        const vertices = model.polygon
+        if (vertices.length < 6) continue
+        context.beginPath()
+        for (let index = 0; index < vertices.length; index += 2) {
+          const x = Math.round(vertices[index] * horizontalPixelRatio)
+          const y = Math.round(vertices[index + 1] * verticalPixelRatio)
+          if (index === 0) {
+            context.moveTo(x, y)
+          } else {
+            context.lineTo(x, y)
+          }
+        }
+        context.closePath()
+        context.fillStyle = model.fillStyle
+        context.fill()
+      }
+      context.restore()
+    })
+  }
+}
+
+class AnchoredVwapBandFillPaneView implements IPrimitivePaneView {
+  private readonly _getChart: () => IChartApi | null
+  private readonly _getSeries: () => ISeriesApi<SeriesType, Time> | null
+  private readonly _getContext: () => AnchoredVwapDrawingPrimitiveContext
+  private _models: AnchoredVwapBandFillDrawModel[] = []
+
+  constructor(
+    getChart: () => IChartApi | null,
+    getSeries: () => ISeriesApi<SeriesType, Time> | null,
+    getContext: () => AnchoredVwapDrawingPrimitiveContext,
+  ) {
+    this._getChart = getChart
+    this._getSeries = getSeries
+    this._getContext = getContext
+  }
+
+  zOrder(): 'bottom' {
+    return 'bottom'
+  }
+
+  update(): void {
+    const chart = this._getChart()
+    const series = this._getSeries()
+    if (!chart || !series) {
+      this._models = []
+      return
+    }
+    const ctx = this._getContext()
+    if (ctx.instances.length === 0) {
+      this._models = []
+      return
+    }
+    const timeContext = buildRectangleChartTimeContext(
+      chart,
+      ctx.lastBarUnixTime,
+      ctx.intervalDurationSeconds,
+    )
+    const barSpacing = chart.timeScale().options().barSpacing
+    const models: AnchoredVwapBandFillDrawModel[] = []
+    for (const instance of ctx.instances) {
+      if (isAnchoredVwapInstanceHidden(instance)) continue
+      const points = computeAnchoredVwapDrawingPointsForInstance(ctx.candles, instance)
+      if (points.length === 0) continue
+      for (const pair of ANCHORED_VWAP_FILL_PAIRS) {
+        const settings = instance.settings[pair.settingsKey]
+        if (!bandPairVisible(true, settings.visible, settings.multiplier)) continue
+        models.push(
+          ...buildAnchoredVwapBandFillDrawModels({
+            points: anchoredVwapDrawingPointsToBandFillPoints(points, pair.upper, pair.lower),
+            barSpacing,
+            fillStyle: anchoredVwapDrawingLineRgba(settings.fillColor, settings.fillOpacity),
+            timeToCoordinate: (time) =>
+              resolveRectangleTimeToCoordinate(chart, time, 'start', timeContext),
+            priceToY: (price) => series.priceToCoordinate(price),
+          }),
+        )
+      }
+    }
+    this._models = models
+  }
+
+  renderer(): IPrimitivePaneRenderer | null {
+    if (this._models.length === 0) return null
+    return new AnchoredVwapBandFillRenderer(this._models)
+  }
+}
+
+/** z-order `bottom` fill between each visible band pair's upper/lower lines. */
+export class AnchoredVwapBandFillSeriesPrimitive implements ISeriesPrimitive<Time> {
+  private readonly _paneView: AnchoredVwapBandFillPaneView
+
+  constructor(
+    getChart: () => IChartApi | null,
+    getSeries: () => ISeriesApi<SeriesType, Time> | null,
+    getContext: () => AnchoredVwapDrawingPrimitiveContext,
+  ) {
+    this._paneView = new AnchoredVwapBandFillPaneView(getChart, getSeries, getContext)
+  }
+
+  paneViews() {
+    return [this._paneView]
+  }
+
+  updateAllViews(): void {
+    this._paneView.update()
+  }
+}
+
 class AnchoredVwapDrawingSeriesPrimitive implements ISeriesPrimitive<Time> {
   private readonly _paneView: AnchoredVwapHandlePaneView
 
@@ -156,12 +302,18 @@ export function attachAnchoredVwapDrawingSeriesPrimitive(
   getContext: () => AnchoredVwapDrawingPrimitiveContext,
   getChart: () => IChartApi | null,
 ): AnchoredVwapDrawingSeriesAttachment {
-  const primitive = new AnchoredVwapDrawingSeriesPrimitive(getChart, () => series, getContext)
-  series.attachPrimitive(primitive)
+  const handlePrimitive = new AnchoredVwapDrawingSeriesPrimitive(getChart, () => series, getContext)
+  const fillPrimitive = new AnchoredVwapBandFillSeriesPrimitive(getChart, () => series, getContext)
+  series.attachPrimitive(handlePrimitive)
+  series.attachPrimitive(fillPrimitive)
   return {
-    update: () => primitive.updateAllViews(),
+    update: () => {
+      handlePrimitive.updateAllViews()
+      fillPrimitive.updateAllViews()
+    },
     dispose: () => {
-      series.detachPrimitive(primitive)
+      series.detachPrimitive(handlePrimitive)
+      series.detachPrimitive(fillPrimitive)
     },
   }
 }

@@ -198,7 +198,7 @@ export function updateAnchoredVwapDrawingChartSeriesLast(
   }
 }
 
-function bandPairVisible(
+export function bandPairVisible(
   instanceVisible: boolean,
   pairVisible: boolean,
   multiplier: number,

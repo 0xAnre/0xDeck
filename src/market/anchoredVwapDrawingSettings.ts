@@ -39,6 +39,10 @@ export type AnchoredVwapDrawingBandPairSettings = {
   lineOpacity: number
   lineWidth: RollingVwapLineWidth
   lineStyle: RollingVwapLineStyle
+  /** Semi-transparent fill between the pair's upper and lower band lines. */
+  fillColor: string
+  /** Fill opacity percent, 0–100. */
+  fillOpacity: number
 }
 
 export type AnchoredVwapDrawingSettings = {
@@ -58,6 +62,9 @@ const DEFAULT_VWAP_LINE: AnchoredVwapDrawingLineSettings = {
   lineStyle: 'solid',
 }
 
+/** TradingView-style subtle fill: the band line color at low opacity. */
+export const DEFAULT_ANCHORED_VWAP_DRAWING_BAND_FILL_OPACITY = 15
+
 const DEFAULT_BAND1: AnchoredVwapDrawingBandPairSettings = {
   visible: true,
   multiplier: DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier1,
@@ -65,6 +72,8 @@ const DEFAULT_BAND1: AnchoredVwapDrawingBandPairSettings = {
   lineOpacity: 100,
   lineWidth: 1,
   lineStyle: 'solid',
+  fillColor: '#4caf50',
+  fillOpacity: DEFAULT_ANCHORED_VWAP_DRAWING_BAND_FILL_OPACITY,
 }
 
 const DEFAULT_BAND2: AnchoredVwapDrawingBandPairSettings = {
@@ -74,6 +83,8 @@ const DEFAULT_BAND2: AnchoredVwapDrawingBandPairSettings = {
   lineOpacity: 100,
   lineWidth: 1,
   lineStyle: 'solid',
+  fillColor: '#ffeb3b',
+  fillOpacity: DEFAULT_ANCHORED_VWAP_DRAWING_BAND_FILL_OPACITY,
 }
 
 const DEFAULT_BAND3: AnchoredVwapDrawingBandPairSettings = {
@@ -83,6 +94,8 @@ const DEFAULT_BAND3: AnchoredVwapDrawingBandPairSettings = {
   lineOpacity: 100,
   lineWidth: 1,
   lineStyle: 'solid',
+  fillColor: '#ff5252',
+  fillOpacity: DEFAULT_ANCHORED_VWAP_DRAWING_BAND_FILL_OPACITY,
 }
 
 function sanitizeMultiplier(value: unknown, fallback: number): number {
@@ -115,6 +128,10 @@ function sanitizeBandPair(
   return {
     ...line,
     multiplier: sanitizeMultiplier(record.multiplier, defaults.multiplier),
+    fillColor: isRollingVwapHexColor(record.fillColor) ? record.fillColor : defaults.fillColor,
+    fillOpacity: isRollingVwapLineOpacity(record.fillOpacity)
+      ? record.fillOpacity
+      : defaults.fillOpacity,
   }
 }
 
