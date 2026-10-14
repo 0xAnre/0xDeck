@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { computeAnchoredVwapDrawing } from './anchoredVwapDrawing.ts'
+import { computeAnchoredVwapDrawingPointsForInstance } from './anchoredVwapDrawingChartSeries.ts'
 import { createAnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import {
   evictCachedAnchoredVwapDrawingPointsForInstance,
@@ -91,5 +92,26 @@ describe('anchoredVwapDrawingPointsCache', () => {
     const cachedUpdated = getCachedAnchoredVwapDrawingPointsForInstance(candles, instance)
     assert.notDeepEqual(cachedUpdated, cachedInitial)
     assert.deepEqual(cachedUpdated, expectedUpdated)
+  })
+
+  it('returns the same array reference when candles are unchanged', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 100 })!
+    const candles = [candle(100, 12, 8, 10, 100), candle(200, 14, 10, 12, 200)]
+    const first = getCachedAnchoredVwapDrawingPointsForInstance(candles, instance)
+    const second = getCachedAnchoredVwapDrawingPointsForInstance(candles, instance)
+    assert.equal(first, second)
+  })
+
+  it('appends one point when a new candle is added without full recompute', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 100 })!
+    const candles = [candle(100, 12, 8, 10, 100), candle(200, 14, 10, 12, 200)]
+    getCachedAnchoredVwapDrawingPointsForInstance(candles, instance)
+    const withNewBar = [
+      ...candles,
+      candle(300, 16, 12, 14, 300),
+    ]
+    const cached = getCachedAnchoredVwapDrawingPointsForInstance(withNewBar, instance)
+    const fresh = computeAnchoredVwapDrawingPointsForInstance(withNewBar, instance)
+    assert.deepEqual(cached, fresh)
   })
 })

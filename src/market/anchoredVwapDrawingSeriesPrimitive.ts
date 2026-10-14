@@ -318,7 +318,11 @@ export function attachAnchoredVwapDrawingSeriesPrimitive(
     },
     dispose: () => {
       for (const instance of getContext().instances) {
+<<<<<<< HEAD
         evictCachedAnchoredVwapDrawingPointsForInstance(instance.id)
+=======
+        evictAnchoredVwapDrawingPointsCache(instance.id)
+>>>>>>> c904f18 (fix: improve anchored VWAP points cache invalidation and eviction)
       }
       series.detachPrimitive(handlePrimitive)
       series.detachPrimitive(fillPrimitive)

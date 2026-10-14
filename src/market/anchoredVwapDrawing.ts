@@ -77,6 +77,18 @@ export function anchoredVwapCalculationInputsCacheKey(
   return parts.join(';')
 }
 
+export type AnchoredVwapAccumulationTotals = {
+  sumSrcVol: number
+  sumVol: number
+  sumSrcSrcVol: number
+}
+
+export const EMPTY_ANCHORED_VWAP_ACCUMULATION_TOTALS: AnchoredVwapAccumulationTotals = {
+  sumSrcVol: 0,
+  sumVol: 0,
+  sumSrcSrcVol: 0,
+}
+
 function bandsFromTotals(
   sumSrcVol: number,
   sumVol: number,
@@ -120,29 +132,28 @@ function bandsFromTotals(
   }
 }
 
-/** User-anchored VWAP from `anchorTime` through the latest loaded candle (HLC3, volume-weighted stdev). */
-export function computeAnchoredVwapDrawing(
+/** Candles from the resolved anchor bar through the latest loaded bar. */
+export function sliceAnchoredVwapCandlesFromAnchor(
   candles: readonly MarketCandle[],
   anchorTime: number,
-  multipliers: AnchoredVwapDrawingMultipliers = DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS,
-): AnchoredVwapDrawingPoint[] {
+): MarketCandle[] {
   const normalized = normalizeCandles(candles)
   if (normalized.length === 0) return []
 
   const anchorIndex = resolveAnchorIndexOnNormalized(normalized, anchorTime)
   if (anchorIndex < 0) return []
+  return normalized.slice(anchorIndex)
+}
 
-  const slice = normalized.slice(anchorIndex)
-  const points: AnchoredVwapDrawingPoint[] = []
-  let sumSrcVol = 0
-  let sumVol = 0
-  let sumSrcSrcVol = 0
-
-  for (const candle of slice) {
-    const src = hlc3(candle)
-    const volume = candle.volume
-    if (!Number.isFinite(volume) || volume < 0) {
-      points.push({
+export function anchoredVwapPointForCandle(
+  totalsBefore: AnchoredVwapAccumulationTotals,
+  candle: MarketCandle,
+  multipliers: AnchoredVwapDrawingMultipliers,
+): { point: AnchoredVwapDrawingPoint; totalsAfter: AnchoredVwapAccumulationTotals } {
+  const volume = candle.volume
+  if (!Number.isFinite(volume) || volume < 0) {
+    return {
+      point: {
         time: candle.time,
         vwap: null,
         upper1: null,
@@ -151,16 +162,63 @@ export function computeAnchoredVwapDrawing(
         lower2: null,
         upper3: null,
         lower3: null,
-      })
-      continue
+      },
+      totalsAfter: totalsBefore,
     }
-    sumSrcVol += src * volume
-    sumVol += volume
-    sumSrcSrcVol += volume * src * src
-    points.push({
+  }
+  const src = hlc3(candle)
+  const totalsAfter: AnchoredVwapAccumulationTotals = {
+    sumSrcVol: totalsBefore.sumSrcVol + src * volume,
+    sumVol: totalsBefore.sumVol + volume,
+    sumSrcSrcVol: totalsBefore.sumSrcSrcVol + volume * src * src,
+  }
+  return {
+    point: {
       time: candle.time,
-      ...bandsFromTotals(sumSrcVol, sumVol, sumSrcSrcVol, multipliers),
-    })
+      ...bandsFromTotals(
+        totalsAfter.sumSrcVol,
+        totalsAfter.sumVol,
+        totalsAfter.sumSrcSrcVol,
+        multipliers,
+      ),
+    },
+    totalsAfter,
+  }
+}
+
+export function anchoredVwapTotalsThroughSlicePrefix(
+  slice: readonly MarketCandle[],
+  candleCount: number,
+): AnchoredVwapAccumulationTotals {
+  let totals = EMPTY_ANCHORED_VWAP_ACCUMULATION_TOTALS
+  const limit = Math.min(candleCount, slice.length)
+  for (let index = 0; index < limit; index += 1) {
+    const { totalsAfter } = anchoredVwapPointForCandle(
+      totals,
+      slice[index],
+      DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS,
+    )
+    totals = totalsAfter
+  }
+  return totals
+}
+
+/** User-anchored VWAP from `anchorTime` through the latest loaded candle (HLC3, volume-weighted stdev). */
+export function computeAnchoredVwapDrawing(
+  candles: readonly MarketCandle[],
+  anchorTime: number,
+  multipliers: AnchoredVwapDrawingMultipliers = DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS,
+): AnchoredVwapDrawingPoint[] {
+  const slice = sliceAnchoredVwapCandlesFromAnchor(candles, anchorTime)
+  if (slice.length === 0) return []
+
+  const points: AnchoredVwapDrawingPoint[] = []
+  let totals = EMPTY_ANCHORED_VWAP_ACCUMULATION_TOTALS
+
+  for (const candle of slice) {
+    const { point, totalsAfter } = anchoredVwapPointForCandle(totals, candle, multipliers)
+    totals = totalsAfter
+    points.push(point)
   }
 
   return points

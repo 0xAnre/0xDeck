@@ -30,6 +30,7 @@ export function reconcileAnchoredVwapDrawingChartBundles(
   instances: readonly AnchoredVwapInstance[],
 ): void {
   const desiredIds = new Set(instances.map((instance) => instance.id))
+  syncAnchoredVwapDrawingPointsCache(desiredIds)
   for (const [id, bundle] of [...map.entries()]) {
     if (!desiredIds.has(id)) {
       removeAnchoredVwapDrawingChartSeriesBundle(chart, bundle)
