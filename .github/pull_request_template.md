@@ -3,8 +3,9 @@ The PR author must supply real verification evidence, not assumptions.
 This template does NOT permit an agent to merge or alter unrelated work. -->
 
 ## Linked Issue
-<!-- Link to the single assigned implementation Issue (e.g. Refs #123).
-For migration or multi-PR tracking Issues, avoid auto-close keywords such as Closes/Fixes. -->
+<!-- When this PR implements a scoped GitHub Issue, link it (e.g. Refs #123).
+For migration or multi-PR tracking Issues, avoid auto-close keywords such as Closes/Fixes.
+If no dedicated Issue exists for a small authorized change, write **N/A** and a brief rationale (see .agents/WORKFLOW.md — whether every tiny change needs its own Issue is not fixed policy). -->
 
 ## Task reference
 - **Branch:**
