@@ -40,6 +40,43 @@ function normalizeCandles(candles: readonly MarketCandle[]): MarketCandle[] {
     .map(([, candle]) => candle)
 }
 
+function resolveAnchorIndexOnNormalized(
+  normalized: readonly MarketCandle[],
+  anchorTime: number,
+): number {
+  const anchor = Math.trunc(anchorTime)
+  let anchorIndex = -1
+  for (let index = 0; index < normalized.length; index += 1) {
+    if (normalized[index].time === anchor) {
+      anchorIndex = index
+      break
+    }
+    if (normalized[index].time > anchor) {
+      break
+    }
+    anchorIndex = index
+  }
+  return anchorIndex
+}
+
+/** Cache invalidation key covering every HLC3/volume input from anchor through the latest bar. */
+export function anchoredVwapCalculationInputsCacheKey(
+  candles: readonly MarketCandle[],
+  anchorTime: number,
+): string {
+  const normalized = normalizeCandles(candles)
+  const anchorIndex = resolveAnchorIndexOnNormalized(normalized, anchorTime)
+  if (anchorIndex < 0) return 'none'
+  const parts: string[] = []
+  for (let index = anchorIndex; index < normalized.length; index += 1) {
+    const candle = normalized[index]
+    parts.push(
+      [candle.time, candle.high, candle.low, candle.close, candle.volume].join(','),
+    )
+  }
+  return parts.join(';')
+}
+
 function bandsFromTotals(
   sumSrcVol: number,
   sumVol: number,
@@ -92,18 +129,7 @@ export function computeAnchoredVwapDrawing(
   const normalized = normalizeCandles(candles)
   if (normalized.length === 0) return []
 
-  const anchor = Math.trunc(anchorTime)
-  let anchorIndex = -1
-  for (let index = 0; index < normalized.length; index += 1) {
-    if (normalized[index].time === anchor) {
-      anchorIndex = index
-      break
-    }
-    if (normalized[index].time > anchor) {
-      break
-    }
-    anchorIndex = index
-  }
+  const anchorIndex = resolveAnchorIndexOnNormalized(normalized, anchorTime)
   if (anchorIndex < 0) return []
 
   const slice = normalized.slice(anchorIndex)

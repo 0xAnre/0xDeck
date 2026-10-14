@@ -1,4 +1,5 @@
 import type { AnchoredVwapDrawingPoint } from './anchoredVwapDrawing.ts'
+import { anchoredVwapCalculationInputsCacheKey } from './anchoredVwapDrawing.ts'
 import { computeAnchoredVwapDrawingPointsForInstance } from './anchoredVwapDrawingChartSeries.ts'
 import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import type { MarketCandle } from './types.ts'
@@ -11,8 +12,6 @@ type CacheEntry = {
 const pointsCache = new Map<string, CacheEntry>()
 
 function cacheKey(candles: readonly MarketCandle[], instance: AnchoredVwapInstance): string {
-  const first = candles[0]
-  const last = candles[candles.length - 1]
   const { settings } = instance
   return [
     instance.anchorTime,
@@ -20,11 +19,7 @@ function cacheKey(candles: readonly MarketCandle[], instance: AnchoredVwapInstan
     settings.band1.multiplier,
     settings.band2.multiplier,
     settings.band3.multiplier,
-    candles.length,
-    first?.time ?? '',
-    first?.close ?? '',
-    last?.time ?? '',
-    last?.close ?? '',
+    anchoredVwapCalculationInputsCacheKey(candles, instance.anchorTime),
   ].join('|')
 }
 
