@@ -28,7 +28,10 @@ This template is descriptive, not an automatic agent trigger. -->
 Mark manual UI checks separately; never claim they ran unless they did. -->
 
 ## Dependencies / risks
-<!-- Unmerged work, shared files, data access, unknowns, blockers; write "None known" when appropriate. -->
+<!-- Unmerged work, shared files, data access, unknowns; write "None known" when appropriate. -->
+
+## Stop conditions
+<!-- When the Coder must pause and escalate instead of continuing (ambiguous scope, dependency on unmerged work, failing required checks, security concerns, repeated review disagreement). -->
 
 ## Assignment
 - **Owner / Coder:** Pending Orchestrator assignment
@@ -37,5 +40,10 @@ Mark manual UI checks separately; never claim they ran unless they did. -->
 - **Merge:** User only
 
 ## Status / handoff
-<!-- Orchestrator records assignment, blockers, PR link, review verdict and final decision here.
-Do not treat a template, label or generic comment as permission to start implementation. -->
+<!-- Living record for Orchestrator → Coder / Reviewer / user handoffs. Update as the task progresses. -->
+- **Blockers:** None
+- **PR:** —
+- **Review verdict:** Pending
+- **User decision:** Pending (merge / hold / cancel)
+
+Do not treat a template, label or generic comment as permission to start implementation.

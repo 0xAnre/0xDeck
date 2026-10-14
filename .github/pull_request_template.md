@@ -6,11 +6,18 @@ This template does NOT permit an agent to merge or alter unrelated work. -->
 <!-- Link to the single assigned implementation Issue (e.g. Refs #123).
 For migration or multi-PR tracking Issues, avoid auto-close keywords such as Closes/Fixes. -->
 
+## Task reference
+- **Branch:**
+- **Head commit:**
+
 ## Summary
 <!-- What changed, and why? -->
 
 ## Implementation
 <!-- Files / key decisions / deviations from Issue scope. -->
+
+## Tests changed
+<!-- New or updated automated tests; write "None" if not applicable. -->
 
 ## Verification
 <!-- For each, enter PASS / FAIL / NOT RUN and a short note or log link.
@@ -30,6 +37,15 @@ For docs-only PRs, mark application tests NOT RUN (docs-only). -->
 
 ## Risk / limitations
 <!-- Regression risks, unresolved problems, untested paths; write "None known" if appropriate. -->
+
+## Blockers
+<!-- Open issues preventing merge or further implementation; write "None" when clear. -->
+
+## Review findings
+<!-- Reviewer verdict and summary. Put durable, actionable defect notes in GitHub PR review comments; link threads here.
+Per defect: severity, file/line or location, user impact, suggested correction. Separate proven defects from questions. -->
+- **Reviewer verdict:** Pending / Changes requested / Approved for user decision
+- **Summary:**
 
 ## Review & handoff
 - [ ] PR targets the approved base (normally `main`) from the assigned task branch.
