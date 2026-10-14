@@ -14,6 +14,8 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |
 | [NEXT-STEPS.md](./NEXT-STEPS.md) | Roadmap — done vs remaining |
 | [../AGENTS.md](../AGENTS.md) | Architecture + AI agent conventions |
+| [../.agents/WORKFLOW.md](../.agents/WORKFLOW.md) | Agent-independent development lifecycle |
+| [../.agents/runtimes/pi.md](../.agents/runtimes/pi.md) | Current Pi runtime adapter and Mac migration runbook |
 | [PRODUCT-POSITIONING.md](./PRODUCT-POSITIONING.md) | Product positioning + UX direction |
 
 ## AI-assisted development
