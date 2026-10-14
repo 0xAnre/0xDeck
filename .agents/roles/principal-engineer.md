@@ -19,4 +19,4 @@
 - Do not take over Orchestrator ownership without a separately approved redesign.
 - Never merge or enable auto-merge.
 
-**Runtime assignment:** The user may currently select Codex for this role, but the role itself must remain agent/model independent.
+**Runtime assignment:** Configure the actual agent or model separately from this role contract; switching providers must not require rewriting this file.
