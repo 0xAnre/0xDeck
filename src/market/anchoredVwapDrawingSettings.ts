@@ -125,13 +125,21 @@ function sanitizeBandPair(
 ): AnchoredVwapDrawingBandPairSettings {
   const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
   const line = sanitizeLineSettings(record, defaults)
+  const fillColor = isRollingVwapHexColor(record.fillColor)
+    ? record.fillColor
+    : record.fillColor === undefined
+      ? line.lineColor
+      : defaults.fillColor
+  const fillOpacity = isRollingVwapLineOpacity(record.fillOpacity)
+    ? record.fillOpacity
+    : record.fillOpacity === undefined
+      ? defaults.fillOpacity
+      : defaults.fillOpacity
   return {
     ...line,
     multiplier: sanitizeMultiplier(record.multiplier, defaults.multiplier),
-    fillColor: isRollingVwapHexColor(record.fillColor) ? record.fillColor : line.lineColor,
-    fillOpacity: isRollingVwapLineOpacity(record.fillOpacity)
-      ? record.fillOpacity
-      : defaults.fillOpacity,
+    fillColor,
+    fillOpacity,
   }
 }
 

@@ -10,15 +10,16 @@ import type {
 } from 'lightweight-charts'
 import {
   bandPairVisible,
-  computeAnchoredVwapDrawingPointsForInstance,
 } from './anchoredVwapDrawingChartSeries.ts'
 import {
   anchoredVwapDrawingPointsToBandFillPoints,
   buildAnchoredVwapBandFillDrawModels,
+  sliceAnchoredVwapDrawingPointsToVisibleRange,
   type AnchoredVwapBandFillDrawModel,
   type AnchoredVwapBandFillLowerKey,
   type AnchoredVwapBandFillUpperKey,
 } from './anchoredVwapBandFillGeometry.ts'
+import { getCachedAnchoredVwapDrawingPointsForInstance } from './anchoredVwapDrawingPointsCache.ts'
 import { anchoredVwapDrawingLineRgba } from './anchoredVwapDrawingSettings.ts'
 import { anchorScreenYFromPoints } from './anchoredVwapDrawingHitTest.ts'
 import type { AnchoredVwapDrawingInteractionState } from './anchoredVwapDrawingInteraction.ts'
@@ -127,7 +128,7 @@ class AnchoredVwapHandlePaneView implements IPrimitivePaneView {
       'start',
       timeContext,
     )
-    const points = computeAnchoredVwapDrawingPointsForInstance(ctx.candles, instance)
+    const points = getCachedAnchoredVwapDrawingPointsForInstance(ctx.candles, instance)
     const anchorY = anchorScreenYFromPoints(points, (price) => series.priceToCoordinate(price))
     if (anchorX === null || anchorY === null) {
       this._handles = []
@@ -225,7 +226,8 @@ class AnchoredVwapBandFillPaneView implements IPrimitivePaneView {
     const models: AnchoredVwapBandFillDrawModel[] = []
     for (const instance of ctx.instances) {
       if (isAnchoredVwapInstanceHidden(instance)) continue
-      const points = computeAnchoredVwapDrawingPointsForInstance(ctx.candles, instance)
+      const allPoints = getCachedAnchoredVwapDrawingPointsForInstance(ctx.candles, instance)
+      const points = sliceAnchoredVwapDrawingPointsToVisibleRange(chart, series, allPoints)
       if (points.length === 0) continue
       for (const pair of ANCHORED_VWAP_FILL_PAIRS) {
         const settings = instance.settings[pair.settingsKey]

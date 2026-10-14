@@ -22,6 +22,7 @@ function makeChart() {
   return {
     timeScale: () => ({
       options: () => ({ barSpacing: 6 }),
+      getVisibleLogicalRange: () => ({ from: 0, to: 10 }),
       timeToCoordinate: (time: number) => time,
       timeToIndex: () => null,
       logicalToCoordinate: () => null,
@@ -31,7 +32,10 @@ function makeChart() {
 }
 
 function makeSeries() {
-  return { priceToCoordinate: (price: number) => 100 - price }
+  return {
+    priceToCoordinate: (price: number) => 100 - price,
+    barsInLogicalRange: () => ({ from: 100 as never, to: 300 as never }),
+  }
 }
 
 function makePrimitive(getContext: () => AnchoredVwapDrawingPrimitiveContext) {

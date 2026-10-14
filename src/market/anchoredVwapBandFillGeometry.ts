@@ -1,4 +1,4 @@
-import type { UTCTimestamp } from 'lightweight-charts'
+import type { IChartApi, ISeriesApi, SeriesType, Time, UTCTimestamp } from 'lightweight-charts'
 import type { AnchoredVwapDrawingPoint } from './anchoredVwapDrawing.ts'
 
 export type AnchoredVwapBandFillPoint = {
@@ -118,4 +118,58 @@ export function anchoredVwapDrawingPointsToBandFillPoints(
     upper: point[upperKey],
     lower: point[lowerKey],
   }))
+}
+
+function unixTime(time: Time | undefined): number | null {
+  return typeof time === 'number' && Number.isFinite(time) ? time : null
+}
+
+function firstIndexAtOrAfter(points: readonly { time: number }[], time: number): number {
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (points[mid].time < time) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
+function firstIndexAfter(points: readonly { time: number }[], time: number): number {
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (points[mid].time <= time) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
+/**
+ * Restricts fill geometry to the visible logical range (plus one sample on each
+ * side so band polygons meet the viewport edge cleanly).
+ */
+export function sliceAnchoredVwapDrawingPointsToVisibleRange<
+  Point extends { time: number },
+>(
+  chart: IChartApi,
+  series: ISeriesApi<SeriesType, Time>,
+  points: readonly Point[],
+): readonly Point[] {
+  if (points.length === 0) return points
+  const logicalRange = chart.timeScale().getVisibleLogicalRange()
+  if (!logicalRange) return points
+
+  const barsInfo = series.barsInLogicalRange(logicalRange)
+  if (barsInfo === null) return points
+
+  const fromTime = unixTime(barsInfo.from)
+  const toTime = unixTime(barsInfo.to)
+  if (fromTime === null || toTime === null) return points
+
+  const start = Math.max(0, firstIndexAtOrAfter(points, fromTime) - 1)
+  const end = Math.min(points.length, firstIndexAfter(points, toTime) + 1)
+  if (start >= end) return []
+  return points.slice(start, end)
 }

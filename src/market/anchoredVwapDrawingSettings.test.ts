@@ -103,6 +103,6 @@ describe('anchoredVwapDrawingSettings band fill', () => {
       },
     })
     assert.equal(sanitized.band2.lineColor, defaults.band2.lineColor)
-    assert.equal(sanitized.band2.fillColor, defaults.band2.lineColor)
+    assert.equal(sanitized.band2.fillColor, defaults.band2.fillColor)
   })
 })
