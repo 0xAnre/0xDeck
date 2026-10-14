@@ -2,35 +2,15 @@
 
 Context for AI agents helping users customize this repository.
 
-## Lead → Cursor workflow
+## Development workflow (role and runtime independent)
 
-This workflow is **unconditional** for every user development/implementation request. It does **not** require a `Lead task:` prefix. A normal request such as "Add a moving average indicator" uses this path automatically. Questions and read-only analysis are not implementation requests and do not create Issues.
+0xDeck's development process is defined by **roles** and GitHub records, not by any one agent application or model.
 
-Ordered process:
-
-`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
-
-| Role | Responsibility |
-|------|----------------|
-| **User** | Requests work; **only the user** performs the final merge into `main`. |
-| **Codex (Lead Developer)** | Analyze requests; create one implementation-ready GitHub Issue; post the handoff comment; review the resulting pull request. **Must not** implement application code, modify application/project files, commit, push, or merge. |
-| **Cursor** | Implement the Issue; open a pull request **against `main`**; apply Codex review feedback on the **same** branch and pull request. **Must not** merge. |
-
-**Codex** is always the Lead Developer. Codex analyzes the request, creates **exactly one** implementation-ready GitHub Issue, then posts **exactly one** top-level Issue comment whose entire contents are:
-
-```text
-cursor-ready
-```
-
-That comment is the sole Issue handoff signal. Do not require bot mentions or other strings in the handoff.
-
-After Cursor opens a PR, Codex reviews it. Codex must **not** implement the requested change, modify application/project files, commit, or push.
-
-**Cursor** is the implementation agent. Cursor creates the task branch from `main`, modifies files, runs required checks (see Verification), commits, pushes, and opens or updates a PR targeting **`main`**. Codex review fixes are applied by Cursor on the **same** PR/branch.
-
-**Neither Codex nor Cursor merges.** Only the user merges.
-
-Commit permission is role-specific: Codex does not commit implementation work; Cursor commits and pushes its assigned implementation branch as part of this workflow.
+- [Development workflow](.agents/WORKFLOW.md) — scope, handoffs, review, evidence, cancellation and user-only final merge.
+- [Role contracts](.agents/roles/) — Orchestrator, Coder, Reviewer and an **on-demand** Principal Engineer.
+- Runtime-specific setup (agent launcher, model choice, local paths, tools and permissions) belongs in its own adapter and must not redefine these shared project rules.
+- **Only the user merges to `main`.** Agents never merge or enable auto-merge.
+- Do not infer authorization from a GitHub event/comment or automatically invoke an optional specialist.
 
 ## Read order (bootstrap)
 
@@ -103,7 +83,7 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 5. **Imports at top of file** — no inline imports
 6. **`minW`/`minH` in registry `grid`** = minimum and default open size
 7. **Do not start dev servers** unless the user asks — frontend `npm run dev` (57341), backend `uvicorn` (57342)
-8. **Commits** — role-specific; see Lead → Cursor workflow (not a generic "never commit" rule)
+8. **Commits** — permitted for the assigned implementation role on its own task branch; see [the development workflow](.agents/WORKFLOW.md)
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
 

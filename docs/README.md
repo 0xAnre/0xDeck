@@ -14,17 +14,19 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |
 | [NEXT-STEPS.md](./NEXT-STEPS.md) | Roadmap — done vs remaining |
 | [../AGENTS.md](../AGENTS.md) | Architecture + AI agent conventions |
+| [../.agents/WORKFLOW.md](../.agents/WORKFLOW.md) | Agent-independent development lifecycle |
+| [../.agents/runtimes/pi.md](../.agents/runtimes/pi.md) | Current Pi runtime adapter and Mac migration runbook |
 | [PRODUCT-POSITIONING.md](./PRODUCT-POSITIONING.md) | Product positioning + UX direction |
 
-## Agent workflow (Codex + Cursor)
+## AI-assisted development
 
-`User → Codex Lead → GitHub Issue → cursor-ready → Cursor implementation → PR against main → Codex review → Cursor fixes on the same PR → user-only final merge`
+The project's development process is **agent and model independent**. See:
 
-- **Codex** (Lead Developer): analyze, write the Issue, post a top-level comment containing only `cursor-ready`, review the PR — no application code, no merge.
-- **Cursor**: implement the Issue, open one PR against `main`, push review fixes to that same PR — no merge.
-- **User**: final merge only.
+- [Development workflow](../.agents/WORKFLOW.md) — Issue → Coder → PR → independent review → user-only merge
+- [Role contracts](../.agents/roles/) — Orchestrator, Coder, Reviewer, on-demand Principal Engineer
+- [AGENTS.md](../AGENTS.md) — project architecture, conventions, verification and skills
 
-Details: [AGENTS.md](../AGENTS.md) (Lead → Cursor workflow).
+Runtime adapters configure how a particular agent tool loads these rules; the shared workflow is not tied to a specific provider.
 
 ## Typical workflows
 
