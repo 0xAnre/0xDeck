@@ -42,3 +42,22 @@ export function getCachedAnchoredVwapDrawingPointsForInstance(
   pointsCache.set(instance.id, { key, points })
   return points
 }
+
+/** Drops cached point arrays for one instance (e.g. after delete or chart teardown). */
+export function evictCachedAnchoredVwapDrawingPointsForInstance(instanceId: string): void {
+  pointsCache.delete(instanceId)
+}
+
+/** Removes cache entries whose instance ids are not in `activeInstanceIds`. */
+export function syncAnchoredVwapDrawingPointsCache(activeInstanceIds: ReadonlySet<string>): void {
+  for (const id of pointsCache.keys()) {
+    if (!activeInstanceIds.has(id)) {
+      pointsCache.delete(id)
+    }
+  }
+}
+
+/** Test-only visibility into whether an instance id still has a cache entry. */
+export function hasCachedAnchoredVwapDrawingPointsForInstance(instanceId: string): boolean {
+  return pointsCache.has(instanceId)
+}

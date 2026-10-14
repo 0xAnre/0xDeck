@@ -15,6 +15,7 @@ import {
   formatAnchoredVwapInstanceLabel,
   type AnchoredVwapInstance,
 } from './anchoredVwapInstances.ts'
+import { syncAnchoredVwapDrawingPointsCache } from './anchoredVwapDrawingPointsCache.ts'
 import type { MarketCandle } from './types.ts'
 
 export type AnchoredVwapDrawingChartInstanceMap = Map<string, AnchoredVwapDrawingChartSeriesBundle>
@@ -47,6 +48,8 @@ export function reconcileAnchoredVwapDrawingChartBundles(
     }
     setAnchoredVwapDrawingInstanceSeriesVisibility(bundle, instance, title)
   }
+
+  syncAnchoredVwapDrawingPointsCache(desiredIds)
 }
 
 export function applyAnchoredVwapDrawingInstancesHistory(

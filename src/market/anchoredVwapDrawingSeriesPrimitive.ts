@@ -19,7 +19,10 @@ import {
   type AnchoredVwapBandFillLowerKey,
   type AnchoredVwapBandFillUpperKey,
 } from './anchoredVwapBandFillGeometry.ts'
-import { getCachedAnchoredVwapDrawingPointsForInstance } from './anchoredVwapDrawingPointsCache.ts'
+import {
+  evictCachedAnchoredVwapDrawingPointsForInstance,
+  getCachedAnchoredVwapDrawingPointsForInstance,
+} from './anchoredVwapDrawingPointsCache.ts'
 import { anchoredVwapDrawingLineRgba } from './anchoredVwapDrawingSettings.ts'
 import { anchorScreenYFromPoints } from './anchoredVwapDrawingHitTest.ts'
 import type { AnchoredVwapDrawingInteractionState } from './anchoredVwapDrawingInteraction.ts'
@@ -314,6 +317,9 @@ export function attachAnchoredVwapDrawingSeriesPrimitive(
       fillPrimitive.updateAllViews()
     },
     dispose: () => {
+      for (const instance of getContext().instances) {
+        evictCachedAnchoredVwapDrawingPointsForInstance(instance.id)
+      }
       series.detachPrimitive(handlePrimitive)
       series.detachPrimitive(fillPrimitive)
     },
