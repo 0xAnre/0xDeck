@@ -52,7 +52,7 @@ Per defect: severity, file/line or location, user impact, suggested correction. 
 - [ ] PR targets the approved base (normally `main`) from the assigned task branch.
 - [ ] Implementation stays within the linked Issue and avoids unrelated changes.
 - [ ] Relevant verification evidence is recorded above.
-- [ ] Independent Reviewer has evaluated the actual PR diff and acceptance criteria.
+- [ ] Independent Reviewer evaluated the actual PR diff and acceptance criteria, **or** a user-approved review exception is documented (approver, rationale; see .agents/WORKFLOW.md).
 - [ ] Orchestrator has reported verdict, blockers and residual risks to the user.
 
 **Merge decision: user only.** Approval, a passing check or a GitHub label does not authorize an agent to merge.
