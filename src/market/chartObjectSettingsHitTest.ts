@@ -16,9 +16,12 @@ import {
 } from './indicators.ts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import type { SessionVwapLineSeriesBundle } from './sessionVwapChartSeries.ts'
-import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import {
+  buildFixedRangeVolumeProfileReadyRuntime,
+  resolveFixedRangeVolumeProfileDisplayIdentityTimes,
+} from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import { isAnchoredVwapInstanceHidden } from './anchoredVwapInstances.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
@@ -34,8 +37,10 @@ import type { LineInteractionState } from './lineInteraction.ts'
 import type { LineInstance } from './lineInstances.ts'
 import type { RectangleInteractionState } from './rectangleInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
-import { isFixedRangeVolumeProfileToolActive } from './fixedRangeVolumeProfileInteraction.ts'
-import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
+import {
+  isFixedRangeVolumeProfileToolActive,
+  type FixedRangeVolumeProfileInteractionState,
+} from './fixedRangeVolumeProfileInteraction.ts'
 
 const FRVP_HIT_TOLERANCE_PX = 4
 
@@ -100,18 +105,6 @@ function hitTestFixedRangeVolumeProfileModel(
   return false
 }
 
-function buildFrvpReadyById(
-  runtime: FixedRangeVolumeProfileRuntimeSnapshot,
-): Map<string, { profile: FixedRangeVolumeProfileResult }> {
-  const readyById = new Map<string, { profile: FixedRangeVolumeProfileResult }>()
-  for (const [id, state] of Object.entries(runtime)) {
-    if (state.status === 'ready') {
-      readyById.set(id, { profile: state.profile })
-    }
-  }
-  return readyById
-}
-
 function hitTestFixedRangeVolumeProfiles(
   ctx: ChartObjectSettingsHitTestContext,
 ): ChartObjectSettingsTarget | null {
@@ -127,7 +120,15 @@ function hitTestFixedRangeVolumeProfiles(
   const models = buildFixedRangeVolumeProfileDrawModels({
     instances: ctx.fixedRangeVolumeProfileInstances,
     selectedId: ctx.fixedRangeVolumeProfileInteraction.selectedId,
-    readyById: buildFrvpReadyById(ctx.fixedRangeVolumeProfileRuntime),
+    readyById: buildFixedRangeVolumeProfileReadyRuntime(
+      ctx.fixedRangeVolumeProfileInstances,
+      ctx.fixedRangeVolumeProfileRuntime,
+      (instance) =>
+        resolveFixedRangeVolumeProfileDisplayIdentityTimes(
+          instance,
+          ctx.fixedRangeVolumeProfileInteraction,
+        ),
+    ),
     fromTimeToCoordinate,
     toTimeToCoordinate,
     barSpacing,

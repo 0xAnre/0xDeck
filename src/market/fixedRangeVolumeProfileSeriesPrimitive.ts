@@ -15,14 +15,20 @@ import {
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
-import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
+import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import {
+  buildFixedRangeVolumeProfileReadyRuntime,
+  resolveFixedRangeVolumeProfileDisplayIdentityTimes,
+} from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import { readFrvpHandleFillStyle, readFrvpHandleStrokeStyle } from './frvpHandleColors.ts'
 
 export type FixedRangeVolumeProfileSeriesPrimitiveContext = {
   instances: readonly FixedRangeVolumeProfileInstance[]
   runtimeById: FixedRangeVolumeProfileRuntimeSnapshot
   selectedId: string | null
+  /** Interaction state drives the resize-preview identity override. */
+  interaction: FixedRangeVolumeProfileInteractionState | null
   getIntervalDurationSeconds: () => number
   getLastBarUnixTime: () => number | null
 }
@@ -140,12 +146,14 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
     }
 
     const context = this._getContext()
-    const readyById = new Map<string, { profile: FixedRangeVolumeProfileResult }>()
-    for (const [id, state] of Object.entries(context.runtimeById)) {
-      if (state.status === 'ready') {
-        readyById.set(id, { profile: state.profile })
-      }
-    }
+    const readyById = buildFixedRangeVolumeProfileReadyRuntime(
+      context.instances,
+      context.runtimeById,
+      (instance) =>
+        context.interaction
+          ? resolveFixedRangeVolumeProfileDisplayIdentityTimes(instance, context.interaction)
+          : null,
+    )
 
     const timeScale = chart.timeScale()
     const barSpacing = timeScale.options().barSpacing
@@ -190,6 +198,7 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
     instances: [],
     runtimeById: {},
     selectedId: null,
+    interaction: null,
     getIntervalDurationSeconds: () => 60,
     getLastBarUnixTime: () => null,
   })
