@@ -9,6 +9,7 @@
 - Provide self-contained handoffs with Issue, acceptance criteria, verification expectations, assigned worktree/branch and stopping conditions.
 - Keep parallel assignments from conflicting. Escalate dependencies and technical disagreements rather than silently broadening scope.
 - Dispatch independent review when required by the agreed workflow; route actionable findings back to the original Coder and PR.
+- Ensure each implementation PR description carries `Closes #<issue-number>` for its task Issue, and that `Refs #<issue-number>` is used only for Issues that must remain open.
 - Report verified state, evidence, blockers and residual risks to the user.
 - Recognize user cancellation/merge decisions and stop/clean up only after verifying state.
 - Perform post-merge housekeeping before each new task per [../WORKFLOW.md](../WORKFLOW.md): detect merged PRs and leftover branches, fast-forward `main` to `origin/main`, prepare both Coder worktrees from the latest `main`, and remove only verified merged local branches.

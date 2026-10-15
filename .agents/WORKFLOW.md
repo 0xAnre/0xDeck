@@ -25,13 +25,13 @@ The roles are specified in [roles/](roles/). The current runtime-to-role mapping
 
 1. **Request and scope:** The user requests a development change. Orchestrator prepares a GitHub Issue for implementation tasks, including context, scope, out-of-scope, acceptance criteria and verification expectations. Research-only discussion need not create an implementation Issue. Before scoping a new task, the Orchestrator performs the post-merge housekeeping below.
 2. **Assign:** Orchestrator chooses an available Coder context and, when applicable, a clean worktree. A task starts from current `main`; dependencies on unmerged work are surfaced instead of silently stacking branches.
-3. **Implement:** Coder follows the Issue, reads relevant 0xDeck technical docs and skills, writes/updates tests, and commits to **its assigned task branch**. Coder opens **one active PR for the task**, targeting `main`.
+3. **Implement:** Coder follows the Issue, reads relevant 0xDeck technical docs and skills, writes/updates tests, and commits to **its assigned task branch**. Coder opens **one active PR for the task**, targeting `main`. The PR description must include `Closes #<issue-number>` for the task Issue it implements.
 4. **Review:** A separate Reviewer context independently reads the Issue, PR diff, call sites, tests and claimed verification. Findings must be actionable; style preferences alone should not generate unnecessary implementation churn.
 5. **Fix and re-review:** Coder addresses accepted findings on the **same branch and PR**; Reviewer assesses the updated diff. On an unresolved technical disagreement or repeated unsuccessful iterations, Orchestrator raises a blocker and asks the user to decide. Do not silently create replacement PRs or an unbounded review loop.
 6. **Ready for user decision:** Orchestrator summarizes acceptance criteria, tests actually run, unverified areas, Reviewer verdict and remaining risks. The user alone decides whether and when to merge.
 7. **Close or cancel:** After an externally verified user merge, Orchestrator may clean up the assigned worktree and task branch as permitted. Cancellation stops all further dispatch and pushes for that task; reopen/restart only on explicit user instruction.
 
-**One Issue / one PR** is the default for a concrete implementation task; splitting major tasks requires a clearly recorded decision. Never close a tracking/migration Issue by using `Closes #...` in an intermediate PR.
+**One Issue / one PR** is the default for a concrete implementation task; splitting major tasks requires a clearly recorded decision. Every implementation PR must include `Closes #<issue-number>` in its description for the task Issue, so that merging closes that Issue; use `Refs #<issue-number>` only for tracking/reference Issues that must stay open. Never close a tracking/migration Issue by using `Closes #...` in an intermediate PR.
 
 ## Agent handoff payloads
 
