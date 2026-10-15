@@ -61,6 +61,7 @@ export type WidgetSettingsRegistration = {
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
+  onFixedRangeVolumeProfileExtendRightChange?: (instanceId: string, extendRight: boolean) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
     kind: 'poc' | 'vah' | 'val',

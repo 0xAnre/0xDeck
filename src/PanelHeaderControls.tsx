@@ -178,6 +178,9 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onFixedRangeVolumeProfileLockToggle={settings.onFixedRangeVolumeProfileLockToggle}
             onFixedRangeVolumeProfileRowCountChange={settings.onFixedRangeVolumeProfileRowCountChange}
             onFixedRangeVolumeProfileValueAreaChange={settings.onFixedRangeVolumeProfileValueAreaChange}
+            onFixedRangeVolumeProfileExtendRightChange={
+              settings.onFixedRangeVolumeProfileExtendRightChange
+            }
             onFixedRangeVolumeProfileLevelStrokeColorChange={
               settings.onFixedRangeVolumeProfileLevelStrokeColorChange
             }
