@@ -39,9 +39,11 @@ export async function runFixedRangeVolumeProfileDataPipeline(
   options: {
     signal?: AbortSignal
     fetchKlines?: FetchFixedRangeVolumeProfileKlinesForPipeline
+    liveRightEdge?: number | null
   } = {},
 ): Promise<FixedRangeVolumeProfilePipelineResult> {
-  const requestBounds = computeFixedRangeVolumeProfileRequestBounds(instance)
+  const liveRightEdge = options.liveRightEdge ?? null
+  const requestBounds = computeFixedRangeVolumeProfileRequestBounds(instance, liveRightEdge)
   if (!requestBounds) {
     throw new FixedRangeVolumeProfilePipelineError('Invalid volume profile request bounds')
   }

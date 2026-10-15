@@ -173,6 +173,7 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
       fromTimeToCoordinate,
       toTimeToCoordinate,
       priceToY: (price) => series.priceToCoordinate(price),
+      liveRightEdge: context.getLastBarUnixTime(),
       styleForInstance: (instanceId) => {
         const instance = instanceById.get(instanceId)
         return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()

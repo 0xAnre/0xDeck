@@ -51,6 +51,10 @@ type HeaderToolsMenuProps = {
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
+  onFixedRangeVolumeProfileExtendRightChange?: (
+    instanceId: string,
+    extendRight: boolean,
+  ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
     kind: FrvpLevelLineKind,
@@ -105,6 +109,7 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileLockToggle,
   onFixedRangeVolumeProfileRowCountChange,
   onFixedRangeVolumeProfileValueAreaChange,
+  onFixedRangeVolumeProfileExtendRightChange,
   onFixedRangeVolumeProfileLevelStrokeColorChange,
   onFixedRangeVolumeProfileLevelLineWidthChange,
   onFixedRangeVolumeProfileLevelLineStyleChange,
@@ -370,6 +375,9 @@ export function HeaderToolsMenu({
         }}
         onValueAreaPercentChange={(instanceId, valueAreaPercent) => {
           onFixedRangeVolumeProfileValueAreaChange?.(instanceId, valueAreaPercent)
+        }}
+        onExtendRightChange={(instanceId, extendRight) => {
+          onFixedRangeVolumeProfileExtendRightChange?.(instanceId, extendRight)
         }}
         onLevelStrokeColorChange={(instanceId, kind, strokeColor) => {
           onFixedRangeVolumeProfileLevelStrokeColorChange?.(instanceId, kind, strokeColor)

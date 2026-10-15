@@ -31,6 +31,7 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
   onOpenChange: (open: boolean) => void
   onRowCountChange: (instanceId: string, rowCount: number) => void
   onValueAreaPercentChange: (instanceId: string, valueAreaPercent: number) => void
+  onExtendRightChange: (instanceId: string, extendRight: boolean) => void
   onLevelStrokeColorChange: (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => void
   onLevelLineWidthChange: (
     instanceId: string,
@@ -135,6 +136,7 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onOpenChange,
   onRowCountChange,
   onValueAreaPercentChange,
+  onExtendRightChange,
   onLevelStrokeColorChange,
   onLevelLineWidthChange,
   onLevelLineStyleChange,
@@ -198,6 +200,22 @@ export function FixedRangeVolumeProfileSettingsDialog({
                   }
                 }}
               />
+            </Field>
+            <Field>
+              <label className="flex items-center gap-2">
+                <input
+                  id="frvp-extend-right"
+                  type="checkbox"
+                  checked={instance.extendRight === true}
+                  onChange={(event) =>
+                    onExtendRightChange(instance.id, event.target.checked)
+                  }
+                />
+                <span className="text-sm font-medium">Extend right</span>
+              </label>
+              <FieldDescription>
+                Keep the drawing coordinates but calculate the profile up to the latest candle.
+              </FieldDescription>
             </Field>
             <LevelLineStyleFields
               instance={instance}

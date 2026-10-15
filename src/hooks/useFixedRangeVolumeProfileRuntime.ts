@@ -5,6 +5,7 @@ import type { FixedRangeVolumeProfileRuntimeSnapshot } from '@/market/fixedRange
 
 export function useFixedRangeVolumeProfileRuntime(
   instances: readonly FixedRangeVolumeProfileInstance[],
+  liveRightEdge: number | null = null,
 ): FixedRangeVolumeProfileRuntimeSnapshot {
   const controllerRef = useRef<FixedRangeVolumeProfileRuntimeController | null>(null)
   const [snapshot, setSnapshot] = useState<FixedRangeVolumeProfileRuntimeSnapshot>({})
@@ -23,8 +24,8 @@ export function useFixedRangeVolumeProfileRuntime(
   }, [])
 
   useEffect(() => {
-    controllerRef.current?.syncInstances(instances)
-  }, [instances])
+    controllerRef.current?.syncInstances(instances, liveRightEdge)
+  }, [instances, liveRightEdge])
 
   return snapshot
 }

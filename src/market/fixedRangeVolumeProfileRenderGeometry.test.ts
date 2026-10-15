@@ -367,6 +367,76 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     assert.equal(models[0].rows[0]?.left, models[0].rangeLeft)
   })
 
+  it('extends the profile range to the live edge while endpoint handles stay on toTime', () => {
+    const profile = {
+      fromTime: 100,
+      toTime: 299,
+      candleCount: 1,
+      profileLow: 100,
+      profileHigh: 120,
+      rowHeight: 1,
+      rows: [row({ priceLow: 100, priceHigh: 110 })],
+      totalVolume: 10,
+      pocRowIndex: 0,
+      pocPrice: 105,
+      pocVolume: 10,
+      vah: 110,
+      val: 100,
+      valueAreaVolume: 10,
+      valueAreaPercentAchieved: 70,
+    }
+    const models = buildFixedRangeVolumeProfileDrawModels({
+      instances: [{ id: 'a', fromTime: 100, toTime: 200, enabled: true, extendRight: true }],
+      selectedId: 'a',
+      readyById: new Map([['a', { profile }]]),
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      styleForInstance: () => TEST_STYLES,
+      liveRightEdge: 300,
+    })
+
+    assert.equal(models.length, 1)
+    // Histogram/level span follows the live edge...
+    assert.equal(models[0].rangeRight, 33)
+    assert.equal(models[0].lines[0]?.x2, 33)
+    // ...but the draggable endpoint handle stays at the drawing's toTime.
+    assert.equal(models[0].endpointHandles?.endX, 20)
+    assert.equal(models[0].endpointHandles?.startX, 10)
+  })
+
+  it('leaves the profile range at toTime when Extend Right is off', () => {
+    const profile = {
+      fromTime: 100,
+      toTime: 199,
+      candleCount: 1,
+      profileLow: 100,
+      profileHigh: 120,
+      rowHeight: 1,
+      rows: [row({ priceLow: 100, priceHigh: 110 })],
+      totalVolume: 10,
+      pocRowIndex: 0,
+      pocPrice: 105,
+      pocVolume: 10,
+      vah: 110,
+      val: 100,
+      valueAreaVolume: 10,
+      valueAreaPercentAchieved: 70,
+    }
+    const models = buildFixedRangeVolumeProfileDrawModels({
+      instances: [{ id: 'a', fromTime: 100, toTime: 200, enabled: true, extendRight: false }],
+      readyById: new Map([['a', { profile }]]),
+      barSpacing: 6,
+      fromTimeToCoordinate: (time) => time / 10,
+      toTimeToCoordinate: (time) => time / 10,
+      priceToY: (price) => 500 - price,
+      styleForInstance: () => TEST_STYLES,
+      liveRightEdge: 300,
+    })
+    assert.equal(models[0].rangeRight, 23)
+  })
+
   it('returns zero max volume for empty rows safely', () => {
     assert.equal(computeMaxRowVolume([]), 0)
   })

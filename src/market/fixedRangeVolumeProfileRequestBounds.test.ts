@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   computeFixedRangeVolumeProfileComputationBounds,
   computeFixedRangeVolumeProfileRequestBounds,
+  resolveFixedRangeVolumeProfileEffectiveToTime,
 } from './fixedRangeVolumeProfileRequestBounds.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 
@@ -89,5 +90,65 @@ describe('fixedRangeVolumeProfileRequestBounds', () => {
       instance(Number.MAX_SAFE_INTEGER - 10, Number.MAX_SAFE_INTEGER - 5, '1w'),
     )
     assert.equal(bounds, null)
+  })
+
+  it('ignores the live right edge when Extend Right is off', () => {
+    const bounds = computeFixedRangeVolumeProfileRequestBounds(
+      instance(1_000, 1_060, '1m'),
+      1_060_000,
+    )
+    assert.deepEqual(bounds, { requestStartTime: 1_000, requestEndTime: 1_120 })
+  })
+
+  it('extends the request to the live right edge when Extend Right is on', () => {
+    const liveRightEdge = 1_000_900
+    const bounds = computeFixedRangeVolumeProfileRequestBounds(
+      { ...instance(1_000, 1_060, '1m'), extendRight: true },
+      liveRightEdge,
+    )
+    assert.deepEqual(bounds, {
+      requestStartTime: 1_000,
+      requestEndTime: liveRightEdge + 60,
+    })
+    const computation = computeFixedRangeVolumeProfileComputationBounds(bounds!)
+    assert.deepEqual(computation, { fromTime: 1_000, toTime: liveRightEdge + 59 })
+  })
+
+  it('falls back to toTime when Extend Right is on but the live edge is missing or behind', () => {
+    const extended = { ...instance(1_000, 1_060, '1m'), extendRight: true }
+    assert.deepEqual(computeFixedRangeVolumeProfileRequestBounds(extended, null), {
+      requestStartTime: 1_000,
+      requestEndTime: 1_120,
+    })
+    assert.deepEqual(computeFixedRangeVolumeProfileRequestBounds(extended, 900), {
+      requestStartTime: 1_000,
+      requestEndTime: 1_120,
+    })
+  })
+
+  it('resolves the effective right boundary safely', () => {
+    assert.equal(
+      resolveFixedRangeVolumeProfileEffectiveToTime({ toTime: 200, extendRight: false }, 999),
+      200,
+    )
+    assert.equal(
+      resolveFixedRangeVolumeProfileEffectiveToTime({ toTime: 200, extendRight: true }, 999),
+      999,
+    )
+    assert.equal(
+      resolveFixedRangeVolumeProfileEffectiveToTime({ toTime: 200, extendRight: true }, 150),
+      200,
+    )
+    assert.equal(
+      resolveFixedRangeVolumeProfileEffectiveToTime({ toTime: 200, extendRight: true }, null),
+      200,
+    )
+    assert.equal(
+      resolveFixedRangeVolumeProfileEffectiveToTime(
+        { toTime: 200, extendRight: true },
+        Number.NaN,
+      ),
+      200,
+    )
   })
 })

@@ -113,4 +113,78 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
     assert.equal(result.profile.candleCount, 2)
     assert.ok(result.profile.totalVolume > 0)
   })
+
+  it('Extend Right includes right-hand candles and recomputes POC/VAH/VAL', async () => {
+    const base: FixedRangeVolumeProfileInstance = {
+      ...instance,
+      fromTime: 1_000,
+      toTime: 1_060,
+      extendRight: true,
+    }
+    const liveRightEdge = 1_300
+
+    const generateCandles = (startTime: number, endTime: number) => {
+      const candles = []
+      for (let time = startTime; time < endTime; time += 60) {
+        const late = time >= 1_100
+        candles.push({
+          time,
+          open: late ? 205 : 105,
+          high: late ? 210 : 110,
+          low: late ? 200 : 100,
+          close: late ? 205 : 105,
+          volume: late ? 100 : 10,
+          interval: '1m' as const,
+          closed: true,
+        })
+      }
+      return candles
+    }
+
+    const run = (item: FixedRangeVolumeProfileInstance, live: number) =>
+      runFixedRangeVolumeProfileDataPipeline(item, {
+        liveRightEdge: live,
+        fetchKlines: async (startTime, endTime) => ({
+          symbol: 'BTCUSDT',
+          start_time: startTime,
+          end_time: endTime,
+          source_interval: '1m',
+          candles: generateCandles(startTime, endTime),
+        }),
+      })
+
+    const off = await run({ ...base, extendRight: false }, liveRightEdge)
+    const on = await run(base, liveRightEdge)
+
+    assert.equal(off.requestEndTime, 1_120)
+    assert.equal(off.profile.candleCount, 2)
+    assert.equal(on.requestEndTime, liveRightEdge + 60)
+    assert.equal(on.profile.candleCount, 6)
+    assert.ok(on.profile.totalVolume > off.profile.totalVolume)
+    assert.notEqual(on.profile.pocPrice, off.profile.pocPrice)
+    assert.ok((on.profile.pocPrice ?? 0) > 200)
+    assert.ok((off.profile.pocPrice ?? 0) < 110)
+    assert.notEqual(on.profile.vah, off.profile.vah)
+    assert.notEqual(on.profile.val, off.profile.val)
+  })
+
+  it('Extend Right degrades gracefully when there is nothing right of toTime', async () => {
+    const result = await runFixedRangeVolumeProfileDataPipeline(
+      { ...instance, fromTime: 1_000, toTime: 2_000, extendRight: true },
+      {
+        liveRightEdge: 2_000,
+        fetchKlines: async (startTime, endTime) => ({
+          symbol: 'BTCUSDT',
+          start_time: startTime,
+          end_time: endTime,
+          source_interval: '1m',
+          candles: [],
+        }),
+      },
+    )
+    assert.equal(result.requestStartTime, 1_000)
+    assert.equal(result.requestEndTime, 2_060)
+    assert.equal(result.profile.candleCount, 0)
+    assert.equal(result.profile.rows.length, 0)
+  })
 })

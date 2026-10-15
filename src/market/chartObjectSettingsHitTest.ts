@@ -133,6 +133,7 @@ function hitTestFixedRangeVolumeProfiles(
     toTimeToCoordinate,
     barSpacing,
     priceToY: (price) => ctx.series.priceToCoordinate(price),
+    liveRightEdge: ctx.lastBarUnixTime,
     styleForInstance: (instanceId) => {
       const instance = instanceById.get(instanceId)
       return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()

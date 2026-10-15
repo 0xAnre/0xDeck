@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   buildFixedRangeVolumeProfileReadyRuntime,
   buildFixedRangeVolumeProfileRequestIdentityKey,
+  buildFixedRangeVolumeProfileRequestKey,
   isFixedRangeVolumeProfileRuntimeStateCurrent,
 } from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
@@ -142,5 +143,47 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     }
     const runtime: FixedRangeVolumeProfileRuntimeSnapshot = { 'frvp-1': loading, 'frvp-2': error }
     assert.equal(buildFixedRangeVolumeProfileReadyRuntime([current], runtime).size, 0)
+  })
+
+  it('changes the identity key when extendRight changes', () => {
+    const off = buildFixedRangeVolumeProfileRequestIdentityKey(instance())
+    const on = buildFixedRangeVolumeProfileRequestIdentityKey(instance({ extendRight: true }))
+    assert.notEqual(off, on)
+  })
+
+  it('does not change the identity key for unrelated state', () => {
+    const base = instance()
+    const withUnrelated = instance({ locked: true, displaySequence: 9 })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(base),
+      buildFixedRangeVolumeProfileRequestIdentityKey(withUnrelated),
+    )
+  })
+
+  it('advances the request key with the live edge only when Extend Right is on', () => {
+    const off = instance({ extendRight: false })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(off, 500),
+      buildFixedRangeVolumeProfileRequestKey(off, 900),
+    )
+
+    const on = instance({ extendRight: true })
+    const before = buildFixedRangeVolumeProfileRequestKey(on, 500)
+    const after = buildFixedRangeVolumeProfileRequestKey(on, 900)
+    assert.notEqual(before, after)
+    // The rendered/selection identity stays stable so the last profile keeps
+    // rendering while the extended request is in flight.
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(on),
+      buildFixedRangeVolumeProfileRequestIdentityKey(on),
+    )
+  })
+
+  it('keeps the request key stable when the live edge is behind toTime', () => {
+    const on = instance({ toTime: 500, extendRight: true })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(on, 400),
+      buildFixedRangeVolumeProfileRequestKey(on, null),
+    )
   })
 })
