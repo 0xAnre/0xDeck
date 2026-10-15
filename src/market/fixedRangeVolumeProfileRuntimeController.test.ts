@@ -47,6 +47,33 @@ function pipelineResult(id: string): FixedRangeVolumeProfilePipelineResult {
   }
 }
 
+// Distinguishable pipelines: `totalVolume` identifies which response produced
+// the result, so a stale response overwriting a newer one is observable.
+function pipelineResultWithTotalVolume(
+  id: string,
+  totalVolume: number,
+): FixedRangeVolumeProfilePipelineResult {
+  return {
+    ...pipelineResult(id),
+    profile: { ...emptyProfile(), totalVolume },
+  }
+}
+
+type DeferredPipelineResult = {
+  promise: Promise<FixedRangeVolumeProfilePipelineResult>
+  resolve: (result: FixedRangeVolumeProfilePipelineResult) => void
+}
+
+// A request the test resolves manually. The controller cannot observe the
+// pipeline's abort because the fake pipeline never listens to the signal.
+function createDeferredPipelineResult(): DeferredPipelineResult {
+  let resolve!: (result: FixedRangeVolumeProfilePipelineResult) => void
+  const promise = new Promise<FixedRangeVolumeProfilePipelineResult>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 describe('fixedRangeVolumeProfileRuntimeController', () => {
   it('starts a request for a new enabled instance', async () => {
     let calls = 0
@@ -122,7 +149,7 @@ describe('fixedRangeVolumeProfileRuntimeController', () => {
       onChange: () => {},
       runPipeline: async (item) => {
         await new Promise((resolve) => setTimeout(resolve, item.rowCount === 24 ? 20 : 0))
-        return pipelineResult(item.id)
+        return pipelineResultWithTotalVolume(item.id, item.rowCount)
       },
     })
     controller.syncInstances([instance({ rowCount: 24 })])
@@ -131,7 +158,73 @@ describe('fixedRangeVolumeProfileRuntimeController', () => {
     const state = controller.getSnapshot()['frvp-1']
     assert.equal(state?.status, 'ready')
     if (state?.status === 'ready') {
-      assert.equal(state.pipeline.profile.rowCount, undefined)
+      // The slower first request (rowCount 24) must not overwrite the newer
+      // rowCount 48 response.
+      assert.equal(state.pipeline.profile.totalVolume, 48)
+    }
+    controller.dispose()
+  })
+
+  it('does not apply a stale response that resolves after disable and re-enable', async () => {
+    const deferred: DeferredPipelineResult[] = []
+    const controller = new FixedRangeVolumeProfileRuntimeController({
+      onChange: () => {},
+      // Ignores the abort signal on purpose: the test resolves this request
+      // manually after a newer generation has already started.
+      runPipeline: () => {
+        const pending = createDeferredPipelineResult()
+        deferred.push(pending)
+        return pending.promise
+      },
+    })
+
+    controller.syncInstances([instance()])
+    controller.syncInstances([instance({ enabled: false })])
+    controller.syncInstances([instance()])
+
+    assert.equal(deferred.length, 2)
+
+    deferred[1].resolve(pipelineResultWithTotalVolume('frvp-1', 2))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    deferred[0].resolve(pipelineResultWithTotalVolume('frvp-1', 1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const state = controller.getSnapshot()['frvp-1']
+    assert.equal(state?.status, 'ready')
+    if (state?.status === 'ready') {
+      assert.equal(state.pipeline.profile.totalVolume, 2)
+    }
+    controller.dispose()
+  })
+
+  it('does not apply a stale response that resolves after remove and re-add', async () => {
+    const deferred: DeferredPipelineResult[] = []
+    const controller = new FixedRangeVolumeProfileRuntimeController({
+      onChange: () => {},
+      runPipeline: () => {
+        const pending = createDeferredPipelineResult()
+        deferred.push(pending)
+        return pending.promise
+      },
+    })
+
+    controller.syncInstances([instance()])
+    controller.syncInstances([])
+    controller.syncInstances([instance()])
+
+    assert.equal(deferred.length, 2)
+
+    deferred[1].resolve(pipelineResultWithTotalVolume('frvp-1', 2))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    deferred[0].resolve(pipelineResultWithTotalVolume('frvp-1', 1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const state = controller.getSnapshot()['frvp-1']
+    assert.equal(state?.status, 'ready')
+    if (state?.status === 'ready') {
+      assert.equal(state.pipeline.profile.totalVolume, 2)
     }
     controller.dispose()
   })
