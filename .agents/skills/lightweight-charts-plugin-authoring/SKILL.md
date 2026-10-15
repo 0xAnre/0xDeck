@@ -16,6 +16,9 @@ description: >-
 
 # Writing a Lightweight Charts™ plugin
 
+This directory includes the upstream Apache-2.0 `LICENSE` and `NOTICE` for these skill files. They do not replace the 0xDeck project license.
+Upstream source: github.com/tradingview/lightweight-charts (.github/skills/lightweight-charts-plugin-authoring).
+
 This skill is about *authoring* plugins. For questions about using the chart
 itself — series, scales, markers, data, wrappers — use the sibling
 `lightweight-charts` skill; the two are designed to be installed together.

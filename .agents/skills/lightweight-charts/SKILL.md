@@ -12,6 +12,9 @@ description: >-
 
 # Lightweight Charts skill
 
+These instructions started from TradingView's Lightweight Charts agent skill and include corrections for lightweight-charts 5.2. The upstream work is Apache-2.0. This directory includes that `LICENSE` and `NOTICE`. They apply to these skill files and do not replace the 0xDeck project license.
+Upstream source: github.com/tradingview/lightweight-charts (.github/skills/lightweight-charts).
+
 Works the same whether the project is a downstream npm consumer app or an upstream `lightweight-charts` source checkout. Detect which one you are in (below) and resolve every API name from whatever typings are locally available.
 
 ## Source lookup order
