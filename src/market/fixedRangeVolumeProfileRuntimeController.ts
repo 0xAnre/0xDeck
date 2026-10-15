@@ -31,6 +31,10 @@ export class FixedRangeVolumeProfileRuntimeController {
   private readonly _states = new Map<string, FixedRangeVolumeProfileRuntimeState>()
   private readonly _abortControllers = new Map<string, AbortController>()
   private readonly _requestTokens = new Map<string, number>()
+  // Monotonic request generation source for the whole controller. It is only
+  // ever incremented, so a generation can never be reused for the same
+  // instance id — even across disable -> re-enable or remove -> re-add.
+  private _requestSequence = 0
   private _instances: readonly FixedRangeVolumeProfileInstance[] = []
   private _disposed = false
 
@@ -105,7 +109,7 @@ export class FixedRangeVolumeProfileRuntimeController {
 
   private startFetch(instance: FixedRangeVolumeProfileInstance, identityKey: string): void {
     this.abortActiveRequest(instance.id)
-    const token = (this._requestTokens.get(instance.id) ?? 0) + 1
+    const token = ++this._requestSequence
     this._requestTokens.set(instance.id, token)
 
     this._states.set(instance.id, {
@@ -141,8 +145,8 @@ export class FixedRangeVolumeProfileRuntimeController {
       })
       .catch((error: unknown) => {
         if (this._disposed) return
-        if (abortController.signal.aborted || isAbortError(error)) return
         if (this._requestTokens.get(instance.id) !== token) return
+        if (abortController.signal.aborted || isAbortError(error)) return
         const latest = this._instances.find((item) => item.id === instance.id)
         if (!latest || !latest.enabled) return
         if (buildFixedRangeVolumeProfileRequestIdentityKey(latest) !== identityKey) return
