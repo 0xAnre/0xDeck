@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
-import { sanitizeFixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import {
+  createFixedRangeVolumeProfileInstance,
+  sanitizeFixedRangeVolumeProfileInstance,
+} from './fixedRangeVolumeProfileInstances.ts'
 import { readFrvpPocLineColorInputHex } from './frvpLevelLineColors.ts'
 import { lineChartStrokeDashPattern } from './lineChartStroke.ts'
 import {
   DEFAULT_FRVP_LEVEL_LINE_WIDTH,
+  DEFAULT_FRVP_POC_LINE_STYLE,
   DEFAULT_FRVP_VAH_LINE_STYLE,
+  DEFAULT_FRVP_VAL_LINE_STYLE,
   frvpDrawStyleForInstance,
   frvpInstanceLevelLineDash,
   frvpInstanceLevelLineStyle,
@@ -50,16 +55,66 @@ describe('frvpInstanceLineStyles', () => {
     assert.equal(frvpInstanceLevelLineWidth(instance, 'poc'), 2)
   })
 
-  it('defaults POC to solid and VAH/VAL to dashed with legacy opacity', () => {
+  it('defaults POC, VAH and VAL to solid with legacy opacity', () => {
     const instance = baseInstance()
+    assert.equal(DEFAULT_FRVP_POC_LINE_STYLE, 'solid')
+    assert.equal(DEFAULT_FRVP_VAH_LINE_STYLE, 'solid')
+    assert.equal(DEFAULT_FRVP_VAL_LINE_STYLE, 'solid')
     assert.equal(frvpInstanceLevelLineStyle(instance, 'poc'), 'solid')
-    assert.equal(frvpInstanceLevelLineStyle(instance, 'vah'), 'dashed')
-    assert.equal(frvpInstanceLevelLineStyle(instance, 'val'), 'dashed')
+    assert.equal(frvpInstanceLevelLineStyle(instance, 'vah'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(instance, 'val'), 'solid')
     assert.deepEqual(frvpInstanceLevelLineDash(instance, 'poc'), [])
-    assert.deepEqual(
-      frvpInstanceLevelLineDash(instance, 'vah'),
-      lineChartStrokeDashPattern(DEFAULT_FRVP_VAH_LINE_STYLE),
-    )
+    assert.deepEqual(frvpInstanceLevelLineDash(instance, 'vah'), [])
+    assert.deepEqual(frvpInstanceLevelLineDash(instance, 'val'), [])
+  })
+
+  it('newly created FRVP reports solid lines and empty dash arrays (settings UI and render agree)', () => {
+    const created = createFixedRangeVolumeProfileInstance({
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m',
+    })
+    if (!created) throw new Error('expected a created FRVP instance')
+    assert.equal(created.pocLineStyle, undefined)
+    assert.equal(created.vahLineStyle, undefined)
+    assert.equal(created.valLineStyle, undefined)
+
+    for (const kind of ['poc', 'vah', 'val'] as const) {
+      assert.equal(frvpInstanceLevelLineStyle(created, kind), 'solid')
+    }
+    const styles = frvpDrawStyleForInstance(created)
+    assert.deepEqual(styles.pocLineDash, [])
+    assert.deepEqual(styles.vahLineDash, [])
+    assert.deepEqual(styles.valLineDash, [])
+  })
+
+  it('preserves explicit per-level styles through sanitize and draw output', () => {
+    const sanitized = sanitizeFixedRangeVolumeProfileInstance({
+      id: 'frvp-custom',
+      fromTime: 100,
+      toTime: 200,
+      selectionInterval: '1m',
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      pocLineStyle: 'dashed',
+      vahLineStyle: 'dotted',
+      valLineStyle: 'dashed',
+      pocStrokeColor: '#112233',
+      vahLineWidth: 2,
+      valStrokeOpacityPercent: 40,
+    })
+    if (!sanitized) throw new Error('expected sanitized FRVP instance')
+    assert.equal(frvpInstanceLevelLineStyle(sanitized, 'poc'), 'dashed')
+    assert.equal(frvpInstanceLevelLineStyle(sanitized, 'vah'), 'dotted')
+    assert.equal(frvpInstanceLevelLineStyle(sanitized, 'val'), 'dashed')
+    const styles = frvpDrawStyleForInstance(sanitized)
+    assert.deepEqual(styles.pocLineDash, lineChartStrokeDashPattern('dashed'))
+    assert.deepEqual(styles.vahLineDash, lineChartStrokeDashPattern('dotted'))
+    assert.deepEqual(styles.valLineDash, lineChartStrokeDashPattern('dashed'))
+    assert.equal(frvpLevelStrokeColorInputValue(sanitized, 'poc'), '#112233')
+    assert.equal(frvpInstanceLevelLineWidth(sanitized, 'vah'), 2)
+    assert.equal(frvpInstanceLevelStrokeOpacityPercent(sanitized, 'val'), 40)
   })
 
   it('applies per-level stroke style and opacity in draw output', () => {

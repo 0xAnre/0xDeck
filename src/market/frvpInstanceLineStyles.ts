@@ -22,8 +22,8 @@ export const FRVP_VAH_VAL_STROKE_OPACITY = 0.55
 export const DEFAULT_FRVP_LEVEL_LINE_WIDTH: LineChartStrokeWidth = 3
 
 export const DEFAULT_FRVP_POC_LINE_STYLE: LineChartStrokeStyle = 'solid'
-export const DEFAULT_FRVP_VAH_LINE_STYLE: LineChartStrokeStyle = 'dashed'
-export const DEFAULT_FRVP_VAL_LINE_STYLE: LineChartStrokeStyle = 'dashed'
+export const DEFAULT_FRVP_VAH_LINE_STYLE: LineChartStrokeStyle = 'solid'
+export const DEFAULT_FRVP_VAL_LINE_STYLE: LineChartStrokeStyle = 'solid'
 
 export const DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT = Math.round(
   FRVP_POC_LINE_STROKE_OPACITY * 100,
