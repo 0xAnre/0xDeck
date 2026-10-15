@@ -58,11 +58,12 @@ Use plain GitHub PR reviews/comments for durable findings. Any machine-readable 
 
 Before starting a new task, the Orchestrator performs post-merge housekeeping so that implementation begins from a clean, current base. The steps below are runtime-independent; the concrete commands and locations belong to a runtime-specific adapter.
 
+**Before any cleanup step below:** if a working tree is dirty, a branch is unmerged, or ownership/status is unclear, stop and report the conflict. Never discard uncommitted or unmerged work.
+
 1. **Detect previously merged work.** Identify pull requests that have already been merged and any local task branches already contained in `origin/main`, including worktrees still checked out on those branches.
 2. **Synchronize canonical `main`.** Bring the canonical `main` up to date with `origin/main` using fast-forward only. Never force or rewrite history; if `main` cannot fast-forward, stop and report instead of resolving it.
 3. **Prepare both Coder worktrees.** Reset and prepare both Coder worktrees from the latest `main`. Both slots are reset and no task branch is carried over from a previous task.
 4. **Remove obsolete merged local branches.** Delete a local branch only after verifying it is merged into `origin/main` and is not checked out in any worktree.
-5. **Never discard unfinished work.** If a working tree is dirty, a branch is not merged, or ownership/status is unclear, stop and report the conflict instead of cleaning it.
 
 Remote head-branch deletion is controlled by GitHub's `delete_branch_on_merge` repository setting, not by agents. Agents remove only local branches they have verified and must not delete unmerged or unverified remote work.
 
