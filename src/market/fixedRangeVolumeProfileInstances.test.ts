@@ -139,6 +139,81 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     assert.equal(upgraded[0].selectionInterval, '30m')
   })
 
+  it('sanitizes a missing or invalid extendRight to false', () => {
+    const instances = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-legacy-extend',
+        fromTime: 100,
+        toTime: 200,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+      },
+      {
+        id: 'frvp-invalid-extend',
+        fromTime: 300,
+        toTime: 400,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+        extendRight: 'yes',
+      },
+      {
+        id: 'frvp-valid-extend',
+        fromTime: 500,
+        toTime: 600,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+        extendRight: true,
+      },
+    ])
+    assert.equal(instances.length, 3)
+    assert.equal(instances[0].extendRight, false)
+    assert.equal(instances[1].extendRight, false)
+    assert.equal(instances[2].extendRight, true)
+  })
+
+  it('persists and reloads extendRight without changing the coordinates', () => {
+    const memory = new Map<string, string>()
+    const original = globalThis.localStorage
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          memory.set(key, value)
+        },
+        removeItem: (key: string) => {
+          memory.delete(key)
+        },
+      },
+    })
+
+    const created = createFixedRangeVolumeProfileInstance({
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+      extendRight: true,
+    })
+    assert.notEqual(created, null)
+    saveWidgetFixedRangeVolumeProfileInstances('panel-extend', [created!])
+
+    const loaded = loadWidgetFixedRangeVolumeProfileInstances('panel-extend', {
+      selectionIntervalFallback: '1m',
+    })
+    assert.equal(loaded.length, 1)
+    assert.equal(loaded[0].extendRight, true)
+    assert.equal(loaded[0].fromTime, 1_000)
+    assert.equal(loaded[0].toTime, 2_000)
+
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original })
+    memory.delete(WIDGET_FIXED_RANGE_VP_INSTANCES_STORAGE_KEY)
+  })
+
   it('falls back to default interval when stored interval is invalid', () => {
     const upgraded = sanitizeFixedRangeVolumeProfileInstances([
       {

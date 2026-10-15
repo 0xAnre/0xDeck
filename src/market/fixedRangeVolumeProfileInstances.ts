@@ -23,6 +23,12 @@ export type FixedRangeVolumeProfileInstance = {
   valueAreaPercent: number
   enabled: boolean
   displaySequence: number
+  /**
+   * TradingView-style "Extend Right": keep `fromTime`/`toTime` as the drawing
+   * coordinates but calculate the profile from `fromTime` to the latest
+   * available candle. Sanitizes to `false` for legacy/invalid records.
+   */
+  extendRight?: boolean
   locked?: boolean
   pocStrokeColor?: string
   pocLineWidth?: LineChartStrokeWidth
@@ -135,6 +141,7 @@ export function sanitizeFixedRangeVolumeProfileInstance(
     valueAreaPercent: sanitizeValueAreaPercent(record.valueAreaPercent),
     enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
     displaySequence: isValidDisplaySequence(record.displaySequence) ? record.displaySequence : 0,
+    extendRight: record.extendRight === true,
   }
   if (record.locked === true) {
     instance.locked = true
@@ -167,6 +174,7 @@ export function createFixedRangeVolumeProfileInstance(params: {
   rowCount?: number
   valueAreaPercent?: number
   enabled?: boolean
+  extendRight?: boolean
 }): FixedRangeVolumeProfileInstance | null {
   const normalized = normalizeFixedRangeVolumeProfileTimes(params.fromTime, params.toTime)
   if (!normalized) return null
@@ -182,6 +190,7 @@ export function createFixedRangeVolumeProfileInstance(params: {
     valueAreaPercent: params.valueAreaPercent ?? DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
     enabled: params.enabled ?? true,
     displaySequence: nextDisplaySequence(siblings),
+    extendRight: params.extendRight === true,
   }
 }
 
@@ -202,6 +211,13 @@ export function setFixedRangeVolumeProfileInstanceEnabled(
   enabled: boolean,
 ): FixedRangeVolumeProfileInstance {
   return { ...instance, enabled }
+}
+
+export function setFixedRangeVolumeProfileInstanceExtendRight(
+  instance: FixedRangeVolumeProfileInstance,
+  extendRight: boolean,
+): FixedRangeVolumeProfileInstance {
+  return { ...instance, extendRight }
 }
 
 export function setFixedRangeVolumeProfileInstanceLocked(

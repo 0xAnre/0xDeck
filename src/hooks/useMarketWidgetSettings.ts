@@ -37,6 +37,10 @@ type UseMarketWidgetSettingsArgs = {
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
+  onFixedRangeVolumeProfileExtendRightChange?: (
+    instanceId: string,
+    extendRight: boolean,
+  ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
     kind: 'poc' | 'vah' | 'val',
@@ -106,6 +110,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onFixedRangeVolumeProfileLockToggle,
     onFixedRangeVolumeProfileRowCountChange,
     onFixedRangeVolumeProfileValueAreaChange,
+    onFixedRangeVolumeProfileExtendRightChange,
     onFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange,
     onFixedRangeVolumeProfileLevelLineStyleChange,
@@ -180,6 +185,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
         headerSettings.tools === true ? onFixedRangeVolumeProfileRowCountChange : undefined,
       onFixedRangeVolumeProfileValueAreaChange:
         headerSettings.tools === true ? onFixedRangeVolumeProfileValueAreaChange : undefined,
+      onFixedRangeVolumeProfileExtendRightChange:
+        headerSettings.tools === true ? onFixedRangeVolumeProfileExtendRightChange : undefined,
       onFixedRangeVolumeProfileLevelStrokeColorChange:
         headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeColorChange : undefined,
       onFixedRangeVolumeProfileLevelLineWidthChange:
@@ -232,6 +239,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onFixedRangeVolumeProfileLockToggle,
       onFixedRangeVolumeProfileRowCountChange,
       onFixedRangeVolumeProfileValueAreaChange,
+      onFixedRangeVolumeProfileExtendRightChange,
       onFixedRangeVolumeProfileLevelStrokeColorChange,
       onFixedRangeVolumeProfileLevelLineWidthChange,
       onFixedRangeVolumeProfileLevelLineStyleChange,

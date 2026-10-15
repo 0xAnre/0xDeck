@@ -206,6 +206,7 @@ export function attachFixedRangeVolumeProfilePanePointer(
       toTimeToCoordinate,
       barSpacing: timeScale.options().barSpacing,
       priceToY: (price) => series.priceToCoordinate(price),
+      liveRightEdge: callbacks.getLastBarUnixTime(),
       styleForInstance: (instanceId) => {
         const instance = instanceById.get(instanceId)
         return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()

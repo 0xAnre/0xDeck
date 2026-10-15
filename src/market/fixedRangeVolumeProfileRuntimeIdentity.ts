@@ -1,5 +1,6 @@
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
+import { resolveFixedRangeVolumeProfileEffectiveToTime } from './fixedRangeVolumeProfileRequestBounds.ts'
 import type {
   FixedRangeVolumeProfileRuntimeSnapshot,
   FixedRangeVolumeProfileRuntimeState,
@@ -18,15 +19,46 @@ export function buildFixedRangeVolumeProfileRequestIdentityKey(
   instance: FixedRangeVolumeProfileInstance,
   identityTimes: FixedRangeVolumeProfileIdentityTimes | null = null,
 ): string {
+  const extendRight = instance.extendRight === true
   return JSON.stringify({
     id: instance.id,
     fromTime: identityTimes?.fromTime ?? instance.fromTime,
-    toTime: identityTimes?.toTime ?? instance.toTime,
+    // With Extend Right the calculation ignores the drawing's raw `toTime` in
+    // favour of the effective right boundary, so the coordinate must not take
+    // part in the rendered/request identity: moving the right endpoint without
+    // moving the effective bound must neither refetch nor blank the ready
+    // profile. The effective bound is tracked separately by
+    // `buildFixedRangeVolumeProfileRequestKey`, which appends it for Extend
+    // Right instances.
+    toTime: extendRight ? null : (identityTimes?.toTime ?? instance.toTime),
     selectionInterval: instance.selectionInterval,
     rowCount: instance.rowCount,
     valueAreaPercent: instance.valueAreaPercent,
     enabled: instance.enabled,
+    extendRight,
   })
+}
+
+/**
+ * Request identity used by the runtime controller to decide whether a fetch is
+ * still current. It extends the rendered identity with the effective right
+ * boundary so a live candle advancing past `toTime` starts exactly one new
+ * request, while the stored/render identity stays the selection identity (the
+ * previous profile keeps rendering until the extended one arrives, avoiding a
+ * per-candle flicker).
+ */
+export function buildFixedRangeVolumeProfileRequestKey(
+  instance: FixedRangeVolumeProfileInstance,
+  liveRightEdge: number | null,
+  identityTimes: FixedRangeVolumeProfileIdentityTimes | null = null,
+): string {
+  const identityKey = buildFixedRangeVolumeProfileRequestIdentityKey(instance, identityTimes)
+  if (instance.extendRight !== true) return identityKey
+  const effectiveToTime = resolveFixedRangeVolumeProfileEffectiveToTime(
+    { toTime: identityTimes?.toTime ?? instance.toTime, extendRight: true },
+    liveRightEdge,
+  )
+  return `${identityKey}:${effectiveToTime}`
 }
 
 /**

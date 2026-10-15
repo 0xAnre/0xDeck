@@ -157,6 +157,7 @@ import { isLineDrawingBlockingPeerTools } from '@/market/lineInteraction'
 import { isRectangleDrawingBlockingPeerTools } from '@/market/rectanglePeerTools'
 import {
   sanitizeFixedRangeVolumeProfileInstances,
+  setFixedRangeVolumeProfileInstanceExtendRight,
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import { useFixedRangeVolumeProfileRuntime } from '@/hooks/useFixedRangeVolumeProfileRuntime'
@@ -353,6 +354,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [fixedRangeVolumeProfileInteraction, setFixedRangeVolumeProfileInteraction] =
     useState<FixedRangeVolumeProfileInteractionState>(INITIAL_FIXED_RANGE_VP_INTERACTION_STATE)
+  const [fixedRangeVolumeProfileLiveRightEdge, setFixedRangeVolumeProfileLiveRightEdge] = useState<
+    number | null
+  >(null)
+  const fixedRangeVolumeProfileLiveRightEdgeRef = useRef<number | null>(null)
   const [rectangleInstances, setRectangleInstances] = useState<RectangleInstance[]>(() =>
     loadWidgetRectangleInstances(panelId),
   )
@@ -396,6 +401,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     useRef<FixedRangeVolumeProfileChartToolController | null>(null)
   const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
     fixedRangeVolumeProfileInstances,
+    fixedRangeVolumeProfileLiveRightEdge,
   )
   const fixedRangeVolumeProfileRuntimeRef = useRef<FixedRangeVolumeProfileRuntimeSnapshot>(
     fixedRangeVolumeProfileRuntimeById,
@@ -479,6 +485,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileInstancesRef.current = fixedRangeVolumeProfileInstances
   }, [fixedRangeVolumeProfileInstances])
+
+  // The live right edge is the last loaded candle time. It only changes when a
+  // new candle opens (not per price tick), and drives Extend Right recalcs.
+  const syncFixedRangeVolumeProfileLiveRightEdge = useCallback(() => {
+    const next = latestCandleUnixTime(candlesRef.current)
+    if (fixedRangeVolumeProfileLiveRightEdgeRef.current === next) return
+    fixedRangeVolumeProfileLiveRightEdgeRef.current = next
+    setFixedRangeVolumeProfileLiveRightEdge(next)
+  }, [])
 
   useEffect(() => {
     fixedRangeVolumeProfileInteractionRef.current = fixedRangeVolumeProfileInteraction
@@ -1033,6 +1048,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileExtendRightChange = useCallback(
+    (instanceId: string, extendRight: boolean) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFixedRangeVolumeProfileInstanceExtendRight(instance, extendRight),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleFixedRangeVolumeProfileLevelStrokeColorChange = useCallback(
     (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => {
       persistFixedRangeVolumeProfileInstances(
@@ -1355,6 +1383,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onFixedRangeVolumeProfileLockToggle: handleFixedRangeVolumeProfileLockToggle,
     onFixedRangeVolumeProfileRowCountChange: handleFixedRangeVolumeProfileRowCountChange,
     onFixedRangeVolumeProfileValueAreaChange: handleFixedRangeVolumeProfileValueAreaChange,
+    onFixedRangeVolumeProfileExtendRightChange:
+      handleFixedRangeVolumeProfileExtendRightChange,
     onFixedRangeVolumeProfileLevelStrokeColorChange:
       handleFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange:
@@ -2137,6 +2167,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     streamRef.current?.disconnect()
     streamRef.current = null
     candlesRef.current = []
+    syncFixedRangeVolumeProfileLiveRightEdge()
 
     const bundle = seriesRef.current
     if (bundle) {
@@ -2196,6 +2227,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           rollingVwapInstancesRef.current,
           anchoredVwapInstancesRef.current,
         )
+        syncFixedRangeVolumeProfileLiveRightEdge()
       },
     })
     streamRef.current = client
@@ -2333,6 +2365,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (generation !== loadGenerationRef.current) return
 
         candlesRef.current = [...merged]
+        syncFixedRangeVolumeProfileLiveRightEdge()
         const initialSeriesResult = applyInitialSeries(merged)
         if (!initialSeriesResult.ok) {
           teardownStream()
@@ -2363,6 +2396,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 anchoredVwapInstancesRef.current,
               )
             }
+            syncFixedRangeVolumeProfileLiveRightEdge()
           }
         }
 
@@ -2396,7 +2430,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       streamRef.current?.disconnect()
       streamRef.current = null
     }
-  }, [flushMarketChartViewportPersist, interval, panelId, syncAllVwapVisibility, liveVwapContext])
+  }, [flushMarketChartViewportPersist, interval, panelId, syncAllVwapVisibility, liveVwapContext, syncFixedRangeVolumeProfileLiveRightEdge])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) return

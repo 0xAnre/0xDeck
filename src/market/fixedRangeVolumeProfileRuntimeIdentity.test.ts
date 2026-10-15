@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   buildFixedRangeVolumeProfileReadyRuntime,
   buildFixedRangeVolumeProfileRequestIdentityKey,
+  buildFixedRangeVolumeProfileRequestKey,
   isFixedRangeVolumeProfileRuntimeStateCurrent,
 } from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
@@ -142,5 +143,61 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     }
     const runtime: FixedRangeVolumeProfileRuntimeSnapshot = { 'frvp-1': loading, 'frvp-2': error }
     assert.equal(buildFixedRangeVolumeProfileReadyRuntime([current], runtime).size, 0)
+  })
+
+  it('changes the identity key when extendRight changes', () => {
+    const off = buildFixedRangeVolumeProfileRequestIdentityKey(instance())
+    const on = buildFixedRangeVolumeProfileRequestIdentityKey(instance({ extendRight: true }))
+    assert.notEqual(off, on)
+  })
+
+  it('does not change the identity key for unrelated state', () => {
+    const base = instance()
+    const withUnrelated = instance({ locked: true, displaySequence: 9 })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(base),
+      buildFixedRangeVolumeProfileRequestIdentityKey(withUnrelated),
+    )
+  })
+
+  it('advances the request key with the live edge only when Extend Right is on', () => {
+    const off = instance({ extendRight: false })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(off, 500),
+      buildFixedRangeVolumeProfileRequestKey(off, 900),
+    )
+
+    const on = instance({ extendRight: true })
+    const before = buildFixedRangeVolumeProfileRequestKey(on, 500)
+    const after = buildFixedRangeVolumeProfileRequestKey(on, 900)
+    assert.notEqual(before, after)
+  })
+
+  it('keeps the rendered identity and request key stable when the right endpoint moves but the effective bound does not', () => {
+    const before = instance({ extendRight: true, toTime: 200 })
+    const moved = instance({ extendRight: true, toTime: 300 })
+    // The live edge (1_000) stays beyond both `toTime` values, so the effective
+    // right boundary is unchanged and the ready profile stays valid.
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(before),
+      buildFixedRangeVolumeProfileRequestIdentityKey(moved),
+    )
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(before, 1_000),
+      buildFixedRangeVolumeProfileRequestKey(moved, 1_000),
+    )
+    // Fixed range still treats `toTime` as part of the rendered identity.
+    assert.notEqual(
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance()),
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance({ toTime: 260 })),
+    )
+  })
+
+  it('keeps the request key stable when the live edge is behind toTime', () => {
+    const on = instance({ toTime: 500, extendRight: true })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(on, 400),
+      buildFixedRangeVolumeProfileRequestKey(on, null),
+    )
   })
 })

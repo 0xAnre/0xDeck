@@ -1,5 +1,6 @@
 import { BTC_PERPETUAL_CANDLESTICK_COLORS } from './btcPerpetualCandleColors.ts'
 import type { FixedRangeVolumeProfileResult, FixedRangeVolumeProfileRow } from './fixedRangeVolumeProfile.ts'
+import { resolveFixedRangeVolumeProfileEffectiveToTime } from './fixedRangeVolumeProfileRequestBounds.ts'
 
 export const FRVP_VALUE_AREA_ROW_OPACITY = 0.55
 export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY = 0.25
@@ -178,6 +179,8 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   instanceId: string
   fromTime: number
   toTime: number
+  /** Right boundary used for the histogram/row/level span (Extend Right aware). Defaults to `toTime`. */
+  effectiveToTime?: number
   profile: FixedRangeVolumeProfileResult
   fromTimeToCoordinate: (time: number) => number | null
   toTimeToCoordinate: (time: number) => number | null
@@ -200,7 +203,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
 
   const range = computeSelectionRangeHorizontalBounds({
     fromTime: params.fromTime,
-    toTime: params.toTime,
+    toTime: params.effectiveToTime ?? params.toTime,
     fromTimeToCoordinate: params.fromTimeToCoordinate,
     toTimeToCoordinate: params.toTimeToCoordinate,
     barSpacing: params.barSpacing,
@@ -294,6 +297,7 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
     fromTime: number
     toTime: number
     enabled: boolean
+    extendRight?: boolean
     locked?: boolean
   }[]
   selectedId?: string | null
@@ -308,8 +312,11 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
   barSpacing: number
   priceToY: (price: number) => number | null
   styleForInstance: (instanceId: string) => FixedRangeVolumeProfileDrawStyleInput
+  /** Latest available candle time, used when an instance has Extend Right set. */
+  liveRightEdge?: number | null
 }): FixedRangeVolumeProfileInstanceDrawModel[] {
   const models: FixedRangeVolumeProfileInstanceDrawModel[] = []
+  const liveRightEdge = params.liveRightEdge ?? null
   for (const instance of params.instances) {
     if (!instance.enabled) continue
     const ready = params.readyById.get(instance.id)
@@ -319,6 +326,7 @@ export function buildFixedRangeVolumeProfileDrawModels(params: {
       instanceId: instance.id,
       fromTime: instance.fromTime,
       toTime: instance.toTime,
+      effectiveToTime: resolveFixedRangeVolumeProfileEffectiveToTime(instance, liveRightEdge),
       profile: ready.profile,
       fromTimeToCoordinate: params.fromTimeToCoordinate,
       toTimeToCoordinate: params.toTimeToCoordinate,

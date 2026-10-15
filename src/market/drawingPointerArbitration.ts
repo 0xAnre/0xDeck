@@ -226,6 +226,7 @@ export function frvpHitAtPanePoint(
     toTimeToCoordinate,
     barSpacing: timeScale.options().barSpacing,
     priceToY: (price) => args.series.priceToCoordinate(price),
+    liveRightEdge: args.lastBarUnixTime,
     styleForInstance: (instanceId) => {
       const instance = instanceById.get(instanceId)
       return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()
