@@ -168,23 +168,61 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
     assert.notEqual(on.profile.val, off.profile.val)
   })
 
-  it('Extend Right degrades gracefully when there is nothing right of toTime', async () => {
-    const result = await runFixedRangeVolumeProfileDataPipeline(
-      { ...instance, fromTime: 1_000, toTime: 2_000, extendRight: true },
+  it('Extend Right computes the fixed range when candles exist left of toTime but none right of it', async () => {
+    const toTime = 1_700_000_060
+    const base: FixedRangeVolumeProfileInstance = {
+      ...instance,
+      fromTime: 1_700_000_000,
+      toTime,
+      extendRight: true,
+    }
+
+    const candles = [
       {
-        liveRightEdge: 2_000,
+        time: 1_700_000_000,
+        open: 100,
+        high: 110,
+        low: 99,
+        close: 105,
+        volume: 10,
+        interval: '1m' as const,
+        closed: true,
+      },
+      {
+        time: 1_700_000_060,
+        open: 105,
+        high: 115,
+        low: 104,
+        close: 110,
+        volume: 8,
+        interval: '1m' as const,
+        closed: true,
+      },
+    ]
+
+    const run = (item: FixedRangeVolumeProfileInstance) =>
+      runFixedRangeVolumeProfileDataPipeline(item, {
+        // Live edge equals `toTime`: every candle is at/left of `toTime` and
+        // there is none to its right, so the effective bound is unchanged.
+        liveRightEdge: toTime,
         fetchKlines: async (startTime, endTime) => ({
           symbol: 'BTCUSDT',
           start_time: startTime,
           end_time: endTime,
           source_interval: '1m',
-          candles: [],
+          candles,
         }),
-      },
-    )
-    assert.equal(result.requestStartTime, 1_000)
-    assert.equal(result.requestEndTime, 2_060)
-    assert.equal(result.profile.candleCount, 0)
-    assert.equal(result.profile.rows.length, 0)
+      })
+
+    const on = await run(base)
+    const off = await run({ ...base, extendRight: false })
+
+    // Extend Right does not widen the window when the live edge is `toTime`.
+    assert.equal(on.requestEndTime, toTime + 60)
+    assert.equal(on.profile.candleCount, 2)
+    assert.equal(on.profile.totalVolume, 18)
+    // No candle exists right of `toTime`, so Extend Right matches the fixed
+    // range result (POC/VAH/VAL/rows all computed over the same candles).
+    assert.deepEqual(on.profile, off.profile)
   })
 })

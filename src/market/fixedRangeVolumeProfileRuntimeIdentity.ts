@@ -19,15 +19,23 @@ export function buildFixedRangeVolumeProfileRequestIdentityKey(
   instance: FixedRangeVolumeProfileInstance,
   identityTimes: FixedRangeVolumeProfileIdentityTimes | null = null,
 ): string {
+  const extendRight = instance.extendRight === true
   return JSON.stringify({
     id: instance.id,
     fromTime: identityTimes?.fromTime ?? instance.fromTime,
-    toTime: identityTimes?.toTime ?? instance.toTime,
+    // With Extend Right the calculation ignores the drawing's raw `toTime` in
+    // favour of the effective right boundary, so the coordinate must not take
+    // part in the rendered/request identity: moving the right endpoint without
+    // moving the effective bound must neither refetch nor blank the ready
+    // profile. The effective bound is tracked separately by
+    // `buildFixedRangeVolumeProfileRequestKey`, which appends it for Extend
+    // Right instances.
+    toTime: extendRight ? null : (identityTimes?.toTime ?? instance.toTime),
     selectionInterval: instance.selectionInterval,
     rowCount: instance.rowCount,
     valueAreaPercent: instance.valueAreaPercent,
     enabled: instance.enabled,
-    extendRight: instance.extendRight === true,
+    extendRight,
   })
 }
 

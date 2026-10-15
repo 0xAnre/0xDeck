@@ -272,6 +272,39 @@ describe('fixedRangeVolumeProfileRuntimeController', () => {
     controller.dispose()
   })
 
+  it('does not refetch or blank the ready profile when only toTime moves while Extend Right is on and the live edge is unchanged', async () => {
+    const calls: Array<{ toTime: number; liveRightEdge: number | null }> = []
+    const deferred: DeferredPipelineResult[] = []
+    const controller = new FixedRangeVolumeProfileRuntimeController({
+      onChange: () => {},
+      runPipeline: (item, options) => {
+        calls.push({ toTime: item.toTime, liveRightEdge: options.liveRightEdge ?? null })
+        const pending = createDeferredPipelineResult()
+        deferred.push(pending)
+        return pending.promise
+      },
+    })
+    const extended = (toTime: number) => instance({ extendRight: true, toTime })
+
+    controller.syncInstances([extended(200)], 1_000)
+    assert.equal(calls.length, 1)
+    deferred[0].resolve(pipelineResultWithTotalVolume('frvp-1', 1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.equal(controller.getSnapshot()['frvp-1']?.status, 'ready')
+
+    // Moving the right endpoint without moving the effective bound (the live
+    // edge is still 1_000) must neither restart the request nor blank the
+    // currently rendered profile.
+    controller.syncInstances([extended(300)], 1_000)
+    assert.equal(calls.length, 1)
+    const preserved = controller.getSnapshot()['frvp-1']
+    assert.equal(preserved?.status, 'ready')
+    if (preserved?.status === 'ready') {
+      assert.equal(preserved.pipeline.profile.totalVolume, 1)
+    }
+    controller.dispose()
+  })
+
   it('discards a stale live-edge response that resolves after a newer one', async () => {
     const deferred: DeferredPipelineResult[] = []
     const controller = new FixedRangeVolumeProfileRuntimeController({

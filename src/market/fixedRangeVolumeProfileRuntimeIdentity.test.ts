@@ -171,11 +171,25 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     const before = buildFixedRangeVolumeProfileRequestKey(on, 500)
     const after = buildFixedRangeVolumeProfileRequestKey(on, 900)
     assert.notEqual(before, after)
-    // The rendered/selection identity stays stable so the last profile keeps
-    // rendering while the extended request is in flight.
+  })
+
+  it('keeps the rendered identity and request key stable when the right endpoint moves but the effective bound does not', () => {
+    const before = instance({ extendRight: true, toTime: 200 })
+    const moved = instance({ extendRight: true, toTime: 300 })
+    // The live edge (1_000) stays beyond both `toTime` values, so the effective
+    // right boundary is unchanged and the ready profile stays valid.
     assert.equal(
-      buildFixedRangeVolumeProfileRequestIdentityKey(on),
-      buildFixedRangeVolumeProfileRequestIdentityKey(on),
+      buildFixedRangeVolumeProfileRequestIdentityKey(before),
+      buildFixedRangeVolumeProfileRequestIdentityKey(moved),
+    )
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(before, 1_000),
+      buildFixedRangeVolumeProfileRequestKey(moved, 1_000),
+    )
+    // Fixed range still treats `toTime` as part of the rendered identity.
+    assert.notEqual(
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance()),
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance({ toTime: 260 })),
     )
   })
 
