@@ -23,7 +23,7 @@ The roles are specified in [roles/](roles/). The current runtime-to-role mapping
 
 ## Default lifecycle
 
-1. **Request and scope:** The user requests a development change. Orchestrator prepares a GitHub Issue for implementation tasks, including context, scope, out-of-scope, acceptance criteria and verification expectations. Research-only discussion need not create an implementation Issue.
+1. **Request and scope:** The user requests a development change. Orchestrator prepares a GitHub Issue for implementation tasks, including context, scope, out-of-scope, acceptance criteria and verification expectations. Research-only discussion need not create an implementation Issue. Before scoping a new task, the Orchestrator performs the post-merge housekeeping below.
 2. **Assign:** Orchestrator chooses an available Coder context and, when applicable, a clean worktree. A task starts from current `main`; dependencies on unmerged work are surfaced instead of silently stacking branches.
 3. **Implement:** Coder follows the Issue, reads relevant 0xDeck technical docs and skills, writes/updates tests, and commits to **its assigned task branch**. Coder opens **one active PR for the task**, targeting `main`.
 4. **Review:** A separate Reviewer context independently reads the Issue, PR diff, call sites, tests and claimed verification. Findings must be actionable; style preferences alone should not generate unnecessary implementation churn.
@@ -53,6 +53,18 @@ Use plain GitHub PR reviews/comments for durable findings. Any machine-readable 
 - A worktree slot may have only one active task/PR at a time; role-specific operating locations are set by the runtime adapter.
 - Never modify another agent's worktree or a branch owned by another task.
 - Task branches always target `main` unless the user explicitly approves a different approach.
+
+## Post-merge housekeeping (before each new task)
+
+Before starting a new task, the Orchestrator performs post-merge housekeeping so that implementation begins from a clean, current base. The steps below are runtime-independent; the concrete commands and locations belong to a runtime-specific adapter.
+
+1. **Detect previously merged work.** Identify pull requests that have already been merged and any local task branches already contained in `origin/main`, including worktrees still checked out on those branches.
+2. **Synchronize canonical `main`.** Bring the canonical `main` up to date with `origin/main` using fast-forward only. Never force or rewrite history; if `main` cannot fast-forward, stop and report instead of resolving it.
+3. **Prepare both Coder worktrees.** Reset and prepare both Coder worktrees from the latest `main`. Both slots are reset and no task branch is carried over from a previous task.
+4. **Remove obsolete merged local branches.** Delete a local branch only after verifying it is merged into `origin/main` and is not checked out in any worktree.
+5. **Never discard unfinished work.** If a working tree is dirty, a branch is not merged, or ownership/status is unclear, stop and report the conflict instead of cleaning it.
+
+Remote head-branch deletion is controlled by GitHub's `delete_branch_on_merge` repository setting, not by agents. Agents remove only local branches they have verified and must not delete unmerged or unverified remote work.
 
 ## Verification and safety
 

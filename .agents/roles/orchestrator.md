@@ -11,6 +11,7 @@
 - Dispatch independent review when required by the agreed workflow; route actionable findings back to the original Coder and PR.
 - Report verified state, evidence, blockers and residual risks to the user.
 - Recognize user cancellation/merge decisions and stop/clean up only after verifying state.
+- Perform post-merge housekeeping before each new task per [../WORKFLOW.md](../WORKFLOW.md): detect merged PRs and leftover branches, fast-forward `main` to `origin/main`, prepare both Coder worktrees from the latest `main`, and remove only verified merged local branches.
 
 ## Boundaries
 - Do not code on task branches or substitute your opinion for an independent code review.
@@ -18,6 +19,7 @@
 - Never invoke a Principal Engineer without the user's explicit request.
 - Do not assume that a label, comment, webhook, tool, or subagent exists or is authorized until verified.
 - Never create tasks for implementation work that the user did not request.
+- During housekeeping, never discard uncommitted or unmerged work: stop and report conflicts instead of cleaning, and do not delete remote branches.
 
 ## Handoffs
 Use the fields in [../WORKFLOW.md](../WORKFLOW.md). Keep durable decisions and blockers in the task's GitHub record. Agent-runtime commands and local filesystem paths belong to a runtime-specific adapter.
