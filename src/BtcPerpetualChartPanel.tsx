@@ -1749,6 +1749,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       ),
       runtimeById: fixedRangeVolumeProfileRuntimeRef.current,
       selectedId: fixedRangeVolumeProfileInteractionRef.current.selectedId,
+      interaction: fixedRangeVolumeProfileInteractionRef.current,
       getIntervalDurationSeconds: () =>
         candleIntervalDurationSeconds(activeIntervalRef.current),
       getLastBarUnixTime: () => latestCandleUnixTime(candlesRef.current),

@@ -1,11 +1,14 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
-import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import {
   buildFixedRangeVolumeProfileDrawModels,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import {
+  buildFixedRangeVolumeProfileReadyRuntime,
+  resolveFixedRangeVolumeProfileDisplayIdentityTimes,
+} from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import {
   applyFixedRangeVolumeProfileClick,
   applyFixedRangeVolumeProfileCrosshairTime,
@@ -127,15 +130,13 @@ export type FixedRangeVolumeProfilePanePointerController = {
 }
 
 function buildFrvpReadyById(
+  instances: readonly FixedRangeVolumeProfileInstance[],
   runtime: FixedRangeVolumeProfileRuntimeSnapshot,
-): Map<string, { profile: FixedRangeVolumeProfileResult }> {
-  const readyById = new Map<string, { profile: FixedRangeVolumeProfileResult }>()
-  for (const [id, state] of Object.entries(runtime)) {
-    if (state.status === 'ready') {
-      readyById.set(id, { profile: state.profile })
-    }
-  }
-  return readyById
+  interaction: FixedRangeVolumeProfileInteractionState,
+) {
+  return buildFixedRangeVolumeProfileReadyRuntime(instances, runtime, (instance) =>
+    resolveFixedRangeVolumeProfileDisplayIdentityTimes(instance, interaction),
+  )
 }
 
 export function attachFixedRangeVolumeProfilePanePointer(
@@ -196,7 +197,11 @@ export function attachFixedRangeVolumeProfilePanePointer(
     return buildFixedRangeVolumeProfileDrawModels({
       instances: snapshot.instances,
       selectedId,
-      readyById: buildFrvpReadyById(snapshot.runtimeById),
+      readyById: buildFrvpReadyById(
+        snapshot.instances,
+        snapshot.runtimeById,
+        snapshot.interaction,
+      ),
       fromTimeToCoordinate,
       toTimeToCoordinate,
       barSpacing: timeScale.options().barSpacing,

@@ -9,6 +9,75 @@ import { INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE } from './anchoredVwapD
 import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
 import type { RectangleInstance } from './rectangleInstances.ts'
 import type { LineInstance } from './lineInstances.ts'
+import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
+import { buildFixedRangeVolumeProfileRequestIdentityKey } from './fixedRangeVolumeProfileRuntimeIdentity.ts'
+import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+
+function frvpInstance(
+  overrides: Partial<FixedRangeVolumeProfileInstance> = {},
+): FixedRangeVolumeProfileInstance {
+  return {
+    id: 'frvp-1',
+    fromTime: 100,
+    toTime: 200,
+    selectionInterval: '1m',
+    rowCount: 24,
+    valueAreaPercent: 70,
+    enabled: true,
+    displaySequence: 1,
+    ...overrides,
+  }
+}
+
+function frvpRuntime(
+  instance: FixedRangeVolumeProfileInstance,
+): FixedRangeVolumeProfileRuntimeSnapshot {
+  const profile: FixedRangeVolumeProfileResult = {
+    fromTime: instance.fromTime,
+    toTime: instance.toTime - 1,
+    candleCount: 1,
+    profileLow: 20,
+    profileHigh: 80,
+    rowHeight: 60,
+    rows: [
+      {
+        priceLow: 20,
+        priceHigh: 80,
+        upVolume: 5,
+        downVolume: 5,
+        totalVolume: 10,
+        inValueArea: true,
+      },
+    ],
+    totalVolume: 10,
+    pocRowIndex: 0,
+    pocPrice: 50,
+    pocVolume: 10,
+    vah: 70,
+    val: 30,
+    valueAreaVolume: 10,
+    valueAreaPercentAchieved: 100,
+  }
+  return {
+    [instance.id]: {
+      status: 'ready',
+      instanceId: instance.id,
+      identityKey: buildFixedRangeVolumeProfileRequestIdentityKey(instance),
+      requestStartTime: instance.fromTime,
+      requestEndTime: instance.toTime,
+      sourceInterval: '1m',
+      profile,
+      pipeline: {
+        instanceId: instance.id,
+        requestStartTime: instance.fromTime,
+        requestEndTime: instance.toTime,
+        sourceInterval: '1m',
+        profile,
+      },
+    },
+  }
+}
 
 function createChartAndSeries() {
   const chart = {
@@ -37,6 +106,8 @@ function buildContext(args: {
   paneY: number
   rectangleInstances?: readonly RectangleInstance[]
   lineInstances?: readonly LineInstance[]
+  fixedRangeVolumeProfileInstances?: readonly FixedRangeVolumeProfileInstance[]
+  fixedRangeVolumeProfileRuntime?: FixedRangeVolumeProfileRuntimeSnapshot
 }) {
   const bundle = {
     candle: args.series,
@@ -69,8 +140,8 @@ function buildContext(args: {
     fixedRangeVolumeProfileInteraction: INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
     rectangleInstances: args.rectangleInstances ?? [],
     lineInstances: args.lineInstances ?? [],
-    fixedRangeVolumeProfileInstances: [],
-    fixedRangeVolumeProfileRuntime: {},
+    fixedRangeVolumeProfileInstances: args.fixedRangeVolumeProfileInstances ?? [],
+    fixedRangeVolumeProfileRuntime: args.fixedRangeVolumeProfileRuntime ?? {},
     rollingVwapInstances: [],
     anchoredVwapInstances: [],
     anchoredVwapDrawingInteraction: INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
@@ -164,5 +235,39 @@ describe('hitTestChartObjectSettingsTarget', () => {
       draft: null,
     }
     assert.equal(hitTestChartObjectSettingsTarget(blocked), null)
+  })
+
+  it('suppresses a stale FRVP profile after the committed range changes', () => {
+    const { chart, series } = createChartAndSeries()
+    const previous = frvpInstance({ fromTime: 100, toTime: 200 })
+    const committed = { ...previous, toTime: 260 }
+    const runtime = frvpRuntime(previous)
+
+    const staleTarget = hitTestChartObjectSettingsTarget(
+      buildContext({
+        chart,
+        series,
+        paneX: 105,
+        paneY: 50,
+        fixedRangeVolumeProfileInstances: [committed],
+        fixedRangeVolumeProfileRuntime: runtime,
+      }),
+    )
+    assert.equal(staleTarget, null)
+
+    const currentTarget = hitTestChartObjectSettingsTarget(
+      buildContext({
+        chart,
+        series,
+        paneX: 105,
+        paneY: 50,
+        fixedRangeVolumeProfileInstances: [previous],
+        fixedRangeVolumeProfileRuntime: runtime,
+      }),
+    )
+    assert.deepEqual(currentTarget, {
+      kind: 'fixed-range-volume-profile',
+      instanceId: previous.id,
+    })
   })
 })

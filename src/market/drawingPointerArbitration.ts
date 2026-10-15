@@ -1,7 +1,7 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
-import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import { buildFixedRangeVolumeProfileDrawModels } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { buildFixedRangeVolumeProfileReadyRuntime } from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import {
@@ -203,18 +203,6 @@ export function rectangleHitAtPanePoint(
   )
 }
 
-function buildFrvpReadyById(
-  runtime: FixedRangeVolumeProfileRuntimeSnapshot,
-): Map<string, { profile: FixedRangeVolumeProfileResult }> {
-  const readyById = new Map<string, { profile: FixedRangeVolumeProfileResult }>()
-  for (const [id, state] of Object.entries(runtime)) {
-    if (state.status === 'ready') {
-      readyById.set(id, { profile: state.profile })
-    }
-  }
-  return readyById
-}
-
 export function frvpHitAtPanePoint(
   args: PaneHitArgs & {
     instances: readonly FixedRangeVolumeProfileInstance[]
@@ -233,7 +221,7 @@ export function frvpHitAtPanePoint(
   const models = buildFixedRangeVolumeProfileDrawModels({
     instances: args.instances,
     selectedId: args.selectedId,
-    readyById: buildFrvpReadyById(args.runtimeById),
+    readyById: buildFixedRangeVolumeProfileReadyRuntime(args.instances, args.runtimeById),
     fromTimeToCoordinate,
     toTimeToCoordinate,
     barSpacing: timeScale.options().barSpacing,
