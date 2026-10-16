@@ -2529,7 +2529,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     <div className="relative flex h-full min-h-0 flex-col gap-1">
       {!chartReady && (
         <div className="absolute inset-0 z-10 flex min-h-0 flex-col bg-card/90">
-          <WidgetDataStateView state={dataState} className="flex-1" />
+          {dataState.status !== 'loading' && (
+            <WidgetDataStateView state={dataState} className="flex-1" />
+          )}
         </div>
       )}
 
