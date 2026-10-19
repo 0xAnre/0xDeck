@@ -49,7 +49,7 @@ function BandPairSection({
         />
         <span className="font-medium text-foreground">{label}</span>
       </label>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <label className="space-y-1">
           <span className="text-muted-foreground">Multiplier</span>
           <input
@@ -72,13 +72,96 @@ function BandPairSection({
             onChange={(event) => onChange({ ...draft, lineOpacity: Number(event.target.value) })}
           />
         </label>
-        <label className="space-y-1">
-          <span className="text-muted-foreground">Color</span>
+      </div>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        className="grid w-full grid-cols-4"
+        value={String(draft.lineWidth)}
+        onValueChange={(value) => {
+          if (!value) return
+          const parsed = Number(value)
+          if (!isRollingVwapLineWidth(parsed)) return
+          onChange({ ...draft, lineWidth: parsed })
+        }}
+      >
+        {ROLLING_VWAP_LINE_WIDTHS.map((width) => (
+          <ToggleGroupItem key={width} value={String(width)} className="w-full">
+            {width}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        className="grid w-full grid-cols-2"
+        value={draft.lineStyle}
+        onValueChange={(value) => {
+          if (!value || !isRollingVwapLineStyle(value)) return
+          onChange({ ...draft, lineStyle: value })
+        }}
+      >
+        {ROLLING_VWAP_LINE_STYLES.map((style) => (
+          <ToggleGroupItem key={style} value={style} className="w-full capitalize">
+            {style}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draft.upperVisible}
+              onChange={(event) => onChange({ ...draft, upperVisible: event.target.checked })}
+            />
+            <span className="text-muted-foreground">Upper</span>
+          </label>
           <input
             type="color"
             className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-            value={draft.lineColor}
-            onChange={(event) => onChange({ ...draft, lineColor: event.target.value })}
+            value={draft.upperColor}
+            onChange={(event) => onChange({ ...draft, upperColor: event.target.value })}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={draft.lowerVisible}
+              onChange={(event) => onChange({ ...draft, lowerVisible: event.target.checked })}
+            />
+            <span className="text-muted-foreground">Lower</span>
+          </label>
+          <input
+            type="color"
+            className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+            value={draft.lowerColor}
+            onChange={(event) => onChange({ ...draft, lowerColor: event.target.value })}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="space-y-1">
+          <span className="text-muted-foreground">Fill</span>
+          <input
+            type="color"
+            className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+            value={draft.fillColor}
+            onChange={(event) => onChange({ ...draft, fillColor: event.target.value })}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-muted-foreground">Fill opacity (%)</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            className={inputClassName}
+            value={draft.fillOpacity}
+            onChange={(event) => onChange({ ...draft, fillOpacity: Number(event.target.value) })}
           />
         </label>
       </div>

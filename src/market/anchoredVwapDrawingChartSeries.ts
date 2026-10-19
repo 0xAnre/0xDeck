@@ -12,10 +12,18 @@ import {
 import {
   anchoredVwapDrawingLineRgba,
   anchoredVwapDrawingMultipliersFromSettings,
+  type AnchoredVwapDrawingBandPairSettings,
   type AnchoredVwapDrawingSettings,
 } from './anchoredVwapDrawingSettings.ts'
 import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import { isAnchoredVwapInstanceHidden } from './anchoredVwapInstances.ts'
+import {
+  attachAnchoredVwapBandFillSeriesPrimitive,
+  type AnchoredVwapBandFillPairContext,
+  type AnchoredVwapBandFillSeriesAttachment,
+} from './anchoredVwapBandFillSeriesPrimitive.ts'
+import type { AnchoredVwapBandFillPoint } from './anchoredVwapBandFillRenderGeometry.ts'
+import { rectangleFillRgbaFromHex } from './rectangleColors.ts'
 import type { RollingVwapLineStyle } from './rollingVwapSettings.ts'
 import type { MarketCandle } from './types.ts'
 
@@ -37,10 +45,28 @@ export type AnchoredVwapDrawingLinePoint =
   | { time: UTCTimestamp; value: number }
   | { time: UTCTimestamp }
 
+const BAND_FILL_PAIR_KEYS = [
+  { upper: 'upper1', lower: 'lower1' },
+  { upper: 'upper2', lower: 'lower2' },
+  { upper: 'upper3', lower: 'lower3' },
+] as const satisfies readonly {
+  upper: AnchoredVwapDrawingBandSeriesKey
+  lower: AnchoredVwapDrawingBandSeriesKey
+}[]
+
+/** Mutable fill state kept next to the chart series so data/visibility updates can re-sync the primitive. */
+export type AnchoredVwapDrawingBandFillPairState = {
+  points: readonly AnchoredVwapBandFillPoint[]
+  visible: boolean
+  fillStyle: string
+}
+
 export type AnchoredVwapDrawingChartSeriesBundle = {
   center: ISeriesApi<'Line'>
   bands: Record<AnchoredVwapDrawingBandSeriesKey, ISeriesApi<'Line'>>
   ordered: ISeriesApi<'Line'>[]
+  bandFill: AnchoredVwapBandFillSeriesAttachment
+  bandFillPairs: AnchoredVwapDrawingBandFillPairState[]
 }
 
 function lineStyleToChart(style: RollingVwapLineStyle): LineStyle {
@@ -78,6 +104,32 @@ export function anchoredVwapDrawingPointsToLineData(
   return points.map((point) => anchoredVwapDrawingPointToLinePoint(point, key))
 }
 
+function bandFillPointsForPair(
+  points: readonly AnchoredVwapDrawingPoint[],
+  pairIndex: number,
+): AnchoredVwapBandFillPoint[] {
+  const keys = BAND_FILL_PAIR_KEYS[pairIndex]
+  return points.map((point) => ({
+    time: point.time,
+    upper: point[keys.upper],
+    lower: point[keys.lower],
+  }))
+}
+
+function bandFillStyle(pair: AnchoredVwapDrawingBandPairSettings): string {
+  return rectangleFillRgbaFromHex(pair.fillColor, pair.fillOpacity)
+}
+
+function pushBandFill(bundle: AnchoredVwapDrawingChartSeriesBundle): void {
+  const pairs: AnchoredVwapBandFillPairContext[] = bundle.bandFillPairs.map((pair, index) => ({
+    id: `band${index + 1}`,
+    points: pair.points,
+    visible: pair.visible,
+    fillStyle: pair.fillStyle,
+  }))
+  bundle.bandFill.setPairs(pairs)
+}
+
 export function createAnchoredVwapDrawingChartSeriesBundle(
   chart: IChartApi,
   settings: AnchoredVwapDrawingSettings,
@@ -105,7 +157,10 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
     for (const side of ['upper', 'lower'] as const) {
       const key = `${side}${pairIndex + 1}` as AnchoredVwapDrawingBandSeriesKey
       const series = chart.addSeries(LineSeries, {
-        color: anchoredVwapDrawingLineRgba(pair.lineColor, pair.lineOpacity),
+        color: anchoredVwapDrawingLineRgba(
+          side === 'upper' ? pair.upperColor : pair.lowerColor,
+          pair.lineOpacity,
+        ),
         lineWidth: pair.lineWidth,
         lineStyle: lineStyleToChart(pair.lineStyle),
         priceLineVisible: false,
@@ -120,13 +175,28 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
     }
   }
 
-  return { center, bands, ordered }
+  const bandFillPairs: AnchoredVwapDrawingBandFillPairState[] = bandSettings.map((pair) => ({
+    points: [],
+    visible: false,
+    fillStyle: bandFillStyle(pair),
+  }))
+  const bandFill = attachAnchoredVwapBandFillSeriesPrimitive(center, { pairs: [] })
+  const bundle: AnchoredVwapDrawingChartSeriesBundle = {
+    center,
+    bands,
+    ordered,
+    bandFill,
+    bandFillPairs,
+  }
+  pushBandFill(bundle)
+  return bundle
 }
 
 export function removeAnchoredVwapDrawingChartSeriesBundle(
   chart: IChartApi,
   bundle: AnchoredVwapDrawingChartSeriesBundle,
 ): void {
+  bundle.bandFill.dispose()
   for (const series of bundle.ordered) {
     chart.removeSeries(series)
   }
@@ -152,22 +222,23 @@ export function applyAnchoredVwapDrawingChartPresentation(
     const pair = pairs[index]
     const upperKey = `upper${index + 1}` as AnchoredVwapDrawingBandSeriesKey
     const lowerKey = `lower${index + 1}` as AnchoredVwapDrawingBandSeriesKey
-    const rgba = anchoredVwapDrawingLineRgba(pair.lineColor, pair.lineOpacity)
     bundle.bands[upperKey].applyOptions({
-      color: rgba,
+      color: anchoredVwapDrawingLineRgba(pair.upperColor, pair.lineOpacity),
       lineWidth: pair.lineWidth,
       lineStyle: lineStyleToChart(pair.lineStyle),
       lastValueVisible: false,
       title: '',
     })
     bundle.bands[lowerKey].applyOptions({
-      color: rgba,
+      color: anchoredVwapDrawingLineRgba(pair.lowerColor, pair.lineOpacity),
       lineWidth: pair.lineWidth,
       lineStyle: lineStyleToChart(pair.lineStyle),
       lastValueVisible: false,
       title: '',
     })
+    bundle.bandFillPairs[index].fillStyle = bandFillStyle(pair)
   }
+  pushBandFill(bundle)
 }
 
 export function setAnchoredVwapDrawingChartSeriesData(
@@ -178,6 +249,10 @@ export function setAnchoredVwapDrawingChartSeriesData(
   for (const key of ANCHORED_VWAP_DRAWING_BAND_SERIES_KEYS) {
     bundle.bands[key].setData(anchoredVwapDrawingPointsToLineData(points, key))
   }
+  for (let index = 0; index < bundle.bandFillPairs.length; index += 1) {
+    bundle.bandFillPairs[index].points = bandFillPointsForPair(points, index)
+  }
+  pushBandFill(bundle)
 }
 
 export function clearAnchoredVwapDrawingChartSeriesData(
@@ -186,6 +261,21 @@ export function clearAnchoredVwapDrawingChartSeriesData(
   for (const series of bundle.ordered) {
     series.setData([])
   }
+  for (const pair of bundle.bandFillPairs) {
+    pair.points = []
+  }
+  pushBandFill(bundle)
+}
+
+function upsertBandFillLastPoint(
+  existing: readonly AnchoredVwapBandFillPoint[],
+  next: AnchoredVwapBandFillPoint,
+): readonly AnchoredVwapBandFillPoint[] {
+  if (existing.length === 0) return [next]
+  const last = existing[existing.length - 1]
+  if (next.time > last.time) return [...existing, next]
+  if (next.time === last.time) return [...existing.slice(0, -1), next]
+  return existing
 }
 
 export function updateAnchoredVwapDrawingChartSeriesLast(
@@ -196,14 +286,34 @@ export function updateAnchoredVwapDrawingChartSeriesLast(
   for (const key of ANCHORED_VWAP_DRAWING_BAND_SERIES_KEYS) {
     bundle.bands[key].update(anchoredVwapDrawingPointToLinePoint(point, key))
   }
+  for (let index = 0; index < bundle.bandFillPairs.length; index += 1) {
+    const keys = BAND_FILL_PAIR_KEYS[index]
+    const nextPoint: AnchoredVwapBandFillPoint = {
+      time: point.time,
+      upper: point[keys.upper],
+      lower: point[keys.lower],
+    }
+    bundle.bandFillPairs[index].points = upsertBandFillLastPoint(
+      bundle.bandFillPairs[index].points,
+      nextPoint,
+    )
+  }
+  pushBandFill(bundle)
 }
 
-function bandPairVisible(
+function bandPairLinesVisible(
   instanceVisible: boolean,
   pairVisible: boolean,
   multiplier: number,
 ): boolean {
   return instanceVisible && pairVisible && multiplier > 0
+}
+
+function bandPairFillVisible(
+  instanceVisible: boolean,
+  pair: AnchoredVwapDrawingBandPairSettings,
+): boolean {
+  return instanceVisible && pair.visible && pair.multiplier > 0 && pair.fillOpacity > 0
 }
 
 export function setAnchoredVwapDrawingInstanceSeriesVisibility(
@@ -223,12 +333,22 @@ export function setAnchoredVwapDrawingInstanceSeriesVisibility(
   const pairs = [settings.band1, settings.band2, settings.band3]
   for (let index = 0; index < pairs.length; index += 1) {
     const pair = pairs[index]
-    const visible = bandPairVisible(instanceVisible, pair.visible, pair.multiplier)
+    const linesVisible = bandPairLinesVisible(instanceVisible, pair.visible, pair.multiplier)
     const upperKey = `upper${index + 1}` as AnchoredVwapDrawingBandSeriesKey
     const lowerKey = `lower${index + 1}` as AnchoredVwapDrawingBandSeriesKey
-    bundle.bands[upperKey].applyOptions({ visible, lastValueVisible: false, title: '' })
-    bundle.bands[lowerKey].applyOptions({ visible, lastValueVisible: false, title: '' })
+    bundle.bands[upperKey].applyOptions({
+      visible: linesVisible && pair.upperVisible,
+      lastValueVisible: false,
+      title: '',
+    })
+    bundle.bands[lowerKey].applyOptions({
+      visible: linesVisible && pair.lowerVisible,
+      lastValueVisible: false,
+      title: '',
+    })
+    bundle.bandFillPairs[index].visible = bandPairFillVisible(instanceVisible, pair)
   }
+  pushBandFill(bundle)
 }
 
 export function computeAnchoredVwapDrawingPointsForInstance(
