@@ -223,23 +223,91 @@ describe('hitTestAnchoredVwapDrawings', () => {
 })
 
 describe('setAnchoredVwapDrawingInstanceSeriesVisibility', () => {
+  function createVisibilityBundle() {
+    const calls = {
+      center: [] as { visible?: boolean }[],
+      bands: {
+        upper1: [] as { visible?: boolean; color?: string }[],
+        lower1: [] as { visible?: boolean; color?: string }[],
+        upper2: [] as { visible?: boolean; color?: string }[],
+        lower2: [] as { visible?: boolean; color?: string }[],
+        upper3: [] as { visible?: boolean; color?: string }[],
+        lower3: [] as { visible?: boolean; color?: string }[],
+      },
+      fillPairs: [] as { visible: boolean; fillStyle: string }[][],
+    }
+    const bandFillPairs = [0, 1, 2].map(() => ({
+      points: [],
+      visible: false,
+      fillStyle: 'rgba(0, 0, 0, 0)',
+    }))
+    const bundle = {
+      center: {
+        applyOptions: (opts: { visible?: boolean }) => calls.center.push(opts),
+      },
+      bands: {
+        upper1: { applyOptions: (opts: { visible?: boolean; color?: string }) => calls.bands.upper1.push(opts) },
+        lower1: { applyOptions: (opts: { visible?: boolean; color?: string }) => calls.bands.lower1.push(opts) },
+        upper2: { applyOptions: (opts: { visible?: boolean; color?: string }) => calls.bands.upper2.push(opts) },
+        lower2: { applyOptions: (opts: { visible?: boolean; color?: string }) => calls.bands.lower2.push(opts) },
+        upper3: { applyOptions: (opts: { visible?: boolean; color?: string }) => calls.bands.upper3.push(opts) },
+        lower3: { applyOptions: (opts: { visible?: boolean; color?: string }) => calls.bands.lower3.push(opts) },
+      },
+      ordered: [],
+      bandFillPairs,
+      bandFill: {
+        setPairs: (pairs: { visible: boolean; fillStyle: string }[]) => calls.fillPairs.push(pairs),
+      },
+    }
+    return { bundle, calls, bandFillPairs }
+  }
+
   it('hides band series when pair visibility is off', () => {
     const instance = createAnchoredVwapInstance({ anchorTime: 1_700_000_000 })!
     instance.settings.band2.visible = false
-    const visibility: boolean[] = []
-    const bundle = {
-      center: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-      bands: {
-        upper1: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-        lower1: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-        upper2: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-        lower2: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-        upper3: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-        lower3: { applyOptions: (opts: { visible?: boolean }) => visibility.push(opts.visible === true) },
-      },
-      ordered: [],
-    }
+    const { bundle, calls } = createVisibilityBundle()
     setAnchoredVwapDrawingInstanceSeriesVisibility(bundle as never, instance, 'Anchored VWAP 1')
-    assert.equal(visibility.filter(Boolean).length, 3)
+    const booleans = [
+      ...calls.center,
+      ...Object.values(calls.bands).flat(),
+    ].flatMap((opts) => (opts.visible === undefined ? [] : [opts.visible]))
+    assert.equal(booleans.filter(Boolean).length, 3)
+  })
+
+  it('hides upper and lower lines independently', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 1_700_000_000 })!
+    instance.settings.band1.upperVisible = false
+    instance.settings.band1.lowerVisible = true
+    const { bundle, calls } = createVisibilityBundle()
+    setAnchoredVwapDrawingInstanceSeriesVisibility(bundle as never, instance, 'Anchored VWAP 1')
+    assert.equal(calls.bands.upper1[0].visible, false)
+    assert.equal(calls.bands.lower1[0].visible, true)
+  })
+
+  it('keeps the fill visible when both lines are hidden', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 1_700_000_000 })!
+    instance.settings.band1.upperVisible = false
+    instance.settings.band1.lowerVisible = false
+    instance.settings.band1.fillOpacity = 40
+    const { bundle, calls, bandFillPairs } = createVisibilityBundle()
+    setAnchoredVwapDrawingInstanceSeriesVisibility(bundle as never, instance, 'Anchored VWAP 1')
+    assert.equal(calls.bands.upper1[0].visible, false)
+    assert.equal(calls.bands.lower1[0].visible, false)
+    assert.equal(bandFillPairs[0].visible, true)
+    assert.equal(calls.fillPairs.length, 1)
+    assert.equal(calls.fillPairs[0][0].visible, true)
+  })
+
+  it('hides the fill when the band-pair master visibility is off or fill opacity is zero', () => {
+    const instance = createAnchoredVwapInstance({ anchorTime: 1_700_000_000 })!
+    instance.settings.band1.fillOpacity = 50
+    instance.settings.band2.fillOpacity = 0
+    instance.settings.band3.visible = false
+    instance.settings.band3.fillOpacity = 80
+    const { bundle, bandFillPairs } = createVisibilityBundle()
+    setAnchoredVwapDrawingInstanceSeriesVisibility(bundle as never, instance, 'Anchored VWAP 1')
+    assert.equal(bandFillPairs[0].visible, true)
+    assert.equal(bandFillPairs[1].visible, false)
+    assert.equal(bandFillPairs[2].visible, false)
   })
 })
