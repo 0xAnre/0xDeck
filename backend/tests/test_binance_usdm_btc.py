@@ -196,6 +196,38 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         self.assertIsNotNone(candle)
         self.assertEqual(candle["close"], 62050.4)
 
+    def test_parse_15m_ws_payload_normalizes_relay_candle(self) -> None:
+        kline = {
+            "t": 1_710_000_000_000,
+            "T": 1_710_000_899_999,
+            "s": "BTCUSDT",
+            "i": "15m",
+            "o": "62000.1",
+            "h": "62350.2",
+            "l": "61850.3",
+            "c": "62250.4",
+            "v": "1234.567",
+            "x": True,
+        }
+        payload = json.dumps({"e": "kline", "k": kline})
+        candle = parse_binance_ws_payload(payload)
+        self.assertIsNotNone(candle)
+        self.assertEqual(candle["symbol"], "BTCUSDT")
+        self.assertEqual(candle["interval"], "15m")
+        self.assertEqual(candle["time"], 1_710_000_000)
+        self.assertEqual(candle["open"], 62000.1)
+        self.assertEqual(candle["high"], 62350.2)
+        self.assertEqual(candle["low"], 61850.3)
+        self.assertEqual(candle["close"], 62250.4)
+        self.assertEqual(candle["volume"], 1234.567)
+        self.assertTrue(candle["closed"])
+
+        open_kline = dict(kline, x=False)
+        open_candle = normalize_ws_kline(open_kline)
+        self.assertEqual(open_candle["interval"], "15m")
+        self.assertEqual(open_candle["time"], 1_710_000_000)
+        self.assertFalse(open_candle["closed"])
+
 
 class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -997,6 +1029,10 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
         self.assertEqual(parse_channel_interval(channel_for_interval("15m")), "15m")
         self.assertIn("@kline_15m", binance_ws_stream_url("15m"))
         self.assertEqual(INTERVAL_DURATION_MS["15m"], 900_000)
+
+    def test_15m_channel_literal_and_round_trip(self) -> None:
+        self.assertEqual(channel_for_interval("15m"), "binance.usdm.btcusdt.kline.15m")
+        self.assertEqual(parse_channel_interval("binance.usdm.btcusdt.kline.15m"), "15m")
 
 
 class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):

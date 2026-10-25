@@ -17,6 +17,13 @@ describe('CANDLE_INTERVALS and kline channels', () => {
   })
 })
 
+describe('15m kline channel contract', () => {
+  it('resolves 15m to the literal Binance USD-M stream channel', () => {
+    assert.equal(klineChannelForInterval('15m'), 'binance.usdm.btcusdt.kline.15m')
+    assert.equal(BTC_USDM_KLINE_CHANNELS['15m'], 'binance.usdm.btcusdt.kline.15m')
+  })
+})
+
 describe('candleIntervalDurationSeconds', () => {
   it('returns 3600 and 7200 for 1h and 2h', () => {
     assert.equal(candleIntervalDurationSeconds('1h'), 3600)
