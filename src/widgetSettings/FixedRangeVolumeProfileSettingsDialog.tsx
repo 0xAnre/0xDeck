@@ -263,6 +263,11 @@ export function FixedRangeVolumeProfileSettingsDialog({
             </Field>
             <FieldGroup className="gap-3 border-t border-border pt-3">
               <p className="text-sm font-medium">Histogram</p>
+              <FieldDescription>
+                Opacity is the Value-Area ceiling (100% = the existing look); rows outside the
+                value area render at the existing ~25/55 of it, so the histogram alpha tops out at
+                0.55.
+              </FieldDescription>
               <HistogramStyleFields
                 instance={instance}
                 direction="up"
@@ -323,9 +328,9 @@ export function FixedRangeVolumeProfileSettingsDialog({
             />
             <p className="text-xs text-muted-foreground">
               Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows,{' '}
-              {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on. POC,
-              VAH and VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
-              {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity (POC dot, VAH/VAL line).
+              {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on, red dotted
+              POC and grey solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
+              {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity.
             </p>
           </FieldGroup>
           </div>
