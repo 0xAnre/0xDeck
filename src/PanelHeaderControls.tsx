@@ -193,6 +193,12 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onFixedRangeVolumeProfileLevelStrokeOpacityChange={
               settings.onFixedRangeVolumeProfileLevelStrokeOpacityChange
             }
+            onFixedRangeVolumeProfileHistogramColorChange={
+              settings.onFixedRangeVolumeProfileHistogramColorChange
+            }
+            onFixedRangeVolumeProfileHistogramOpacityChange={
+              settings.onFixedRangeVolumeProfileHistogramOpacityChange
+            }
             onRectangleVisibilityToggle={settings.onRectangleVisibilityToggle}
             onLineLockToggle={settings.onLineLockToggle}
             onLineVisibilityToggle={settings.onLineVisibilityToggle}

@@ -7,8 +7,13 @@ export type FixedRangeVolumeProfileCandle = {
   volume: number
 }
 
-export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
-export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 70
+/**
+ * Default histogram rows for a newly created profile. The single source of
+ * truth: `fixedRangeVolumeProfileInstances.ts` re-exports it.
+ */
+export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 68
+/** Default Value-Area percentage for a newly created profile. */
+export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 68
 
 export type FixedRangeVolumeProfileParams = {
   candles: readonly FixedRangeVolumeProfileCandle[]

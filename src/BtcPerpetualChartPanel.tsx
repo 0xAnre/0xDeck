@@ -243,6 +243,11 @@ import {
   setFrvpInstanceLevelStrokeOpacityPercent,
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
+import {
+  setFrvpInstanceHistogramColor,
+  setFrvpInstanceHistogramOpacityPercent,
+  type FrvpHistogramDirection,
+} from '@/market/frvpHistogramStyles'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettingsPanePointer'
 import { EMA_PERIODS } from '@/market/ema'
@@ -1124,6 +1129,33 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileHistogramColorChange = useCallback(
+    (instanceId: string, direction: FrvpHistogramDirection, color: string) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceHistogramColor(instance, direction, color),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileHistogramOpacityChange = useCallback(
+    (instanceId: string, direction: FrvpHistogramDirection, opacityPercent: number) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) =>
+            setFrvpInstanceHistogramOpacityPercent(instance, direction, opacityPercent),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleMarketIndicatorSettingsClick = useCallback(
     (indicatorId: MarketIndicatorId) => {
       openChartObjectSettings({ kind: 'market-indicator', indicatorId })
@@ -1403,6 +1435,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       handleFixedRangeVolumeProfileLevelLineStyleChange,
     onFixedRangeVolumeProfileLevelStrokeOpacityChange:
       handleFixedRangeVolumeProfileLevelStrokeOpacityChange,
+    onFixedRangeVolumeProfileHistogramColorChange:
+      handleFixedRangeVolumeProfileHistogramColorChange,
+    onFixedRangeVolumeProfileHistogramOpacityChange:
+      handleFixedRangeVolumeProfileHistogramOpacityChange,
     rectangleInstances,
     onRectangleArm: handleRectangleArm,
     onRectangleDelete: handleRectangleDelete,

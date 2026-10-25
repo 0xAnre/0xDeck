@@ -1,9 +1,38 @@
-import { BTC_PERPETUAL_CANDLESTICK_COLORS } from './btcPerpetualCandleColors.ts'
 import type { FixedRangeVolumeProfileResult, FixedRangeVolumeProfileRow } from './fixedRangeVolumeProfile.ts'
 import { resolveFixedRangeVolumeProfileEffectiveToTime } from './fixedRangeVolumeProfileRequestBounds.ts'
+import {
+  frvpHistogramStyleDefaults,
+  type FixedRangeVolumeProfileHistogramStyleInput,
+} from './frvpHistogramStyles.ts'
+import {
+  clampMarketStyleOpacityPercent,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 
-export const FRVP_VALUE_AREA_ROW_OPACITY = 0.55
-export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY = 0.25
+/**
+ * Value-Area rows keep the strongest histogram alpha; outside rows stay at the
+ * `25:55` fraction of it at every configured opacity.
+ */
+export const FRVP_VALUE_AREA_ROW_OPACITY_PERCENT = 55
+export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT = 25
+export const FRVP_VALUE_AREA_ROW_OPACITY = FRVP_VALUE_AREA_ROW_OPACITY_PERCENT / 100
+export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY =
+  FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT / 100
+
+/**
+ * Effective alpha percentage for one row: the configured 0–100% opacity scaled
+ * by the Value-Area share (55 inside, 25 outside), so at 100% configured opacity
+ * the alphas are 0.55 / 0.25 and at the 50% default they are 0.275 / 0.125.
+ */
+export function fixedRangeVolumeProfileRowOpacityPercent(
+  configuredOpacityPercent: number,
+  inValueArea: boolean,
+): number {
+  const share = inValueArea
+    ? FRVP_VALUE_AREA_ROW_OPACITY_PERCENT
+    : FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT
+  return (clampMarketStyleOpacityPercent(configuredOpacityPercent) * share) / 100
+}
 
 /** Max histogram bar width as a fraction of the selected time range width (peak volume row). */
 export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
@@ -45,21 +74,6 @@ export type FixedRangeVolumeProfileInstanceDrawModel = {
   endpointHandles: FixedRangeVolumeProfileEndpointHandlesGeometry | null
 }
 
-function withOpacity(hex: string, opacity: number): string {
-  const normalized = hex.replace('#', '')
-  const value =
-    normalized.length === 3
-      ? normalized
-          .split('')
-          .map((char) => char + char)
-          .join('')
-      : normalized
-  const r = Number.parseInt(value.slice(0, 2), 16)
-  const g = Number.parseInt(value.slice(2, 4), 16)
-  const b = Number.parseInt(value.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`
-}
-
 export function computeSelectionRangeHorizontalBounds(params: {
   fromTime: number
   toTime: number
@@ -97,7 +111,7 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   top: number
   bottom: number
   inValueArea: boolean
-}): FixedRangeVolumeProfileRowBarGeometry | null {
+} & Partial<FixedRangeVolumeProfileHistogramStyleInput>): FixedRangeVolumeProfileRowBarGeometry | null {
   const { row, rangeLeft, rangeWidth, maxRowVolume, top, bottom } = params
   if (!Number.isFinite(rangeLeft) || !Number.isFinite(rangeWidth) || rangeWidth <= 0) return null
   if (!Number.isFinite(maxRowVolume) || maxRowVolume <= 0) return null
@@ -114,9 +128,11 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   const downShare = row.totalVolume > 0 ? row.downVolume / row.totalVolume : 0
   const upWidth = totalWidth * upShare
   const downWidth = totalWidth * downShare
-  const opacity = params.inValueArea
-    ? FRVP_VALUE_AREA_ROW_OPACITY
-    : FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY
+  const defaults = frvpHistogramStyleDefaults()
+  const upColor = params.upColor ?? defaults.upColor
+  const downColor = params.downColor ?? defaults.downColor
+  const upOpacityPercent = params.upOpacityPercent ?? defaults.upOpacityPercent
+  const downOpacityPercent = params.downOpacityPercent ?? defaults.downOpacityPercent
 
   return {
     top,
@@ -125,8 +141,14 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
     upWidth,
     downWidth,
     totalWidth,
-    upColor: withOpacity(BTC_PERPETUAL_CANDLESTICK_COLORS.upColor, opacity),
-    downColor: withOpacity(BTC_PERPETUAL_CANDLESTICK_COLORS.downColor, opacity),
+    upColor: marketStyleColorWithOpacity(
+      upColor,
+      fixedRangeVolumeProfileRowOpacityPercent(upOpacityPercent, params.inValueArea),
+    ),
+    downColor: marketStyleColorWithOpacity(
+      downColor,
+      fixedRangeVolumeProfileRowOpacityPercent(downOpacityPercent, params.inValueArea),
+    ),
   }
 }
 
@@ -195,7 +217,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   valStrokeStyle: string
   valLineWidthCssPx: number
   valLineDash: readonly number[]
-}): FixedRangeVolumeProfileInstanceDrawModel | null {
+} & Partial<FixedRangeVolumeProfileHistogramStyleInput>): FixedRangeVolumeProfileInstanceDrawModel | null {
   const xFrom = params.fromTimeToCoordinate(params.fromTime)
   const xTo = params.toTimeToCoordinate(params.toTime)
   if (xFrom === null || xTo === null) return null
@@ -230,6 +252,10 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
       top,
       bottom,
       inValueArea: row.inValueArea,
+      upColor: params.upColor,
+      downColor: params.downColor,
+      upOpacityPercent: params.upOpacityPercent,
+      downOpacityPercent: params.downOpacityPercent,
     })
     if (geometry) rowGeometries.push(geometry)
   }
@@ -289,7 +315,7 @@ export type FixedRangeVolumeProfileDrawStyleInput = {
   valStrokeStyle: string
   valLineWidthCssPx: number
   valLineDash: readonly number[]
-}
+} & FixedRangeVolumeProfileHistogramStyleInput
 
 export function buildFixedRangeVolumeProfileDrawModels(params: {
   instances: readonly {

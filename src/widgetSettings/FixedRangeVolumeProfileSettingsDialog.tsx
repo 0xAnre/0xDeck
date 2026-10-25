@@ -16,12 +16,20 @@ import {
   type FixedRangeVolumeProfileInstance,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import {
+  DEFAULT_FRVP_LEVEL_LINE_WIDTH,
   frvpInstanceLevelLineStyle,
   frvpInstanceLevelLineWidth,
   frvpInstanceLevelStrokeOpacityPercent,
   frvpLevelStrokeColorInputValue,
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
+import {
+  FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT,
+  frvpHistogramColorInputValue,
+  frvpHistogramOpacityPercent,
+  type FrvpHistogramDirection,
+} from '@/market/frvpHistogramStyles'
+import { FRVP_LEVEL_DEFAULT_OPACITY_PERCENT } from '@/market/frvpLevelLineColors'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 
@@ -32,6 +40,16 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
   onRowCountChange: (instanceId: string, rowCount: number) => void
   onValueAreaPercentChange: (instanceId: string, valueAreaPercent: number) => void
   onExtendRightChange: (instanceId: string, extendRight: boolean) => void
+  onHistogramColorChange: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
+    color: string,
+  ) => void
+  onHistogramOpacityChange: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
+    opacityPercent: number,
+  ) => void
   onLevelStrokeColorChange: (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => void
   onLevelLineWidthChange: (
     instanceId: string,
@@ -115,6 +133,46 @@ function LevelLineStyleFields({
   )
 }
 
+function HistogramStyleFields({
+  instance,
+  direction,
+  label,
+  colorId,
+  opacityId,
+  onHistogramColorChange,
+  onHistogramOpacityChange,
+}: {
+  instance: FixedRangeVolumeProfileInstance
+  direction: FrvpHistogramDirection
+  label: string
+  colorId: string
+  opacityId: string
+  onHistogramColorChange: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
+    color: string,
+  ) => void
+  onHistogramOpacityChange: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
+    opacityPercent: number,
+  ) => void
+}) {
+  return (
+    <ColorOpacityField
+      id={colorId}
+      opacityId={opacityId}
+      label={label}
+      color={frvpHistogramColorInputValue(instance, direction)}
+      opacityPercent={frvpHistogramOpacityPercent(instance, direction)}
+      onColorChange={(color) => onHistogramColorChange(instance.id, direction, color)}
+      onOpacityChange={(opacityPercent) =>
+        onHistogramOpacityChange(instance.id, direction, opacityPercent)
+      }
+    />
+  )
+}
+
 export function FixedRangeVolumeProfileSettingsDialog({
   instance,
   returnFocusId,
@@ -122,6 +180,8 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onRowCountChange,
   onValueAreaPercentChange,
   onExtendRightChange,
+  onHistogramColorChange,
+  onHistogramOpacityChange,
   onLevelStrokeColorChange,
   onLevelLineWidthChange,
   onLevelLineStyleChange,
@@ -202,6 +262,31 @@ export function FixedRangeVolumeProfileSettingsDialog({
                 Keep the drawing coordinates but calculate the profile up to the latest candle.
               </FieldDescription>
             </Field>
+            <FieldGroup className="gap-3 border-t border-border pt-3">
+              <p className="text-sm font-medium">Histogram</p>
+              <FieldDescription>
+                Opacity is the Value-Area ceiling; rows outside the value area render at ~25/55
+                of it. Default is {FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT}% for both directions.
+              </FieldDescription>
+              <HistogramStyleFields
+                instance={instance}
+                direction="up"
+                label="Up volume"
+                colorId="frvp-histogram-up-color"
+                opacityId="frvp-histogram-up-opacity"
+                onHistogramColorChange={onHistogramColorChange}
+                onHistogramOpacityChange={onHistogramOpacityChange}
+              />
+              <HistogramStyleFields
+                instance={instance}
+                direction="down"
+                label="Down volume"
+                colorId="frvp-histogram-down-color"
+                opacityId="frvp-histogram-down-opacity"
+                onHistogramColorChange={onHistogramColorChange}
+                onHistogramOpacityChange={onHistogramOpacityChange}
+              />
+            </FieldGroup>
             <LevelLineStyleFields
               instance={instance}
               kind="poc"
@@ -242,7 +327,10 @@ export function FixedRangeVolumeProfileSettingsDialog({
               onLevelStrokeOpacityChange={onLevelStrokeOpacityChange}
             />
             <p className="text-xs text-muted-foreground">
-              Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows, {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area.
+              Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows,{' '}
+              {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on, red dotted
+              POC and grey solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
+              {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity.
             </p>
           </FieldGroup>
           </div>

@@ -38,12 +38,13 @@ function collectSourceFiles(): string[] {
 }
 
 describe('marketStylePalette colors', () => {
-  it('exports the four palette shades', () => {
+  it('exports the neutral shades plus the POC accent', () => {
     assert.deepEqual(MARKET_STYLE_PALETTE, {
       light: '#D4D4D4',
       medium: '#A3A3A3',
       dark: '#737373',
       subtle: '#525252',
+      pocRed: '#D15F5B',
     })
   })
 

@@ -38,6 +38,7 @@ import { RectangleFillStyleDialog } from '@/widgetSettings/RectangleFillStyleDia
 import { LineStyleDialog } from '@/widgetSettings/LineStyleDialog'
 import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
+import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { FrvpLevelLineKind } from '@/market/frvpInstanceLineStyles'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 
@@ -73,6 +74,16 @@ type HeaderToolsMenuProps = {
   onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
     instanceId: string,
     kind: FrvpLevelLineKind,
+    opacityPercent: number,
+  ) => void
+  onFixedRangeVolumeProfileHistogramColorChange?: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
+    color: string,
+  ) => void
+  onFixedRangeVolumeProfileHistogramOpacityChange?: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
     opacityPercent: number,
   ) => void
   rectangleInstances: RectangleInstance[]
@@ -115,6 +126,8 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileLevelLineWidthChange,
   onFixedRangeVolumeProfileLevelLineStyleChange,
   onFixedRangeVolumeProfileLevelStrokeOpacityChange,
+  onFixedRangeVolumeProfileHistogramColorChange,
+  onFixedRangeVolumeProfileHistogramOpacityChange,
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
@@ -395,6 +408,16 @@ export function HeaderToolsMenu({
         }}
         onLevelStrokeOpacityChange={(instanceId, kind, opacityPercent) => {
           onFixedRangeVolumeProfileLevelStrokeOpacityChange?.(instanceId, kind, opacityPercent)
+        }}
+        onHistogramColorChange={(instanceId, direction, color) => {
+          onFixedRangeVolumeProfileHistogramColorChange?.(instanceId, direction, color)
+        }}
+        onHistogramOpacityChange={(instanceId, direction, opacityPercent) => {
+          onFixedRangeVolumeProfileHistogramOpacityChange?.(
+            instanceId,
+            direction,
+            opacityPercent,
+          )
         }}
       />
     </>

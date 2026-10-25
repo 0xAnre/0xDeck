@@ -3,16 +3,18 @@ import { rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
 /**
  * Single source of truth for BTC Perp tool/indicator styling.
  *
- * The palette is intentionally neutral grayscale so the same defaults stay
- * legible on every theme; theme tokens keep driving chart text/background and
- * candle colors. Never re-declare these hex literals anywhere else — import
- * from here instead.
+ * The palette is intentionally neutral grayscale — with the single
+ * `pocRed` accent — so the same defaults stay legible on every theme; theme
+ * tokens keep driving chart text/background and candle colors. Never
+ * re-declare these hex literals anywhere else — import from here instead.
  */
 export const MARKET_STYLE_PALETTE = {
   light: '#D4D4D4',
   medium: '#A3A3A3',
   dark: '#737373',
   subtle: '#525252',
+  /** FRVP point-of-control accent; the only non-neutral palette color. */
+  pocRed: '#D15F5B',
 } as const
 
 export type MarketStylePaletteColor = keyof typeof MARKET_STYLE_PALETTE
