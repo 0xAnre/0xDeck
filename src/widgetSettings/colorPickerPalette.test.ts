@@ -3,10 +3,16 @@ import { describe, it } from 'node:test'
 import { isMarketStyleHexColor } from '../market/marketStylePalette.ts'
 import {
   COLOR_PICKER_COLUMNS,
+  COLOR_PICKER_CONTENT_PADDING_REM,
   COLOR_PICKER_FLAT_COLORS,
+  COLOR_PICKER_GRID_GAP_REM,
+  COLOR_PICKER_GRID_WIDTH_REM,
   COLOR_PICKER_HUE_LABELS,
+  COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
+  COLOR_PICKER_POPOVER_WIDTH_PX,
   COLOR_PICKER_ROWS,
   COLOR_PICKER_SWATCH_COUNT,
+  COLOR_PICKER_SWATCH_SIZE_REM,
   clampColorPickerOpacityPercent,
   colorPickerNextSwatchIndex,
   colorPickerPaletteMatch,
@@ -288,5 +294,36 @@ describe('colorPickerPalette', () => {
     const emitted = normalizeColorPickerHexInput('d15f5b')
     assert.equal(emitted, '#D15F5B')
     assert.equal(isMarketStyleHexColor(emitted), true)
+  })
+
+  it('sizes the popover so the full palette grid fits without shrinking', () => {
+    // Regression guard for the clipped "narrow vertical strip" popover: the
+    // popover used `w-fit` while its first child was a `container-type:
+    // inline-size` FieldGroup, so it collapsed to its padding and the 10-column
+    // grid was squeezed into 0px tracks. The width must be derived from the
+    // palette, not from intrinsic content sizing.
+    const swatchRowPx = COLOR_PICKER_COLUMNS * COLOR_PICKER_SWATCH_SIZE_REM * 16
+    const gapsPx = (COLOR_PICKER_COLUMNS - 1) * COLOR_PICKER_GRID_GAP_REM * 16
+    const paddingPx = 2 * COLOR_PICKER_CONTENT_PADDING_REM * 16
+
+    assert.equal(COLOR_PICKER_GRID_WIDTH_REM, 17.25)
+    assert.equal(swatchRowPx, 240)
+    assert.equal(gapsPx, 36)
+    assert.equal(paddingPx, 16)
+
+    // Grid + padding must fit inside the popover content box.
+    assert.ok(
+      swatchRowPx + gapsPx + paddingPx <= COLOR_PICKER_POPOVER_WIDTH_PX,
+      `palette needs ${swatchRowPx + gapsPx + paddingPx}px, popover is ${COLOR_PICKER_POPOVER_WIDTH_PX}px`,
+    )
+
+    // Popover width stays a sane, bounded whole-pixel value.
+    assert.equal(COLOR_PICKER_POPOVER_WIDTH_PX, 292)
+    assert.ok(Number.isInteger(COLOR_PICKER_POPOVER_WIDTH_PX))
+    assert.ok(COLOR_PICKER_POPOVER_WIDTH_PX >= 256)
+    assert.ok(COLOR_PICKER_POPOVER_WIDTH_PX <= 384)
+
+    // Viewport cap is viewport-relative, so narrow windows stay usable.
+    assert.equal(COLOR_PICKER_POPOVER_MAX_WIDTH_CSS, 'calc(100vw - 1.5rem)')
   })
 })

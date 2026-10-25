@@ -33,6 +33,37 @@ export type ColorPickerPaletteMatch = {
 
 export const COLOR_PICKER_COLUMNS = 10
 
+/**
+ * Palette geometry in `rem` (Tailwind scale), used to size the popover from the
+ * palette instead of from its intrinsic content width.
+ *
+ * The popover must not use `w-fit`. Its first child is a shadcn `FieldGroup`
+ * (`@container/field-group` → `container-type: inline-size`), and an
+ * inline-size containment box contributes **zero** intrinsic inline size to its
+ * ancestors. `fit-content` therefore collapsed the popover to its padding
+ * (measured 16px wide, `FieldGroup` 0px, all 10 grid tracks 0px,
+ * `scrollWidth` 98 > `clientWidth` 16), which clipped the palette into a narrow
+ * vertical strip. These constants are the single source of truth for the width
+ * the palette actually needs; `ColorOpacityField` sizes the popover with them
+ * and `colorPickerPalette.test.ts` pins the relationship.
+ */
+export const COLOR_PICKER_SWATCH_SIZE_REM = 1.5 // Button size="icon-sm" → size-6
+export const COLOR_PICKER_GRID_GAP_REM = 0.25 // gap-1
+export const COLOR_PICKER_CONTENT_PADDING_REM = 0.5 // p-2
+
+/** Width the 10-column swatch grid needs: swatches + gaps, without padding. */
+export const COLOR_PICKER_GRID_WIDTH_REM =
+  COLOR_PICKER_COLUMNS * COLOR_PICKER_SWATCH_SIZE_REM +
+  (COLOR_PICKER_COLUMNS - 1) * COLOR_PICKER_GRID_GAP_REM
+
+/** Popover width in whole pixels: grid + horizontal padding (1rem = 16px). */
+export const COLOR_PICKER_POPOVER_WIDTH_PX = Math.ceil(
+  (COLOR_PICKER_GRID_WIDTH_REM + 2 * COLOR_PICKER_CONTENT_PADDING_REM) * 16,
+)
+
+/** Viewport-safe width cap so the popover never overflows a narrow window. */
+export const COLOR_PICKER_POPOVER_MAX_WIDTH_CSS = 'calc(100vw - 1.5rem)'
+
 /** Hue family for each palette column (red → pink). */
 export const COLOR_PICKER_HUE_LABELS = [
   'Red',

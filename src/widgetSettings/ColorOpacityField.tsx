@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import {
   COLOR_PICKER_COLUMNS,
   COLOR_PICKER_CUSTOM_HEX_EXAMPLE,
+  COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
+  COLOR_PICKER_POPOVER_WIDTH_PX,
   COLOR_PICKER_ROWS,
   colorPickerNextSwatchIndex,
   colorPickerPaletteMatch,
@@ -140,7 +142,17 @@ export function ColorOpacityField({
             sideOffset={8}
             collisionPadding={12}
             sticky="always"
-            className="max-h-[var(--radix-popover-content-available-height)] w-fit gap-0 overflow-y-auto overscroll-contain p-2"
+            // Explicit palette-derived width, not `w-fit`: the popover's first child
+            // is a `@container/field-group` (`container-type: inline-size`) which
+            // contributes no intrinsic inline size, so `fit-content` collapsed the
+            // content to its padding and clipped the palette. `maxWidth` keeps it
+            // inside narrow viewports; Radix `collisionPadding`/flip/shift handle
+            // the rest.
+            style={{
+              width: COLOR_PICKER_POPOVER_WIDTH_PX,
+              maxWidth: COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
+            }}
+            className="max-h-[min(70vh,var(--radix-popover-content-available-height))] gap-0 overflow-y-auto overscroll-contain p-2"
             onOpenAutoFocus={(event) => {
               event.preventDefault()
               const match = colorPickerPaletteMatch(currentHex)
@@ -160,7 +172,9 @@ export function ColorOpacityField({
                   <div
                     key={row.id}
                     role="row"
-                    className="grid grid-cols-10 gap-1"
+                    // Tracks never shrink below one swatch, so the grid can't be
+                    // squeezed into the collapsed width that caused the clipping.
+                    className="grid grid-cols-[repeat(10,minmax(1.5rem,1fr))] gap-1"
                   >
                     {row.colors.map((hex, columnIndex) => {
                       const index = rowIndex * COLOR_PICKER_COLUMNS + columnIndex
