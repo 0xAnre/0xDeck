@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Slider } from '@/components/ui/slider'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import {
   DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
@@ -24,6 +23,7 @@ import {
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
+import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 
 type FixedRangeVolumeProfileSettingsDialogProps = {
   instance: FixedRangeVolumeProfileInstance | null
@@ -92,15 +92,17 @@ function LevelLineStyleFields({
   return (
     <FieldGroup className="gap-3 border-t border-border pt-3">
       <p className="text-sm font-medium">{label}</p>
-      <Field>
-        <FieldLabel htmlFor={colorId}>Color</FieldLabel>
-        <Input
-          id={colorId}
-          type="color"
-          value={frvpLevelStrokeColorInputValue(instance, kind)}
-          onChange={(event) => onLevelStrokeColorChange(instance.id, kind, event.target.value)}
-        />
-      </Field>
+      <ColorOpacityField
+        id={colorId}
+        opacityId={opacityId}
+        label="Color"
+        color={frvpLevelStrokeColorInputValue(instance, kind)}
+        opacityPercent={opacity}
+        onColorChange={(color) => onLevelStrokeColorChange(instance.id, kind, color)}
+        onOpacityChange={(opacityPercent) =>
+          onLevelStrokeOpacityChange(instance.id, kind, opacityPercent)
+        }
+      />
       <LineChartStrokeSelectFields
         widthId={widthId}
         styleId={styleId}
@@ -109,23 +111,6 @@ function LevelLineStyleFields({
         onLineWidthChange={(lineWidth) => onLevelLineWidthChange(instance.id, kind, lineWidth)}
         onLineStyleChange={(lineStyle) => onLevelLineStyleChange(instance.id, kind, lineStyle)}
       />
-      <Field>
-        <FieldLabel id={`${opacityId}-label`}>Opacity</FieldLabel>
-        <Slider
-          id={opacityId}
-          min={0}
-          max={100}
-          step={1}
-          value={[opacity]}
-          aria-labelledby={`${opacityId}-label`}
-          onValueChange={(value) => {
-            const next = value[0]
-            if (next === undefined) return
-            onLevelStrokeOpacityChange(instance.id, kind, Math.round(next))
-          }}
-        />
-        <FieldDescription>{opacity}%</FieldDescription>
-      </Field>
     </FieldGroup>
   )
 }

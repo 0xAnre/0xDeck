@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { WeeklyVwapPoint } from './weeklyVwap.ts'
 import {
+  WEEKLY_VWAP_CHART_BAND_LINE_STYLE,
   WEEKLY_VWAP_CHART_LINE_STYLE,
   WEEKLY_VWAP_CHART_SERIES_KEYS,
   WEEKLY_VWAP_CHART_SERIES_STYLES,
@@ -39,7 +40,10 @@ describe('WEEKLY_VWAP_CHART_SERIES_STYLES', () => {
     for (const key of WEEKLY_VWAP_CHART_SERIES_KEYS) {
       const style = WEEKLY_VWAP_CHART_SERIES_STYLES[key]
       assert.equal(style.lineWidth, 1)
-      assert.deepEqual(style, WEEKLY_VWAP_CHART_LINE_STYLE)
+      assert.deepEqual(
+        style,
+        key === 'vwap' ? WEEKLY_VWAP_CHART_LINE_STYLE : WEEKLY_VWAP_CHART_BAND_LINE_STYLE,
+      )
     }
     for (const key of ['upper1', 'lower1', 'previousVwap']) {
       assert.equal((WEEKLY_VWAP_CHART_SERIES_KEYS as readonly string[]).includes(key), false)

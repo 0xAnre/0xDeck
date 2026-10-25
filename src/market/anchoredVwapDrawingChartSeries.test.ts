@@ -82,20 +82,24 @@ const FILL_POINTS: AnchoredVwapDrawingPoint[] = [
 ]
 
 describe('anchoredVwapDrawingChartSeries band colors', () => {
-  it('creates each band side with its own configured color', () => {
+  it('creates each band side with its own configured color and opacity', () => {
     const settings = createDefaultAnchoredVwapDrawingSettings()
     settings.band1.upperColor = '#111111'
+    settings.band1.upperOpacity = 100
     settings.band1.lowerColor = '#222222'
+    settings.band1.lowerOpacity = 40
     settings.band2.upperColor = '#333333'
+    settings.band2.upperOpacity = 25
     settings.band2.lowerColor = '#444444'
+    settings.band2.lowerOpacity = 100
     const { chart, series } = createMockChart()
 
     createAnchoredVwapDrawingChartSeriesBundle(chart as never, settings, 'Anchored VWAP 1')
 
     // series[0] is the center VWAP line, then upper1, lower1, upper2, lower2, ...
     assert.equal(series[1].options.color, '#111111')
-    assert.equal(series[2].options.color, '#222222')
-    assert.equal(series[3].options.color, '#333333')
+    assert.equal(series[2].options.color, 'rgba(34, 34, 34, 0.4)')
+    assert.equal(series[3].options.color, 'rgba(51, 51, 51, 0.25)')
     assert.equal(series[4].options.color, '#444444')
   })
 
@@ -109,7 +113,9 @@ describe('anchoredVwapDrawingChartSeries band colors', () => {
     )
 
     settings.band1.upperColor = '#abcdef'
+    settings.band1.upperOpacity = 100
     settings.band1.lowerColor = '#fedcba'
+    settings.band1.lowerOpacity = 100
     settings.band1.lineWidth = 3
     settings.band1.lineStyle = 'dotted'
     applyAnchoredVwapDrawingChartPresentation(bundle, instanceWith(settings), 'Anchored VWAP 1')

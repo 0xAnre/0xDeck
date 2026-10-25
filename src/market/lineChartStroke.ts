@@ -4,11 +4,20 @@ export type LineChartStrokeWidth = (typeof LINE_CHART_STROKE_WIDTHS)[number]
 
 export const DEFAULT_LINE_CHART_STROKE_WIDTH: LineChartStrokeWidth = 1
 
-export const LINE_CHART_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const
+/** Only `Line` (solid) and `Dot` (dotted) are selectable. */
+export const LINE_CHART_STROKE_STYLES = ['solid', 'dotted'] as const
 
 export type LineChartStrokeStyle = (typeof LINE_CHART_STROKE_STYLES)[number]
 
-export const DEFAULT_LINE_CHART_STROKE_STYLE: LineChartStrokeStyle = 'dashed'
+export const DEFAULT_LINE_CHART_STROKE_STYLE: LineChartStrokeStyle = 'solid'
+
+export const LINE_CHART_STROKE_STYLE_LABELS: Record<LineChartStrokeStyle, string> = {
+  solid: 'Line',
+  dotted: 'Dot',
+}
+
+/** Legacy persisted style value that is no longer selectable. */
+export const LEGACY_LINE_CHART_STROKE_STYLE_DASHED = 'dashed'
 
 const LINE_WIDTH_SET = new Set<number>(LINE_CHART_STROKE_WIDTHS)
 const LINE_STYLE_SET = new Set<string>(LINE_CHART_STROKE_STYLES)
@@ -23,21 +32,27 @@ export function isLineChartStrokeWidth(value: unknown): value is LineChartStroke
   return typeof value === 'number' && Number.isInteger(value) && LINE_WIDTH_SET.has(value)
 }
 
+/** True only for currently selectable styles (`solid`, `dotted`). */
 export function isLineChartStrokeStyle(value: unknown): value is LineChartStrokeStyle {
   return typeof value === 'string' && LINE_STYLE_SET.has(value)
 }
 
+/**
+ * Sanitize a persisted style, migrating the retired `dashed` value to
+ * `solid`. Returns `undefined` for anything that is not a style.
+ */
+export function sanitizeLineChartStrokeStyle(value: unknown): LineChartStrokeStyle | undefined {
+  if (value === LEGACY_LINE_CHART_STROKE_STYLE_DASHED) return 'solid'
+  return isLineChartStrokeStyle(value) ? value : undefined
+}
+
 export function lineChartStrokeDashPattern(style: LineChartStrokeStyle): readonly number[] {
   switch (style) {
-    case 'solid':
-      return []
-    case 'dashed':
-      return [6, 4]
     case 'dotted':
       return [2, 3]
-    default: {
-      const unreachable: never = style
-      return unreachable
-    }
+    default:
+      // `dashed` is migrated to `solid` by sanitizeLineChartStrokeStyle; any
+      // unsanitized legacy value must still render as a solid line.
+      return []
   }
 }

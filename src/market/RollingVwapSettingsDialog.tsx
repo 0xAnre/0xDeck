@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { LINE_CHART_STROKE_STYLE_LABELS } from '@/market/lineChartStroke'
 import {
   isRollingVwapLineStyle,
   isRollingVwapLineWidth,
@@ -16,6 +17,7 @@ import {
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
 } from '@/market/rollingVwapSettings'
+import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 
 const inputClassName =
   'h-8 w-full rounded-md border border-input bg-input/20 px-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30'
@@ -190,38 +192,18 @@ function RollingVwapSettingsDialogBody({
 
           <section className="space-y-2">
             <p className="font-medium text-foreground">Center line</p>
-            <div className="grid grid-cols-[1fr_5rem] items-end gap-2">
-              <label className="space-y-1">
-                <span className="text-muted-foreground">Opacity (%)</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  className={inputClassName}
-                  value={draft.lineOpacity}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      lineOpacity: Number(event.target.value),
-                    }))
-                  }
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-muted-foreground">Color</span>
-                <input
-                  type="color"
-                  className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-                  value={draft.lineColor}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      lineColor: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            </div>
+            <ColorOpacityField
+              id="rolling-vwap-line-color"
+              label="Color"
+              color={draft.lineColor}
+              opacityPercent={draft.lineOpacity}
+              onColorChange={(lineColor) =>
+                setDraft((current) => ({ ...current, lineColor }))
+              }
+              onOpacityChange={(lineOpacity) =>
+                setDraft((current) => ({ ...current, lineOpacity }))
+              }
+            />
             <p className="font-medium text-foreground" id="rolling-vwap-line-style-label">
               Line style
             </p>
@@ -244,10 +226,10 @@ function RollingVwapSettingsDialogBody({
                 <ToggleGroupItem
                   key={style}
                   value={style}
-                  aria-label={`Line style ${style}`}
-                  className="w-full capitalize"
+                  aria-label={`Line style ${LINE_CHART_STROKE_STYLE_LABELS[style]}`}
+                  className="w-full"
                 >
-                  {style}
+                  {LINE_CHART_STROKE_STYLE_LABELS[style]}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -259,47 +241,103 @@ function RollingVwapSettingsDialogBody({
               const bandKey = `band${index + 1}` as 'band1' | 'band2' | 'band3'
               const multKey = `multiplier${index + 1}` as keyof RollingVwapSettings['multipliers']
               return (
-                <div key={bandKey} className="grid grid-cols-[4rem_1fr_5rem] items-end gap-2">
-                  <span className="text-muted-foreground">{label}</span>
-                  <label className="space-y-1">
-                    <span className="text-muted-foreground">Multiplier</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      className={inputClassName}
-                      value={draft.multipliers[multKey]}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          multipliers: {
-                            ...current.multipliers,
-                            [multKey]: Number(event.target.value),
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-muted-foreground">Color</span>
-                    <input
-                      type="color"
-                      className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-                      value={draft.bandColors[bandKey]}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          bandColors: {
-                            ...current.bandColors,
-                            [bandKey]: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
+                <div key={bandKey} className="space-y-1">
+                  <div className="grid grid-cols-[4rem_1fr] items-end gap-2">
+                    <span className="text-muted-foreground">{label}</span>
+                    <label className="space-y-1">
+                      <span className="text-muted-foreground">Multiplier</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        className={inputClassName}
+                        value={draft.multipliers[multKey]}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            multipliers: {
+                              ...current.multipliers,
+                              [multKey]: Number(event.target.value),
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <ColorOpacityField
+                    id={`rolling-vwap-${bandKey}-color`}
+                    label="Color"
+                    color={draft.bandColors[bandKey]}
+                    opacityPercent={draft.bandOpacities[bandKey]}
+                    onColorChange={(color) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bandColors: { ...current.bandColors, [bandKey]: color },
+                      }))
+                    }
+                    onOpacityChange={(opacity) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bandOpacities: { ...current.bandOpacities, [bandKey]: opacity },
+                      }))
+                    }
+                  />
                 </div>
               )
             })}
+          </section>
+
+          <section className="space-y-2">
+            <p className="font-medium text-foreground">Info box</p>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={draft.infoBox.visible}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    infoBox: { ...current.infoBox, visible: event.target.checked },
+                  }))
+                }
+              />
+              <span>Visible</span>
+            </label>
+            <ColorOpacityField
+              id="rolling-vwap-info-box-background"
+              label="Background color"
+              color={draft.infoBox.backgroundColor}
+              opacityPercent={draft.infoBox.backgroundColorOpacity}
+              onColorChange={(backgroundColor) =>
+                setDraft((current) => ({
+                  ...current,
+                  infoBox: { ...current.infoBox, backgroundColor },
+                }))
+              }
+              onOpacityChange={(backgroundColorOpacity) =>
+                setDraft((current) => ({
+                  ...current,
+                  infoBox: { ...current.infoBox, backgroundColorOpacity },
+                }))
+              }
+            />
+            <ColorOpacityField
+              id="rolling-vwap-info-box-text"
+              label="Text color"
+              color={draft.infoBox.textColor}
+              opacityPercent={draft.infoBox.textColorOpacity}
+              onColorChange={(textColor) =>
+                setDraft((current) => ({
+                  ...current,
+                  infoBox: { ...current.infoBox, textColor },
+                }))
+              }
+              onOpacityChange={(textColorOpacity) =>
+                setDraft((current) => ({
+                  ...current,
+                  infoBox: { ...current.infoBox, textColorOpacity },
+                }))
+              }
+            />
           </section>
         </div>
 

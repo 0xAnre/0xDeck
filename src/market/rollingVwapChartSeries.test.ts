@@ -22,6 +22,10 @@ import {
 import { createRollingVwapInstance } from './rollingVwapInstances.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import type { MarketCandle } from './types.ts'
+import {
+  MARKET_STYLE_PALETTE,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 
 function candle(overrides: Partial<MarketCandle> = {}): MarketCandle {
   return {
@@ -84,8 +88,8 @@ function trackBundle() {
 }
 
 describe('rollingVwap chart series defaults', () => {
-  it('uses gray center style and six band keys', () => {
-    assert.equal(ROLLING_VWAP_LINE_CHART_OPTIONS.color, '#9e9e9e')
+  it('uses the palette center style and six band keys', () => {
+    assert.equal(ROLLING_VWAP_LINE_CHART_OPTIONS.color, MARKET_STYLE_PALETTE.light)
     assert.equal(ROLLING_VWAP_BAND_SERIES_KEYS.length, 6)
   })
 
@@ -102,16 +106,26 @@ describe('rollingVwap chart series defaults', () => {
       },
     } as IChartApi
     const defaults = createDefaultRollingVwapSettings()
-    const bundle = createRollingVwapChartSeriesBundle(chart, defaults.bandColors)
+    const bundle = createRollingVwapChartSeriesBundle(chart, defaults)
     assert.equal(bundle.ordered.length, 7)
-    assert.equal(createdOptions[0].color, '#9e9e9e')
+    assert.equal(createdOptions[0].color, MARKET_STYLE_PALETTE.light)
     assert.equal(createdOptions[0].lineWidth, 1)
     assert.equal(createdOptions[0].lineStyle, LineStyle.Solid)
     assert.equal(createdOptions[0].priceLineVisible, false)
     assert.equal(createdOptions[0].lastValueVisible, true)
-    assert.equal(createdOptions[1].color, '#4caf50')
-    assert.equal(createdOptions[3].color, '#ffeb3b')
-    assert.equal(createdOptions[5].color, '#ff5252')
+    // Band colors are the palette's distinct grayscale shades at 70% opacity.
+    assert.equal(
+      createdOptions[1].color,
+      marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.subtle, 70),
+    )
+    assert.equal(
+      createdOptions[3].color,
+      marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.medium, 70),
+    )
+    assert.equal(
+      createdOptions[5].color,
+      marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.dark, 70),
+    )
     for (const options of createdOptions.slice(1)) {
       assert.equal(options.lineWidth, 1)
       assert.equal(options.lastValueVisible, false)
@@ -136,7 +150,7 @@ describe('rollingVwap chart series defaults', () => {
     settings.lineColor = '#ff0000'
     settings.lineOpacity = 50
     settings.lineStyle = 'dotted'
-    createRollingVwapChartSeriesBundle(chart, settings.bandColors, {
+    createRollingVwapChartSeriesBundle(chart, settings, {
       lineWidth: settings.lineWidth,
       lineColor: settings.lineColor,
       lineOpacity: settings.lineOpacity,
@@ -160,7 +174,7 @@ describe('rollingVwap chart series defaults', () => {
     } as IChartApi
     const settings = createDefaultRollingVwapSettings()
     settings.lineWidth = 3
-    createRollingVwapChartSeriesBundle(chart, settings.bandColors, { lineWidth: settings.lineWidth })
+    createRollingVwapChartSeriesBundle(chart, settings, { lineWidth: settings.lineWidth })
     assert.equal(createdOptions.length, 7)
     for (const options of createdOptions) {
       assert.equal(options.lineWidth, 3)

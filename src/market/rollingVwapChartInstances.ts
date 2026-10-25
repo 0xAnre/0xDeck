@@ -49,7 +49,7 @@ export function reconcileRollingVwapChartBundles(
   for (const instance of instances) {
     let bundle = map.get(instance.id)
     if (!bundle) {
-      bundle = createRollingVwapChartSeriesBundle(chart, instance.settings.bandColors, {
+      bundle = createRollingVwapChartSeriesBundle(chart, instance.settings, {
         title: rollingVwapInstancePeriodLabel(instance, interval),
         lineWidth: instance.settings.lineWidth,
         lineColor: instance.settings.lineColor,
@@ -135,7 +135,7 @@ export function applyRollingVwapInstanceSettingsToChart(
   instance: RollingVwapInstance,
   interval: CandleInterval,
 ): void {
-  applyRollingVwapChartBandColors(chartBundle, instance.settings.bandColors)
+  applyRollingVwapChartBandColors(chartBundle, instance.settings)
   applyRollingVwapChartInstancePresentation(chartBundle, instance, interval)
   setRollingVwapInstanceSeriesVisibility(chartBundle, instance, interval)
 }

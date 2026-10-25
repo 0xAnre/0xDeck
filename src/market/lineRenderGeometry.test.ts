@@ -10,7 +10,10 @@ import {
   startLineResizeDraft,
   updateLineCreatePreview,
 } from './lineInteraction.ts'
-import { lineChartStrokeDashPattern } from './lineChartStroke.ts'
+import {
+  DEFAULT_LINE_CHART_STROKE_STYLE,
+  lineChartStrokeDashPattern,
+} from './lineChartStroke.ts'
 import { readLineStrokeStyleForInstance } from './lineColors.ts'
 import {
   createLineInstance,
@@ -211,6 +214,10 @@ describe('lineRenderGeometry', () => {
     const createPreview = createModels.at(-1)
     assert.equal(createPreview?.strokeStyle, defaultStroke)
     assert.equal(createPreview?.lineWidthCssPx, 1)
-    assert.deepEqual(createPreview?.dashPatternCssPx, lineChartStrokeDashPattern('dashed'))
+    // New line previews default to the shared solid style.
+    assert.deepEqual(
+      createPreview?.dashPatternCssPx,
+      lineChartStrokeDashPattern(DEFAULT_LINE_CHART_STROKE_STYLE),
+    )
   })
 })

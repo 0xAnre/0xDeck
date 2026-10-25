@@ -216,7 +216,7 @@ describe('rectangleRenderGeometry', () => {
       },
     })
     assert.equal(moveModels.length, 1)
-    assert.equal(moveModels[0].fillStyle, 'rgba(115, 115, 115, 0.4)')
+    assert.equal(moveModels[0].fillStyle, resolveRectangleInstanceFillStyle(faded))
 
     const creating = startRectangleCreateDraft(
       armRectangleTool({ phase: 'inactive', selectedId: null, draft: null }),

@@ -9,20 +9,25 @@ import {
   isAnchoredVwapFillOpacity,
   sanitizeAnchoredVwapDrawingSettings,
 } from './anchoredVwapDrawingSettings.ts'
+import { MARKET_STYLE_DEFAULTS } from './marketStylePalette.ts'
 
 describe('anchoredVwapDrawingSettings defaults', () => {
-  it('defaults both sides visible, fill disabled and band base colors unchanged', () => {
+  it('defaults both sides visible, fill disabled and palette band colors', () => {
     const settings = createDefaultAnchoredVwapDrawingSettings()
     for (const pair of [settings.band1, settings.band2, settings.band3]) {
       assert.equal(pair.upperVisible, true)
       assert.equal(pair.lowerVisible, true)
       assert.equal(pair.fillOpacity, 0)
+      assert.equal(pair.upperColor, MARKET_STYLE_DEFAULTS.secondaryLine.color)
+      assert.equal(pair.lowerColor, MARKET_STYLE_DEFAULTS.secondaryLine.color)
+      assert.equal(pair.fillColor, MARKET_STYLE_DEFAULTS.fill.color)
+      assert.equal(pair.upperOpacity, MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent)
+      assert.equal(pair.lowerOpacity, MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent)
+      assert.equal(pair.lineStyle, 'solid')
     }
-    assert.equal(settings.band1.upperColor, '#4caf50')
-    assert.equal(settings.band1.lowerColor, '#4caf50')
-    assert.equal(settings.band1.fillColor, '#4caf50')
-    assert.equal(settings.band2.upperColor, '#ffeb3b')
-    assert.equal(settings.band3.upperColor, '#ff5252')
+    assert.equal(settings.vwapLine.lineColor, MARKET_STYLE_DEFAULTS.primaryLine.color)
+    assert.equal(settings.vwapLine.lineOpacity, MARKET_STYLE_DEFAULTS.primaryLine.opacityPercent)
+    assert.equal(settings.vwapLine.lineStyle, 'solid')
   })
 })
 
@@ -56,7 +61,9 @@ describe('sanitizeAnchoredVwapDrawingSettings band pairs', () => {
     assert.equal(settings.band1.upperVisible, true)
     assert.equal(settings.band1.lowerVisible, true)
     assert.equal(settings.band1.fillOpacity, 0)
-    assert.equal(settings.band1.lineOpacity, 80)
+    // Legacy shared opacity now styles each side independently.
+    assert.equal(settings.band1.upperOpacity, 80)
+    assert.equal(settings.band1.lowerOpacity, 80)
     assert.equal(settings.band1.lineWidth, 2)
     assert.equal(settings.band1.lineStyle, 'dotted')
   })
@@ -95,13 +102,35 @@ describe('sanitizeAnchoredVwapDrawingSettings band pairs', () => {
     assert.equal(settings.band3.multiplier, 3)
     assert.equal(settings.band3.upperVisible, true)
     assert.equal(settings.band3.lowerVisible, true)
-    assert.equal(settings.band3.upperColor, '#ff5252')
-    assert.equal(settings.band3.lowerColor, '#ff5252')
-    assert.equal(settings.band3.fillColor, '#ff5252')
+    assert.equal(settings.band3.upperColor, MARKET_STYLE_DEFAULTS.secondaryLine.color)
+    assert.equal(settings.band3.lowerColor, MARKET_STYLE_DEFAULTS.secondaryLine.color)
+    assert.equal(settings.band3.fillColor, MARKET_STYLE_DEFAULTS.fill.color)
     assert.equal(settings.band3.fillOpacity, 0)
-    assert.equal(settings.band3.lineOpacity, 100)
+    assert.equal(settings.band3.upperOpacity, MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent)
+    assert.equal(settings.band3.lowerOpacity, MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent)
     assert.equal(settings.band3.lineWidth, 1)
+    // `dashed` is retired: persisted values load as solid.
     assert.equal(settings.band3.lineStyle, 'solid')
+  })
+
+  it('migrates legacy dashed line styles to solid on read', () => {
+    const settings = sanitizeAnchoredVwapDrawingSettings({
+      vwapLine: { lineStyle: 'dashed', lineColor: '#123456', lineWidth: 3 },
+      band1: { lineStyle: 'dashed', lineColor: '#123456' },
+    })
+    assert.equal(settings.vwapLine.lineStyle, 'solid')
+    assert.equal(settings.vwapLine.lineColor, '#123456')
+    assert.equal(settings.vwapLine.lineWidth, 3)
+    assert.equal(settings.band1.lineStyle, 'solid')
+    assert.equal(settings.band1.upperColor, '#123456')
+  })
+
+  it('gives upper and lower lines independent opacities that win over the legacy shared value', () => {
+    const settings = sanitizeAnchoredVwapDrawingSettings({
+      band2: { lineOpacity: 10, upperOpacity: 55, lowerOpacity: 90 },
+    })
+    assert.equal(settings.band2.upperOpacity, 55)
+    assert.equal(settings.band2.lowerOpacity, 90)
   })
 
   it('preserves multiplier zero and valid independent side settings', () => {
@@ -132,7 +161,9 @@ describe('per-instance band styling persistence', () => {
     instance.settings.band1.upperVisible = false
     instance.settings.band1.lowerVisible = true
     instance.settings.band1.upperColor = '#010203'
+    instance.settings.band1.upperOpacity = 45
     instance.settings.band1.lowerColor = '#040506'
+    instance.settings.band1.lowerOpacity = 65
     instance.settings.band1.fillColor = '#070809'
     instance.settings.band1.fillOpacity = 33
     instance.settings.band2.visible = true
@@ -143,9 +174,12 @@ describe('per-instance band styling persistence', () => {
     assert.equal(restored.settings.band1.upperVisible, false)
     assert.equal(restored.settings.band1.lowerVisible, true)
     assert.equal(restored.settings.band1.upperColor, '#010203')
+    assert.equal(restored.settings.band1.upperOpacity, 45)
     assert.equal(restored.settings.band1.lowerColor, '#040506')
+    assert.equal(restored.settings.band1.lowerOpacity, 65)
     assert.equal(restored.settings.band1.fillColor, '#070809')
     assert.equal(restored.settings.band1.fillOpacity, 33)
+    assert.notEqual(restored.settings.band1.upperOpacity, restored.settings.band1.lowerOpacity)
     assert.equal(restored.settings.band1.lineColor, undefined)
     assert.equal(restored.settings.band2.visible, true)
     assert.equal(restored.settings.band2.fillOpacity, 12)

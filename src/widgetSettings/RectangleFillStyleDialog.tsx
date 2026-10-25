@@ -5,18 +5,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { Slider } from '@/components/ui/slider'
+import { FieldGroup } from '@/components/ui/field'
 import { rectangleInstancePickerFillHex } from '@/market/rectangleColors'
 import {
   formatRectangleInstanceLabel,
   rectangleInstanceFillOpacityPercent,
 } from '@/market/rectangleInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
+import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 
 const COLOR_INPUT_ID = 'rectangle-fill-color'
-const OPACITY_LABEL_ID = 'rectangle-fill-opacity-label'
 
 type RectangleFillStyleDialogProps = {
   instance: RectangleInstance | null
@@ -33,8 +31,6 @@ export function RectangleFillStyleDialog({
   onFillColorChange,
   onFillOpacityChange,
 }: RectangleFillStyleDialogProps) {
-  const opacity = instance ? rectangleInstanceFillOpacityPercent(instance) : 0
-
   return (
     <Dialog
       open={instance !== null}
@@ -57,34 +53,14 @@ export function RectangleFillStyleDialog({
         </DialogHeader>
         {instance ? (
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={COLOR_INPUT_ID}>Fill color</FieldLabel>
-              <Input
-                id={COLOR_INPUT_ID}
-                type="color"
-                className="h-8 w-16 cursor-pointer p-1"
-                value={rectangleInstancePickerFillHex(instance)}
-                onChange={(event) => {
-                  onFillColorChange(instance.id, event.target.value)
-                }}
-              />
-            </Field>
-            <Field>
-              <FieldLabel id={OPACITY_LABEL_ID}>Fill opacity</FieldLabel>
-              <Slider
-                aria-labelledby={OPACITY_LABEL_ID}
-                min={0}
-                max={100}
-                step={1}
-                value={[opacity]}
-                onValueChange={(value) => {
-                  const next = value[0]
-                  if (next === undefined || !Number.isFinite(next)) return
-                  onFillOpacityChange(instance.id, Math.round(next))
-                }}
-              />
-              <FieldDescription>{opacity}%</FieldDescription>
-            </Field>
+            <ColorOpacityField
+              id={COLOR_INPUT_ID}
+              label="Fill color"
+              color={rectangleInstancePickerFillHex(instance)}
+              opacityPercent={rectangleInstanceFillOpacityPercent(instance)}
+              onColorChange={(color) => onFillColorChange(instance.id, color)}
+              onOpacityChange={(opacityPercent) => onFillOpacityChange(instance.id, opacityPercent)}
+            />
           </FieldGroup>
         ) : null}
       </DialogContent>

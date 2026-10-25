@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/select'
 import { Field, FieldLabel } from '@/components/ui/field'
 import {
+  LINE_CHART_STROKE_STYLE_LABELS,
   LINE_CHART_STROKE_STYLES,
   LINE_CHART_STROKE_WIDTHS,
   type LineChartStrokeStyle,
@@ -63,7 +64,9 @@ export function LineChartStrokeSelectFields({
             <SelectContent>
               <SelectGroup>
                 {LINE_CHART_STROKE_STYLES.map((style) => (
-                  <SelectItem key={style} value={style}>{style}</SelectItem>
+                  <SelectItem key={style} value={style}>
+                    {LINE_CHART_STROKE_STYLE_LABELS[style]}
+                  </SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>

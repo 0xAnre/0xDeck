@@ -4,7 +4,6 @@ import {
   ColorType,
   createChart,
   LineSeries,
-  LineStyle,
   type IChartApi,
   type LogicalRange,
 } from 'lightweight-charts'
@@ -226,6 +225,7 @@ import {
   setLineInstanceHidden,
   setLineInstanceLocked,
   setLineInstanceStrokeColor,
+  setLineInstanceStrokeOpacity,
   setLineInstanceStrokeStyle,
   setLineInstanceStrokeWidth,
   updateLineInstancesById,
@@ -276,22 +276,21 @@ import {
   type WidgetStreamConnectionState,
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor, resolveThemeCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveCssColor } from '@/lib/resolveCssColor.ts'
+import {
+  MARKET_STYLE_DUAL_LINE_SHADES,
+  MARKET_STYLE_MULTI_LINE_SHADES,
+} from '@/market/marketStylePalette'
 
-const EMA_COLOR_VARS = ['--chart-2', '--chart-3', '--chart-4'] as const
-const EMA_100_COLOR_VAR = '--muted-foreground'
-const EMA_200_COLOR_VAR = '--chart-1'
-
+/** Theme tokens only drive chart text/background; indicator defaults come from the palette. */
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
   return {
     background: 'transparent',
     text: resolveCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
-    ema: EMA_COLOR_VARS.map((token, index) =>
-      resolveCssColor(style.getPropertyValue(token), ['#a3a3a3', '#737373', '#525252'][index]),
-    ),
-    ema100: resolveThemeCssColor(style.getPropertyValue(EMA_100_COLOR_VAR), '#a3a3a3'),
-    ema200: resolveThemeCssColor(style.getPropertyValue(EMA_200_COLOR_VAR), '#dedede'),
+    ema: MARKET_STYLE_MULTI_LINE_SHADES,
+    ema100: MARKET_STYLE_DUAL_LINE_SHADES[0],
+    ema200: MARKET_STYLE_DUAL_LINE_SHADES[1],
   }
 }
 
@@ -974,6 +973,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistLineInstances],
   )
 
+  const handleLineStrokeOpacityChange = useCallback(
+    (instanceId: string, strokeOpacity: number) => {
+      persistLineInstances(
+        updateLineInstancesById(lineInstancesRef.current, instanceId, (instance) =>
+          setLineInstanceStrokeOpacity(instance, strokeOpacity),
+        ),
+      )
+    },
+    [persistLineInstances],
+  )
+
   const handleLineWidthChange = useCallback(
     (instanceId: string, lineWidth: LineChartStrokeWidth) => {
       persistLineInstances(
@@ -1406,6 +1416,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onLineLockToggle: handleLineLockToggle,
     onLineVisibilityToggle: handleLineVisibilityToggle,
     onLineStrokeColorChange: handleLineStrokeColorChange,
+    onLineStrokeOpacityChange: handleLineStrokeOpacityChange,
     onLineWidthChange: handleLineWidthChange,
     onLineStyleChange: handleLineStyleChange,
     anchoredVwapInstances,
@@ -2048,7 +2059,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const ema100Series = chart!.addSeries(LineSeries, {
         color: colors.ema100,
         lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
         priceLineVisible: false,
         lastValueVisible: false,
         visible: dualEmaSeriesVisible,

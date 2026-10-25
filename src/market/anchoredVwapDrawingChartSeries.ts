@@ -159,7 +159,7 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
       const series = chart.addSeries(LineSeries, {
         color: anchoredVwapDrawingLineRgba(
           side === 'upper' ? pair.upperColor : pair.lowerColor,
-          pair.lineOpacity,
+          side === 'upper' ? pair.upperOpacity : pair.lowerOpacity,
         ),
         lineWidth: pair.lineWidth,
         lineStyle: lineStyleToChart(pair.lineStyle),
@@ -223,14 +223,14 @@ export function applyAnchoredVwapDrawingChartPresentation(
     const upperKey = `upper${index + 1}` as AnchoredVwapDrawingBandSeriesKey
     const lowerKey = `lower${index + 1}` as AnchoredVwapDrawingBandSeriesKey
     bundle.bands[upperKey].applyOptions({
-      color: anchoredVwapDrawingLineRgba(pair.upperColor, pair.lineOpacity),
+      color: anchoredVwapDrawingLineRgba(pair.upperColor, pair.upperOpacity),
       lineWidth: pair.lineWidth,
       lineStyle: lineStyleToChart(pair.lineStyle),
       lastValueVisible: false,
       title: '',
     })
     bundle.bands[lowerKey].applyOptions({
-      color: anchoredVwapDrawingLineRgba(pair.lowerColor, pair.lineOpacity),
+      color: anchoredVwapDrawingLineRgba(pair.lowerColor, pair.lowerOpacity),
       lineWidth: pair.lineWidth,
       lineStyle: lineStyleToChart(pair.lineStyle),
       lastValueVisible: false,

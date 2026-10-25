@@ -88,6 +88,7 @@ type HeaderToolsMenuProps = {
   onLineLockToggle?: (instanceId: string, locked: boolean) => void
   onLineVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
+  onLineStrokeOpacityChange?: (instanceId: string, strokeOpacity: number) => void
   onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
   anchoredVwapInstances: AnchoredVwapInstance[]
@@ -127,6 +128,7 @@ export function HeaderToolsMenu({
   onLineLockToggle,
   onLineVisibilityToggle,
   onLineStrokeColorChange,
+  onLineStrokeOpacityChange,
   onLineWidthChange,
   onLineStyleChange,
   anchoredVwapInstances,
@@ -356,6 +358,9 @@ export function HeaderToolsMenu({
         }}
         onStrokeColorChange={(instanceId, strokeColor) => {
           onLineStrokeColorChange?.(instanceId, strokeColor)
+        }}
+        onStrokeOpacityChange={(instanceId, strokeOpacity) => {
+          onLineStrokeOpacityChange?.(instanceId, strokeOpacity)
         }}
         onLineWidthChange={(instanceId, lineWidth) => {
           onLineWidthChange?.(instanceId, lineWidth)

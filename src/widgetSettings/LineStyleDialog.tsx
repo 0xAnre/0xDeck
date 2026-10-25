@@ -5,23 +5,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
+import { FieldGroup } from '@/components/ui/field'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
+import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
   formatLineInstanceLabel,
+  lineInstanceStrokeOpacityPercent,
   lineInstanceStrokeStyle,
   lineInstanceStrokeWidth,
   type LineInstance,
 } from '@/market/lineInstances'
-import { readLineStrokeStyleForInstance } from '@/market/lineColors'
+import { readLineStrokeColorHexForInstance } from '@/market/lineColors'
 
 type LineStyleDialogProps = {
   instance: LineInstance | null
   returnFocusId: string
   onOpenChange: (open: boolean) => void
   onStrokeColorChange: (instanceId: string, strokeColor: string) => void
+  onStrokeOpacityChange: (instanceId: string, strokeOpacity: number) => void
   onLineWidthChange: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
 }
@@ -31,16 +33,10 @@ export function LineStyleDialog({
   returnFocusId,
   onOpenChange,
   onStrokeColorChange,
+  onStrokeOpacityChange,
   onLineWidthChange,
   onLineStyleChange,
 }: LineStyleDialogProps) {
-  const strokeColor = instance
-    ? readLineStrokeStyleForInstance(instance).replace(/^rgb\((\d+), (\d+), (\d+)\)$/, (_, r, g, b) => {
-        const toHex = (n: string) => Number(n).toString(16).padStart(2, '0')
-        return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-      })
-    : '#71717a'
-
   return (
     <Dialog
       open={instance !== null}
@@ -63,15 +59,16 @@ export function LineStyleDialog({
         </DialogHeader>
         {instance ? (
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="line-stroke-color">Color</FieldLabel>
-              <Input
-                id="line-stroke-color"
-                type="color"
-                value={instance.strokeColor ?? strokeColor}
-                onChange={(event) => onStrokeColorChange(instance.id, event.target.value)}
-              />
-            </Field>
+            <ColorOpacityField
+              id="line-stroke-color"
+              label="Color"
+              color={readLineStrokeColorHexForInstance(instance)}
+              opacityPercent={lineInstanceStrokeOpacityPercent(instance)}
+              onColorChange={(color) => onStrokeColorChange(instance.id, color)}
+              onOpacityChange={(opacityPercent) =>
+                onStrokeOpacityChange(instance.id, opacityPercent)
+              }
+            />
             <LineChartStrokeSelectFields
               widthId="line-width"
               styleId="line-style"

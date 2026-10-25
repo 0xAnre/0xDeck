@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  DEFAULT_LINE_STROKE_OPACITY_PERCENT,
   createLineInstance,
   formatLineInstanceLabel,
+  lineInstanceStrokeOpacityPercent,
+  lineInstanceStrokeStyle,
   normalizeLineEndpoints,
   sanitizeLineInstances,
+  setLineInstanceStrokeOpacity,
+  setLineInstanceStrokeStyle,
 } from './lineInstances.ts'
 import {
   loadWidgetLineInstances,
@@ -46,6 +51,62 @@ describe('lineInstances', () => {
     if (first) {
       assert.match(formatLineInstanceLabel(first), /^Line \d+$/)
     }
+  })
+
+  it('defaults line stroke opacity to 100 and persists overrides independently', () => {
+    const instance = createLineInstance({
+      timeA: 10,
+      priceA: 1,
+      timeB: 20,
+      priceB: 2,
+    })!
+    assert.equal(DEFAULT_LINE_STROKE_OPACITY_PERCENT, 100)
+    assert.equal(lineInstanceStrokeOpacityPercent(instance), 100)
+
+    const faded = setLineInstanceStrokeOpacity(instance, 40)
+    assert.equal(faded.strokeOpacity, 40)
+    assert.equal(lineInstanceStrokeOpacityPercent(faded), 40)
+    // Other style fields are untouched by an opacity change.
+    assert.equal(faded.strokeColor, instance.strokeColor)
+    assert.equal(faded.lineStyle, instance.lineStyle)
+
+    const restored = setLineInstanceStrokeOpacity(faded, DEFAULT_LINE_STROKE_OPACITY_PERCENT)
+    assert.equal(restored.strokeOpacity, undefined)
+
+    assert.equal(setLineInstanceStrokeOpacity(instance, 250).strokeOpacity, undefined)
+  })
+
+  it('migrates persisted dashed line styles to solid while keeping other fields', () => {
+    const sanitized = sanitizeLineInstances([
+      {
+        id: 'line-legacy',
+        timeA: 10,
+        priceA: 1,
+        timeB: 20,
+        priceB: 2,
+        displaySequence: 1,
+        strokeColor: '#112233',
+        strokeOpacity: 55,
+        lineWidth: 3,
+        lineStyle: 'dashed',
+      },
+    ])
+    assert.equal(sanitized.length, 1)
+    assert.equal(lineInstanceStrokeStyle(sanitized[0]), 'solid')
+    assert.equal(sanitized[0].strokeColor, '#112233')
+    assert.equal(sanitized[0].strokeOpacity, 55)
+    assert.equal(sanitized[0].lineWidth, 3)
+  })
+
+  it('does not persist the retired dashed style through the setter', () => {
+    const instance = createLineInstance({
+      timeA: 10,
+      priceA: 1,
+      timeB: 20,
+      priceB: 2,
+    })!
+    const dashed = setLineInstanceStrokeStyle(instance, 'dashed' as never)
+    assert.equal(dashed.lineStyle, undefined)
   })
 
   it('persists per panel in localStorage', () => {

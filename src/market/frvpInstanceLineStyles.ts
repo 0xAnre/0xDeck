@@ -1,36 +1,36 @@
-import { rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
 import {
   isLineChartHexColor,
-  isLineChartStrokeStyle,
   isLineChartStrokeWidth,
   lineChartStrokeDashPattern,
+  sanitizeLineChartStrokeStyle,
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
 } from './lineChartStroke.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileDrawStyleInput } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import {
-  FRVP_POC_LINE_STROKE_OPACITY,
+  FRVP_LEVEL_DEFAULT_HEX,
+  FRVP_LEVEL_DEFAULT_OPACITY_PERCENT,
   readFrvpPocLineColorInputHex,
   readFrvpPocLineStrokeStyle,
 } from './frvpLevelLineColors.ts'
+import {
+  isMarketStyleOpacityPercent,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 
 export type FrvpLevelLineKind = 'poc' | 'vah' | 'val'
 
-export const FRVP_VAH_VAL_DEFAULT_HEX = '#a0a0a0'
-export const FRVP_VAH_VAL_STROKE_OPACITY = 0.55
+export const FRVP_VAH_VAL_DEFAULT_HEX = FRVP_LEVEL_DEFAULT_HEX
+export const FRVP_VAH_VAL_STROKE_OPACITY = FRVP_LEVEL_DEFAULT_OPACITY_PERCENT / 100
 export const DEFAULT_FRVP_LEVEL_LINE_WIDTH: LineChartStrokeWidth = 3
 
 export const DEFAULT_FRVP_POC_LINE_STYLE: LineChartStrokeStyle = 'solid'
 export const DEFAULT_FRVP_VAH_LINE_STYLE: LineChartStrokeStyle = 'solid'
 export const DEFAULT_FRVP_VAL_LINE_STYLE: LineChartStrokeStyle = 'solid'
 
-export const DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT = Math.round(
-  FRVP_POC_LINE_STROKE_OPACITY * 100,
-)
-export const DEFAULT_FRVP_VAH_VAL_STROKE_OPACITY_PERCENT = Math.round(
-  FRVP_VAH_VAL_STROKE_OPACITY * 100,
-)
+export const DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT = FRVP_LEVEL_DEFAULT_OPACITY_PERCENT
+export const DEFAULT_FRVP_VAH_VAL_STROKE_OPACITY_PERCENT = FRVP_LEVEL_DEFAULT_OPACITY_PERCENT
 
 const LEVEL_STROKE_COLOR_KEY: Record<
   FrvpLevelLineKind,
@@ -84,22 +84,15 @@ function defaultStrokeStyleForKind(kind: FrvpLevelLineKind): string {
   if (kind === 'poc') {
     return readFrvpPocLineStrokeStyle()
   }
-  return rgbaFromResolvedCssColor(FRVP_VAH_VAL_DEFAULT_HEX, FRVP_VAH_VAL_STROKE_OPACITY)
+  return marketStyleColorWithOpacity(FRVP_VAH_VAL_DEFAULT_HEX, FRVP_VAH_VAL_STROKE_OPACITY * 100)
 }
 
 function strokeStyleFromHex(hex: string, opacityPercent: number): string {
-  const opacity = Math.min(100, Math.max(0, opacityPercent)) / 100
-  return rgbaFromResolvedCssColor(hex, opacity)
+  return marketStyleColorWithOpacity(hex, opacityPercent)
 }
 
-export function isFrvpStrokeOpacityPercent(value: unknown): value is number {
-  return (
-    typeof value === 'number' &&
-    Number.isInteger(value) &&
-    value >= 0 &&
-    value <= 100
-  )
-}
+/** Shared 0–100 opacity percentage guard. */
+export const isFrvpStrokeOpacityPercent = isMarketStyleOpacityPercent
 
 export function frvpLevelStrokeColorInputValue(
   instance: FixedRangeVolumeProfileInstance,
@@ -126,8 +119,7 @@ export function frvpInstanceLevelLineStyle(
   kind: FrvpLevelLineKind,
 ): LineChartStrokeStyle {
   const value = instance[LEVEL_LINE_STYLE_KEY[kind]]
-  if (isLineChartStrokeStyle(value)) return value
-  return DEFAULT_LINE_STYLE[kind]
+  return sanitizeLineChartStrokeStyle(value) ?? DEFAULT_LINE_STYLE[kind]
 }
 
 export function frvpInstanceLevelStrokeOpacityPercent(
@@ -195,7 +187,8 @@ export function setFrvpInstanceLevelLineStyle(
   kind: FrvpLevelLineKind,
   lineStyle: LineChartStrokeStyle,
 ): FixedRangeVolumeProfileInstance {
-  if (!isLineChartStrokeStyle(lineStyle)) return instance
+  const sanitized = sanitizeLineChartStrokeStyle(lineStyle)
+  if (sanitized !== lineStyle) return instance
   const key = LEVEL_LINE_STYLE_KEY[kind]
   if (lineStyle === DEFAULT_LINE_STYLE[kind]) {
     const next = { ...instance }
@@ -236,8 +229,9 @@ export function sanitizeFrvpInstanceLevelLineStyles(
     if (isLineChartStrokeWidth(record[widthKey])) {
       next = { ...next, [widthKey]: record[widthKey] }
     }
-    if (isLineChartStrokeStyle(record[styleKey])) {
-      next = { ...next, [styleKey]: record[styleKey] }
+    const lineStyle = sanitizeLineChartStrokeStyle(record[styleKey])
+    if (lineStyle !== undefined) {
+      next = { ...next, [styleKey]: lineStyle }
     }
     if (isFrvpStrokeOpacityPercent(record[opacityKey])) {
       next = { ...next, [opacityKey]: record[opacityKey] }

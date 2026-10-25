@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { createDefaultRollingVwapSettings } from './rollingVwapSettings.ts'
+import {
+  createDefaultRollingVwapSettings,
+  DEFAULT_ROLLING_VWAP_LINE_COLOR,
+} from './rollingVwapSettings.ts'
 import {
   loadWidgetRollingVwapSettings,
   saveWidgetRollingVwapSettings,
@@ -124,7 +127,7 @@ describe('rollingVwapSettingsStorage', () => {
     )
     const loaded = loadWidgetRollingVwapSettings('panel-a')
     assert.equal(loaded.lineWidth, 2)
-    assert.equal(loaded.lineColor, '#9e9e9e')
+    assert.equal(loaded.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
     assert.equal(loaded.lineOpacity, 100)
     assert.equal(loaded.lineStyle, 'solid')
   })

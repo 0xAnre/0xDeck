@@ -1,29 +1,33 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { resolveThemeCssColor } from '../lib/resolveCssColor.ts'
 import {
-  FRVP_POC_LINE_SEMANTIC_CSS_VAR,
-  FRVP_POC_LINE_STROKE_OPACITY,
+  FRVP_LEVEL_DEFAULT_HEX,
+  FRVP_LEVEL_DEFAULT_OPACITY_PERCENT,
   readFrvpPocLineColorInputHex,
   readFrvpPocLineStrokeStyle,
 } from './frvpLevelLineColors.ts'
+import {
+  MARKET_STYLE_DEFAULTS,
+  MARKET_STYLE_PALETTE,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 
 describe('frvpLevelLineColors', () => {
-  it('routes POC stroke through the down semantic token', () => {
-    assert.equal(FRVP_POC_LINE_SEMANTIC_CSS_VAR, '--down')
+  it('uses the shared palette secondary line for FRVP levels', () => {
+    assert.equal(FRVP_LEVEL_DEFAULT_HEX, MARKET_STYLE_DEFAULTS.secondaryLine.color)
+    assert.equal(FRVP_LEVEL_DEFAULT_HEX, MARKET_STYLE_PALETTE.medium)
+    assert.equal(FRVP_LEVEL_DEFAULT_OPACITY_PERCENT, 70)
   })
 
-  it('applies POC stroke opacity when resolving without document', () => {
-    const stroke = readFrvpPocLineStrokeStyle()
-    assert.match(stroke, new RegExp(`,\\s*${FRVP_POC_LINE_STROKE_OPACITY}\\)$`))
+  it('folds the level opacity into the POC stroke style', () => {
+    assert.equal(
+      readFrvpPocLineStrokeStyle(),
+      marketStyleColorWithOpacity(FRVP_LEVEL_DEFAULT_HEX, FRVP_LEVEL_DEFAULT_OPACITY_PERCENT),
+    )
+    assert.equal(readFrvpPocLineStrokeStyle(), 'rgba(163, 163, 163, 0.7)')
   })
 
-  it('derives POC color input hex from the same resolved rgb as stroke (no document)', () => {
-    assert.equal(readFrvpPocLineColorInputHex(), '#dc2626')
-  })
-
-  it('resolves semantic down token color from oklch instead of fallback rgb', () => {
-    const resolved = resolveThemeCssColor('oklch(0.704 0.191 22.216)', 'rgb(220, 38, 38)')
-    assert.equal(resolved, 'rgb(255, 100, 103)')
+  it('matches the stroke color input hex to the palette default', () => {
+    assert.equal(readFrvpPocLineColorInputHex(), MARKET_STYLE_PALETTE.medium)
   })
 })

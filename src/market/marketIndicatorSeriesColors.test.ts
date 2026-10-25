@@ -4,6 +4,7 @@ import { LineStyle, type ISeriesApi } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import {
   chartLineStyleToStrokeStyle,
+  marketIndicatorOpacityInputValue,
   cssColorToHexForColorInput,
   marketIndicatorColorInputValue,
   marketIndicatorLineStyleSelectValue,
@@ -64,14 +65,16 @@ describe('marketIndicatorSeriesColors', () => {
     assert.equal(marketIndicatorUsesDistinctSeriesColors(['#111111', '#222222']), true)
   })
 
-  it('maps chart line styles to stroke styles', () => {
+  it('maps chart line styles to stroke styles, reading dashed as solid', () => {
     assert.equal(chartLineStyleToStrokeStyle(LineStyle.Solid), 'solid')
-    assert.equal(chartLineStyleToStrokeStyle(LineStyle.Dashed), 'dashed')
+    assert.equal(chartLineStyleToStrokeStyle(LineStyle.Dotted), 'dotted')
+    // Retired style: Lightweight Charts dashed series read as solid.
+    assert.equal(chartLineStyleToStrokeStyle(LineStyle.Dashed), 'solid')
     assert.equal(chartLineStyleToStrokeStyle(undefined), 'solid')
   })
 
   it('reads line series stroke style from options', () => {
-    assert.equal(readLineSeriesLineStyle(mockLineSeries('#000', LineStyle.Dashed)), 'dashed')
+    assert.equal(readLineSeriesLineStyle(mockLineSeries('#000', LineStyle.Dashed)), 'solid')
     assert.equal(readLineSeriesLineStyle(mockLineSeries('#000')), 'solid')
   })
 
@@ -88,7 +91,7 @@ describe('marketIndicatorSeriesColors', () => {
       rollingVwaps: new Map(),
     } as unknown as ChartSeriesBundle
 
-    assert.deepEqual(readMarketIndicatorSeriesLineStyles(bundle, 'dual-ema'), ['dashed', 'solid'])
+    assert.deepEqual(readMarketIndicatorSeriesLineStyles(bundle, 'dual-ema'), ['solid', 'solid'])
     assert.deepEqual(readMarketIndicatorSeriesLineStyles(bundle, 'triple-ema'), [
       'solid',
       'solid',
@@ -99,12 +102,18 @@ describe('marketIndicatorSeriesColors', () => {
   it('uses saved override for the line style select value', () => {
     assert.equal(marketIndicatorLineStyleSelectValue('dotted', ['solid']), 'dotted')
     assert.equal(marketIndicatorLineStyleSelectValue(undefined, ['solid', 'solid']), 'solid')
-    assert.equal(marketIndicatorLineStyleSelectValue(undefined, ['dashed', 'solid']), 'dashed')
+    assert.equal(marketIndicatorLineStyleSelectValue(undefined, ['solid', 'solid']), 'solid')
   })
 
   it('detects distinct series line styles for grouped indicators', () => {
     assert.equal(marketIndicatorUsesDistinctSeriesLineStyles(['solid', 'solid']), false)
-    assert.equal(marketIndicatorUsesDistinctSeriesLineStyles(['dashed', 'solid']), true)
+    assert.equal(marketIndicatorUsesDistinctSeriesLineStyles(['solid', 'dotted']), true)
+  })
+
+  it('maps the indicator opacity control to the palette primary default', () => {
+    assert.equal(marketIndicatorOpacityInputValue(undefined), 100)
+    assert.equal(marketIndicatorOpacityInputValue(35), 35)
+    assert.equal(marketIndicatorOpacityInputValue(150), 100)
   })
 
   it('derives line width defaults from series options', () => {

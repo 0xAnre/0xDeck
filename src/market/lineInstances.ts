@@ -8,13 +8,14 @@ import {
   DEFAULT_LINE_CHART_STROKE_STYLE,
   DEFAULT_LINE_CHART_STROKE_WIDTH,
   isLineChartHexColor,
-  isLineChartStrokeStyle,
   isLineChartStrokeWidth,
+  sanitizeLineChartStrokeStyle,
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
 } from './lineChartStroke.ts'
 import { isChartObjectHidden, setChartObjectHidden, setChartObjectLocked } from './chartObjectState.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
+import { MARKET_STYLE_DEFAULTS, isMarketStyleOpacityPercent } from './marketStylePalette.ts'
 
 export type LineInstance = {
   id: string
@@ -26,9 +27,12 @@ export type LineInstance = {
   locked?: boolean
   hidden?: boolean
   strokeColor?: string
+  strokeOpacity?: number
   lineWidth?: LineChartStrokeWidth
   lineStyle?: LineChartStrokeStyle
 }
+
+export const DEFAULT_LINE_STROKE_OPACITY_PERCENT = MARKET_STYLE_DEFAULTS.primaryLine.opacityPercent
 
 export type NormalizedLineEndpoints = {
   timeA: number
@@ -112,11 +116,15 @@ export function sanitizeLineInstance(value: unknown): LineInstance | null {
   if (isLineChartHexColor(record.strokeColor)) {
     instance.strokeColor = record.strokeColor
   }
+  if (isMarketStyleOpacityPercent(record.strokeOpacity)) {
+    instance.strokeOpacity = record.strokeOpacity
+  }
   if (isLineChartStrokeWidth(record.lineWidth)) {
     instance.lineWidth = record.lineWidth
   }
-  if (isLineChartStrokeStyle(record.lineStyle)) {
-    instance.lineStyle = record.lineStyle
+  const lineStyle = sanitizeLineChartStrokeStyle(record.lineStyle)
+  if (lineStyle !== undefined) {
+    instance.lineStyle = lineStyle
   }
   return instance
 }
@@ -183,7 +191,15 @@ export function lineInstanceStrokeWidth(instance: LineInstance): LineChartStroke
 }
 
 export function lineInstanceStrokeStyle(instance: LineInstance): LineChartStrokeStyle {
-  return instance.lineStyle ?? DEFAULT_LINE_CHART_STROKE_STYLE
+  return sanitizeLineChartStrokeStyle(instance.lineStyle) ?? DEFAULT_LINE_CHART_STROKE_STYLE
+}
+
+export function lineInstanceStrokeOpacityPercent(instance: {
+  strokeOpacity?: number
+}): number {
+  return isMarketStyleOpacityPercent(instance.strokeOpacity)
+    ? instance.strokeOpacity
+    : DEFAULT_LINE_STROKE_OPACITY_PERCENT
 }
 
 export function formatLineInstanceLabel(instance: LineInstance): string {
@@ -203,6 +219,19 @@ export function setLineInstanceStrokeColor(instance: LineInstance, strokeColor: 
   return { ...instance, strokeColor }
 }
 
+export function setLineInstanceStrokeOpacity(
+  instance: LineInstance,
+  strokeOpacity: number,
+): LineInstance {
+  if (!isMarketStyleOpacityPercent(strokeOpacity)) return instance
+  if (strokeOpacity === DEFAULT_LINE_STROKE_OPACITY_PERCENT) {
+    const next = { ...instance }
+    delete next.strokeOpacity
+    return next
+  }
+  return { ...instance, strokeOpacity }
+}
+
 export function setLineInstanceStrokeWidth(
   instance: LineInstance,
   lineWidth: LineChartStrokeWidth,
@@ -220,7 +249,7 @@ export function setLineInstanceStrokeStyle(
   instance: LineInstance,
   lineStyle: LineChartStrokeStyle,
 ): LineInstance {
-  if (!isLineChartStrokeStyle(lineStyle)) return instance
+  if (sanitizeLineChartStrokeStyle(lineStyle) !== lineStyle) return instance
   if (lineStyle === DEFAULT_LINE_CHART_STROKE_STYLE) {
     const next = { ...instance }
     delete next.lineStyle

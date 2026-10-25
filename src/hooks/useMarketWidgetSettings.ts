@@ -74,6 +74,7 @@ type UseMarketWidgetSettingsArgs = {
   onLineLockToggle?: (instanceId: string, locked: boolean) => void
   onLineVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
+  onLineStrokeOpacityChange?: (instanceId: string, strokeOpacity: number) => void
   onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
   anchoredVwapInstances: AnchoredVwapInstance[]
@@ -128,6 +129,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onLineLockToggle,
     onLineVisibilityToggle,
     onLineStrokeColorChange,
+    onLineStrokeOpacityChange,
     onLineWidthChange,
     onLineStyleChange,
     anchoredVwapInstances,
@@ -211,6 +213,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onLineLockToggle: headerSettings.tools === true ? onLineLockToggle : undefined,
       onLineVisibilityToggle: headerSettings.tools === true ? onLineVisibilityToggle : undefined,
       onLineStrokeColorChange: headerSettings.tools === true ? onLineStrokeColorChange : undefined,
+      onLineStrokeOpacityChange:
+        headerSettings.tools === true ? onLineStrokeOpacityChange : undefined,
       onLineWidthChange: headerSettings.tools === true ? onLineWidthChange : undefined,
       onLineStyleChange: headerSettings.tools === true ? onLineStyleChange : undefined,
       anchoredVwapInstances: headerSettings.tools === true ? anchoredVwapInstances : undefined,
@@ -255,6 +259,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onLineLockToggle,
       onLineVisibilityToggle,
       onLineStrokeColorChange,
+      onLineStrokeOpacityChange,
       onLineWidthChange,
       onLineStyleChange,
       onAnchoredVwapArm,

@@ -2,12 +2,17 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { DailyVwapPoint } from './dailyVwap.ts'
 import {
+  DAILY_VWAP_CHART_BAND_LINE_STYLE,
   DAILY_VWAP_CHART_LINE_STYLE,
   DAILY_VWAP_CHART_SERIES_KEYS,
   DAILY_VWAP_CHART_SERIES_STYLES,
   dailyVwapPointToLinePoint,
   dailyVwapPointsToLineData,
 } from './dailyVwapLineData.ts'
+import {
+  VWAP_CHART_BAND_LINE_STYLE,
+  VWAP_CHART_LINE_STYLE,
+} from './vwapChartLineStyles.ts'
 
 function point(overrides: Partial<DailyVwapPoint>): DailyVwapPoint {
   return {
@@ -47,13 +52,23 @@ describe('dailyVwapPointsToLineData', () => {
 })
 
 describe('DAILY_VWAP_CHART_SERIES_STYLES', () => {
-  it('uses full gray for three rendered line series', () => {
-    assert.deepEqual(DAILY_VWAP_CHART_LINE_STYLE, { color: '#9e9e9e', lineWidth: 1 })
+  it('uses the palette center/band styles for three rendered line series', () => {
+    assert.deepEqual(DAILY_VWAP_CHART_LINE_STYLE, {
+      color: VWAP_CHART_LINE_STYLE.color,
+      lineWidth: 1,
+    })
+    assert.deepEqual(DAILY_VWAP_CHART_BAND_LINE_STYLE, {
+      color: VWAP_CHART_BAND_LINE_STYLE.color,
+      lineWidth: 1,
+    })
 
     for (const key of DAILY_VWAP_CHART_SERIES_KEYS) {
       const style = DAILY_VWAP_CHART_SERIES_STYLES[key]
       assert.equal(style.lineWidth, 1)
-      assert.equal(style.color, '#9e9e9e')
+      assert.equal(
+        style.color,
+        key === 'vwap' ? VWAP_CHART_LINE_STYLE.color : VWAP_CHART_BAND_LINE_STYLE.color,
+      )
     }
 
     for (const key of OUTER_BAND_KEYS) {

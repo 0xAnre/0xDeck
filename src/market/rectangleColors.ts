@@ -1,4 +1,9 @@
-import { resolveThemeCssColor, rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
+import {
+  MARKET_STYLE_DEFAULTS,
+  MARKET_STYLE_OPACITY_PERCENT,
+  MARKET_STYLE_PALETTE,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 import {
   DEFAULT_RECTANGLE_FILL_HEX,
   DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT,
@@ -7,57 +12,21 @@ import {
   type RectangleInstance,
 } from './rectangleInstances.ts'
 
-export const RECTANGLE_FILL_SEMANTIC_CSS_VAR = '--muted-foreground'
-export const RECTANGLE_FILL_OPACITY = 0.20
+/** Rectangle fill / handle alpha defaults (fractions, canvas `fillStyle`). */
+export const RECTANGLE_FILL_OPACITY = MARKET_STYLE_OPACITY_PERCENT.fill / 100
 export const RECTANGLE_HANDLE_FILL_OPACITY = 0.85
 
-const RECTANGLE_FILL_FALLBACK_RGB = 'rgb(115, 115, 115)'
-
-function channelByteToHex(value: string): string | null {
-  const channel = Number(value)
-  if (!Number.isFinite(channel)) return null
-  const byte = Math.round(Math.min(255, Math.max(0, channel)))
-  return byte.toString(16).padStart(2, '0')
-}
-
-export function hexFromResolvedCssColor(color: string, fallbackHex: string): string {
-  const trimmed = color.trim()
-  const rgbMatch = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i.exec(trimmed)
-  if (rgbMatch) {
-    const channels = [rgbMatch[1], rgbMatch[2], rgbMatch[3]].map(channelByteToHex)
-    if (channels.every((channel) => channel !== null)) {
-      return `#${channels.join('')}`
-    }
-  }
-  if (isRectangleHexColor(trimmed)) return trimmed.toLowerCase()
-  return fallbackHex
-}
-
-export function rectangleInstancePickerFillHex(
-  instance: RectangleInstance,
-  themeBaseRgb: string = readRectangleThemeBaseRgb(),
-): string {
+/** Hex value for `<input type="color">`: instance color, else the palette fill color. */
+export function rectangleInstancePickerFillHex(instance: RectangleInstance): string {
   if (isRectangleHexColor(instance.fillColor)) {
     return instance.fillColor.toLowerCase()
   }
-  return hexFromResolvedCssColor(themeBaseRgb, DEFAULT_RECTANGLE_FILL_HEX)
+  return DEFAULT_RECTANGLE_FILL_HEX
 }
 
-export function readRectangleThemeBaseRgb(): string {
-  if (typeof document === 'undefined') {
-    return RECTANGLE_FILL_FALLBACK_RGB
-  }
-
-  const token = getComputedStyle(document.documentElement).getPropertyValue(RECTANGLE_FILL_SEMANTIC_CSS_VAR)
-  return resolveThemeCssColor(token, RECTANGLE_FILL_FALLBACK_RGB)
-}
-
+/** Persisted hex + opacity percent → CSS color (shared palette conversion). */
 export function rectangleFillRgbaFromHex(hexColor: string, opacityPercent: number): string {
-  const clampedOpacity = Math.min(100, Math.max(0, opacityPercent))
-  const r = Number.parseInt(hexColor.slice(1, 3), 16)
-  const g = Number.parseInt(hexColor.slice(3, 5), 16)
-  const b = Number.parseInt(hexColor.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, ${clampedOpacity / 100})`
+  return marketStyleColorWithOpacity(hexColor, opacityPercent)
 }
 
 export function resolveRectangleInstanceFillStyle(instance: RectangleInstance): string {
@@ -67,20 +36,25 @@ export function resolveRectangleInstanceFillStyle(instance: RectangleInstance): 
     return readRectangleFillStyle()
   }
 
+  const color = hasCustomColor ? instance.fillColor! : DEFAULT_RECTANGLE_FILL_HEX
   const opacityPercent = hasCustomOpacity
     ? instance.fillOpacity!
     : DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT
-  if (hasCustomColor) {
-    return rectangleFillRgbaFromHex(instance.fillColor!, opacityPercent)
-  }
-
-  return rgbaFromResolvedCssColor(readRectangleThemeBaseRgb(), opacityPercent / 100)
+  return marketStyleColorWithOpacity(color, opacityPercent)
 }
 
+/** Palette fill default (medium @ 25%). */
 export function readRectangleFillStyle(): string {
-  return rgbaFromResolvedCssColor(readRectangleThemeBaseRgb(), RECTANGLE_FILL_OPACITY)
+  return marketStyleColorWithOpacity(
+    MARKET_STYLE_DEFAULTS.fill.color,
+    MARKET_STYLE_DEFAULTS.fill.opacityPercent,
+  )
 }
 
+/** Selection-handle chrome stays crisp regardless of the fill opacity. */
 export function readRectangleHandleFillStyle(): string {
-  return rgbaFromResolvedCssColor(readRectangleThemeBaseRgb(), RECTANGLE_HANDLE_FILL_OPACITY)
+  return marketStyleColorWithOpacity(
+    MARKET_STYLE_PALETTE.dark,
+    RECTANGLE_HANDLE_FILL_OPACITY * 100,
+  )
 }

@@ -6,19 +6,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import { MARKET_INDICATOR_DEFINITIONS, type MarketIndicatorId } from '@/market/indicators'
-import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
+import {
+  LINE_CHART_STROKE_STYLE_LABELS,
+  type LineChartStrokeStyle,
+  type LineChartStrokeWidth,
+} from '@/market/lineChartStroke'
 import {
   marketIndicatorColorInputValue,
   marketIndicatorLineStyleSelectValue,
   marketIndicatorLineWidthInputValue,
+  marketIndicatorOpacityInputValue,
   marketIndicatorUsesDistinctSeriesColors,
   marketIndicatorUsesDistinctSeriesLineStyles,
   marketIndicatorUsesDistinctSeriesLineWidths,
 } from '@/market/marketIndicatorSeriesColors'
 import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
+import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 
 type MarketIndicatorStyleDialogProps = {
   indicatorId: MarketIndicatorId | null
@@ -43,6 +48,7 @@ export function MarketIndicatorStyleDialog({
 }: MarketIndicatorStyleDialogProps) {
   const label = indicatorId ? MARKET_INDICATOR_DEFINITIONS[indicatorId].label : 'Indicator'
   const colorInputValue = marketIndicatorColorInputValue(presentation.color, seriesColors)
+  const opacityInputValue = marketIndicatorOpacityInputValue(presentation.opacity)
   const usesDistinctSeriesColors =
     presentation.color === undefined && marketIndicatorUsesDistinctSeriesColors(seriesColors)
   const lineWidthInputValue = marketIndicatorLineWidthInputValue(
@@ -80,10 +86,13 @@ export function MarketIndicatorStyleDialog({
         </DialogHeader>
         {indicatorId ? (
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="indicator-color">Color</FieldLabel>
-              {usesDistinctSeriesColors ? (
-                <div className="flex flex-wrap items-center gap-2">
+            {usesDistinctSeriesColors ? (
+              <Field>
+                <FieldLabel>Chart lines</FieldLabel>
+                <div
+                  id="indicator-series-colors"
+                  className="flex flex-wrap items-center gap-2"
+                >
                   {seriesColors.map((color, index) => (
                     <span
                       key={`${color}-${index}`}
@@ -93,22 +102,29 @@ export function MarketIndicatorStyleDialog({
                     />
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    Theme colors per line. Pick a color to apply it to all lines.
+                    Palette shades per line. Pick a color to apply it to all lines.
                   </p>
                 </div>
-              ) : null}
-              <Input
-                id="indicator-color"
-                type="color"
-                value={colorInputValue}
-                onChange={(event) =>
-                  onPresentationChange(indicatorId, {
-                    ...presentation,
-                    color: event.target.value,
-                  })
-                }
-              />
-            </Field>
+              </Field>
+            ) : null}
+            <ColorOpacityField
+              id="indicator-color"
+              label="Color"
+              color={colorInputValue}
+              opacityPercent={opacityInputValue}
+              onColorChange={(color) =>
+                onPresentationChange(indicatorId, {
+                  ...presentation,
+                  color,
+                })
+              }
+              onOpacityChange={(opacity) =>
+                onPresentationChange(indicatorId, {
+                  ...presentation,
+                  opacity,
+                })
+              }
+            />
             {usesDistinctSeriesLineWidths ? (
               <p className="text-xs text-muted-foreground">
                 Mixed line widths on chart. Pick a width to apply to all lines.
@@ -119,13 +135,13 @@ export function MarketIndicatorStyleDialog({
                 {seriesLineStyles.map((style, index) => (
                   <span
                     key={`${style}-${index}`}
-                    className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground capitalize"
+                    className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground"
                   >
-                    {style}
+                    {LINE_CHART_STROKE_STYLE_LABELS[style]}
                   </span>
                 ))}
                 <p className="text-xs text-muted-foreground">
-                  Theme styles per line. Pick a style to apply it to all lines.
+                  Mixed line styles on chart. Pick a style to apply it to all lines.
                 </p>
               </div>
             ) : null}

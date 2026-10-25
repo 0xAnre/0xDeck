@@ -2,17 +2,19 @@ import { LineStyle, type ISeriesApi } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import type { MarketIndicatorId } from './indicators.ts'
 import {
+  DEFAULT_LINE_CHART_STROKE_STYLE,
   DEFAULT_LINE_CHART_STROKE_WIDTH,
   isLineChartStrokeWidth,
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
 } from './lineChartStroke.ts'
 import { resolveCssColor } from '../lib/resolveCssColor.ts'
+import { MARKET_STYLE_DEFAULTS, isMarketStyleOpacityPercent } from './marketStylePalette.ts'
 
-const COLOR_INPUT_FALLBACK_HEX = '#71717a'
+const COLOR_INPUT_FALLBACK_HEX = MARKET_STYLE_DEFAULTS.primaryLine.color
 
 function rgbStringToHex(color: string): string | null {
-  const match = /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i.exec(color.trim())
+  const match = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(color.trim())
   if (!match) return null
   const toHex = (n: string) => Number(n).toString(16).padStart(2, '0')
   return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`
@@ -53,7 +55,8 @@ export function chartLineStyleToStrokeStyle(lineStyle: LineStyle | undefined): L
     case LineStyle.Dotted:
       return 'dotted'
     case LineStyle.Dashed:
-      return 'dashed'
+      // `dashed` is retired: Lightweight Charts dashed series read as `solid`.
+      return 'solid'
     case LineStyle.Solid:
     case undefined:
       return 'solid'
@@ -213,9 +216,18 @@ export function marketIndicatorLineStyleSelectValue(
     return presentationLineStyle
   }
   if (seriesLineStyles.length === 0) {
-    return 'solid'
+    return DEFAULT_LINE_CHART_STROKE_STYLE
   }
   return seriesLineStyles[0]
+}
+
+/** Indicator opacity control value (defaults to the palette primary line opacity). */
+export function marketIndicatorOpacityInputValue(
+  presentationOpacity: number | undefined,
+): number {
+  return isMarketStyleOpacityPercent(presentationOpacity)
+    ? presentationOpacity
+    : MARKET_STYLE_DEFAULTS.primaryLine.opacityPercent
 }
 
 export function marketIndicatorUsesDistinctSeriesLineWidths(
