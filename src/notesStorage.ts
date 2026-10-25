@@ -16,13 +16,6 @@ export type NotesWorkspace = {
   openIds: string[]
 }
 
-export type NoteSearchResult = {
-  file: NoteFile
-  title: string
-  snippet: string
-  isOpen: boolean
-}
-
 export const SEED_NOTES: NoteFile[] = [
   { id: 'daily', name: 'daily.md', source: 'bundled', path: '/notes/daily.md' },
   { id: 'ideas', name: 'ideas.md', source: 'bundled', path: '/notes/ideas.md' },
@@ -166,44 +159,6 @@ export function deleteNoteFile(workspace: NotesWorkspace, fileId: string): Notes
     activeId: safeActiveId,
     openIds: safeOpenIds.length > 0 ? safeOpenIds : [safeActiveId],
   }
-}
-
-function buildSnippet(content: string, query: string): string {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return content.slice(0, 80).replace(/\s+/g, ' ')
-
-  const lower = content.toLowerCase()
-  const index = lower.indexOf(normalized)
-  if (index === -1) return content.slice(0, 80).replace(/\s+/g, ' ')
-
-  const start = Math.max(0, index - 24)
-  const end = Math.min(content.length, index + normalized.length + 40)
-  const prefix = start > 0 ? '…' : ''
-  const suffix = end < content.length ? '…' : ''
-  return `${prefix}${content.slice(start, end).replace(/\s+/g, ' ')}${suffix}`
-}
-
-export function searchNotes(workspace: NotesWorkspace, query: string): NoteSearchResult[] {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return []
-
-  const openSet = new Set(workspace.openIds)
-
-  return workspace.files
-    .filter((file) => {
-      const content = workspace.contents[file.id] ?? ''
-      return (
-        file.name.toLowerCase().includes(normalized) ||
-        getNoteTitle(content, file.name).toLowerCase().includes(normalized) ||
-        content.toLowerCase().includes(normalized)
-      )
-    })
-    .map((file) => ({
-      file,
-      title: getNoteTitle(workspace.contents[file.id] ?? '', file.name),
-      snippet: buildSnippet(workspace.contents[file.id] ?? '', normalized),
-      isOpen: openSet.has(file.id),
-    }))
 }
 
 export async function loadNotesWorkspace(): Promise<NotesWorkspace> {
