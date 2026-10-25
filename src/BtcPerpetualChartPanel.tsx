@@ -45,9 +45,16 @@ import {
 } from '@/marketChartViewportStorage'
 import {
   createInfiniteHistoryState,
+  loadOlderBtcPerpHistory,
   maybeRequestOlderBtcPerpHistory,
   resetInfiniteHistoryState,
 } from '@/market/btcPerpetualInfiniteHistory'
+import {
+  describeIndicatorHistoryStatus,
+  evaluateIndicatorHistoryPlan,
+  resolveIndicatorHistoryPlan,
+} from '@/market/indicatorHistoryRequirements'
+import { preloadIndicatorHistory } from '@/market/indicatorHistoryPreload'
 import {
   clearDailyVwapLineSeriesData,
   createDailyVwapLineSeries,
@@ -331,6 +338,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [dataState, setDataState] = useState<WidgetDataNotReadyState>({ status: 'loading' })
   const [chartReady, setChartReady] = useState(false)
+  const [indicatorHistoryNotices, setIndicatorHistoryNotices] = useState<string[]>([])
   const [streamState, setStreamState] = useState<WidgetStreamConnectionState>('idle')
   const [rollingVwapSettingsOpen, setRollingVwapSettingsOpen] = useState(false)
   const [editingRollingVwapInstanceId, setEditingRollingVwapInstanceId] = useState<string | null>(
@@ -395,6 +403,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
   const historyReadyRef = useRef(false)
   const infiniteHistoryRef = useRef(createInfiniteHistoryState())
+  const indicatorHistoryAbortRef = useRef<AbortController | null>(null)
+  const indicatorHistoryPreloadLimitRef = useRef(false)
   const loadedVwapContextRef = useRef<LoadedVwapContext | null>(null)
   const vwapContextAbortRef = useRef<AbortController | null>(null)
   const vwapContextLatestRequestIdRef = useRef(0)
@@ -469,6 +479,27 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     },
     [panelId],
   )
+
+  const refreshIndicatorHistoryNotices = useCallback(() => {
+    if (!historyReadyRef.current) {
+      setIndicatorHistoryNotices([])
+      return
+    }
+    const plan = resolveIndicatorHistoryPlan({
+      interval: activeIntervalRef.current,
+      indicators: activeIndicatorsRef.current,
+      rollingVwapInstances: rollingVwapInstancesRef.current,
+      anchoredVwapInstances: anchoredVwapInstancesRef.current,
+    })
+    const notices = evaluateIndicatorHistoryPlan(plan, candlesRef.current)
+      .map((entry) =>
+        describeIndicatorHistoryStatus(entry, {
+          preloadLimitReached: indicatorHistoryPreloadLimitRef.current,
+        }),
+      )
+      .filter((notice): notice is string => notice !== null)
+    setIndicatorHistoryNotices(notices)
+  }, [])
 
   const scheduleMarketChartViewportPersist = useCallback(() => {
     if (suppressViewportPersistRef.current) return
@@ -2022,6 +2053,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         signal: abortRef.current?.signal,
         getRollingVwapInstances: () => rollingVwapInstancesRef.current,
         getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+        onHistoryMerged: refreshIndicatorHistoryNotices,
       })
     }
 
@@ -2186,7 +2218,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       candlesRef.current = []
       historyReadyRef.current = false
     }
-  }, [flushMarketChartViewportPersist, panelId, scheduleMarketChartViewportPersist])
+  }, [flushMarketChartViewportPersist, panelId, refreshIndicatorHistoryNotices, scheduleMarketChartViewportPersist])
 
   useEffect(() => {
     const intervalLeaving = activeIntervalRef.current
@@ -2556,6 +2588,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
         loadedVwapContextRef.current = { level: requestContextLevel, interval: currentInterval }
         syncAllVwapVisibility(bundle)
+        refreshIndicatorHistoryNotices()
       } catch (error) {
         if (isVwapContextAbortError(error)) return
         if (generation !== loadGenerationRef.current) return
@@ -2567,7 +2600,78 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     return () => {
       releaseOwnedVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef, owner)
     }
-  }, [activeIndicators, chartReady, interval, syncAllVwapVisibility])
+  }, [activeIndicators, chartReady, interval, refreshIndicatorHistoryNotices, syncAllVwapVisibility])
+
+  useEffect(() => {
+    if (!chartReady || !historyReadyRef.current) {
+      setIndicatorHistoryNotices([])
+      return
+    }
+
+    const generation = loadGenerationRef.current
+    const currentInterval = activeIntervalRef.current
+    const plan = resolveIndicatorHistoryPlan({
+      interval: currentInterval,
+      indicators: activeIndicatorsRef.current,
+      rollingVwapInstances: rollingVwapInstancesRef.current,
+      anchoredVwapInstances: anchoredVwapInstancesRef.current,
+    })
+    indicatorHistoryPreloadLimitRef.current = false
+    refreshIndicatorHistoryNotices()
+    if (plan.requirements.length === 0) return
+
+    const bundle = seriesRef.current
+    const chart = chartRef.current
+    if (!bundle || !chart) return
+
+    indicatorHistoryAbortRef.current?.abort()
+    const controller = new AbortController()
+    indicatorHistoryAbortRef.current = controller
+
+    void preloadIndicatorHistory({
+      state: infiniteHistoryRef.current,
+      generation,
+      target: plan,
+      candlesRef,
+      signal: controller.signal,
+      loadOlderPage: (before) =>
+        loadOlderBtcPerpHistory({
+          state: infiniteHistoryRef.current,
+          generation,
+          interval: currentInterval,
+          before,
+          candlesRef,
+          bundle,
+          chart,
+          signal: controller.signal,
+          getRollingVwapInstances: () => rollingVwapInstancesRef.current,
+          getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+          onHistoryMerged: refreshIndicatorHistoryNotices,
+        }),
+    })
+      .then((result) => {
+        if (generation !== loadGenerationRef.current) return
+        indicatorHistoryPreloadLimitRef.current = result === 'page-limit'
+      })
+      .finally(() => {
+        if (indicatorHistoryAbortRef.current === controller) {
+          indicatorHistoryAbortRef.current = null
+        }
+        if (generation !== loadGenerationRef.current) return
+        refreshIndicatorHistoryNotices()
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [
+    activeIndicators,
+    anchoredVwapInstances,
+    chartReady,
+    interval,
+    refreshIndicatorHistoryNotices,
+    rollingVwapInstances,
+  ])
 
   const streamLabel = chartReady ? streamStatusLabel(streamState) : null
 
@@ -2584,6 +2688,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       {streamLabel && (
         <div className="flex shrink-0 text-[10px] text-muted-foreground">
           <span>{streamLabel}</span>
+        </div>
+      )}
+
+      {indicatorHistoryNotices.length > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex shrink-0 flex-wrap gap-x-2 text-[10px] text-muted-foreground"
+        >
+          {indicatorHistoryNotices.map((notice) => (
+            <span key={notice}>{notice}</span>
+          ))}
         </div>
       )}
 

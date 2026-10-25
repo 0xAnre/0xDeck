@@ -65,6 +65,8 @@ type LoadOlderHistoryParams = {
   fetchHistory: FetchBtcPerpHistory
   applyMergedHistory: ApplyMergedHistory
   mergeOlderCandles: MergeOlderCandles
+  /** Called after older candles were prepended, so derived state (e.g. notices) can refresh. */
+  onHistoryMerged?: () => void
 }
 
 export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams): Promise<void> {
@@ -80,6 +82,7 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
     fetchHistory,
     applyMergedHistory,
     mergeOlderCandles,
+    onHistoryMerged,
   } = params
 
   if (state.loading || state.exhausted || state.generation !== generation) return
@@ -91,6 +94,7 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
   try {
     const response = await fetchHistory(interval, before, signal)
     if (state.generation !== generation) {
+      releaseHistoryBeforeRequest(state, generation, before)
       return
     }
     if (response.interval !== interval) {
@@ -122,9 +126,13 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
         to: logicalRange.to + addedCount,
       })
     }
+
+    onHistoryMerged?.()
   } catch (error) {
-    if (isHistoryAbortError(error)) return
+    // Never retain a cursor whose request did not deliver candles: aborted and
+    // failed pages must stay retryable by both the preload and viewport backfill.
     releaseHistoryBeforeRequest(state, generation, before)
+    if (isHistoryAbortError(error)) return
   } finally {
     if (state.generation === generation) {
       state.loading = false

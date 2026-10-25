@@ -104,10 +104,10 @@ Live **Binance USD-M `BTCUSDT`** perpetual chart (TradingView Lightweight Charts
 | **Monthly VWAP** | `4h`, `1d` only |
 | **Quarterly VWAP** | `4h`, `1d` only |
 | **Yearly VWAP** | `1d`, `1w` only |
-| **Initial history** | At least **500** candles when available; **last 120** visible on open |
+| **Initial history** | At least **500** candles when available; **last 120** visible on open. Active indicators preload their own warmup history automatically (EMA 100/200 target 1,000 bars, anchored VWAP back to its anchor) without requiring a viewport scroll. |
 | **1w history** | If Binance has fewer than 500 weekly candles, all available history is used |
 | **Scroll left** | Older candles load on demand (`/klines/history`) |
-| **Rolling VWAP** | Overlay instances (not a single on/off toggle). Add, enable/disable, open settings, or delete from the indicators menu. Settings cover fixed/auto period, min bars, standard-deviation bands, band colors, info box, and center-line style. Persisted per panel as `{ id, enabled, settings }[]` under `0xdeck-widget-rolling-vwap-instances`. `0xdeck-widget-rolling-vwap-settings` is legacy (read when migrating a pre-instance overlay; not written on save). |
+| **Rolling VWAP** | Overlay instances (not a single on/off toggle). Add, enable/disable, open settings, or delete from the indicators menu. Settings cover fixed/auto period, min bars, standard-deviation bands, band colors, info box, and center-line style. Persisted per panel as `{ id, enabled, settings }[]` under `0xdeck-widget-rolling-vwap-instances`. `0xdeck-widget-rolling-vwap-settings` is legacy (read when migrating a pre-instance overlay; not written on save). Renders only when its effective window fits the chart timeframe: 1D→1m, 1W→5m, 2W→15m, 1M→30m, 3M→1h, 6M→2h, 1Y→4h; longer windows are unsupported. |
 | **Tools** | Header **Tools** menu when `headerSettings.tools` is true: **Fixed Range Volume Profile**, **Rectangle / Box**, **Line**. FRVP instances persist (`0xdeck-widget-fixed-range-vp-instances`) and can be deleted from the menu. Rectangles persist (`0xdeck-widget-rectangle-instances`); create from the menu, select/move/resize on chart, lock/unlock, delete, and set fill (default `#A3A3A3` at `25%` opacity). Lines persist (`0xdeck-widget-line-instances`); create, select/move/resize, delete. |
 | **Persistence** | Interval, indicators, rolling VWAP, drawings, and workspace layout survive refresh (see [AGENTS.md](AGENTS.md) persistence keys) |
 

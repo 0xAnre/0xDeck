@@ -9,6 +9,7 @@ type ChartObjectListRowProps = {
   hidden?: boolean
   locked?: boolean
   disabled?: boolean
+  toggleHiddenDisabled?: boolean
   onToggleHidden?: () => void
   onToggleLocked?: () => void
   onSettings?: () => void
@@ -25,6 +26,7 @@ export function ChartObjectListRow({
   hidden = false,
   locked = false,
   disabled = false,
+  toggleHiddenDisabled = false,
   onToggleHidden,
   onToggleLocked,
   onSettings,
@@ -45,7 +47,7 @@ export function ChartObjectListRow({
       </DropdownMenuLabel>
       {onToggleHidden && (
         <DropdownMenuItem
-          disabled={disabled}
+          disabled={disabled || toggleHiddenDisabled}
           className={ROW_ACTION_ITEM_CLASS}
           aria-label={hidden ? 'Show object' : 'Hide object'}
           onSelect={(event) => {
