@@ -22,7 +22,7 @@ BINANCE_USDM_WS_BASE = "wss://fstream.binance.com"
 SYMBOL = "BTCUSDT"
 SYMBOL_LOWER = "btcusdt"
 
-SUPPORTED_INTERVALS = frozenset({"1m", "5m", "30m", "1h", "2h", "4h", "1d", "1w"})
+SUPPORTED_INTERVALS = frozenset({"1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w"})
 DEFAULT_INTERVAL = "1m"
 DEFAULT_LIMIT = 500
 MIN_LIMIT = 1
@@ -33,6 +33,7 @@ MIN_INITIAL_HISTORY_BARS = 750
 INTERVAL_DURATION_MS: dict[str, int] = {
     "1m": 60_000,
     "5m": 5 * 60_000,
+    "15m": 15 * 60_000,
     "30m": 30 * 60_000,
     "1h": 60 * 60_000,
     "2h": 2 * 60 * 60_000,
@@ -87,7 +88,7 @@ YEARLY_CONTEXT_INTERVALS = frozenset({"1d", "1w"})
 
 CHANNEL_PREFIX = "binance.usdm.btcusdt.kline."
 CHANNEL_PATTERN = re.compile(
-    r"^binance\.usdm\.btcusdt\.kline\.(1m|5m|30m|1h|2h|4h|1d|1w)$",
+    r"^binance\.usdm\.btcusdt\.kline\.(1m|5m|15m|30m|1h|2h|4h|1d|1w)$",
 )
 
 BASE_RECONNECT_DELAY_S = 1.0
