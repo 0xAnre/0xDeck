@@ -16,7 +16,7 @@ import {
 export const RECTANGLE_FILL_OPACITY = MARKET_STYLE_OPACITY_PERCENT.fill / 100
 export const RECTANGLE_HANDLE_FILL_OPACITY = 0.85
 
-/** Hex value for `<input type="color">`: instance color, else the palette fill color. */
+/** Hex value for the shared color picker: instance color, else the palette fill color. */
 export function rectangleInstancePickerFillHex(instance: RectangleInstance): string {
   if (isRectangleHexColor(instance.fillColor)) {
     return instance.fillColor.toLowerCase()

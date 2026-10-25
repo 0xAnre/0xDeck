@@ -183,7 +183,17 @@ export function ColorOpacityField({
                           tabIndex={activeIndex === index ? 0 : -1}
                           className={cn(
                             'rounded-[4px]',
+                            // Hover cue: a chrome-only ring, because the inline
+                            // `backgroundColor` in `style` defeats `hover:bg-input/50`
+                            // from the outline variant. The swatch color itself stays
+                            // untouched, so palette semantics do not change.
+                            'hover:ring-2 hover:ring-ring/40',
                             selected && 'ring-2 ring-ring ring-offset-1 ring-offset-popover',
+                            // Button's base `focus-visible:ring-ring/30` (and `hover`
+                            // above) sort after the plain `ring-ring`, so re-assert the
+                            // selection ring at full opacity instead of dropping it to
+                            // 30% / 40% while focused or hovered.
+                            selected && 'hover:ring-ring/100 focus-visible:ring-ring/100',
                           )}
                           style={{ backgroundColor: hex }}
                           onClick={() => {
@@ -277,7 +287,14 @@ export function ColorOpacityField({
 
               <Field className="gap-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <FieldLabel id={sliderLabelId}>Opacity</FieldLabel>
+                  {/* `aria-labelledby` wins over `aria-label`, so the visible text is
+                      hidden from the accessible name and the sliders are announced
+                      precisely (e.g. "Rolling VWAP line opacity") instead of just
+                      "Opacity" in each of the field instances. */}
+                  <FieldLabel id={sliderLabelId}>
+                    <span aria-hidden="true">Opacity</span>
+                    <span className="sr-only">{`${label} opacity`}</span>
+                  </FieldLabel>
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {percent}%
                   </span>
