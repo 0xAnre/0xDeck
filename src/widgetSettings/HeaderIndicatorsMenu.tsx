@@ -160,6 +160,7 @@ export function HeaderIndicatorsMenu({
                 hidden={!instance.enabled || !compatibility.supported}
                 locked={instance.locked === true}
                 disabled={disabled || !rollingSupported}
+                toggleHiddenDisabled={!compatibility.supported}
                 onToggleHidden={
                   onRollingVwapToggle
                     ? () => onRollingVwapToggle(instance.id, !instance.enabled)
