@@ -1,11 +1,25 @@
-import { Field, FieldLabel } from '@/components/ui/field'
+import { useRef, useState } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
+import { CheckIcon, PlusIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
-import { clampMarketStyleOpacityPercent } from '@/market/marketStylePalette'
 import { cn } from '@/lib/utils'
+import {
+  COLOR_PICKER_COLUMNS,
+  COLOR_PICKER_CUSTOM_HEX_EXAMPLE,
+  COLOR_PICKER_ROWS,
+  colorPickerPaletteMatch,
+  colorPickerSwatchLabel,
+  colorPickerSwatchUsesDarkCheck,
+  normalizeColorPickerHexInput,
+  normalizeColorPickerOpacityPercent,
+} from '@/widgetSettings/colorPickerPalette'
 
 type ColorOpacityFieldProps = {
-  /** Base id for the color input; the slider gets `${id}-opacity` by default. */
+  /** Base id for the color trigger; the slider gets `${id}-opacity` by default. */
   id: string
   /** Explicit slider id when a dialog needs a stable legacy id. */
   opacityId?: string
@@ -17,11 +31,20 @@ type ColorOpacityFieldProps = {
   className?: string
 }
 
+/** Transparency checkerboard behind the current color; chrome uses theme tokens. */
+const CHECKERBOARD_STYLE: CSSProperties = {
+  backgroundImage:
+    'repeating-conic-gradient(var(--color-muted) 0% 25%, var(--color-popover) 0% 50%)',
+  backgroundSize: '6px 6px',
+}
+
 /**
  * Shared `Color + Opacity` field used by every BTC Perp style dialog.
  *
- * One `<input type="color">` plus an independent 0–100 opacity slider, matching
- * the original FRVP level pattern so all dialogs look and behave the same.
+ * The trigger opens a compact TradingView-inspired palette popover that owns
+ * the custom HEX input and the 0–100 opacity slider. Props and emitted values
+ * stay identical to the previous native color input: `#RRGGBB` and an integer
+ * percentage, so chart style pipelines need no changes.
  */
 export function ColorOpacityField({
   id,
@@ -33,38 +56,283 @@ export function ColorOpacityField({
   onOpacityChange,
   className,
 }: ColorOpacityFieldProps) {
-  const percent = Math.round(clampMarketStyleOpacityPercent(opacityPercent))
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customInput, setCustomInput] = useState('')
+  const [customInvalid, setCustomInvalid] = useState(false)
+  const swatchRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  const percent = normalizeColorPickerOpacityPercent(opacityPercent)
   const sliderId = opacityId ?? `${id}-opacity`
+  const customInputId = `${id}-custom`
+  const currentHex = normalizeColorPickerHexInput(color) ?? color
+  const paletteMatch = colorPickerPaletteMatch(currentHex)
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    if (!nextOpen) return
+
+    const match = colorPickerPaletteMatch(currentHex)
+    setActiveIndex(match ? match.row * COLOR_PICKER_COLUMNS + match.column : 0)
+    setCustomInput(normalizeColorPickerHexInput(currentHex) ?? currentHex)
+    setCustomInvalid(false)
+  }
+
+  function commitCustomInput(value: string) {
+    const normalized = normalizeColorPickerHexInput(value)
+    if (normalized === null) {
+      setCustomInvalid(true)
+      return
+    }
+
+    setCustomInvalid(false)
+    setCustomInput(normalized)
+    if (normalized !== currentHex) onColorChange(normalized)
+  }
+
+  function handleSwatchKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    row: number,
+    column: number,
+  ) {
+    let nextRow = row
+    let nextColumn = column
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        nextColumn = Math.max(0, column - 1)
+        break
+      case 'ArrowRight':
+        nextColumn = Math.min(COLOR_PICKER_COLUMNS - 1, column + 1)
+        break
+      case 'ArrowUp':
+        nextRow = Math.max(0, row - 1)
+        break
+      case 'ArrowDown':
+        nextRow = Math.min(COLOR_PICKER_ROWS.length - 1, row + 1)
+        break
+      case 'Home':
+        nextColumn = 0
+        break
+      case 'End':
+        nextColumn = COLOR_PICKER_COLUMNS - 1
+        break
+      default:
+        return
+    }
+
+    event.preventDefault()
+    const nextIndex = nextRow * COLOR_PICKER_COLUMNS + nextColumn
+    setActiveIndex(nextIndex)
+    swatchRefs.current[nextIndex]?.focus()
+  }
 
   return (
     <Field className={cn('gap-1.5', className)}>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <span className="text-xs tabular-nums text-muted-foreground">{percent}%</span>
-      </div>
-      <div className="flex items-center gap-3">
-        <Input
-          id={id}
-          type="color"
-          aria-label={`${label} color`}
-          className="h-8 w-12 shrink-0 cursor-pointer p-1"
-          value={color}
-          onChange={(event) => onColorChange(event.target.value)}
-        />
-        <Slider
-          id={sliderId}
-          aria-label={`${label} opacity`}
-          min={0}
-          max={100}
-          step={1}
-          value={[percent]}
-          onValueChange={(value) => {
-            const next = value[0]
-            if (next === undefined || !Number.isFinite(next)) return
-            onOpacityChange(Math.round(next))
-          }}
-          className="flex-1"
-        />
+        <Popover open={open} onOpenChange={handleOpenChange}>
+          <PopoverTrigger asChild>
+            <Button
+              id={id}
+              type="button"
+              variant="outline"
+              size="lg"
+              aria-label={`${label} color`}
+              aria-haspopup="dialog"
+              className="h-8 w-12 shrink-0 justify-center p-1"
+            >
+              <span
+                aria-hidden="true"
+                className="relative block size-6 overflow-hidden rounded-[3px] border border-border"
+              >
+                <span className="absolute inset-0" style={CHECKERBOARD_STYLE} />
+                <span
+                  className="absolute inset-0"
+                  style={{ backgroundColor: currentHex, opacity: percent / 100 }}
+                />
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={8}
+            collisionPadding={12}
+            sticky="always"
+            className="max-h-[var(--radix-popover-content-available-height)] w-fit gap-0 overflow-y-auto overscroll-contain p-2"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              const match = colorPickerPaletteMatch(currentHex)
+              const index = match ? match.row * COLOR_PICKER_COLUMNS + match.column : 0
+              setActiveIndex(index)
+              swatchRefs.current[index]?.focus()
+            }}
+            aria-label={`${label} color picker`}
+          >
+            <FieldGroup className="gap-2">
+              <div
+                role="grid"
+                aria-label={`${label} color palette`}
+                className="flex flex-col gap-1"
+              >
+                {COLOR_PICKER_ROWS.map((row, rowIndex) => (
+                  <div
+                    key={row.id}
+                    role="row"
+                    className="grid grid-cols-10 gap-1"
+                  >
+                    {row.colors.map((hex, columnIndex) => {
+                      const index = rowIndex * COLOR_PICKER_COLUMNS + columnIndex
+                      const selected =
+                        paletteMatch !== null &&
+                        paletteMatch.row === rowIndex &&
+                        paletteMatch.column === columnIndex
+                      return (
+                        <button
+                          key={hex}
+                          ref={(node) => {
+                            swatchRefs.current[index] = node
+                          }}
+                          type="button"
+                          role="gridcell"
+                          aria-label={colorPickerSwatchLabel(row, columnIndex)}
+                          aria-selected={selected}
+                          tabIndex={activeIndex === index ? 0 : -1}
+                          className={cn(
+                            'relative grid size-6 place-items-center rounded-[4px] border border-border transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
+                            selected && 'ring-2 ring-ring ring-offset-1 ring-offset-popover',
+                          )}
+                          style={{ backgroundColor: hex }}
+                          onClick={() => {
+                            setActiveIndex(index)
+                            setCustomInvalid(false)
+                            onColorChange(hex)
+                          }}
+                          onKeyDown={(event) =>
+                            handleSwatchKeyDown(event, rowIndex, columnIndex)
+                          }
+                        >
+                          {selected ? (
+                            <CheckIcon
+                              aria-hidden="true"
+                              className={
+                                colorPickerSwatchUsesDarkCheck(hex)
+                                  ? 'text-background'
+                                  : 'text-foreground'
+                              }
+                            />
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {paletteMatch === null ? (
+                  <button
+                    type="button"
+                    aria-pressed="true"
+                    aria-label={`Custom color ${currentHex}`}
+                    className="inline-flex h-6 items-center gap-1.5 rounded-md border border-border px-1.5 text-[0.625rem] font-medium uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3"
+                    onClick={() => onColorChange(currentHex)}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-3.5 rounded-[2px] border border-border"
+                      style={{ backgroundColor: currentHex }}
+                    />
+                    {currentHex}
+                    <CheckIcon aria-hidden="true" />
+                  </button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  aria-expanded={customOpen}
+                  onClick={() => setCustomOpen((current) => !current)}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Custom HEX
+                </Button>
+              </div>
+
+              {customOpen ? (
+                <form
+                  className="flex flex-col gap-1.5"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    commitCustomInput(customInput)
+                  }}
+                >
+                  <Field data-invalid={customInvalid || undefined} className="gap-1.5">
+                    <FieldLabel htmlFor={customInputId}>Custom HEX</FieldLabel>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        id={customInputId}
+                        value={customInput}
+                        placeholder={COLOR_PICKER_CUSTOM_HEX_EXAMPLE}
+                        autoComplete="off"
+                        spellCheck={false}
+                        maxLength={7}
+                        aria-invalid={customInvalid || undefined}
+                        onChange={(event) => {
+                          setCustomInput(event.target.value)
+                          if (customInvalid) setCustomInvalid(false)
+                        }}
+                        onBlur={() => commitCustomInput(customInput)}
+                      />
+                      <Button type="submit" variant="secondary" size="xs">
+                        Set
+                      </Button>
+                    </div>
+                    {customInvalid ? (
+                      <FieldError>{`Enter a 6-digit hex color, e.g. ${COLOR_PICKER_CUSTOM_HEX_EXAMPLE}.`}</FieldError>
+                    ) : null}
+                  </Field>
+                </form>
+              ) : null}
+
+              <Field className="gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor={sliderId}>Opacity</FieldLabel>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {percent}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="relative block size-6 shrink-0 overflow-hidden rounded-[3px] border border-border"
+                  >
+                    <span className="absolute inset-0" style={CHECKERBOARD_STYLE} />
+                    <span
+                      className="absolute inset-0"
+                      style={{ backgroundColor: currentHex, opacity: percent / 100 }}
+                    />
+                  </span>
+                  <Slider
+                    id={sliderId}
+                    aria-label={`${label} opacity`}
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={[percent]}
+                    onValueChange={(value) => {
+                      const next = value[0]
+                      if (next === undefined || !Number.isFinite(next)) return
+                      onOpacityChange(normalizeColorPickerOpacityPercent(next))
+                    }}
+                    className="flex-1"
+                  />
+                </div>
+              </Field>
+            </FieldGroup>
+          </PopoverContent>
+        </Popover>
       </div>
     </Field>
   )
