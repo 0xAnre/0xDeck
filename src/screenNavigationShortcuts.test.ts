@@ -16,7 +16,7 @@ import {
 } from './screenNavigationShortcuts.ts'
 
 const KEY_FROM_CODE: Record<string, string> = {
-  KeyP: 'p',
+  KeyM: 'm',
   KeyA: 'a',
   KeyG: 'g',
   Digit0: '0',
@@ -48,10 +48,10 @@ function shortcutEvent(
 }
 
 describe('createScreenNavigationSequenceHandler', () => {
-  it('maps p then 1 through p then 9 to zero-based indexes 0 through 8', () => {
+  it('maps m then 1 through m then 9 to zero-based indexes 0 through 8', () => {
     const sequence = createScreenNavigationSequenceHandler()
     for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
-      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
       assert.equal(
         sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })),
         digit - 1,
@@ -60,16 +60,16 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('does not navigate for p then 0', () => {
+  it('does not navigate for m then 0', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit0' })), null)
     // The zero cancelled the sequence, so the next digit must not navigate either.
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit1' })), null)
     sequence.dispose()
   })
 
-  it('does not navigate when pressing 1 through 9 without a preceding p', () => {
+  it('does not navigate when pressing 1 through 9 without a preceding m', () => {
     const sequence = createScreenNavigationSequenceHandler()
     for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
       assert.equal(sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })), null)
@@ -77,10 +77,10 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('does not navigate after p when the timeout expires before a digit', () => {
+  it('does not navigate after m when the timeout expires before a digit', () => {
     const timeoutMs = 50
     const sequence = createScreenNavigationSequenceHandler({ timeoutMs })
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
 
     return new Promise<void>((resolve, reject) => {
       setTimeout(() => {
@@ -95,19 +95,19 @@ describe('createScreenNavigationSequenceHandler', () => {
     })
   })
 
-  it('cancels the sequence after p then a non-matching key', () => {
+  it('cancels the sequence after m then a non-matching key', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyA' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
     sequence.dispose()
   })
 
-  it('allows a new p to start a fresh sequence after cancellation', () => {
+  it('allows a new m to start a fresh sequence after cancellation', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyA' })), null)
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4' })), 3)
     sequence.dispose()
   })
@@ -121,10 +121,29 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
+  it('does not navigate when using the retired p then 1 through 9 sequence', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })), null)
+    }
+    sequence.dispose()
+  })
+
+  it('does not arm a pending sequence from p', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
+    // A following m is required to navigate; p left nothing pending.
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), 1)
+    sequence.dispose()
+  })
+
   it('navigates to screens 6 through 9 from shifted digits and alternate layouts', () => {
     const sequence = createScreenNavigationSequenceHandler()
     for (let digit = 6; digit <= 9; digit += 1) {
-      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'p' })), null)
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'm' })), null)
       assert.equal(
         sequence.handleKeyDown(
           shortcutEvent({ code: `Digit${digit}`, key: String(digit), shiftKey: true }),
@@ -137,7 +156,7 @@ describe('createScreenNavigationSequenceHandler', () => {
 
   it('matches typed digit characters via event.key (e.g. AZERTY shift+digit)', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', key: 'm' })), null)
     assert.equal(
       sequence.handleKeyDown(
         shortcutEvent({ code: 'Digit2', key: '2', shiftKey: true }),
@@ -149,7 +168,7 @@ describe('createScreenNavigationSequenceHandler', () => {
 
   it('retains the sequence through a separate Shift keydown before a shifted digit', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', key: 'm' })), null)
     assert.equal(
       sequence.handleKeyDown(
         shortcutEvent({ code: 'ShiftLeft', key: 'Shift', shiftKey: true }),
@@ -167,7 +186,7 @@ describe('createScreenNavigationSequenceHandler', () => {
 
   it('does not navigate from physical digit position when the typed character is not 1-9', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', key: 'm' })), null)
     assert.equal(
       sequence.handleKeyDown(shortcutEvent({ code: 'Digit1', key: '&' })),
       null,
@@ -176,9 +195,9 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('arms the sequence when p is typed on a non-KeyP physical position (e.g. alternate layout)', () => {
+  it('arms the sequence when m is typed on a non-KeyM physical position (e.g. alternate layout)', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'm' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4', key: '4' })), 3)
     sequence.dispose()
   })
@@ -197,7 +216,7 @@ describe('createScreenNavigationSequenceHandler', () => {
         null,
       )
     }
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(
       sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'Digit2' })),
       null,
@@ -205,15 +224,15 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('ignores unrelated keys and modified p', () => {
+  it('ignores unrelated keys and modified m', () => {
     const sequence = createScreenNavigationSequenceHandler()
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit6' })), null)
     assert.equal(
-      sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'KeyP' })),
+      sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'KeyM' })),
       null,
     )
     assert.equal(
-      sequence.handleKeyDown(shortcutEvent({ ctrlKey: true, code: 'KeyP' })),
+      sequence.handleKeyDown(shortcutEvent({ ctrlKey: true, code: 'KeyM' })),
       null,
     )
     sequence.dispose()
@@ -251,7 +270,7 @@ describe('createScreenNavigationSequenceHandler', () => {
     for (const target of [input, textarea, select, editable]) {
       const sequence = createScreenNavigationSequenceHandler()
       assert.equal(
-        sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', target: target as never })),
+        sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', target: target as never })),
         null,
       )
       assert.equal(
@@ -273,7 +292,7 @@ describe('createScreenNavigationSequenceHandler', () => {
     const originalClearTimeout = globalThis.clearTimeout
     globalThis.clearTimeout = clearTimeoutSpy
 
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     sequence.dispose()
     assert.equal(clearTimeoutSpy.mock.callCount(), 1)
 
@@ -302,7 +321,7 @@ describe('resolveWorkspaceScreenScrollTop', () => {
     assert.equal(resolveWorkspaceScreenScrollTop(manyWidgetsOneScreen, 2), pageHeight * 2)
   })
 
-  it('sends p+2 and p+3 to Screen 2 and 3 starts when multiple widgets share Screen 1', () => {
+  it('sends m+2 and m+3 to Screen 2 and 3 starts when multiple widgets share Screen 1', () => {
     const container = { clientHeight: pageHeight, scrollHeight: pageHeight * 4 }
     assert.equal(resolveWorkspaceScreenScrollTop(container, 0), 0)
     assert.equal(resolveWorkspaceScreenScrollTop(container, 1), pageHeight)
