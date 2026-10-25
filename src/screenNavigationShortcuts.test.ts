@@ -235,6 +235,16 @@ describe('createScreenNavigationSequenceHandler', () => {
       sequence.handleKeyDown(shortcutEvent({ ctrlKey: true, code: 'KeyM' })),
       null,
     )
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ shiftKey: true, code: 'KeyM' })),
+      null,
+    )
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ altKey: true, code: 'KeyM' })),
+      null,
+    )
+    // None of the modified m presses armed a sequence.
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
     sequence.dispose()
   })
 
@@ -542,7 +552,7 @@ describe('resolveScreenLockAlignmentScreenIndex', () => {
   })
 
   it('aligns to the requested screen while an unlocked jump is still animating', () => {
-    // `p` + `5` starts a smooth scroll from Screen 1; the lock is toggled ON mid-animation.
+    // `m` + `5` starts a smooth scroll from Screen 1; the lock is toggled ON mid-animation.
     const intent = createWorkspaceScreenNavigationIntent(4, 1_000)
     const midwayOffset = pageHeight * 2.3
     assert.equal(

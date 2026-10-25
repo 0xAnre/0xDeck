@@ -148,7 +148,7 @@ function App() {
     if (!screenLock) {
       const container = containerRef.current
       if (container) {
-        // A `p` + digit jump may still be animating; align to the screen it is heading to instead of
+        // An `m` + digit jump may still be animating; align to the screen it is heading to instead of
         // the intermediate offset. Otherwise toggling ON from an arbitrary offset aligns to the
         // nearest screen deterministically.
         const activeIndex = resolveScreenLockAlignmentScreenIndex(container, container.scrollTop, {
