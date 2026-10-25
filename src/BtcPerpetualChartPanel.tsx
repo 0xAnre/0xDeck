@@ -287,6 +287,11 @@ import {
 import { fixedRangeVolumeProfileAvailabilityNotices } from '@/market/frvpHistoryAvailability'
 import { saveWidgetMarketIndicators } from '@/marketIndicatorStorage'
 import {
+  loadWidgetMarketPositionMarkers,
+  saveWidgetMarketPositionMarkers,
+} from '@/marketPositionMarkersStorage'
+import { shouldShowPositionMarkers } from '@/market/positionMarkers'
+import {
   loadWidgetMarketExchange,
   saveWidgetMarketExchange,
 } from '@/marketExchanges'
@@ -449,6 +454,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [accountFills, setAccountFills] = useState<HyperliquidFill[]>([])
   const [accountFillsNotice, setAccountFillsNotice] = useState<string | null>(null)
+  const [positionMarkersEnabled, setPositionMarkersEnabled] = useState(() =>
+    loadWidgetMarketPositionMarkers(panelId),
+  )
   const [hoveredAccountFills, setHoveredAccountFills] = useState<
     BucketedHyperliquidFill[]
   >([])
@@ -1558,6 +1566,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  const handlePositionMarkersChange = useCallback(
+    (enabled: boolean) => {
+      saveWidgetMarketPositionMarkers(panelId, enabled)
+      setPositionMarkersEnabled(enabled)
+      if (enabled) return
+      accountFillsRangeRef.current = null
+      setAccountFills([])
+      setAccountFillsNotice(null)
+      setHoveredAccountFills([])
+    },
+    [panelId],
+  )
+
   useMarketWidgetSettings({
     headerSettings,
     panelId,
@@ -1567,6 +1588,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onMarketIntervalChange: handleIntervalChange,
     marketIndicators: activeIndicators,
     onMarketIndicatorsChange: handleMarketIndicatorsChange,
+    marketPositionMarkersEnabled: positionMarkersEnabled,
+    onMarketPositionMarkersChange: handlePositionMarkersChange,
     rollingVwapInstances,
     onRollingVwapAdd: handleRollingVwapAdd,
     onRollingVwapToggle: handleRollingVwapToggle,
@@ -2153,7 +2176,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [anchoredVwapInstances, chartReady])
 
   useEffect(() => {
-    if (exchange !== 'hyperliquid') return
+    if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled)) return
     if (!chartReady) return
 
     const candles = candlesRef.current
@@ -2200,10 +2223,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
 
     return () => controller.abort()
-  }, [candleRangeRevision, chartReady, exchange, interval])
+  }, [candleRangeRevision, chartReady, exchange, interval, positionMarkersEnabled])
 
   useEffect(() => {
-    if (exchange !== 'hyperliquid') return
+    if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled)) return
     const channel = hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS)
     const client = new WidgetStreamClient({
       channel,
@@ -2222,12 +2245,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     })
     client.connect()
     return () => client.disconnect()
-  }, [exchange])
+  }, [exchange, positionMarkersEnabled])
 
   useEffect(() => {
     const markers = accountMarkersRef.current
     if (!markers) return
-    if (exchange !== 'hyperliquid' || !chartReady) {
+    if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled) || !chartReady) {
       markers.setMarkers([])
       accountMarkersByBucketRef.current = new Map()
       return
@@ -2251,7 +2274,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       ),
     )
     accountMarkersByBucketRef.current = byBucket
-  }, [accountFills, candleRangeRevision, chartReady, exchange, interval])
+  }, [
+    accountFills,
+    candleRangeRevision,
+    chartReady,
+    exchange,
+    interval,
+    positionMarkersEnabled,
+  ])
 
   useEffect(() => {
     const chart = chartRef.current

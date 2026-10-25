@@ -176,6 +176,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-market-exchanges` | Per-instance BTC Perp exchange (`binance` default / `hyperliquid`) |
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
+| `0xdeck-widget-market-position-markers` | Per-instance Hyperliquid Position Markers toggle (default OFF) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |

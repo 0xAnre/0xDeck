@@ -26,6 +26,8 @@ type UseMarketWidgetSettingsArgs = {
   onMarketIntervalChange: (interval: CandleInterval) => void
   marketIndicators: MarketIndicatorId[]
   onMarketIndicatorsChange: (indicators: MarketIndicatorId[]) => void
+  marketPositionMarkersEnabled: boolean
+  onMarketPositionMarkersChange: (enabled: boolean) => void
   rollingVwapInstances: RollingVwapInstance[]
   onRollingVwapAdd: () => void
   onRollingVwapToggle: (instanceId: string, enabled: boolean) => void
@@ -112,6 +114,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onMarketIntervalChange,
     marketIndicators,
     onMarketIndicatorsChange,
+    marketPositionMarkersEnabled,
+    onMarketPositionMarkersChange,
     rollingVwapInstances,
     onRollingVwapAdd,
     onRollingVwapToggle,
@@ -182,6 +186,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
           )
         : undefined,
       onMarketIndicatorsChange: headerSettings.indicators ? onMarketIndicatorsChange : undefined,
+      marketPositionMarkersEnabled:
+        headerSettings.indicators ? marketPositionMarkersEnabled : undefined,
+      onMarketPositionMarkersChange:
+        headerSettings.indicators ? onMarketPositionMarkersChange : undefined,
       rollingVwapInstances: headerSettings.indicators ? rollingVwapInstances : undefined,
       onRollingVwapAdd: headerSettings.indicators ? onRollingVwapAdd : undefined,
       onRollingVwapToggle: headerSettings.indicators ? onRollingVwapToggle : undefined,
@@ -263,6 +271,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       marketExchange,
       marketIndicators,
       marketInterval,
+      marketPositionMarkersEnabled,
       onMarketExchangeChange,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
@@ -296,6 +305,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onAnchoredVwapLockToggle,
       onAnchoredVwapVisibilityToggle,
       onMarketIndicatorsChange,
+      onMarketPositionMarkersChange,
       onRollingVwapAdd,
       onRollingVwapDelete,
       onRollingVwapSettingsClick,

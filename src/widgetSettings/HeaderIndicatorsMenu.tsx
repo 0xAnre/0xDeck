@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDownIcon, PlusIcon } from 'lucide-react'
+import { ChevronDownIcon, CrosshairIcon, PlusIcon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,9 @@ type HeaderIndicatorsMenuProps = {
   options: IndicatorOption[]
   activeIndicators: MarketIndicatorId[]
   onActiveIndicatorsChange?: (indicators: MarketIndicatorId[]) => void
+  showPositionMarkers?: boolean
+  positionMarkersEnabled?: boolean
+  onPositionMarkersChange?: (enabled: boolean) => void
   marketInterval?: CandleInterval
   rollingVwapInstances?: RollingVwapInstance[]
   onRollingVwapAdd?: () => void
@@ -49,6 +52,9 @@ export function HeaderIndicatorsMenu({
   options,
   activeIndicators,
   onActiveIndicatorsChange,
+  showPositionMarkers = false,
+  positionMarkersEnabled = false,
+  onPositionMarkersChange,
   marketInterval = '1m',
   rollingVwapInstances = [],
   onRollingVwapAdd,
@@ -123,6 +129,18 @@ export function HeaderIndicatorsMenu({
             />
           )
         })}
+
+        {showPositionMarkers && onPositionMarkersChange && (
+          <ChartObjectListRow
+            icon={CrosshairIcon}
+            label="Position Markers"
+            hidden={!positionMarkersEnabled}
+            disabled={disabled}
+            onToggleHidden={() =>
+              onPositionMarkersChange(!positionMarkersEnabled)
+            }
+          />
+        )}
 
         <div className="mt-1 border-t border-border pt-1">
           <div className="flex items-center justify-between gap-1 px-2 py-1">
