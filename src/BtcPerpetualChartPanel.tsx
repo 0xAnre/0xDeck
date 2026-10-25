@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
 import { BTC_PERPETUAL_CANDLESTICK_COLORS } from '@/market/btcPerpetualCandleColors'
+import { btcPerpetualCrosshairOptions } from '@/market/btcPerpetualCrosshairOptions'
 import {
   countPrependedCandles,
   fetchBtcPerpKlinesForContextLevel,
@@ -2155,6 +2156,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           vertLines: { visible: false },
           horzLines: { visible: false },
         },
+        crosshair: btcPerpetualCrosshairOptions(colors.text),
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
         handleScroll: {
