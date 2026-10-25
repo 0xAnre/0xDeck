@@ -16,10 +16,12 @@ import {
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
   rollingVwapCenterLineRgbaColor,
   type RollingVwapBandColors,
+  type RollingVwapBandOpacities,
   type RollingVwapLineStyle,
   type RollingVwapLineWidth,
   type RollingVwapSettings,
 } from './rollingVwapSettings.ts'
+import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 
 /** Same gray as anchored Daily/Weekly VWAP center lines. */
@@ -110,6 +112,23 @@ const BAND_COLOR_KEYS: Record<RollingVwapBandSeriesKey, keyof RollingVwapBandCol
   lower3: 'band3',
 }
 
+/** Band colors plus their independent opacities. */
+export type RollingVwapBandStyle = {
+  bandColors: RollingVwapBandColors
+  bandOpacities: RollingVwapBandOpacities
+}
+
+/** Band color with its own opacity folded into the CSS color string. */
+export function rollingVwapBandSeriesColor(
+  bandStyle: RollingVwapBandStyle,
+  colorKey: keyof RollingVwapBandColors,
+): string {
+  return marketStyleColorWithOpacity(
+    bandStyle.bandColors[colorKey],
+    bandStyle.bandOpacities[colorKey],
+  )
+}
+
 function toLinePoint(time: number, value: number | null): RollingVwapLinePoint {
   const stamp = time as UTCTimestamp
   if (value === null || !Number.isFinite(value)) {
@@ -154,7 +173,7 @@ export function applyRollingVwapCenterLinePresentation(
 
 export function createRollingVwapChartSeriesBundle(
   chart: IChartApi,
-  bandColors: RollingVwapBandColors,
+  bandStyle: RollingVwapBandStyle,
   options?: {
     title?: string
     lineWidth?: RollingVwapLineWidth
@@ -182,7 +201,7 @@ export function createRollingVwapChartSeriesBundle(
     const colorKey = BAND_COLOR_KEYS[key]
     const series = chart.addSeries(LineSeries, {
       ...rollingVwapBandLineOptions(lineWidth),
-      color: bandColors[colorKey],
+      color: rollingVwapBandSeriesColor(bandStyle, colorKey),
       visible: false,
     })
     bands[key] = series
@@ -203,11 +222,11 @@ export function removeRollingVwapChartSeriesBundle(
 
 export function applyRollingVwapChartBandColors(
   bundle: RollingVwapChartSeriesBundle,
-  bandColors: RollingVwapBandColors,
+  bandStyle: RollingVwapBandStyle,
 ): void {
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
     const colorKey = BAND_COLOR_KEYS[key]
-    bundle.bands[key].applyOptions({ color: bandColors[colorKey] })
+    bundle.bands[key].applyOptions({ color: rollingVwapBandSeriesColor(bandStyle, colorKey) })
   }
 }
 
@@ -216,7 +235,7 @@ export function applyRollingVwapChartInstancePresentation(
   instance: RollingVwapInstance,
   interval: CandleInterval,
 ): void {
-  applyRollingVwapChartBandColors(bundle, instance.settings.bandColors)
+  applyRollingVwapChartBandColors(bundle, instance.settings)
   applyRollingVwapChartLineWidth(bundle, instance.settings.lineWidth)
   applyRollingVwapCenterLinePresentation(bundle.center, instance.settings)
   bundle.center.applyOptions({

@@ -4,6 +4,7 @@ import { MONTHLY_VWAP_CHART_SERIES_KEYS } from './monthlyVwapChartSeries.ts'
 import { QUARTERLY_VWAP_CHART_SERIES_KEYS } from './quarterlyVwapChartSeries.ts'
 import { YEARLY_VWAP_CHART_SERIES_KEYS } from './yearlyVwapChartSeries.ts'
 import {
+  VWAP_CHART_BAND_LINE_STYLE,
   VWAP_CHART_LINE_STYLE,
   VWAP_CHART_SERIES_KEYS,
   VWAP_CHART_SERIES_STYLES,
@@ -23,7 +24,10 @@ function assertThreeSeriesStyles(keys: readonly string[]) {
   for (const key of keys) {
     const style = VWAP_CHART_SERIES_STYLES[key as keyof typeof VWAP_CHART_SERIES_STYLES]
     assert.equal(style.lineWidth, 1)
-    assert.deepEqual(style, VWAP_CHART_LINE_STYLE)
+    assert.deepEqual(
+      style,
+      key === 'vwap' ? VWAP_CHART_LINE_STYLE : VWAP_CHART_BAND_LINE_STYLE,
+    )
   }
 }
 

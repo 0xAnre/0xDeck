@@ -5,12 +5,19 @@ import {
 import {
   isRollingVwapHexColor,
   isRollingVwapLineOpacity,
-  isRollingVwapLineStyle,
   isRollingVwapLineWidth,
-  rollingVwapCenterLineRgbaColor,
   type RollingVwapLineStyle,
   type RollingVwapLineWidth,
 } from './rollingVwapSettings.ts'
+import {
+  sanitizeLineChartStrokeStyle,
+  type LineChartStrokeStyle,
+} from './lineChartStroke.ts'
+import {
+  MARKET_STYLE_DEFAULTS,
+  MARKET_STYLE_OPACITY_PERCENT,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 
 /**
  * TradingView Anchored VWAP drawing defaults (verified against TV help/style docs):
@@ -18,8 +25,12 @@ import {
  * - Bands calculation: Standard Deviation; multipliers 1, 2, 3
  * - VWAP line visible, width 2, solid
  * - Band pair #1 visible; pairs #2 and #3 hidden by default
- * - Each band pair styles its upper and lower lines independently and can fill
- *   the area between them (fill opacity 0 disables the fill by default).
+ * - Each band pair styles its upper and lower lines independently (color and
+ *   opacity) and can fill the area between them (fill opacity 0 disables the
+ *   fill by default).
+ *
+ * Colors come from the shared BTC Perp palette: center line `light` @ 100%,
+ * band lines `medium` @ 70%.
  */
 export const ANCHORED_VWAP_DRAWING_CALCULATION_MODES = ['standard-deviation', 'percentage'] as const
 
@@ -39,11 +50,12 @@ export type AnchoredVwapDrawingBandPairSettings = {
   multiplier: number
   upperVisible: boolean
   upperColor: string
+  upperOpacity: number
   lowerVisible: boolean
   lowerColor: string
+  lowerOpacity: number
   fillColor: string
   fillOpacity: number
-  lineOpacity: number
   lineWidth: RollingVwapLineWidth
   lineStyle: RollingVwapLineStyle
 }
@@ -57,55 +69,54 @@ export type AnchoredVwapDrawingSettings = {
   band3: AnchoredVwapDrawingBandPairSettings
 }
 
+const DEFAULT_BAND_LINE_COLOR = MARKET_STYLE_DEFAULTS.secondaryLine.color
+const DEFAULT_BAND_LINE_OPACITY = MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent
+
 const DEFAULT_VWAP_LINE: AnchoredVwapDrawingLineSettings = {
   visible: true,
-  lineColor: '#2962FF',
-  lineOpacity: 100,
+  lineColor: MARKET_STYLE_DEFAULTS.primaryLine.color,
+  lineOpacity: MARKET_STYLE_DEFAULTS.primaryLine.opacityPercent,
   lineWidth: 2,
   lineStyle: 'solid',
 }
 
-const DEFAULT_BAND1: AnchoredVwapDrawingBandPairSettings = {
-  visible: true,
-  multiplier: DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier1,
-  upperVisible: true,
-  upperColor: '#4caf50',
-  lowerVisible: true,
-  lowerColor: '#4caf50',
-  fillColor: '#4caf50',
-  fillOpacity: 0,
-  lineOpacity: 100,
-  lineWidth: 1,
-  lineStyle: 'solid',
+function defaultBandPair(
+  multiplier: number,
+  visible: boolean,
+): AnchoredVwapDrawingBandPairSettings {
+  return {
+    visible,
+    multiplier,
+    upperVisible: true,
+    upperColor: DEFAULT_BAND_LINE_COLOR,
+    upperOpacity: DEFAULT_BAND_LINE_OPACITY,
+    lowerVisible: true,
+    lowerColor: DEFAULT_BAND_LINE_COLOR,
+    lowerOpacity: DEFAULT_BAND_LINE_OPACITY,
+    fillColor: MARKET_STYLE_DEFAULTS.fill.color,
+    fillOpacity: 0,
+    lineWidth: 1,
+    lineStyle: 'solid',
+  }
 }
 
-const DEFAULT_BAND2: AnchoredVwapDrawingBandPairSettings = {
-  visible: false,
-  multiplier: DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier2,
-  upperVisible: true,
-  upperColor: '#ffeb3b',
-  lowerVisible: true,
-  lowerColor: '#ffeb3b',
-  fillColor: '#ffeb3b',
-  fillOpacity: 0,
-  lineOpacity: 100,
-  lineWidth: 1,
-  lineStyle: 'solid',
-}
+const DEFAULT_BAND1: AnchoredVwapDrawingBandPairSettings = defaultBandPair(
+  DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier1,
+  true,
+)
 
-const DEFAULT_BAND3: AnchoredVwapDrawingBandPairSettings = {
-  visible: false,
-  multiplier: DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier3,
-  upperVisible: true,
-  upperColor: '#ff5252',
-  lowerVisible: true,
-  lowerColor: '#ff5252',
-  fillColor: '#ff5252',
-  fillOpacity: 0,
-  lineOpacity: 100,
-  lineWidth: 1,
-  lineStyle: 'solid',
-}
+const DEFAULT_BAND2: AnchoredVwapDrawingBandPairSettings = defaultBandPair(
+  DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier2,
+  false,
+)
+
+const DEFAULT_BAND3: AnchoredVwapDrawingBandPairSettings = defaultBandPair(
+  DEFAULT_ANCHORED_VWAP_DRAWING_MULTIPLIERS.multiplier3,
+  false,
+)
+
+export const DEFAULT_ANCHORED_VWAP_BAND_LINE_COLOR = DEFAULT_BAND_LINE_COLOR
+export const DEFAULT_ANCHORED_VWAP_BAND_LINE_OPACITY = DEFAULT_BAND_LINE_OPACITY
 
 function sanitizeMultiplier(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback
@@ -120,6 +131,13 @@ export function isAnchoredVwapFillOpacity(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
 }
 
+function sanitizeLineStyle(
+  value: unknown,
+  fallback: LineChartStrokeStyle,
+): LineChartStrokeStyle {
+  return sanitizeLineChartStrokeStyle(value) ?? fallback
+}
+
 function sanitizeLineSettings(
   value: unknown,
   defaults: AnchoredVwapDrawingLineSettings,
@@ -132,7 +150,7 @@ function sanitizeLineSettings(
       ? record.lineOpacity
       : defaults.lineOpacity,
     lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
-    lineStyle: isRollingVwapLineStyle(record.lineStyle) ? record.lineStyle : defaults.lineStyle,
+    lineStyle: sanitizeLineStyle(record.lineStyle, defaults.lineStyle),
   }
 }
 
@@ -152,6 +170,21 @@ function sanitizeBandColor(
   return fallback
 }
 
+/**
+ * Precedence for each new independent band opacity:
+ * valid new `upperOpacity`/`lowerOpacity` -> legacy shared `lineOpacity`
+ * (which used to style both band lines) -> band default opacity.
+ */
+function sanitizeBandOpacity(
+  record: Record<string, unknown>,
+  key: 'upperOpacity' | 'lowerOpacity',
+  fallback: number,
+): number {
+  if (isRollingVwapLineOpacity(record[key])) return record[key]
+  if (isRollingVwapLineOpacity(record.lineOpacity)) return record.lineOpacity
+  return fallback
+}
+
 function sanitizeBandPair(
   value: unknown,
   defaults: AnchoredVwapDrawingBandPairSettings,
@@ -163,17 +196,16 @@ function sanitizeBandPair(
     multiplier: sanitizeMultiplier(record.multiplier, defaults.multiplier),
     upperVisible: sanitizeBoolean(record.upperVisible, defaults.upperVisible),
     upperColor: sanitizeBandColor(record, 'upperColor', legacyLineColor, defaults.upperColor),
+    upperOpacity: sanitizeBandOpacity(record, 'upperOpacity', defaults.upperOpacity),
     lowerVisible: sanitizeBoolean(record.lowerVisible, defaults.lowerVisible),
     lowerColor: sanitizeBandColor(record, 'lowerColor', legacyLineColor, defaults.lowerColor),
+    lowerOpacity: sanitizeBandOpacity(record, 'lowerOpacity', defaults.lowerOpacity),
     fillColor: sanitizeBandColor(record, 'fillColor', legacyLineColor, defaults.fillColor),
     fillOpacity: isAnchoredVwapFillOpacity(record.fillOpacity)
       ? record.fillOpacity
       : defaults.fillOpacity,
-    lineOpacity: isRollingVwapLineOpacity(record.lineOpacity)
-      ? record.lineOpacity
-      : defaults.lineOpacity,
     lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
-    lineStyle: isRollingVwapLineStyle(record.lineStyle) ? record.lineStyle : defaults.lineStyle,
+    lineStyle: sanitizeLineStyle(record.lineStyle, defaults.lineStyle),
   }
 }
 
@@ -213,9 +245,10 @@ export function anchoredVwapDrawingMultipliersFromSettings(
   }
 }
 
-export function anchoredVwapDrawingLineRgba(
-  lineColor: string,
-  lineOpacity: number,
-): string {
-  return rollingVwapCenterLineRgbaColor(lineColor, lineOpacity)
+/** Hex + opacity percent → CSS color for Lightweight Charts / canvas. */
+export function anchoredVwapDrawingLineRgba(lineColor: string, lineOpacity: number): string {
+  return marketStyleColorWithOpacity(lineColor, lineOpacity)
 }
+
+/** Default band-line opacity percentage, exported for dialogs/tests. */
+export const DEFAULT_ANCHORED_VWAP_BAND_LINE_OPACITY_PERCENT = MARKET_STYLE_OPACITY_PERCENT.secondary

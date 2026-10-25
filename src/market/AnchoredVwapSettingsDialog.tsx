@@ -8,6 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { LINE_CHART_STROKE_STYLE_LABELS } from '@/market/lineChartStroke'
+import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
   sanitizeAnchoredVwapDrawingSettings,
   type AnchoredVwapDrawingBandPairSettings,
@@ -31,10 +33,12 @@ type AnchoredVwapSettingsDialogProps = {
 }
 
 function BandPairSection({
+  idPrefix,
   label,
   draft,
   onChange,
 }: {
+  idPrefix: string
   label: string
   draft: AnchoredVwapDrawingBandPairSettings
   onChange: (next: AnchoredVwapDrawingBandPairSettings) => void
@@ -49,30 +53,17 @@ function BandPairSection({
         />
         <span className="font-medium text-foreground">{label}</span>
       </label>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="space-y-1">
-          <span className="text-muted-foreground">Multiplier</span>
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            className={inputClassName}
-            value={draft.multiplier}
-            onChange={(event) => onChange({ ...draft, multiplier: Number(event.target.value) })}
-          />
-        </label>
-        <label className="space-y-1">
-          <span className="text-muted-foreground">Opacity (%)</span>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            className={inputClassName}
-            value={draft.lineOpacity}
-            onChange={(event) => onChange({ ...draft, lineOpacity: Number(event.target.value) })}
-          />
-        </label>
-      </div>
+      <label className="block space-y-1">
+        <span className="text-muted-foreground">Multiplier</span>
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          className={inputClassName}
+          value={draft.multiplier}
+          onChange={(event) => onChange({ ...draft, multiplier: Number(event.target.value) })}
+        />
+      </label>
       <ToggleGroup
         type="single"
         variant="outline"
@@ -104,66 +95,57 @@ function BandPairSection({
         }}
       >
         {ROLLING_VWAP_LINE_STYLES.map((style) => (
-          <ToggleGroupItem key={style} value={style} className="w-full capitalize">
-            {style}
+          <ToggleGroupItem
+            key={style}
+            value={style}
+            aria-label={`Line style ${LINE_CHART_STROKE_STYLE_LABELS[style]}`}
+            className="w-full"
+          >
+            {LINE_CHART_STROKE_STYLE_LABELS[style]}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.upperVisible}
-              onChange={(event) => onChange({ ...draft, upperVisible: event.target.checked })}
-            />
-            <span className="text-muted-foreground">Upper</span>
-          </label>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2">
           <input
-            type="color"
-            className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-            value={draft.upperColor}
-            onChange={(event) => onChange({ ...draft, upperColor: event.target.value })}
+            type="checkbox"
+            checked={draft.upperVisible}
+            onChange={(event) => onChange({ ...draft, upperVisible: event.target.checked })}
           />
-        </div>
-        <div className="space-y-1">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.lowerVisible}
-              onChange={(event) => onChange({ ...draft, lowerVisible: event.target.checked })}
-            />
-            <span className="text-muted-foreground">Lower</span>
-          </label>
-          <input
-            type="color"
-            className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-            value={draft.lowerColor}
-            onChange={(event) => onChange({ ...draft, lowerColor: event.target.value })}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="space-y-1">
-          <span className="text-muted-foreground">Fill</span>
-          <input
-            type="color"
-            className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-            value={draft.fillColor}
-            onChange={(event) => onChange({ ...draft, fillColor: event.target.value })}
-          />
+          <span className="text-muted-foreground">Upper</span>
         </label>
-        <label className="space-y-1">
-          <span className="text-muted-foreground">Fill opacity (%)</span>
+        <ColorOpacityField
+          id={`${idPrefix}-upper-color`}
+          label="Upper color"
+          color={draft.upperColor}
+          opacityPercent={draft.upperOpacity}
+          onColorChange={(upperColor) => onChange({ ...draft, upperColor })}
+          onOpacityChange={(upperOpacity) => onChange({ ...draft, upperOpacity })}
+        />
+        <label className="flex items-center gap-2">
           <input
-            type="number"
-            min={0}
-            max={100}
-            className={inputClassName}
-            value={draft.fillOpacity}
-            onChange={(event) => onChange({ ...draft, fillOpacity: Number(event.target.value) })}
+            type="checkbox"
+            checked={draft.lowerVisible}
+            onChange={(event) => onChange({ ...draft, lowerVisible: event.target.checked })}
           />
+          <span className="text-muted-foreground">Lower</span>
         </label>
+        <ColorOpacityField
+          id={`${idPrefix}-lower-color`}
+          label="Lower color"
+          color={draft.lowerColor}
+          opacityPercent={draft.lowerOpacity}
+          onColorChange={(lowerColor) => onChange({ ...draft, lowerColor })}
+          onOpacityChange={(lowerOpacity) => onChange({ ...draft, lowerOpacity })}
+        />
+        <ColorOpacityField
+          id={`${idPrefix}-fill-color`}
+          label="Fill"
+          color={draft.fillColor}
+          opacityPercent={draft.fillOpacity}
+          onColorChange={(fillColor) => onChange({ ...draft, fillColor })}
+          onOpacityChange={(fillOpacity) => onChange({ ...draft, fillOpacity })}
+        />
       </div>
     </div>
   )
@@ -246,58 +228,52 @@ function AnchoredVwapSettingsDialogBody({
             }}
           >
             {ROLLING_VWAP_LINE_STYLES.map((style) => (
-              <ToggleGroupItem key={style} value={style} className="w-full capitalize">
-                {style}
+              <ToggleGroupItem
+                key={style}
+                value={style}
+                aria-label={`Line style ${LINE_CHART_STROKE_STYLE_LABELS[style]}`}
+                className="w-full"
+              >
+                {LINE_CHART_STROKE_STYLE_LABELS[style]}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-muted-foreground">Opacity (%)</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                className={inputClassName}
-                value={draft.vwapLine.lineOpacity}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    vwapLine: { ...current.vwapLine, lineOpacity: Number(event.target.value) },
-                  }))
-                }
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-muted-foreground">Color</span>
-              <input
-                type="color"
-                className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent p-0.5"
-                value={draft.vwapLine.lineColor}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    vwapLine: { ...current.vwapLine, lineColor: event.target.value },
-                  }))
-                }
-              />
-            </label>
-          </div>
+          <ColorOpacityField
+            id="anchored-vwap-line-color"
+            label="Color"
+            color={draft.vwapLine.lineColor}
+            opacityPercent={draft.vwapLine.lineOpacity}
+            onColorChange={(lineColor) =>
+              setDraft((current) => ({
+                ...current,
+                vwapLine: { ...current.vwapLine, lineColor },
+              }))
+            }
+            onOpacityChange={(lineOpacity) =>
+              setDraft((current) => ({
+                ...current,
+                vwapLine: { ...current.vwapLine, lineOpacity },
+              }))
+            }
+          />
         </section>
 
         <section className="space-y-2">
           <p className="font-medium text-foreground">Standard deviation bands</p>
           <BandPairSection
+            idPrefix="anchored-vwap-band1"
             label="Band pair #1"
             draft={draft.band1}
             onChange={(band1) => setDraft((current) => ({ ...current, band1 }))}
           />
           <BandPairSection
+            idPrefix="anchored-vwap-band2"
             label="Band pair #2"
             draft={draft.band2}
             onChange={(band2) => setDraft((current) => ({ ...current, band2 }))}
           />
           <BandPairSection
+            idPrefix="anchored-vwap-band3"
             label="Band pair #3"
             draft={draft.band3}
             onChange={(band3) => setDraft((current) => ({ ...current, band3 }))}

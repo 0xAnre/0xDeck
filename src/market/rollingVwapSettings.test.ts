@@ -3,14 +3,22 @@ import { describe, it } from 'node:test'
 import {
   createDefaultRollingVwapSettings,
   DEFAULT_ROLLING_VWAP_BAND_COLORS,
+  DEFAULT_ROLLING_VWAP_BAND_OPACITIES,
   DEFAULT_ROLLING_VWAP_INFO_BOX,
   DEFAULT_ROLLING_VWAP_LINE_COLOR,
   DEFAULT_ROLLING_VWAP_LINE_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  isRollingVwapLineStyle,
   rollingVwapCenterLineRgbaColor,
   sanitizeRollingVwapSettings,
 } from './rollingVwapSettings.ts'
+import {
+  MARKET_STYLE_DEFAULTS,
+  MARKET_STYLE_OPACITY_PERCENT,
+  MARKET_STYLE_PALETTE,
+  MARKET_STYLE_ROLLING_BAND_SHADES,
+} from './marketStylePalette.ts'
 import {
   DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD,
   DEFAULT_ROLLING_VWAP_MIN_BARS,
@@ -29,6 +37,27 @@ describe('createDefaultRollingVwapSettings', () => {
     assert.equal(settings.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
     assert.equal(settings.lineOpacity, DEFAULT_ROLLING_VWAP_LINE_OPACITY)
     assert.equal(settings.lineStyle, DEFAULT_ROLLING_VWAP_LINE_STYLE)
+  })
+
+  it('uses palette defaults for bands, center line and info box', () => {
+    const settings = createDefaultRollingVwapSettings()
+    assert.deepEqual(settings.bandColors, {
+      band1: MARKET_STYLE_ROLLING_BAND_SHADES[0],
+      band2: MARKET_STYLE_ROLLING_BAND_SHADES[1],
+      band3: MARKET_STYLE_ROLLING_BAND_SHADES[2],
+    })
+    assert.equal(new Set(Object.values(settings.bandColors)).size, 3)
+    assert.deepEqual(settings.bandOpacities, {
+      band1: MARKET_STYLE_OPACITY_PERCENT.secondary,
+      band2: MARKET_STYLE_OPACITY_PERCENT.secondary,
+      band3: MARKET_STYLE_OPACITY_PERCENT.secondary,
+    })
+    assert.equal(settings.lineColor, MARKET_STYLE_DEFAULTS.primaryLine.color)
+    assert.equal(settings.lineOpacity, 100)
+    assert.equal(settings.infoBox.backgroundColor, MARKET_STYLE_PALETTE.dark)
+    assert.equal(settings.infoBox.backgroundColorOpacity, 100)
+    assert.equal(settings.infoBox.textColor, MARKET_STYLE_PALETTE.light)
+    assert.equal(settings.infoBox.textColorOpacity, 100)
   })
 
   it('returns independent object instances', () => {
@@ -84,6 +113,53 @@ describe('sanitizeRollingVwapSettings', () => {
     assert.equal(result.infoBox.verticalPosition, 'bottom')
     assert.equal(result.infoBox.horizontalPosition, 'right')
     assert.equal(result.infoBox.textColor, DEFAULT_ROLLING_VWAP_INFO_BOX.textColor)
+  })
+
+  it('keeps band, center-line and info-box opacities independent', () => {
+    const result = sanitizeRollingVwapSettings({
+      bandOpacities: { band1: 10, band2: 20, band3: 30 },
+      infoBox: { backgroundColorOpacity: 40, textColorOpacity: 90 },
+      lineOpacity: 60,
+    })
+    assert.deepEqual(result.bandOpacities, { band1: 10, band2: 20, band3: 30 })
+    assert.equal(result.infoBox.backgroundColorOpacity, 40)
+    assert.equal(result.infoBox.textColorOpacity, 90)
+    assert.equal(result.lineOpacity, 60)
+  })
+
+  it('loads legacy payloads without new opacity fields using palette defaults', () => {
+    const result = sanitizeRollingVwapSettings({
+      bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
+      infoBox: { backgroundColor: '#444444', textColor: '#555555' },
+    })
+    assert.deepEqual(result.bandColors, {
+      band1: '#111111',
+      band2: '#222222',
+      band3: '#333333',
+    })
+    assert.deepEqual(result.bandOpacities, DEFAULT_ROLLING_VWAP_BAND_OPACITIES)
+    assert.equal(result.infoBox.backgroundColor, '#444444')
+    assert.equal(result.infoBox.textColor, '#555555')
+    assert.equal(result.infoBox.backgroundColorOpacity, 100)
+    assert.equal(result.infoBox.textColorOpacity, 100)
+  })
+
+  it('never treats the retired dashed style as selectable', () => {
+    assert.equal(isRollingVwapLineStyle('solid'), true)
+    assert.equal(isRollingVwapLineStyle('dotted'), true)
+    assert.equal(isRollingVwapLineStyle('dashed'), false)
+    assert.equal(isRollingVwapLineStyle(undefined), false)
+  })
+
+  it('migrates a persisted dashed line style to solid and keeps other fields', () => {
+    const result = sanitizeRollingVwapSettings({
+      lineStyle: 'dashed',
+      lineColor: '#123456',
+      lineOpacity: 45,
+    })
+    assert.equal(result.lineStyle, 'solid')
+    assert.equal(result.lineColor, '#123456')
+    assert.equal(result.lineOpacity, 45)
   })
 
   it('returns defaults for corrupt root input', () => {

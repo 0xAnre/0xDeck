@@ -83,6 +83,14 @@ describe('marketIndicatorPresentationLineOptions', () => {
     assert.equal(options.lineWidth, 3)
     assert.equal(options.lineStyle, LineStyle.Dotted)
   })
+
+  it('folds the independent opacity into the presentation color', () => {
+    const options = marketIndicatorPresentationLineOptions({
+      color: '#112233',
+      opacity: 40,
+    })
+    assert.equal(options.color, 'rgba(17, 34, 51, 0.4)')
+  })
 })
 
 describe('applyMarketIndicatorPresentationToBundle', () => {
@@ -108,13 +116,30 @@ describe('applyMarketIndicatorPresentationToBundle', () => {
     )
     applyMarketIndicatorPresentationToBundle(bundle, 'daily-vwap', {
       color: '#445566',
-      lineStyle: 'dashed',
+      lineStyle: 'dotted',
     })
     for (const series of bundle.dailyVwap.ordered) {
       const mock = series as ReturnType<typeof createMockLineSeries>
       assert.equal(mock.applied[0]?.color, '#445566')
-      assert.equal(mock.applied[0]?.lineStyle, LineStyle.Dashed)
+      assert.equal(mock.applied[0]?.lineStyle, LineStyle.Dotted)
     }
+  })
+
+  it('applies an opacity-only presentation to each series own color', () => {
+    const bundle = createMockBundle()
+    const withColors = bundle.emas as unknown as {
+      options?: () => Record<string, unknown>
+      applied: Record<string, unknown>[]
+    }[]
+    const baseColors = ['#111111', '#222222', '#333333']
+    withColors.forEach((mock, index) => {
+      mock.options = () => ({ color: baseColors[index] })
+    })
+    applyMarketIndicatorPresentationToBundle(bundle, 'triple-ema', { opacity: 50 })
+    assert.deepEqual(
+      withColors.map((mock) => mock.applied[0]?.color),
+      ['rgba(17, 17, 17, 0.5)', 'rgba(34, 34, 34, 0.5)', 'rgba(51, 51, 51, 0.5)'],
+    )
   })
 
   it('applies rolling-vwap presentation to each instance center line', () => {

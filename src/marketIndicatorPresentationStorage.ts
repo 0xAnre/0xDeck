@@ -1,14 +1,16 @@
 import {
   isLineChartHexColor,
-  isLineChartStrokeStyle,
   isLineChartStrokeWidth,
+  sanitizeLineChartStrokeStyle,
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
 } from './market/lineChartStroke.ts'
+import { isMarketStyleOpacityPercent } from './market/marketStylePalette.ts'
 import { isMarketIndicatorId, type MarketIndicatorId } from './market/indicators.ts'
 
 export type MarketIndicatorPresentation = {
   color?: string
+  opacity?: number
   lineWidth?: LineChartStrokeWidth
   lineStyle?: LineChartStrokeStyle
 }
@@ -23,11 +25,15 @@ function sanitizePresentation(value: unknown): MarketIndicatorPresentation | nul
   if (isLineChartHexColor(record.color)) {
     presentation.color = record.color
   }
+  if (isMarketStyleOpacityPercent(record.opacity)) {
+    presentation.opacity = record.opacity
+  }
   if (isLineChartStrokeWidth(record.lineWidth)) {
     presentation.lineWidth = record.lineWidth
   }
-  if (isLineChartStrokeStyle(record.lineStyle)) {
-    presentation.lineStyle = record.lineStyle
+  const lineStyle = sanitizeLineChartStrokeStyle(record.lineStyle)
+  if (lineStyle !== undefined) {
+    presentation.lineStyle = lineStyle
   }
   return Object.keys(presentation).length > 0 ? presentation : {}
 }

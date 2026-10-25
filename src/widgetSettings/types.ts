@@ -95,6 +95,7 @@ export type WidgetSettingsRegistration = {
   onLineLockToggle?: (instanceId: string, locked: boolean) => void
   onLineVisibilityToggle?: (instanceId: string, hidden: boolean) => void
   onLineStrokeColorChange?: (instanceId: string, strokeColor: string) => void
+  onLineStrokeOpacityChange?: (instanceId: string, strokeOpacity: number) => void
   onLineWidthChange?: (instanceId: string, lineWidth: LineChartStrokeWidth) => void
   onLineStyleChange?: (instanceId: string, lineStyle: LineChartStrokeStyle) => void
   anchoredVwapInstances?: AnchoredVwapInstance[]

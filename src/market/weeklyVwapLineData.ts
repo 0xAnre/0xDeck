@@ -1,6 +1,7 @@
 import type { UTCTimestamp } from 'lightweight-charts'
 import type { WeeklyVwapPoint } from './weeklyVwap.ts'
 import {
+  VWAP_CHART_BAND_LINE_STYLE,
   VWAP_CHART_LINE_STYLE,
   VWAP_CHART_SERIES_KEYS,
   VWAP_CHART_SERIES_STYLES,
@@ -30,6 +31,9 @@ export type WeeklyVwapChartLineStyle = {
 }
 
 export const WEEKLY_VWAP_CHART_LINE_STYLE: WeeklyVwapChartLineStyle = VWAP_CHART_LINE_STYLE
+
+export const WEEKLY_VWAP_CHART_BAND_LINE_STYLE: WeeklyVwapChartLineStyle =
+  VWAP_CHART_BAND_LINE_STYLE
 
 export const WEEKLY_VWAP_CHART_SERIES_STYLES: Record<
   WeeklyVwapChartSeriesKey,

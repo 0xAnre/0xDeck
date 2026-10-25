@@ -197,6 +197,7 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onLineLockToggle={settings.onLineLockToggle}
             onLineVisibilityToggle={settings.onLineVisibilityToggle}
             onLineStrokeColorChange={settings.onLineStrokeColorChange}
+            onLineStrokeOpacityChange={settings.onLineStrokeOpacityChange}
             onLineWidthChange={settings.onLineWidthChange}
             onLineStyleChange={settings.onLineStyleChange}
             anchoredVwapInstances={settings.anchoredVwapInstances}

@@ -1,29 +1,21 @@
-import { resolveThemeCssColor, rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
-import { cssColorToHexForColorInput } from './marketIndicatorSeriesColors.ts'
+import { MARKET_STYLE_DEFAULTS, marketStyleColorWithOpacity } from './marketStylePalette.ts'
 
-/** Market semantic token for the POC level line (theme red / down color). */
-export const FRVP_POC_LINE_SEMANTIC_CSS_VAR = '--down'
-
-export const FRVP_POC_LINE_STROKE_OPACITY = 0.85
-
-const FRVP_POC_LINE_FALLBACK_RGB = 'rgb(220, 38, 38)'
-
-function readFrvpPocLineResolvedRgb(): string {
-  if (typeof document === 'undefined') {
-    return FRVP_POC_LINE_FALLBACK_RGB
-  }
-
-  const token = getComputedStyle(document.documentElement).getPropertyValue(
-    FRVP_POC_LINE_SEMANTIC_CSS_VAR,
-  )
-  return resolveThemeCssColor(token, FRVP_POC_LINE_FALLBACK_RGB)
-}
+/**
+ * FRVP level defaults (POC / VAH / VAL): palette secondary line
+ * (`medium` @ 70%), replacing the previous theme-red POC and `#a0a0a0` levels.
+ */
+export const FRVP_LEVEL_DEFAULT_HEX = MARKET_STYLE_DEFAULTS.secondaryLine.color
+export const FRVP_LEVEL_DEFAULT_OPACITY_PERCENT =
+  MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent
 
 export function readFrvpPocLineStrokeStyle(): string {
-  return rgbaFromResolvedCssColor(readFrvpPocLineResolvedRgb(), FRVP_POC_LINE_STROKE_OPACITY)
+  return marketStyleColorWithOpacity(
+    FRVP_LEVEL_DEFAULT_HEX,
+    FRVP_LEVEL_DEFAULT_OPACITY_PERCENT,
+  )
 }
 
-/** Hex value for `<input type="color">` when the instance uses the theme POC color. */
+/** Hex value for `<input type="color">`. */
 export function readFrvpPocLineColorInputHex(): string {
-  return cssColorToHexForColorInput(readFrvpPocLineResolvedRgb())
+  return FRVP_LEVEL_DEFAULT_HEX
 }

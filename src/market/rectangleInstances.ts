@@ -6,6 +6,7 @@ import {
 } from './chartObjectDisplaySequence.ts'
 import { isChartObjectHidden, setChartObjectHidden } from './chartObjectState.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
+import { MARKET_STYLE_DEFAULTS } from './marketStylePalette.ts'
 
 export type RectangleInstance = {
   id: string
@@ -22,9 +23,9 @@ export type RectangleInstance = {
 
 const RECTANGLE_HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
 
-export const DEFAULT_RECTANGLE_FILL_HEX = '#737373'
+export const DEFAULT_RECTANGLE_FILL_HEX = MARKET_STYLE_DEFAULTS.fill.color
 
-export const DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT = 20
+export const DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT = MARKET_STYLE_DEFAULTS.fill.opacityPercent
 
 export function isRectangleHexColor(value: unknown): value is string {
   return typeof value === 'string' && RECTANGLE_HEX_COLOR_PATTERN.test(value)

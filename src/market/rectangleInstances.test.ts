@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   createRectangleInstance,
+  DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT,
   normalizeRectangleBounds,
   sanitizeRectangleInstances,
   setRectangleInstanceFillColor,
@@ -104,9 +105,38 @@ describe('rectangleInstances', () => {
     assert.equal(colored[1].fillColor, '#ff00ff')
 
     const opacity = updateRectangleInstancesById(colored, second.id, (instance) =>
-      setRectangleInstanceFillOpacity(instance, 20),
+      setRectangleInstanceFillOpacity(instance, DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT),
     )
     assert.equal(opacity[1].fillOpacity, undefined)
+
+    const customOpacity = updateRectangleInstancesById(colored, second.id, (instance) =>
+      setRectangleInstanceFillOpacity(instance, 20),
+    )
+    assert.equal(customOpacity[1].fillOpacity, 20)
+  })
+
+  it('loads legacy records without fill fields and keeps explicit custom values', () => {
+    const legacy = sanitizeRectangleInstances([
+      { id: 'rect-legacy', fromTime: 10, toTime: 20, lowPrice: 1, highPrice: 2, displaySequence: 1 },
+    ])
+    assert.equal(legacy.length, 1)
+    assert.equal(legacy[0].fillColor, undefined)
+    assert.equal(legacy[0].fillOpacity, undefined)
+
+    const custom = sanitizeRectangleInstances([
+      {
+        id: 'rect-custom',
+        fromTime: 10,
+        toTime: 20,
+        lowPrice: 1,
+        highPrice: 2,
+        displaySequence: 1,
+        fillColor: '#112233',
+        fillOpacity: 55,
+      },
+    ])
+    assert.equal(custom[0].fillColor, '#112233')
+    assert.equal(custom[0].fillOpacity, 55)
   })
 
   it('persists per panel in localStorage', () => {
