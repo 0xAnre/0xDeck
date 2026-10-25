@@ -44,7 +44,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 - Do not enable a field the body does not support.
 - Parquet widgets register live values via **`useParquetWidgetSettings({ headerSettings, panelId, … })`**.
 - BTC Perp registers exchange, interval, indicators, and tools via **`useMarketWidgetSettings`**.
-- `PanelHeaderControls` renders the shared header in the order Exchange | Timeframe | Indicators | Tools. BTC Perp sets `hideHeaderTitle` so the static title label is not rendered; the row starts with the Exchange dropdown and the close button stays right-aligned.
+- `PanelHeaderControls` renders the shared header in the order Exchange | Timeframe | Indicators | Tools. BTC Perp sets `hideHeaderTitle` so the static title label is not rendered; the row starts with the Exchange dropdown and the close button stays right-aligned. On Hyperliquid it adds the read-only **Account** button before the Timeframe picker; Binance never renders it.
 
 | Field | Meaning |
 |-------|---------|
@@ -54,6 +54,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `metric` | KPI metric column |
 | `aggregation` | KPI aggregation |
 | `exchange` | Market exchange picker (BTC Perp: Binance, Hyperliquid) |
+| `account` | Read-only market account entry point; BTC Perp renders it only when the exchange is Hyperliquid |
 | `interval` | Candle interval (`1m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`) for live market widgets |
 | `indicators` | Market indicator multi-select (BTC Perp; availability is interval-specific) |
 | `tools` | Chart tools menu (BTC Perp: FRVP, rectangle/box, line) |

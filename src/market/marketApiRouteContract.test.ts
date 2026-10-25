@@ -8,6 +8,12 @@ import {
 } from './indicators.ts'
 import { marketApiBasePath, marketKlinesPath } from './marketExchange.ts'
 import {
+  hyperliquidAccountFillsByTimePath,
+  hyperliquidAccountFillsPath,
+  hyperliquidAccountPositionPath,
+  hyperliquidUserFillsChannel,
+} from './hyperliquidAccount.ts'
+import {
   CANDLE_INTERVALS,
   MARKET_EXCHANGES,
   marketKlineChannelForInterval,
@@ -42,6 +48,10 @@ const MARKET_KLINES_BASE_PATHS: Record<MarketExchange, string> = {
 }
 
 /** Intervals the UI can request per VWAP context level (mirrored in the backend test). */
+/** Mirrors `HYPERLIQUID_ACCOUNT_SUFFIXES` in the backend route-contract test. */
+const HYPERLIQUID_ACCOUNT_ADDRESS = '0xaf68caebaa151dd592112a07e2344b3950e13561'
+const HYPERLIQUID_ACCOUNT_SUFFIXES = ['/position', '/fills', '/fills/by-time'] as const
+
 const CONTEXT_INTERVAL_MATRIX: Record<string, readonly CandleInterval[]> = {
   // `requiredVwapContextLevel` defaults to `daily`, so daily context is
   // requested for every chart interval — including `1w`.
@@ -56,6 +66,33 @@ const CONTEXT_INTERVAL_MATRIX: Record<string, readonly CandleInterval[]> = {
 function expectedPath(exchange: MarketExchange, suffix: string): string {
   return `${API_BASE}${MARKET_KLINES_BASE_PATHS[exchange]}${suffix}`
 }
+
+describe('Hyperliquid account route contract (paths the client builds)', () => {
+  it('builds exactly the documented read-only account paths', () => {
+    assert.deepEqual(
+      [
+        hyperliquidAccountPositionPath(HYPERLIQUID_ACCOUNT_ADDRESS),
+        hyperliquidAccountFillsPath(HYPERLIQUID_ACCOUNT_ADDRESS),
+        hyperliquidAccountFillsByTimePath(HYPERLIQUID_ACCOUNT_ADDRESS),
+      ].map((path) => `${API_BASE}${path}`),
+      HYPERLIQUID_ACCOUNT_SUFFIXES.map(
+        (suffix) =>
+          `${API_BASE}/market/hyperliquid/account/${HYPERLIQUID_ACCOUNT_ADDRESS}${suffix}`,
+      ),
+    )
+  })
+
+  it('names the account fills relay channel the backend accepts', () => {
+    assert.equal(
+      hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS),
+      `hyperliquid.account.${HYPERLIQUID_ACCOUNT_ADDRESS}.userfills`,
+    )
+    // The backend WS channel cap is 96; this channel is 72 chars.
+    assert.ok(
+      hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS).length <= 96,
+    )
+  })
+})
 
 describe('market route contract (paths the client builds)', () => {
   it('uses the /api prefix the backend mounts every route under', () => {

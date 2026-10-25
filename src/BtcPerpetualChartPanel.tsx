@@ -3,9 +3,13 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
   LineSeries,
   type IChartApi,
+  type ISeriesMarkersPluginApi,
   type LogicalRange,
+  type MouseEventParams,
+  type Time,
 } from 'lightweight-charts'
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { cn } from '@/lib/utils'
@@ -298,11 +302,38 @@ import {
   type WidgetStreamConnectionState,
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveCssColor, resolveThemeCssColor } from '@/lib/resolveCssColor.ts'
 import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
+  MARKET_STYLE_PALETTE,
 } from '@/market/marketStylePalette'
+import { HyperliquidAccountDialog } from '@/market/HyperliquidAccountDialog'
+import {
+  clearHyperliquidAccountAddress,
+  hyperliquidUserFillsChannel,
+  loadHyperliquidAccountAddress,
+  saveHyperliquidAccountAddress,
+  type HyperliquidBtcPosition,
+} from '@/market/hyperliquidAccount'
+import {
+  fetchHyperliquidAccountFillsByTime,
+  fetchHyperliquidAccountPosition,
+} from '@/market/hyperliquidAccountApi'
+import {
+  bucketHyperliquidFillEvents,
+  classifyHyperliquidFills,
+  filterHyperliquidFillEventsToLoadedCandles,
+  mergeHyperliquidFills,
+  parseHyperliquidFill,
+  type BucketedHyperliquidFillEvent,
+  type HyperliquidFill,
+} from '@/market/hyperliquidFills'
+import {
+  hyperliquidFillEventsToMarkers,
+  type HyperliquidMarkerColors,
+} from '@/market/hyperliquidMarkers'
+import { formatSeriesLabel } from '@/lib/formatTime'
 
 /** Theme tokens only drive chart text/background; indicator defaults come from the palette. */
 function readThemeColors() {
@@ -315,6 +346,31 @@ function readThemeColors() {
     ema200: MARKET_STYLE_DUAL_LINE_SHADES[1],
   }
 }
+
+/** Marker colors come from resolved theme tokens, never hardcoded widget hexes. */
+function readHyperliquidMarkerColors(): HyperliquidMarkerColors {
+  const style = getComputedStyle(document.documentElement)
+  return {
+    longEntry: resolveThemeCssColor(
+      style.getPropertyValue('--up'),
+      MARKET_STYLE_PALETTE.light,
+    ),
+    shortEntry: resolveThemeCssColor(
+      style.getPropertyValue('--down'),
+      MARKET_STYLE_PALETTE.pocRed,
+    ),
+    reduce: resolveThemeCssColor(
+      style.getPropertyValue('--muted-foreground'),
+      MARKET_STYLE_PALETTE.medium,
+    ),
+    close: resolveThemeCssColor(
+      style.getPropertyValue('--muted-foreground'),
+      MARKET_STYLE_PALETTE.dark,
+    ),
+  }
+}
+
+type HyperliquidAccountPositionStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
   switch (state) {
@@ -404,6 +460,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [editingAnchoredVwapInstanceId, setEditingAnchoredVwapInstanceId] = useState<string | null>(
     null,
   )
+  const [accountAddress, setAccountAddress] = useState<string | null>(() =>
+    loadHyperliquidAccountAddress(),
+  )
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false)
+  const [accountPosition, setAccountPosition] = useState<HyperliquidBtcPosition | null>(null)
+  const [accountPositionStatus, setAccountPositionStatus] =
+    useState<HyperliquidAccountPositionStatus>('idle')
+  const [accountPositionError, setAccountPositionError] = useState<string | null>(null)
+  const [accountFills, setAccountFills] = useState<HyperliquidFill[]>([])
+  const [accountFillsNotice, setAccountFillsNotice] = useState<string | null>(null)
+  const [hoveredAccountEvents, setHoveredAccountEvents] = useState<
+    BucketedHyperliquidFillEvent[]
+  >([])
+  const [candleRangeRevision, setCandleRangeRevision] = useState(0)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -475,6 +545,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const frvpArmClaimTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const suppressViewportPersistRef = useRef(false)
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const accountMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
+  const accountFillsRangeRef = useRef<string | null>(null)
+  const accountPositionRequestRef = useRef(0)
+  const accountMarkersByBucketRef = useRef<Map<number, BucketedHyperliquidFillEvent[]>>(
+    new Map(),
+  )
 
   const flushMarketChartViewportPersist = useCallback(
     (
@@ -497,6 +573,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
 
   const refreshIndicatorHistoryNotices = useCallback(() => {
+    // Candle windows change on initial load, older-history pages and VWAP
+    // context merges. Account fills are scoped to those windows, so they must
+    // refresh with the chart instead of staying on a stale range.
+    setCandleRangeRevision((revision) => revision + 1)
     if (!historyReadyRef.current) {
       setIndicatorHistoryNotices([])
       return
@@ -1455,6 +1535,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         anchoredVwapSeriesAttachmentRef.current?.update()
       }
       saveWidgetMarketInterval(panelId, next)
+      setHoveredAccountEvents([])
       setDataState({ status: 'loading' })
       setChartReady(false)
       setStreamState('idle')
@@ -1490,16 +1571,96 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setChartReady(false)
       setStreamState('idle')
       setIndicatorHistoryNotices([])
+      setAccountDialogOpen(false)
+      accountFillsRangeRef.current = null
+      accountPositionRequestRef.current += 1
+      setAccountFills([])
+      setAccountFillsNotice(null)
+      setHoveredAccountEvents([])
+      setAccountPosition(null)
+      setAccountPositionStatus('idle')
+      setAccountPositionError(null)
       setExchange(next)
     },
     [panelId],
   )
+
+  const refreshAccountPosition = useCallback((address: string | null) => {
+    const requestId = ++accountPositionRequestRef.current
+    if (address === null || activeExchangeRef.current !== 'hyperliquid') {
+      setAccountPosition(null)
+      setAccountPositionError(null)
+      setAccountPositionStatus('idle')
+      return
+    }
+
+    setAccountPositionStatus('loading')
+    setAccountPositionError(null)
+    void fetchHyperliquidAccountPosition(address)
+      .then((response) => {
+        if (requestId !== accountPositionRequestRef.current) return
+        setAccountPosition(response.btc_position)
+        setAccountPositionStatus('ready')
+      })
+      .catch((error: unknown) => {
+        if (requestId !== accountPositionRequestRef.current) return
+        setAccountPosition(null)
+        setAccountPositionStatus('error')
+        setAccountPositionError(
+          error instanceof Error ? error.message : 'Could not load the BTC position',
+        )
+      })
+  }, [])
+
+  const handleAccountSave = useCallback(
+    (value: string) => {
+      const saved = saveHyperliquidAccountAddress(value)
+      if (saved === null) return
+      accountFillsRangeRef.current = null
+      setAccountFills([])
+      setAccountFillsNotice(null)
+      setHoveredAccountEvents([])
+      setAccountAddress(saved)
+      setAccountDialogOpen(true)
+      refreshAccountPosition(saved)
+    },
+    [refreshAccountPosition],
+  )
+
+  const handleAccountRemove = useCallback(() => {
+    clearHyperliquidAccountAddress()
+    accountFillsRangeRef.current = null
+    accountPositionRequestRef.current += 1
+    setAccountAddress(null)
+    setAccountPosition(null)
+    setAccountPositionStatus('idle')
+    setAccountPositionError(null)
+    setAccountFills([])
+    setAccountFillsNotice(null)
+    setHoveredAccountEvents([])
+  }, [])
+
+  const handleAccountClick = useCallback(() => {
+    setAccountDialogOpen(true)
+    refreshAccountPosition(accountAddress)
+  }, [accountAddress, refreshAccountPosition])
+
+  const handleAccountDialogOpenChange = useCallback((open: boolean) => {
+    setAccountDialogOpen(open)
+    if (open) return
+    accountPositionRequestRef.current += 1
+    setAccountPosition(null)
+    setAccountPositionStatus('idle')
+    setAccountPositionError(null)
+  }, [])
 
   useMarketWidgetSettings({
     headerSettings,
     panelId,
     marketExchange: exchange,
     onMarketExchangeChange: handleExchangeChange,
+    marketAccountAddress: accountAddress,
+    onMarketAccountClick: handleAccountClick,
     marketInterval: interval,
     onMarketIntervalChange: handleIntervalChange,
     marketIndicators: activeIndicators,
@@ -2090,6 +2251,132 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [anchoredVwapInstances, chartReady])
 
   useEffect(() => {
+    if (exchange !== 'hyperliquid' || accountAddress === null) return
+    if (!chartReady) return
+
+    const candles = candlesRef.current
+    if (candles.length === 0) return
+    const first = candles[0]
+    const last = candles[candles.length - 1]
+    const startTime = first.time * 1000
+    const endTime =
+      (last.time + candleIntervalDurationSeconds(interval)) * 1000
+    const rangeKey = `${startTime}:${endTime}`
+    if (accountFillsRangeRef.current === rangeKey) return
+    accountFillsRangeRef.current = rangeKey
+
+    const controller = new AbortController()
+    setAccountFillsNotice(null)
+    void fetchHyperliquidAccountFillsByTime(
+      accountAddress,
+      startTime,
+      endTime,
+      controller.signal,
+    )
+      .then((response) => {
+        if (controller.signal.aborted) return
+        const parsed = response.fills
+          .map(parseHyperliquidFill)
+          .filter((fill): fill is HyperliquidFill => fill !== null)
+        if (parsed.length > 0) {
+          setAccountFills((current) => mergeHyperliquidFills(current, parsed))
+        }
+        setAccountFillsNotice(
+          response.truncated
+            ? `Showing the most recent ${response.response_cap ?? 2000} Hyperliquid fills in the loaded chart range; older fills in this window are not shown.`
+            : null,
+        )
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        accountFillsRangeRef.current = null
+        setAccountFillsNotice(
+          error instanceof Error
+            ? `Could not load Hyperliquid fills: ${error.message}`
+            : 'Could not load Hyperliquid fills for the loaded chart range',
+        )
+      })
+
+    return () => controller.abort()
+  }, [accountAddress, candleRangeRevision, chartReady, exchange, interval])
+
+  useEffect(() => {
+    if (exchange !== 'hyperliquid' || accountAddress === null) return
+    const channel = hyperliquidUserFillsChannel(accountAddress)
+    const client = new WidgetStreamClient({
+      channel,
+      onMessage: (message) => {
+        if (message.type !== 'event') return
+        const payload = message.payload
+        if (!payload || typeof payload !== 'object') return
+        const fills = (payload as { fills?: unknown }).fills
+        if (!Array.isArray(fills)) return
+        const parsed = fills
+          .map(parseHyperliquidFill)
+          .filter((fill): fill is HyperliquidFill => fill !== null)
+        if (parsed.length === 0) return
+        setAccountFills((current) => mergeHyperliquidFills(current, parsed))
+      },
+    })
+    client.connect()
+    return () => client.disconnect()
+  }, [accountAddress, exchange])
+
+  useEffect(() => {
+    const markers = accountMarkersRef.current
+    if (!markers) return
+    if (exchange !== 'hyperliquid' || accountAddress === null || !chartReady) {
+      markers.setMarkers([])
+      accountMarkersByBucketRef.current = new Map()
+      return
+    }
+
+    const bucketed = bucketHyperliquidFillEvents(
+      classifyHyperliquidFills(accountFills),
+      interval,
+    )
+    const visible = filterHyperliquidFillEventsToLoadedCandles(
+      bucketed,
+      candlesRef.current.map((candle) => candle.time),
+    )
+    const byBucket = new Map<number, BucketedHyperliquidFillEvent[]>()
+    for (const event of visible) {
+      const bucket = byBucket.get(event.bucketTime)
+      if (bucket) bucket.push(event)
+      else byBucket.set(event.bucketTime, [event])
+    }
+    markers.setMarkers(
+      hyperliquidFillEventsToMarkers(visible, readHyperliquidMarkerColors()),
+    )
+    accountMarkersByBucketRef.current = byBucket
+  }, [accountAddress, accountFills, candleRangeRevision, chartReady, exchange, interval])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const handleCrosshairMove = (param: MouseEventParams) => {
+      const time = typeof param.time === 'number' ? param.time : null
+      const next =
+        time === null ? [] : (accountMarkersByBucketRef.current.get(time) ?? [])
+      setHoveredAccountEvents((current) => {
+        if (
+          current.length === next.length &&
+          current.every((event, index) => event.key === next[index]?.key)
+        ) {
+          return current
+        }
+        return next
+      })
+    }
+
+    chart.subscribeCrosshairMove(handleCrosshairMove)
+    return () => {
+      chart.unsubscribeCrosshairMove(handleCrosshairMove)
+    }
+  }, [chartReady])
+
+  useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
@@ -2176,6 +2463,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
 
       const candleSeries = chart.addSeries(CandlestickSeries, BTC_PERPETUAL_CANDLESTICK_COLORS)
+      // One marker primitive for the lifetime of this chart instance. Account
+      // markers are always updated through `setMarkers`, never a second chart.
+      accountMarkersRef.current = createSeriesMarkers(candleSeries, [])
 
       const { tripleEma: emaVisible, dualEma: dualEmaSeriesVisible } =
         getEmaIndicatorSeriesVisibility(activeIndicatorsRef.current)
@@ -2276,6 +2566,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       streamRef.current = null
       abortRef.current?.abort()
       abortRef.current = null
+      accountMarkersRef.current?.detach()
+      accountMarkersRef.current = null
+      accountMarkersByBucketRef.current = new Map()
       chart?.remove()
       chartRef.current = null
       seriesRef.current = null
@@ -2767,7 +3060,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileRuntimeById,
     exchange,
   )
-  const historyNotices = [...indicatorHistoryNotices, ...frvpAvailabilityNotices]
+  const historyNotices = [
+    ...indicatorHistoryNotices,
+    ...frvpAvailabilityNotices,
+    ...(accountFillsNotice === null ? [] : [accountFillsNotice]),
+  ]
 
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-1">
@@ -2797,8 +3094,42 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         </div>
       )}
 
+      {hoveredAccountEvents.length > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="hyperliquid-fill-readout"
+          className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[min(20rem,80%)] flex-col gap-0.5 rounded-md border border-border bg-card/95 px-2 py-1 text-[10px] tabular-nums text-foreground shadow-sm"
+        >
+          {hoveredAccountEvents.slice(0, 4).map((event) => (
+            <div key={event.key} className="flex flex-col">
+              <span>
+                {event.kind === 'entry' ? 'Entry' : event.kind === 'reduce' ? 'Reduce' : 'Close'}{' '}
+                <span className={event.side === 'long' ? 'text-long' : 'text-short'}>
+                  {event.side}
+                </span>{' '}
+                · {event.price.toLocaleString(undefined, { maximumFractionDigits: 2 })} ·{' '}
+                {event.size.toLocaleString(undefined, { maximumFractionDigits: 5 })} BTC
+              </span>
+              <span className="text-muted-foreground">
+                {formatSeriesLabel(event.time)} · pos{' '}
+                {event.positionBefore.toLocaleString(undefined, { maximumFractionDigits: 5 })} →{' '}
+                {event.positionAfter.toLocaleString(undefined, { maximumFractionDigits: 5 })}
+              </span>
+            </div>
+          ))}
+          {hoveredAccountEvents.length > 4 && (
+            <span className="text-muted-foreground">
+              +{hoveredAccountEvents.length - 4} more fill
+              {hoveredAccountEvents.length - 4 === 1 ? '' : 's'} in this candle
+            </span>
+          )}
+        </div>
+      )}
+
       <div
         ref={containerRef}
+        data-testid="btc-perp-chart"
         className={cn(
           'min-h-[5rem] w-full flex-1 basis-0',
           !chartReady && 'pointer-events-none opacity-0',
@@ -2839,6 +3170,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           }
         }}
         onSave={handleRollingVwapSettingsSave}
+      />
+      <HyperliquidAccountDialog
+        key={`${accountDialogOpen ? 'open' : 'closed'}-${accountAddress ?? 'none'}`}
+        open={accountDialogOpen}
+        onOpenChange={handleAccountDialogOpenChange}
+        savedAddress={accountAddress}
+        position={accountPosition}
+        positionStatus={accountPositionStatus}
+        positionError={accountPositionError}
+        onSave={handleAccountSave}
+        onRemove={handleAccountRemove}
       />
       <MarketIndicatorStyleDialog
         indicatorId={editingMarketIndicatorId}

@@ -124,6 +124,7 @@ export const WIDGET_REGISTRY = [
       metric: false,
       aggregation: false,
       exchange: true,
+      account: true,
       interval: true,
       indicators: true,
       tools: true,
