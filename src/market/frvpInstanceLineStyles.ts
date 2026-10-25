@@ -9,11 +9,16 @@ import {
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileDrawStyleInput } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import {
-  FRVP_LEVEL_DEFAULT_HEX,
   FRVP_LEVEL_DEFAULT_OPACITY_PERCENT,
+  FRVP_VAH_VAL_DEFAULT_HEX as FRVP_VAH_VAL_PALETTE_DEFAULT_HEX,
   readFrvpPocLineColorInputHex,
   readFrvpPocLineStrokeStyle,
+  readFrvpVahValLineStrokeStyle,
 } from './frvpLevelLineColors.ts'
+import {
+  frvpHistogramStyleDefaults,
+  frvpHistogramStyleForInstance,
+} from './frvpHistogramStyles.ts'
 import {
   isMarketStyleOpacityPercent,
   marketStyleColorWithOpacity,
@@ -21,11 +26,11 @@ import {
 
 export type FrvpLevelLineKind = 'poc' | 'vah' | 'val'
 
-export const FRVP_VAH_VAL_DEFAULT_HEX = FRVP_LEVEL_DEFAULT_HEX
+export const FRVP_VAH_VAL_DEFAULT_HEX = FRVP_VAH_VAL_PALETTE_DEFAULT_HEX
 export const FRVP_VAH_VAL_STROKE_OPACITY = FRVP_LEVEL_DEFAULT_OPACITY_PERCENT / 100
 export const DEFAULT_FRVP_LEVEL_LINE_WIDTH: LineChartStrokeWidth = 3
 
-export const DEFAULT_FRVP_POC_LINE_STYLE: LineChartStrokeStyle = 'solid'
+export const DEFAULT_FRVP_POC_LINE_STYLE: LineChartStrokeStyle = 'dotted'
 export const DEFAULT_FRVP_VAH_LINE_STYLE: LineChartStrokeStyle = 'solid'
 export const DEFAULT_FRVP_VAL_LINE_STYLE: LineChartStrokeStyle = 'solid'
 
@@ -84,7 +89,7 @@ function defaultStrokeStyleForKind(kind: FrvpLevelLineKind): string {
   if (kind === 'poc') {
     return readFrvpPocLineStrokeStyle()
   }
-  return marketStyleColorWithOpacity(FRVP_VAH_VAL_DEFAULT_HEX, FRVP_VAH_VAL_STROKE_OPACITY * 100)
+  return readFrvpVahValLineStrokeStyle()
 }
 
 function strokeStyleFromHex(hex: string, opacityPercent: number): string {
@@ -256,6 +261,7 @@ export function frvpDefaultDrawStyle(): FixedRangeVolumeProfileDrawStyleInput {
     valStrokeStyle: defaultStrokeStyleForKind('val'),
     valLineWidthCssPx: defaultWidth,
     valLineDash: lineChartStrokeDashPattern(DEFAULT_FRVP_VAL_LINE_STYLE),
+    ...frvpHistogramStyleDefaults(),
   }
 }
 
@@ -272,5 +278,6 @@ export function frvpDrawStyleForInstance(
     valStrokeStyle: frvpInstanceLevelLineStrokeStyle(instance, 'val'),
     valLineWidthCssPx: frvpLevelLineWidthCssPx(frvpInstanceLevelLineWidth(instance, 'val')),
     valLineDash: frvpInstanceLevelLineDash(instance, 'val'),
+    ...frvpHistogramStyleForInstance(instance),
   }
 }

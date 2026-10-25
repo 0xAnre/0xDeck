@@ -2,6 +2,7 @@ import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
+import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
@@ -80,6 +81,16 @@ export type WidgetSettingsRegistration = {
   onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
     instanceId: string,
     kind: 'poc' | 'vah' | 'val',
+    opacityPercent: number,
+  ) => void
+  onFixedRangeVolumeProfileHistogramColorChange?: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
+    color: string,
+  ) => void
+  onFixedRangeVolumeProfileHistogramOpacityChange?: (
+    instanceId: string,
+    direction: FrvpHistogramDirection,
     opacityPercent: number,
   ) => void
   rectangleInstances?: RectangleInstance[]

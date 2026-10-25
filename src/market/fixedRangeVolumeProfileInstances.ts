@@ -1,18 +1,24 @@
 import { isCandleInterval } from './candleIntervalDuration.ts'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from './lineChartStroke.ts'
 import {
+  DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
+  DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
+} from './fixedRangeVolumeProfile.ts'
+import {
   formatNumberedChartObjectLabel,
   isValidDisplaySequence,
   migrateChartObjectDisplaySequences,
   nextDisplaySequence,
 } from './chartObjectDisplaySequence.ts'
 import { setChartObjectLocked } from './chartObjectState.ts'
+import { sanitizeFrvpInstanceHistogramStyles } from './frvpHistogramStyles.ts'
 import { sanitizeFrvpInstanceLevelLineStyles } from './frvpInstanceLineStyles.ts'
 import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
 
-export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 24
+/** Re-exported so FRVP defaults have a single source of truth. */
+export { DEFAULT_FIXED_RANGE_VP_ROW_COUNT, DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT }
+
 export const MAX_FIXED_RANGE_VP_ROW_COUNT = 500
-export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 70
 
 export type FixedRangeVolumeProfileInstance = {
   id: string
@@ -42,6 +48,14 @@ export type FixedRangeVolumeProfileInstance = {
   valLineWidth?: LineChartStrokeWidth
   valLineStyle?: LineChartStrokeStyle
   valStrokeOpacityPercent?: number
+  /**
+   * Histogram bar styling: per-direction color + 0–100 configured opacity.
+   * Missing fields render the legacy appearance (candle colors, 0.55/0.25 alphas).
+   */
+  histogramUpColor?: string
+  histogramUpOpacityPercent?: number
+  histogramDownColor?: string
+  histogramDownOpacityPercent?: number
 }
 
 export type SanitizeFixedRangeVolumeProfileOptions = {
@@ -146,7 +160,10 @@ export function sanitizeFixedRangeVolumeProfileInstance(
   if (record.locked === true) {
     instance.locked = true
   }
-  return sanitizeFrvpInstanceLevelLineStyles(record, instance)
+  return sanitizeFrvpInstanceHistogramStyles(
+    record,
+    sanitizeFrvpInstanceLevelLineStyles(record, instance),
+  )
 }
 
 export function sanitizeFixedRangeVolumeProfileInstances(
@@ -190,7 +207,8 @@ export function createFixedRangeVolumeProfileInstance(params: {
     valueAreaPercent: params.valueAreaPercent ?? DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
     enabled: params.enabled ?? true,
     displaySequence: nextDisplaySequence(siblings),
-    extendRight: params.extendRight === true,
+    // New profiles default to Extend Right; stored records keep their value.
+    extendRight: params.extendRight ?? true,
   }
 }
 

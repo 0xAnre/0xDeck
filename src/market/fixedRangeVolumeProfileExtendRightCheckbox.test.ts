@@ -62,7 +62,7 @@ describe('FRVP Extend right checkbox data path', () => {
     )
   }
 
-  it('toggling Extend right on persists extendRight true and the checkbox reads it back', () => {
+  it('new instances default Extend right on and the toggle round-trips', () => {
     const memory = new Map<string, string>()
     const restore = installMemoryLocalStorage(memory)
     try {
@@ -73,7 +73,11 @@ describe('FRVP Extend right checkbox data path', () => {
       })
       assert.notEqual(created, null)
 
+      // New-instance default is Extend Right ON; the checkbox reads it back.
       let current = persistLikePanel([created!])
+      assert.equal(current[0].extendRight, true)
+
+      current = toggleLikePanel(current, created!.id, false)
       assert.equal(current[0].extendRight, false)
 
       current = toggleLikePanel(current, created!.id, true)
@@ -113,7 +117,10 @@ describe('FRVP Extend right checkbox data path', () => {
       })
       assert.notEqual(created, null)
 
-      let current = toggleLikePanel([created!], created!.id, true)
+      let current = toggleLikePanel([created!], created!.id, false)
+      assert.equal(current[0].extendRight, false)
+
+      current = toggleLikePanel(current, created!.id, true)
       assert.equal(current[0].extendRight, true)
 
       current = toggleLikePanel(current, created!.id, false)

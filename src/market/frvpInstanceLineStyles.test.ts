@@ -5,8 +5,12 @@ import {
   createFixedRangeVolumeProfileInstance,
   sanitizeFixedRangeVolumeProfileInstance,
 } from './fixedRangeVolumeProfileInstances.ts'
-import { readFrvpPocLineColorInputHex } from './frvpLevelLineColors.ts'
-import { MARKET_STYLE_DEFAULTS, MARKET_STYLE_PALETTE } from './marketStylePalette.ts'
+import {
+  FRVP_POC_DEFAULT_HEX,
+  FRVP_VAH_VAL_DEFAULT_HEX,
+  readFrvpPocLineColorInputHex,
+} from './frvpLevelLineColors.ts'
+import { MARKET_STYLE_PALETTE } from './marketStylePalette.ts'
 import { lineChartStrokeDashPattern } from './lineChartStroke.ts'
 import {
   DEFAULT_FRVP_LEVEL_LINE_WIDTH,
@@ -43,25 +47,32 @@ function baseInstance(): FixedRangeVolumeProfileInstance {
 describe('frvpInstanceLineStyles', () => {
   it('uses palette defaults when instance has no overrides', () => {
     const instance = baseInstance()
-    assert.equal(frvpInstanceLevelLineWidth(instance, 'poc'), DEFAULT_FRVP_LEVEL_LINE_WIDTH)
-    assert.match(frvpInstanceLevelLineStrokeStyle(instance, 'vah'), /rgba\(/)
+    assert.equal(frvpInstanceLevelLineWidth(instance, 'poc'), 3)
+    assert.equal(frvpInstanceLevelLineWidth(instance, 'vah'), DEFAULT_FRVP_LEVEL_LINE_WIDTH)
+    assert.equal(frvpInstanceLevelLineStrokeStyle(instance, 'poc'), 'rgba(209, 95, 91, 0.5)')
+    assert.equal(frvpInstanceLevelLineStrokeStyle(instance, 'vah'), 'rgba(163, 163, 163, 0.5)')
     assert.equal(frvpLevelStrokeColorInputValue(instance, 'poc'), readFrvpPocLineColorInputHex())
+    assert.equal(frvpLevelStrokeColorInputValue(instance, 'poc'), FRVP_POC_DEFAULT_HEX)
+    assert.equal(frvpLevelStrokeColorInputValue(instance, 'vah'), FRVP_VAH_VAL_DEFAULT_HEX)
     assert.equal(
       frvpInstanceLevelStrokeOpacityPercent(instance, 'poc'),
       DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT,
     )
-    assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'vah'), 70)
-    assert.equal(frvpInstanceLevelLineStyle(instance, 'poc'), 'solid')
+    assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'poc'), 50)
+    assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'vah'), 50)
+    assert.equal(frvpInstanceLevelLineStyle(instance, 'poc'), 'dotted')
+    assert.equal(frvpInstanceLevelLineStyle(instance, 'vah'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(instance, 'val'), 'solid')
   })
 
   it('keeps each level opacity independent', () => {
     let instance = setFrvpInstanceLevelStrokeOpacityPercent(baseInstance(), 'poc', 30)
     instance = setFrvpInstanceLevelStrokeOpacityPercent(instance, 'val', 90)
     assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'poc'), 30)
-    assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'vah'), 70)
+    assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'vah'), 50)
     assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'val'), 90)
     assert.match(frvpInstanceLevelLineStrokeStyle(instance, 'poc'), /0\.3\)$/)
-    assert.match(frvpInstanceLevelLineStrokeStyle(instance, 'vah'), /0\.7\)$/)
+    assert.match(frvpInstanceLevelLineStrokeStyle(instance, 'vah'), /0\.5\)$/)
     assert.match(frvpInstanceLevelLineStrokeStyle(instance, 'val'), /0\.9\)$/)
   })
 
@@ -75,18 +86,22 @@ describe('frvpInstanceLineStyles', () => {
       enabled: true,
     })
     if (!sanitized) throw new Error('expected sanitized FRVP instance')
+    assert.equal(frvpLevelStrokeColorInputValue(sanitized, 'poc'), FRVP_POC_DEFAULT_HEX)
+    assert.equal(frvpLevelStrokeColorInputValue(sanitized, 'vah'), MARKET_STYLE_PALETTE.medium)
+    assert.equal(frvpLevelStrokeColorInputValue(sanitized, 'val'), MARKET_STYLE_PALETTE.medium)
     for (const kind of ['poc', 'vah', 'val'] as const) {
-      assert.equal(frvpLevelStrokeColorInputValue(sanitized, kind), MARKET_STYLE_PALETTE.medium)
       assert.equal(
         frvpInstanceLevelStrokeOpacityPercent(sanitized, kind),
-        MARKET_STYLE_DEFAULTS.secondaryLine.opacityPercent,
+        DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT,
       )
-      assert.equal(frvpInstanceLevelLineStyle(sanitized, kind), 'solid')
       assert.equal(
         frvpInstanceLevelLineWidth(sanitized, kind),
         DEFAULT_FRVP_LEVEL_LINE_WIDTH,
       )
     }
+    assert.equal(frvpInstanceLevelLineStyle(sanitized, 'poc'), DEFAULT_FRVP_POC_LINE_STYLE)
+    assert.equal(frvpInstanceLevelLineStyle(sanitized, 'vah'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(sanitized, 'val'), 'solid')
   })
 
   it('persists custom colors and widths on the instance', () => {
@@ -98,20 +113,27 @@ describe('frvpInstanceLineStyles', () => {
     assert.equal(frvpInstanceLevelLineWidth(instance, 'poc'), 2)
   })
 
-  it('defaults POC, VAH and VAL to solid with legacy opacity', () => {
+  it('defaults POC to Dot and VAH/VAL to Line at 50% opacity', () => {
     const instance = baseInstance()
-    assert.equal(DEFAULT_FRVP_POC_LINE_STYLE, 'solid')
+    assert.equal(DEFAULT_FRVP_POC_LINE_STYLE, 'dotted')
     assert.equal(DEFAULT_FRVP_VAH_LINE_STYLE, 'solid')
     assert.equal(DEFAULT_FRVP_VAL_LINE_STYLE, 'solid')
-    assert.equal(frvpInstanceLevelLineStyle(instance, 'poc'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(instance, 'poc'), 'dotted')
     assert.equal(frvpInstanceLevelLineStyle(instance, 'vah'), 'solid')
     assert.equal(frvpInstanceLevelLineStyle(instance, 'val'), 'solid')
-    assert.deepEqual(frvpInstanceLevelLineDash(instance, 'poc'), [])
+    assert.deepEqual(frvpInstanceLevelLineDash(instance, 'poc'), [2, 3])
     assert.deepEqual(frvpInstanceLevelLineDash(instance, 'vah'), [])
     assert.deepEqual(frvpInstanceLevelLineDash(instance, 'val'), [])
+    for (const kind of ['poc', 'vah', 'val'] as const) {
+      assert.equal(
+        frvpInstanceLevelStrokeOpacityPercent(instance, kind),
+        DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT,
+      )
+      assert.equal(DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT, 50)
+    }
   })
 
-  it('newly created FRVP reports solid lines and empty dash arrays (settings UI and render agree)', () => {
+  it('newly created FRVP reports Dot for POC, Line for VAH/VAL (settings UI and render agree)', () => {
     const created = createFixedRangeVolumeProfileInstance({
       fromTime: 100,
       toTime: 200,
@@ -122,11 +144,11 @@ describe('frvpInstanceLineStyles', () => {
     assert.equal(created.vahLineStyle, undefined)
     assert.equal(created.valLineStyle, undefined)
 
-    for (const kind of ['poc', 'vah', 'val'] as const) {
-      assert.equal(frvpInstanceLevelLineStyle(created, kind), 'solid')
-    }
+    assert.equal(frvpInstanceLevelLineStyle(created, 'poc'), 'dotted')
+    assert.equal(frvpInstanceLevelLineStyle(created, 'vah'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(created, 'val'), 'solid')
     const styles = frvpDrawStyleForInstance(created)
-    assert.deepEqual(styles.pocLineDash, [])
+    assert.deepEqual(styles.pocLineDash, lineChartStrokeDashPattern('dotted'))
     assert.deepEqual(styles.vahLineDash, [])
     assert.deepEqual(styles.valLineDash, [])
   })

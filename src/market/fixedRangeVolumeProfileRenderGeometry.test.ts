@@ -9,7 +9,10 @@ import {
   computeMaxRowVolume,
   FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
   FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY,
+  FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT,
   FRVP_VALUE_AREA_ROW_OPACITY,
+  FRVP_VALUE_AREA_ROW_OPACITY_PERCENT,
+  fixedRangeVolumeProfileRowOpacityPercent,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
 import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
@@ -98,6 +101,67 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     })
     assert.match(inVa?.upColor ?? '', new RegExp(String(FRVP_VALUE_AREA_ROW_OPACITY)))
     assert.match(outVa?.upColor ?? '', new RegExp(String(FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY)))
+  })
+
+
+  it('keeps the legacy 0.55 / 0.25 row alphas when no histogram style is set', () => {
+    const inVa = buildFixedRangeVolumeProfileRowBarGeometry({
+      row: row(),
+      rangeLeft: 200,
+      rangeWidth: 100,
+      maxRowVolume: 10,
+      top: 0,
+      bottom: 10,
+      inValueArea: true,
+    })
+    const outVa = buildFixedRangeVolumeProfileRowBarGeometry({
+      row: row({ inValueArea: false }),
+      rangeLeft: 200,
+      rangeWidth: 100,
+      maxRowVolume: 10,
+      top: 0,
+      bottom: 10,
+      inValueArea: false,
+    })
+    assert.equal(inVa?.upColor, 'rgba(219, 219, 219, 0.55)')
+    assert.equal(inVa?.downColor, 'rgba(128, 128, 128, 0.55)')
+    assert.equal(outVa?.upColor, 'rgba(219, 219, 219, 0.25)')
+    assert.equal(outVa?.downColor, 'rgba(128, 128, 128, 0.25)')
+    assert.equal(FRVP_VALUE_AREA_ROW_OPACITY_PERCENT, 55)
+    assert.equal(FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT, 25)
+  })
+
+  it('scales the configured opacity while keeping Value Area rows stronger', () => {
+    const build = (inValueArea: boolean, opacityPercent: number) =>
+      buildFixedRangeVolumeProfileRowBarGeometry({
+        row: row({ inValueArea }),
+        rangeLeft: 200,
+        rangeWidth: 100,
+        maxRowVolume: 10,
+        top: 0,
+        bottom: 10,
+        inValueArea,
+        upColor: '#112233',
+        downColor: '#445566',
+        upOpacityPercent: opacityPercent,
+        downOpacityPercent: opacityPercent,
+      })
+    assert.equal(build(true, 50)?.upColor, 'rgba(17, 34, 51, 0.275)')
+    assert.equal(build(false, 50)?.upColor, 'rgba(17, 34, 51, 0.125)')
+    assert.equal(build(true, 50)?.downColor, 'rgba(68, 85, 102, 0.275)')
+    assert.equal(fixedRangeVolumeProfileRowOpacityPercent(80, true), 44)
+    assert.equal(fixedRangeVolumeProfileRowOpacityPercent(80, false), 20)
+    // 100% configured opacity reproduces the historical alphas exactly.
+    assert.equal(
+      fixedRangeVolumeProfileRowOpacityPercent(100, true),
+      FRVP_VALUE_AREA_ROW_OPACITY_PERCENT,
+    )
+    assert.equal(
+      fixedRangeVolumeProfileRowOpacityPercent(100, false),
+      FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT,
+    )
+    assert.equal(FRVP_VALUE_AREA_ROW_OPACITY, 0.55)
+    assert.equal(FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY, 0.25)
   })
 
   it('returns null lines for null metrics', () => {

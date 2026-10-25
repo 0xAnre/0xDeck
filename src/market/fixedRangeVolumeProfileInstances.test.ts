@@ -7,11 +7,37 @@ import {
 } from '../fixedRangeVolumeProfileInstancesStorage.ts'
 import {
   createFixedRangeVolumeProfileInstance,
+  DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
+  DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
   MAX_FIXED_RANGE_VP_ROW_COUNT,
   normalizeFixedRangeVolumeProfileTimes,
   sanitizeFixedRangeVolumeProfileInstances,
 } from './fixedRangeVolumeProfileInstances.ts'
+import {
+  DEFAULT_FIXED_RANGE_VP_ROW_COUNT as DEFAULT_FIXED_RANGE_VP_ROW_COUNT_SOURCE,
+  DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT as DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT_SOURCE,
+} from './fixedRangeVolumeProfile.ts'
 import { resolveChartEventTime } from './fixedRangeVolumeProfileChartTime.ts'
+import {
+  DEFAULT_FRVP_LEVEL_LINE_WIDTH,
+  DEFAULT_FRVP_POC_LINE_STYLE,
+  DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT,
+  DEFAULT_FRVP_VAH_LINE_STYLE,
+  DEFAULT_FRVP_VAL_LINE_STYLE,
+  frvpInstanceLevelLineStyle,
+  frvpInstanceLevelLineWidth,
+  frvpInstanceLevelStrokeOpacityPercent,
+  frvpLevelStrokeColorInputValue,
+} from './frvpInstanceLineStyles.ts'
+import {
+  FRVP_POC_DEFAULT_HEX,
+  FRVP_VAH_VAL_DEFAULT_HEX,
+} from './frvpLevelLineColors.ts'
+import {
+  frvpHistogramColorInputValue,
+  frvpHistogramOpacityPercent,
+} from './frvpHistogramStyles.ts'
+import { MARKET_STYLE_PALETTE } from './marketStylePalette.ts'
 
 describe('fixedRangeVolumeProfileInstances storage', () => {
   const panelA = 'panel-a'
@@ -269,5 +295,99 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     assert.notEqual(instance, null)
     assert.equal(instance!.fromTime, 1_700_000_000)
     assert.ok(instance!.toTime < 2_000_000_000)
+  })
+
+  it('creates new profiles with 68 rows, 68% value area and Extend Right on', () => {
+    const created = createFixedRangeVolumeProfileInstance({
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+    })
+    assert.notEqual(created, null)
+    assert.equal(created!.rowCount, 68)
+    assert.equal(created!.valueAreaPercent, 68)
+    assert.equal(created!.extendRight, true)
+    // One source of truth for the numeric defaults.
+    assert.equal(DEFAULT_FIXED_RANGE_VP_ROW_COUNT, DEFAULT_FIXED_RANGE_VP_ROW_COUNT_SOURCE)
+    assert.equal(
+      DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT,
+      DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT_SOURCE,
+    )
+  })
+
+  it('creates new profiles with the POC red Dot and grey VAH/VAL Line defaults', () => {
+    const created = createFixedRangeVolumeProfileInstance({
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+    })
+    if (!created) throw new Error('expected a created FRVP instance')
+
+    assert.equal(FRVP_POC_DEFAULT_HEX, MARKET_STYLE_PALETTE.pocRed)
+    assert.equal(FRVP_VAH_VAL_DEFAULT_HEX, MARKET_STYLE_PALETTE.medium)
+
+    assert.equal(frvpLevelStrokeColorInputValue(created, 'poc'), '#D15F5B')
+    assert.equal(frvpLevelStrokeColorInputValue(created, 'vah'), '#A3A3A3')
+    assert.equal(frvpLevelStrokeColorInputValue(created, 'val'), '#A3A3A3')
+    for (const kind of ['poc', 'vah', 'val'] as const) {
+      assert.equal(frvpInstanceLevelStrokeOpacityPercent(created, kind), 50)
+      assert.equal(
+        frvpInstanceLevelStrokeOpacityPercent(created, kind),
+        DEFAULT_FRVP_POC_STROKE_OPACITY_PERCENT,
+      )
+      assert.equal(frvpInstanceLevelLineWidth(created, kind), 3)
+      assert.equal(frvpInstanceLevelLineWidth(created, kind), DEFAULT_FRVP_LEVEL_LINE_WIDTH)
+    }
+    assert.equal(frvpInstanceLevelLineStyle(created, 'poc'), 'dotted')
+    assert.equal(frvpInstanceLevelLineStyle(created, 'poc'), DEFAULT_FRVP_POC_LINE_STYLE)
+    assert.equal(frvpInstanceLevelLineStyle(created, 'vah'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(created, 'vah'), DEFAULT_FRVP_VAH_LINE_STYLE)
+    assert.equal(frvpInstanceLevelLineStyle(created, 'val'), 'solid')
+    assert.equal(frvpInstanceLevelLineStyle(created, 'val'), DEFAULT_FRVP_VAL_LINE_STYLE)
+
+    // Histogram keeps the legacy appearance until the user changes it.
+    assert.equal(frvpHistogramColorInputValue(created, 'up'), '#DBDBDB')
+    assert.equal(frvpHistogramColorInputValue(created, 'down'), '#808080')
+    assert.equal(frvpHistogramOpacityPercent(created, 'up'), 100)
+    assert.equal(frvpHistogramOpacityPercent(created, 'down'), 100)
+  })
+
+  it('keeps the persisted settings of previously saved profiles (no migration)', () => {
+    const stored = {
+      id: 'frvp-saved',
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      extendRight: false,
+      pocStrokeColor: '#112233',
+      pocLineWidth: 2,
+      pocLineStyle: 'solid',
+      pocStrokeOpacityPercent: 30,
+      vahLineStyle: 'dotted',
+    }
+    const sanitized = sanitizeFixedRangeVolumeProfileInstances([stored])
+    assert.equal(sanitized.length, 1)
+    const instance = sanitized[0]
+    assert.equal(instance.rowCount, 24)
+    assert.equal(instance.valueAreaPercent, 70)
+    assert.equal(instance.extendRight, false)
+    assert.equal(instance.pocStrokeColor, '#112233')
+    assert.equal(instance.pocLineWidth, 2)
+    assert.equal(instance.pocLineStyle, 'solid')
+    assert.equal(instance.pocStrokeOpacityPercent, 30)
+    assert.equal(instance.vahLineStyle, 'dotted')
+    // Untouched fields still resolve to the new documented defaults...
+    assert.equal(frvpLevelStrokeColorInputValue(instance, 'vah'), '#A3A3A3')
+    assert.equal(frvpInstanceLevelStrokeOpacityPercent(instance, 'vah'), 50)
+    // ...but nothing is rewritten into the stored record itself.
+    assert.equal(instance.histogramUpColor, undefined)
+    assert.equal(instance.histogramUpOpacityPercent, undefined)
+    assert.deepEqual(
+      Object.keys(sanitizeFixedRangeVolumeProfileInstances([instance])[0]).sort(),
+      Object.keys(instance).sort(),
+    )
   })
 })
