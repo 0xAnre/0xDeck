@@ -6,7 +6,7 @@ import {
 } from './chartObjectDisplaySequence.ts'
 import { isChartObjectHidden, setChartObjectHidden } from './chartObjectState.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
-import { MARKET_STYLE_DEFAULTS } from './marketStylePalette.ts'
+import { MARKET_STYLE_DEFAULTS, isMarketStyleHexColor, isMarketStyleOpacityPercent } from './marketStylePalette.ts'
 
 export type RectangleInstance = {
   id: string
@@ -21,18 +21,16 @@ export type RectangleInstance = {
   fillOpacity?: number
 }
 
-const RECTANGLE_HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
-
 export const DEFAULT_RECTANGLE_FILL_HEX = MARKET_STYLE_DEFAULTS.fill.color
 
 export const DEFAULT_RECTANGLE_FILL_OPACITY_PERCENT = MARKET_STYLE_DEFAULTS.fill.opacityPercent
 
 export function isRectangleHexColor(value: unknown): value is string {
-  return typeof value === 'string' && RECTANGLE_HEX_COLOR_PATTERN.test(value)
+  return isMarketStyleHexColor(value)
 }
 
 export function isRectangleFillOpacityPercent(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+  return isMarketStyleOpacityPercent(value)
 }
 
 export function isRectangleInstanceLocked(instance: RectangleInstance): boolean {

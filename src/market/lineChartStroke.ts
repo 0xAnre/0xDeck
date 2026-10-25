@@ -48,13 +48,11 @@ export function sanitizeLineChartStrokeStyle(value: unknown): LineChartStrokeSty
 
 export function lineChartStrokeDashPattern(style: LineChartStrokeStyle): readonly number[] {
   switch (style) {
-    case 'solid':
-      return []
     case 'dotted':
       return [2, 3]
-    default: {
-      const unreachable: never = style
-      return unreachable
-    }
+    default:
+      // `dashed` is migrated to `solid` by sanitizeLineChartStrokeStyle; any
+      // unsanitized legacy value must still render as a solid line.
+      return []
   }
 }

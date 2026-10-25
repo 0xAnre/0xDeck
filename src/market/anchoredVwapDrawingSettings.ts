@@ -16,6 +16,7 @@ import {
 import {
   MARKET_STYLE_DEFAULTS,
   MARKET_STYLE_OPACITY_PERCENT,
+  isMarketStyleOpacityPercent,
   marketStyleColorWithOpacity,
 } from './marketStylePalette.ts'
 
@@ -128,7 +129,7 @@ function sanitizeBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 export function isAnchoredVwapFillOpacity(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+  return isMarketStyleOpacityPercent(value)
 }
 
 function sanitizeLineStyle(

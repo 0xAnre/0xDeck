@@ -4,6 +4,7 @@ import {
   DEFAULT_LINE_CHART_STROKE_STYLE,
   LINE_CHART_STROKE_STYLE_LABELS,
   LINE_CHART_STROKE_STYLES,
+  type LineChartStrokeStyle,
   isLineChartStrokeStyle,
   lineChartStrokeDashPattern,
   sanitizeLineChartStrokeStyle,
@@ -33,5 +34,9 @@ describe('lineChartStroke styles', () => {
   it('returns dash patterns for the selectable styles only', () => {
     assert.deepEqual(lineChartStrokeDashPattern('solid'), [])
     assert.deepEqual(lineChartStrokeDashPattern('dotted'), [2, 3])
+  })
+
+  it('renders an unsanitized legacy dashed value as solid', () => {
+    assert.deepEqual(lineChartStrokeDashPattern('dashed' as LineChartStrokeStyle), [])
   })
 })
