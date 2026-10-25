@@ -2,13 +2,16 @@ import assert from 'node:assert/strict'
 import { describe, it, mock } from 'node:test'
 import {
   createScreenNavigationSequenceHandler,
+  createWorkspaceScreenNavigationIntent,
   isEditableKeyboardTarget,
   resolveLockedWorkspaceScreenScrollTop,
   resolveNearestWorkspaceScreenIndex,
+  resolveScreenLockAlignmentScreenIndex,
   resolveWorkspaceScreenExtentHeight,
   resolveWorkspaceScreenScrollTop,
   scrollToWorkspaceScreenAtIndex,
   WORKSPACE_SCREEN_COUNT,
+  WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
   type ScreenNavigationKeyEvent,
 } from './screenNavigationShortcuts.ts'
 
@@ -162,7 +165,7 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('does not navigate from physical digit position when the typed character is not 1-5', () => {
+  it('does not navigate from physical digit position when the typed character is not 1-9', () => {
     const sequence = createScreenNavigationSequenceHandler()
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
     assert.equal(
@@ -292,19 +295,6 @@ describe('resolveWorkspaceScreenScrollTop', () => {
     }
   })
 
-  it('exposes all 9 screens even when the grid content is only one viewport tall', () => {
-    const gridContentHeight = pageHeight
-    // The wrapper inside the scroller keeps at least the virtual 9-screen extent.
-    const emptyScreens = {
-      clientHeight: pageHeight,
-      scrollHeight: Math.max(gridContentHeight, resolveWorkspaceScreenExtentHeight(pageHeight)),
-    }
-    const reachable = Array.from({ length: WORKSPACE_SCREEN_COUNT }, (_, index) =>
-      resolveWorkspaceScreenScrollTop(emptyScreens, index),
-    )
-    assert.deepEqual(reachable, [0, 800, 1600, 2400, 3200, 4000, 4800, 5600, 6400])
-  })
-
   it('does not depend on panel count or widget order', () => {
     const threePages = { clientHeight: pageHeight, scrollHeight: pageHeight * 3 }
     const manyWidgetsOneScreen = { clientHeight: pageHeight, scrollHeight: pageHeight * 3 }
@@ -352,6 +342,59 @@ describe('resolveWorkspaceScreenExtentHeight', () => {
   it('reserves nothing before the workspace has a measurable viewport', () => {
     assert.equal(resolveWorkspaceScreenExtentHeight(0), 0)
     assert.equal(resolveWorkspaceScreenExtentHeight(-10), 0)
+  })
+})
+
+describe('workspace screen extent contract', () => {
+  const pageHeight = 800
+  const extentHeight = resolveWorkspaceScreenExtentHeight(pageHeight)
+
+  /** Scroller metrics as they would be with the extreme-end wrapper applied to empty content. */
+  function scrollerMetrics(contentHeight: number) {
+    return {
+      clientHeight: pageHeight,
+      // The wrapper's min-height is the floor of the scroller's scroll height.
+      scrollHeight: Math.max(contentHeight, extentHeight),
+    }
+  }
+
+  it('reserves an extent of at least 9 viewports', () => {
+    assert.ok(extentHeight >= pageHeight * WORKSPACE_SCREEN_COUNT)
+    for (const viewport of [320, 517, 800, 1080]) {
+      assert.ok(resolveWorkspaceScreenExtentHeight(viewport) >= viewport * WORKSPACE_SCREEN_COUNT)
+    }
+  })
+
+  it('maps indexes 0-8 to exact page tops when content is shorter than the extent', () => {
+    // Empty workspace, a single one-viewport-tall panel, and a partially filled second screen.
+    for (const contentHeight of [1, pageHeight, pageHeight * 2 - 250]) {
+      const emptyScreens = scrollerMetrics(contentHeight)
+      for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+        assert.equal(resolveWorkspaceScreenScrollTop(emptyScreens, index), index * pageHeight)
+        assert.equal(resolveLockedWorkspaceScreenScrollTop(emptyScreens, index), index * pageHeight)
+        assert.equal(resolveNearestWorkspaceScreenIndex(emptyScreens, index * pageHeight), index)
+      }
+    }
+  })
+
+  it('keeps exact page tops when the scroller adds padding beyond the 9-viewport extent', () => {
+    // e.g. `main.workspace-scroller` has 6px vertical padding, so scrollHeight can exceed 9 x clientHeight.
+    for (const extraPx of [1, 12, 48]) {
+      const paddedScroller = {
+        clientHeight: pageHeight,
+        scrollHeight: extentHeight + extraPx,
+      }
+      for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+        assert.equal(resolveWorkspaceScreenScrollTop(paddedScroller, index), index * pageHeight)
+        assert.equal(resolveLockedWorkspaceScreenScrollTop(paddedScroller, index), index * pageHeight)
+        assert.equal(resolveNearestWorkspaceScreenIndex(paddedScroller, index * pageHeight), index)
+      }
+      // The last screen's exact top is inside the scroll range, so it is never clamped.
+      assert.equal(
+        resolveLockedWorkspaceScreenScrollTop(paddedScroller, WORKSPACE_SCREEN_COUNT - 1),
+        (WORKSPACE_SCREEN_COUNT - 1) * pageHeight,
+      )
+    }
   })
 })
 
@@ -452,6 +495,97 @@ describe('resolveLockedWorkspaceScreenScrollTop', () => {
       resolveNearestWorkspaceScreenIndex(afterResize, 1400),
       activeIndex,
     )
+  })
+})
+
+describe('resolveScreenLockAlignmentScreenIndex', () => {
+  const pageHeight = 800
+  const nineScreens = {
+    clientHeight: pageHeight,
+    scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+  }
+
+  it('aligns to the nearest screen when no navigation is in flight', () => {
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 2 + 50, {
+        intent: null,
+        nowMs: 0,
+      }),
+      2,
+    )
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 3 + 600, {
+        intent: null,
+        nowMs: 0,
+      }),
+      4,
+    )
+  })
+
+  it('aligns to the requested screen while an unlocked jump is still animating', () => {
+    // `p` + `5` starts a smooth scroll from Screen 1; the lock is toggled ON mid-animation.
+    const intent = createWorkspaceScreenNavigationIntent(4, 1_000)
+    const midwayOffset = pageHeight * 2.3
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, midwayOffset, { intent, nowMs: 1_150 }),
+      4,
+    )
+    // The nearest screen to that intermediate offset would have been Screen 3 - the stale-offset bug.
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, midwayOffset), 2)
+  })
+
+  it('ignores an intent once its settle window has elapsed', () => {
+    const intent = createWorkspaceScreenNavigationIntent(4, 1_000)
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 2.3, {
+        intent,
+        nowMs: 1_000 + WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
+      }),
+      2,
+    )
+  })
+
+  it('ignores an out-of-range intent instead of locking to a non-existent screen', () => {
+    const beyondLastScreen = { screenIndex: WORKSPACE_SCREEN_COUNT, expiresAtMs: 2_000 }
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 3, {
+        intent: beyondLastScreen,
+        nowMs: 1_000,
+      }),
+      3,
+    )
+    const fractional = { screenIndex: 2.5, expiresAtMs: 2_000 }
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 3, {
+        intent: fractional,
+        nowMs: 1_000,
+      }),
+      3,
+    )
+  })
+
+  it('never resolves past the last reachable screen for a short extent', () => {
+    const shortExtent = { clientHeight: pageHeight, scrollHeight: 1200 }
+    const intent = createWorkspaceScreenNavigationIntent(7, 0)
+    const resolved = resolveScreenLockAlignmentScreenIndex(shortExtent, 400, {
+      intent,
+      nowMs: 10,
+    })
+    // The intent is honoured even when short: resolveLockedWorkspaceScreenScrollTop clamps it.
+    assert.equal(resolved, 7)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(shortExtent, resolved), 400)
+  })
+
+  it('builds an intent expiring one settle window after the jump starts', () => {
+    const intent = createWorkspaceScreenNavigationIntent(3, 5_000)
+    assert.deepEqual(intent, {
+      screenIndex: 3,
+      expiresAtMs: 5_000 + WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
+    })
+    assert.deepEqual(createWorkspaceScreenNavigationIntent(0, 0, 250), {
+      screenIndex: 0,
+      expiresAtMs: 250,
+    })
   })
 })
 

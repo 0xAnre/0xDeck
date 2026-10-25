@@ -124,7 +124,7 @@ The outer workspace (`main.workspace-scroller` in `App.tsx`) scrolls vertically 
 **Screen Lock:** the header **Screen Lock** toggle (in-memory, not persisted) pins the workspace to the active screen.
 
 - **OFF** — free vertical workspace scrolling, exactly as before.
-- **ON** — wheel, trackpad, keyboard and focus scrolling cannot leave the active screen; any offset is returned to that screen's exact top, so the workspace never rests between two screens. `p` then `1`–`9` still jumps to the requested screen's top (instant, no animation). Turning the lock ON from an arbitrary offset aligns to the nearest screen, and resizing the viewport re-aligns to the active screen at the new height.
+- **ON** — wheel, trackpad, keyboard and focus scrolling cannot leave the active screen; any offset is returned to that screen's exact top, so the workspace never rests between two screens. `p` then `1`–`9` still jumps to the requested screen's top (instant, no animation). Turning the lock ON from an arbitrary offset aligns to the nearest screen, or to the destination of a `p` + digit jump that is still animating; resizing the viewport re-aligns to the active screen at the new height.
 - Widget interactions are unaffected: panel drag/resize, `.panel-body` internal scrolling and BTC Perp chart zoom/pan/drawings keep working because the lock only watches the workspace scroller.
 
 ## Documentation

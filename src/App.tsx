@@ -42,19 +42,21 @@ import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 import {
   createScreenNavigationSequenceHandler,
+  createWorkspaceScreenNavigationIntent,
   resolveLockedWorkspaceScreenScrollTop,
-  resolveNearestWorkspaceScreenIndex,
+  resolveScreenLockAlignmentScreenIndex,
   resolveWorkspaceScreenExtentHeight,
   resolveWorkspaceScreenScrollTop,
   scrollToWorkspaceScreenAtIndex,
+  type WorkspaceScreenNavigationIntent,
 } from './screenNavigationShortcuts'
 
 /** Sub-pixel scroll offsets are treated as aligned so Screen Lock never fights the browser. */
 const WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX = 0.5
 
 const SCREEN_LOCK_LABELS = {
-  off: 'Ekran kilidi kapalı — serbest kaydırma. Etkin ekrana kilitlemek için tıkla',
-  on: 'Ekran kilidi açık — çalışma alanı etkin ekrana sabitlendi. Kilidi açmak için tıkla',
+  off: 'Screen Lock OFF — ekran kilidi kapalı, serbest kaydırma. Etkin ekrana kilitlemek için tıkla',
+  on: 'Screen Lock ON — ekran kilidi açık, çalışma alanı etkin ekrana sabitlendi. Kilidi açmak için tıkla',
 } as const
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
@@ -73,6 +75,7 @@ function App() {
   const [screenLock, setScreenLock] = useState(false)
   const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(0)
   const activeScreenIndexRef = useRef(0)
+  const pendingScreenNavigationRef = useRef<WorkspaceScreenNavigationIntent | null>(null)
   const lockedScrollTopRef = useRef(0)
   const [focusOrder, setFocusOrder] = useState<string[]>(
     () => loadWorkspace().activePanels,
@@ -88,13 +91,16 @@ function App() {
   }, [theme])
 
   // Viewport height of the workspace scroller drives the virtual 9-screen scroll extent and the
-  // Screen Lock alignment. Observing it keeps both correct on window/viewport resize.
+  // Screen Lock alignment. Observing it keeps both correct on window/viewport resize. The initial
+  // measurement does not need the observer, so it runs even where ResizeObserver is unavailable.
   useEffect(() => {
     const container = containerRef.current
-    if (!container || typeof ResizeObserver === 'undefined') return
+    if (!container) return
 
     const measure = () => setWorkspaceViewportHeight(container.clientHeight)
     measure()
+    if (typeof ResizeObserver === 'undefined') return
+
     const observer = new ResizeObserver(measure)
     observer.observe(container)
     return () => observer.disconnect()
@@ -142,10 +148,16 @@ function App() {
     if (!screenLock) {
       const container = containerRef.current
       if (container) {
-        // Toggling ON from an arbitrary offset aligns to the nearest screen deterministically.
-        const nearestIndex = resolveNearestWorkspaceScreenIndex(container, container.scrollTop)
-        activeScreenIndexRef.current = nearestIndex
-        alignLockedWorkspace(nearestIndex)
+        // A `p` + digit jump may still be animating; align to the screen it is heading to instead of
+        // the intermediate offset. Otherwise toggling ON from an arbitrary offset aligns to the
+        // nearest screen deterministically.
+        const activeIndex = resolveScreenLockAlignmentScreenIndex(container, container.scrollTop, {
+          intent: pendingScreenNavigationRef.current,
+          nowMs: Date.now(),
+        })
+        pendingScreenNavigationRef.current = null
+        activeScreenIndexRef.current = activeIndex
+        alignLockedWorkspace(activeIndex)
       }
     }
     setScreenLock((prev) => !prev)
@@ -270,6 +282,7 @@ function App() {
         // Screen Lock ON: jump to the exact screen top with no animation and hold it there.
         event.preventDefault()
         activeScreenIndexRef.current = screenIndex
+        pendingScreenNavigationRef.current = null
         alignLockedWorkspace(screenIndex)
         return
       }
@@ -277,6 +290,13 @@ function App() {
       if (resolveWorkspaceScreenScrollTop(container, screenIndex) === null) return
 
       event.preventDefault()
+      // Record the requested screen in both modes: the smooth scroll takes ~300-500 ms, and toggling
+      // Screen Lock ON in that window must align to the intended screen, not the intermediate offset.
+      activeScreenIndexRef.current = screenIndex
+      pendingScreenNavigationRef.current = createWorkspaceScreenNavigationIntent(
+        screenIndex,
+        Date.now(),
+      )
       scrollToWorkspaceScreenAtIndex(container, screenIndex)
     }
 

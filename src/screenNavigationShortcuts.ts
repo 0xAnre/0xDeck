@@ -118,6 +118,44 @@ export function resolveNearestWorkspaceScreenIndex(
 }
 
 /**
+ * How long an animated (`smooth`) screen navigation may still be running. Until this window has
+ * elapsed the requested screen — not the intermediate scroll offset — is the user's intent.
+ */
+export const WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS = 1000
+
+/** Screen a navigation is currently moving toward, valid until `expiresAtMs`. */
+export type WorkspaceScreenNavigationIntent = {
+  screenIndex: number
+  expiresAtMs: number
+}
+
+/** Records the destination of a navigation that starts scrolling toward `screenIndex`. */
+export function createWorkspaceScreenNavigationIntent(
+  screenIndex: number,
+  nowMs: number,
+  settleWindowMs: number = WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
+): WorkspaceScreenNavigationIntent {
+  return { screenIndex, expiresAtMs: nowMs + settleWindowMs }
+}
+
+/**
+ * Screen index Screen Lock must align to when it turns ON: the destination of a navigation that may
+ * still be animating, otherwise the screen nearest to the current offset. Without the intent, a
+ * lock toggled on mid-scroll would snapshot an intermediate offset and lock to the wrong screen.
+ */
+export function resolveScreenLockAlignmentScreenIndex(
+  container: WorkspaceScrollMetrics,
+  scrollTop: number,
+  options: { intent: WorkspaceScreenNavigationIntent | null; nowMs: number },
+): number {
+  const intent = options.intent
+  if (intent && isValidScreenIndex(intent.screenIndex) && options.nowMs < intent.expiresAtMs) {
+    return intent.screenIndex
+  }
+  return resolveNearestWorkspaceScreenIndex(container, scrollTop)
+}
+
+/**
  * Scroll offset Screen Lock must hold for `screenIndex`: the exact page top (never a mid-screen
  * offset), clamped into the scrollable range so the workspace can always be returned to it.
  */

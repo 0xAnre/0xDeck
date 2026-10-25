@@ -103,6 +103,13 @@
   scrollbar-width: none;
 }
 
+/* Virtual 9-screen scroll extent wrapper inside .workspace-scroller. Its min-height is set inline
+   from the measured workspace viewport; keep it a plain block with no padding/border so the extent
+   adds no scroll height and never affects grid item layout or positions. */
+.workspace-screens {
+  display: block;
+}
+
 .panel-body::-webkit-scrollbar,
 .workspace-scroller::-webkit-scrollbar {
   display: none;
