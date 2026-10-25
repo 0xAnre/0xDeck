@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  bucketHyperliquidFillEvents,
-  classifyHyperliquidFills,
+  bucketHyperliquidFills,
   dedupeHyperliquidFills,
-  filterHyperliquidFillEventsToLoadedCandles,
+  filterHyperliquidFillsToLoadedCandles,
+  groupHyperliquidFillMarkers,
   hyperliquidFillBucketSeconds,
-  hyperliquidFillEventLabel,
+  hyperliquidFillIdentityKey,
   mergeHyperliquidFills,
   parseHyperliquidFill,
 } from './hyperliquidFills.ts'
@@ -18,7 +18,6 @@ type FillOverrides = {
   size?: string
   startPosition?: string | null
   coin?: string
-  dir?: string
 }
 
 let nextTid = 1
@@ -31,7 +30,7 @@ function fill(overrides: FillOverrides = {}): Record<string, unknown> {
     sz: overrides.size ?? '1',
     side: overrides.side ?? 'B',
     time: overrides.time ?? 1_792_000_000_000,
-    dir: overrides.dir ?? 'Open Long',
+    dir: 'Open Long',
     tid,
     hash: `0x${tid.toString(16).padStart(64, '0')}`,
     oid: tid,
@@ -42,15 +41,10 @@ function fill(overrides: FillOverrides = {}): Record<string, unknown> {
   return result
 }
 
-function summary(events: ReturnType<typeof classifyHyperliquidFills>) {
-  return events.map((event) => ({
-    kind: event.kind,
-    side: event.side,
-    before: event.positionBefore,
-    after: event.positionAfter,
-    size: event.size,
-    time: event.time,
-  }))
+function parsed(overrides: FillOverrides = {}) {
+  const result = parseHyperliquidFill(fill(overrides))
+  assert.ok(result)
+  return result
 }
 
 describe('parseHyperliquidFill', () => {
@@ -85,191 +79,35 @@ describe('parseHyperliquidFill', () => {
     assert.equal(parseHyperliquidFill({ ...fill(), time: 0 }), null)
     assert.equal(parseHyperliquidFill(null), null)
   })
-})
 
-describe('classifyHyperliquidFills', () => {
-  it('classifies a long open and a long add as entries', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, size: '1', startPosition: '0' }),
-      fill({ tid: 2, size: '0.5', startPosition: '1' }),
-    ])
-    assert.deepEqual(summary(events), [
-      { kind: 'entry', side: 'long', before: 0, after: 1, size: 1, time: 1_792_000_000_000 },
-      { kind: 'entry', side: 'long', before: 1, after: 1.5, size: 0.5, time: 1_792_000_000_000 },
-    ])
-  })
-
-  it('classifies a short open and a short add as entries', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, side: 'A', size: '1', startPosition: '0', dir: 'Open Short' }),
-      fill({ tid: 2, side: 'A', size: '0.5', startPosition: '-1', dir: 'Open Short' }),
-    ])
-    assert.deepEqual(
-      events.map((event) => [event.kind, event.side, event.positionAfter]),
-      [
-        ['entry', 'short', -1],
-        ['entry', 'short', -1.5],
-      ],
-    )
-  })
-
-  it('classifies a partial close as reduce, never close', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, side: 'A', size: '0.25', startPosition: '1', dir: 'Close Long' }),
-    ])
-    assert.deepEqual(summary(events), [
-      {
-        kind: 'reduce',
-        side: 'long',
-        before: 1,
-        after: 0.75,
-        size: 0.25,
-        time: 1_792_000_000_000,
-      },
-    ])
-    assert.equal(events[0].kind === 'close', false)
-  })
-
-  it('classifies an exact zero as close on both sides', () => {
-    const longClose = classifyHyperliquidFills([
-      fill({ tid: 1, side: 'A', size: '0.75', startPosition: '0.75', dir: 'Close Long' }),
-    ])
-    const shortClose = classifyHyperliquidFills([
-      fill({ tid: 2, side: 'B', size: '0.4', startPosition: '-0.4', dir: 'Close Short' }),
-    ])
-    assert.deepEqual(summary(longClose), [
-      { kind: 'close', side: 'long', before: 0.75, after: 0, size: 0.75, time: 1_792_000_000_000 },
-    ])
-    assert.deepEqual(summary(shortClose), [
-      { kind: 'close', side: 'short', before: -0.4, after: 0, size: 0.4, time: 1_792_000_000_000 },
-    ])
-  })
-
-  it('classifies a reversal as close + opposite entry at the same fill time', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, side: 'A', size: '1.5', startPosition: '1', dir: 'Long > Short' }),
-    ])
-    assert.deepEqual(summary(events), [
-      { kind: 'close', side: 'long', before: 1, after: 0, size: 1.5, time: 1_792_000_000_000 },
-      { kind: 'entry', side: 'short', before: 0, after: -0.5, size: 1.5, time: 1_792_000_000_000 },
-    ])
-
-    const other = classifyHyperliquidFills([
-      fill({ tid: 2, side: 'B', size: '2', startPosition: '-1', dir: 'Short > Long' }),
-    ])
-    assert.deepEqual(
-      other.map((event) => [event.kind, event.side]),
-      [
-        ['close', 'short'],
-        ['entry', 'long'],
-      ],
-    )
-  })
-
-  it('derives position from startPosition, never from the average entry price', () => {
-    // avg entry 99000 would imply a different side/size; only startPosition counts.
-    const events = classifyHyperliquidFills([
-      { ...fill({ tid: 1, size: '1' }), entryPx: '99000' },
-    ])
-    assert.deepEqual(summary(events), [
-      { kind: 'entry', side: 'long', before: 0, after: 1, size: 1, time: 1_792_000_000_000 },
-    ])
-  })
-
-  it('falls back to a chronological running position when startPosition is missing', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, size: '1', startPosition: null, time: 1000 }),
-      fill({ tid: 2, side: 'A', size: '0.25', startPosition: null, time: 2000 }),
-      fill({ tid: 3, side: 'A', size: '0.75', startPosition: null, time: 3000 }),
-    ])
-    assert.deepEqual(
-      events.map((event) => [event.kind, event.side, event.positionBefore, event.positionAfter]),
-      [
-        ['entry', 'long', 0, 1],
-        ['reduce', 'long', 1, 0.75],
-        ['close', 'long', 0.75, 0],
-      ],
-    )
-  })
-
-  it('resyncs the running position from a later explicit startPosition', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, size: '1', startPosition: null, time: 1000 }),
-      fill({ tid: 2, size: '1', startPosition: '5', time: 2000 }),
-    ])
-    assert.deepEqual(
-      events.map((event) => [event.kind, event.positionAfter]),
-      [
-        ['entry', 1],
-        ['entry', 6],
-      ],
-    )
-  })
-
-  it('ignores non-BTC fills and no-op fills', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, coin: 'ETH', size: '2', startPosition: '0' }),
-      fill({ tid: 2, size: '0', startPosition: '1' }),
-    ])
-    assert.deepEqual(events, [])
-  })
-
-  it('is independent of input order and stable across repeated runs', () => {
-    const a = fill({ tid: 1, size: '1', startPosition: '0', time: 1000 })
-    const b = fill({ tid: 2, side: 'A', size: '0.4', startPosition: '1', time: 2000 })
-    const forward = classifyHyperliquidFills([a, b])
-    const reversed = classifyHyperliquidFills([b, a])
-    assert.deepEqual(forward, reversed)
-  })
-
-  it('labels events for the compact hover readout', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, size: '1', startPosition: '0' }),
-      fill({ tid: 2, side: 'A', size: '0.25', startPosition: '1' }),
-      fill({ tid: 3, side: 'A', size: '0.75', startPosition: '0.75' }),
-    ])
-    assert.deepEqual(events.map(hyperliquidFillEventLabel), [
-      'Long entry',
-      'Long reduce',
-      'Long close',
-    ])
+  it('keeps buy and sell sides without deriving long/short direction', () => {
+    assert.equal(parsed({ side: 'B', startPosition: '-1' }).side, 'B')
+    assert.equal(parsed({ side: 'A', startPosition: '1' }).side, 'A')
   })
 })
 
 describe('fill identity, dedupe and merge', () => {
   it('dedupes by tid', () => {
-    const a = parseHyperliquidFill(fill({ tid: 1 }))
-    assert.ok(a)
+    const a = parsed({ tid: 1 })
     assert.equal(dedupeHyperliquidFills([a, { ...a }]).length, 1)
   })
 
   it('uses hash + oid + time + coin when tid is missing', () => {
-    const a = parseHyperliquidFill({ ...fill({ tid: 1 }), tid: undefined })
-    const b = parseHyperliquidFill({ ...fill({ tid: 1 }), tid: undefined })
-    assert.ok(a && b)
-    assert.equal(dedupeHyperliquidFills([a, b]).length, 1)
+    const a = parsed({ tid: 1 })
+    const b = { ...a, tid: null }
+    assert.equal(hyperliquidFillIdentityKey(b), `${a.hash}|${a.oid}|${a.time}|BTC`)
+    assert.equal(dedupeHyperliquidFills([b, { ...b }]).length, 1)
   })
 
   it('merges REST + WS overlap without duplicates', () => {
-    const rest = [fill({ tid: 1, time: 1000 }), fill({ tid: 2, time: 2000 })]
-    const ws = [fill({ tid: 2, time: 2000 }), fill({ tid: 3, time: 3000 })]
-    const merged = mergeHyperliquidFills(
-      rest.map((item) => parseHyperliquidFill(item)!),
-      ws.map((item) => parseHyperliquidFill(item)!),
-    )
-    assert.deepEqual(merged.map((fill) => fill.tid), [1, 2, 3])
-  })
-
-  it('reconnect snapshots never duplicate markers', () => {
-    const snapshot = [fill({ tid: 1 }), fill({ tid: 2 })]
-    const parsedSnapshot = snapshot.map((item) => parseHyperliquidFill(item)!)
-    const first = mergeHyperliquidFills([], parsedSnapshot)
-    const second = mergeHyperliquidFills(first, parsedSnapshot)
-    assert.equal(second.length, 2)
+    const rest = [parsed({ tid: 1, time: 1000 }), parsed({ tid: 2, time: 2000 })]
+    const ws = [parsed({ tid: 2, time: 2000 }), parsed({ tid: 3, time: 3000 })]
+    assert.deepEqual(mergeHyperliquidFills(rest, ws).map((item) => item.tid), [1, 2, 3])
+    assert.equal(mergeHyperliquidFills(rest, rest).length, 2)
   })
 })
 
-describe('interval bucketing and loaded-history filtering', () => {
+describe('interval bucketing, loaded-history filtering and marker grouping', () => {
   const timeMs = Date.UTC(2026, 9, 25, 14, 37, 12)
 
   it('maps fill time to the candle open time for every interval', () => {
@@ -282,52 +120,82 @@ describe('interval bucketing and loaded-history filtering', () => {
     assert.equal(hyperliquidFillBucketSeconds(timeMs, '4h') % 14_400, 0)
     assert.equal(hyperliquidFillBucketSeconds(timeMs, '1d') % 86_400, 0)
     assert.equal(hyperliquidFillBucketSeconds(timeMs, '1w') % 604_800, 0)
-    assert.ok(hyperliquidFillBucketSeconds(timeMs, '1h') <= Math.floor(timeMs / 1000))
   })
 
-  it('keeps only events whose bucket has a loaded candle (no fake anchors)', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, time: timeMs, startPosition: '0' }),
-    ])
-    const bucketed = bucketHyperliquidFillEvents(events, '1h')
-    const bucket = bucketed[0].bucketTime
+  it('carries position before/after from startPosition when present', () => {
+    const bucketed = bucketHyperliquidFills(
+      [parsed({ side: 'B', size: '0.5', startPosition: '1' })],
+      '1h',
+    )
+    assert.equal(bucketed[0].positionBefore, 1)
+    assert.equal(bucketed[0].positionAfter, 1.5)
+    const missing = bucketHyperliquidFills(
+      [parsed({ side: 'B', startPosition: null })],
+      '1h',
+    )
+    assert.equal(missing[0].positionBefore, null)
+    assert.equal(missing[0].positionAfter, null)
+  })
 
+  it('keeps only fills whose bucket has a loaded candle and dedupes identities', () => {
+    const raw = parsed({ tid: 1, time: timeMs })
+    const bucketed = bucketHyperliquidFills([raw, raw], '1h')
+    const bucket = bucketed[0].bucketTime
     assert.equal(
-      filterHyperliquidFillEventsToLoadedCandles(bucketed, [bucket]).length,
+      filterHyperliquidFillsToLoadedCandles(bucketed, [bucket]).length,
       1,
     )
     assert.equal(
-      filterHyperliquidFillEventsToLoadedCandles(bucketed, [bucket + 3600]).length,
+      filterHyperliquidFillsToLoadedCandles(bucketed, [bucket + 3600]).length,
       0,
     )
-    assert.equal(filterHyperliquidFillEventsToLoadedCandles(bucketed, []).length, 0)
+    assert.equal(filterHyperliquidFillsToLoadedCandles(bucketed, []).length, 0)
   })
 
-  it('dedupes events after a REST/WS merge', () => {
-    const raw = fill({ tid: 1, time: timeMs, startPosition: '0' })
-    const events = classifyHyperliquidFills([raw, raw])
-    const bucketed = bucketHyperliquidFillEvents(events, '15m')
-    const filtered = filterHyperliquidFillEventsToLoadedCandles(
-      bucketed,
-      [bucketed[0].bucketTime],
+  it('groups same-side fills in one candle into at most one buy and one sell marker', () => {
+    const fills = bucketHyperliquidFills(
+      [
+        parsed({ tid: 1, time: timeMs, side: 'B' }),
+        parsed({ tid: 2, time: timeMs + 1000, side: 'B' }),
+        parsed({ tid: 3, time: timeMs + 2000, side: 'A' }),
+        parsed({ tid: 4, time: timeMs + 3000, side: 'A' }),
+        parsed({ tid: 5, time: timeMs + 4000, side: 'B' }),
+      ],
+      '1h',
     )
-    assert.equal(filtered.length, 1)
+    const groups = groupHyperliquidFillMarkers(fills)
+    assert.equal(groups.length, 2)
+    assert.deepEqual(groups.map((group) => group.side), ['B', 'A'])
+    assert.equal(groups[0].fills.length, 3)
+    assert.equal(groups[1].fills.length, 2)
+    assert.equal(new Set(groups.map((group) => group.bucketTime)).size, 1)
   })
 
-  it('keeps same-bucket collisions instead of dropping events', () => {
-    const events = classifyHyperliquidFills([
-      fill({ tid: 1, time: timeMs, size: '1', startPosition: '0' }),
-      fill({ tid: 2, time: timeMs, side: 'A', size: '0.2', startPosition: '1' }),
-    ])
-    const bucketed = bucketHyperliquidFillEvents(events, '1h')
-    const filtered = filterHyperliquidFillEventsToLoadedCandles(bucketed, [
-      bucketed[0].bucketTime,
-    ])
-    assert.equal(new Set(filtered.map((event) => event.bucketTime)).size, 1)
-    assert.equal(filtered.length, 2)
-    assert.deepEqual(
-      filtered.map((event) => event.kind),
-      ['entry', 'reduce'],
+  it('keeps every individual fill for hover details, including both sides', () => {
+    const fills = bucketHyperliquidFills(
+      [
+        parsed({ tid: 1, time: timeMs, side: 'B' }),
+        parsed({ tid: 2, time: timeMs + 1000, side: 'A' }),
+      ],
+      '15m',
     )
+    const groups = groupHyperliquidFillMarkers(fills)
+    assert.deepEqual(groups.flatMap((group) => group.fills.map((item) => item.tid)), [1, 2])
+  })
+
+  it('does not stack markers when many fills share a bucket', () => {
+    const fills = bucketHyperliquidFills(
+      Array.from({ length: 20 }, (_, index) =>
+        parsed({
+          tid: index + 1,
+          time: timeMs + index,
+          side: index % 2 === 0 ? 'B' : 'A',
+        }),
+      ),
+      '1m',
+    )
+    const groups = groupHyperliquidFillMarkers(fills)
+    assert.equal(groups.length, 2)
+    assert.equal(groups.reduce((total, group) => total + group.fills.length, 0), 20)
   })
 })

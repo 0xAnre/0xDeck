@@ -1,114 +1,89 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  bucketHyperliquidFillEvents,
-  classifyHyperliquidFills,
-  type BucketedHyperliquidFillEvent,
+  bucketHyperliquidFills,
+  groupHyperliquidFillMarkers,
+  parseHyperliquidFill,
 } from './hyperliquidFills.ts'
 import {
-  hyperliquidFillEventMarker,
-  hyperliquidFillEventMarkerStyle,
-  hyperliquidFillEventsToMarkers,
+  hyperliquidFillGroupMarker,
+  hyperliquidFillGroupsToMarkers,
+  hyperliquidFillMarkerStyle,
   type HyperliquidMarkerColors,
 } from './hyperliquidMarkers.ts'
 
 const COLORS: HyperliquidMarkerColors = {
-  longEntry: 'rgb(1, 2, 3)',
-  shortEntry: 'rgb(4, 5, 6)',
-  reduce: 'rgb(7, 8, 9)',
-  close: 'rgb(10, 11, 12)',
+  buy: 'rgb(1, 2, 3)',
+  sell: 'rgb(4, 5, 6)',
 }
 
-function event(kind: 'entry' | 'reduce' | 'close', side: 'long' | 'short'): BucketedHyperliquidFillEvent {
-  return {
-    key: `${kind}-${side}`,
-    kind,
+function group(side: 'B' | 'A') {
+  const fill = parseHyperliquidFill({
+    coin: 'BTC',
+    px: '80000',
+    sz: '1',
     side,
-    price: 80000,
-    size: 1,
     time: 1_792_000_000_000,
-    direction: null,
-    tid: 1,
-    positionBefore: 1,
-    positionAfter: 0,
-    bucketTime: 1_792_000_000,
-  }
+    tid: side === 'B' ? 1 : 2,
+  })
+  assert.ok(fill)
+  return groupHyperliquidFillMarkers(bucketHyperliquidFills([fill], '1h'))[0]
 }
 
-describe('Hyperliquid marker mapping', () => {
-  it('maps long entries to a green up arrow below the bar', () => {
-    assert.deepEqual(hyperliquidFillEventMarkerStyle(event('entry', 'long')), {
+describe('Hyperliquid side-only marker mapping', () => {
+  it('maps buys to the up/arrowUp marker below the bar', () => {
+    assert.deepEqual(hyperliquidFillMarkerStyle('B'), {
       shape: 'arrowUp',
       position: 'belowBar',
       size: 1,
-      colorKey: 'longEntry',
+      colorKey: 'buy',
     })
   })
 
-  it('maps short entries to a red down arrow above the bar', () => {
-    assert.deepEqual(hyperliquidFillEventMarkerStyle(event('entry', 'short')), {
+  it('maps sells to the down/arrowDown marker above the bar', () => {
+    assert.deepEqual(hyperliquidFillMarkerStyle('A'), {
       shape: 'arrowDown',
       position: 'aboveBar',
       size: 1,
-      colorKey: 'shortEntry',
+      colorKey: 'sell',
     })
   })
 
-  it('maps partial closes to a circle so they cannot read as a close', () => {
-    assert.deepEqual(hyperliquidFillEventMarkerStyle(event('reduce', 'long')), {
-      shape: 'circle',
-      position: 'aboveBar',
-      size: 1,
-      colorKey: 'reduce',
-    })
-  })
-
-  it('maps full closes to a muted square', () => {
-    assert.deepEqual(hyperliquidFillEventMarkerStyle(event('close', 'short')), {
-      shape: 'square',
-      position: 'aboveBar',
-      size: 1,
-      colorKey: 'close',
-    })
-  })
-
-  it('uses the candle bucket as the marker time and a stable id', () => {
-    const marker = hyperliquidFillEventMarker(event('entry', 'long'), COLORS)
-    assert.equal(marker.time, 1_792_000_000)
-    assert.equal(marker.id, 'entry-long')
-    assert.equal(marker.color, COLORS.longEntry)
+  it('uses the candle bucket as the marker time and a stable bucket+side id', () => {
+    const marker = hyperliquidFillGroupMarker(group('B'), COLORS)
+    assert.equal(marker.time, 1_791_997_200)
+    assert.equal(marker.id, '1791997200:B')
+    assert.equal(marker.color, COLORS.buy)
     assert.equal(marker.text, undefined)
   })
 
-  it('emits one marker per classified event (no data dropped)', () => {
-    const events = classifyHyperliquidFills([
-      {
+  it('emits at most one buy and one sell marker per candle bucket', () => {
+    const fills = ['B', 'B', 'A', 'A', 'B'].map((side, index) => {
+      const fill = parseHyperliquidFill({
         coin: 'BTC',
         px: '80000',
         sz: '1',
-        side: 'B',
-        time: 1_792_000_000_000,
-        startPosition: '0',
-        tid: 1,
-      },
-      {
-        coin: 'BTC',
-        px: '80010',
-        sz: '1.5',
-        side: 'A',
-        time: 1_792_000_030_000,
-        startPosition: '1',
-        tid: 2,
-      },
-    ])
-    const bucketed = bucketHyperliquidFillEvents(events, '1m')
-    const markers = hyperliquidFillEventsToMarkers(bucketed, COLORS)
-    assert.equal(markers.length, 3)
-    assert.deepEqual(markers.map((marker) => marker.shape), [
-      'arrowUp',
-      'square',
-      'arrowDown',
-    ])
-    assert.equal(new Set(markers.map((marker) => marker.id)).size, 3)
+        side,
+        time: 1_792_000_000_000 + index * 1000,
+        tid: index + 1,
+      })
+      assert.ok(fill)
+      return fill
+    })
+    const groups = groupHyperliquidFillMarkers(bucketHyperliquidFills(fills, '1m'))
+    const markers = hyperliquidFillGroupsToMarkers(groups, COLORS)
+    assert.equal(markers.length, 2)
+    assert.deepEqual(markers.map((marker) => marker.shape), ['arrowUp', 'arrowDown'])
+    assert.equal(new Set(markers.map((marker) => marker.id)).size, 2)
+  })
+
+  it('never produces close/reduce shapes or marker text', () => {
+    const markers = hyperliquidFillGroupsToMarkers(
+      [group('B'), group('A')],
+      COLORS,
+    )
+    assert.deepEqual(markers.map((marker) => marker.shape), ['arrowUp', 'arrowDown'])
+    assert.ok(markers.every((marker) => marker.text === undefined))
+    assert.ok(!markers.some((marker) => marker.shape === 'circle' || marker.shape === 'square'))
   })
 })

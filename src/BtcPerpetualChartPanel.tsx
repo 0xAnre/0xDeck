@@ -314,16 +314,17 @@ import {
 } from '@/market/hyperliquidAccount'
 import { fetchHyperliquidAccountFillsByTime } from '@/market/hyperliquidAccountApi'
 import {
-  bucketHyperliquidFillEvents,
-  classifyHyperliquidFills,
-  filterHyperliquidFillEventsToLoadedCandles,
+  bucketHyperliquidFills,
+  filterHyperliquidFillsToLoadedCandles,
+  groupHyperliquidFillMarkers,
+  hyperliquidFillIdentityKey,
   mergeHyperliquidFills,
   parseHyperliquidFill,
-  type BucketedHyperliquidFillEvent,
+  type BucketedHyperliquidFill,
   type HyperliquidFill,
 } from '@/market/hyperliquidFills'
 import {
-  hyperliquidFillEventsToMarkers,
+  hyperliquidFillGroupsToMarkers,
   type HyperliquidMarkerColors,
 } from '@/market/hyperliquidMarkers'
 import { formatSeriesLabel } from '@/lib/formatTime'
@@ -344,21 +345,13 @@ function readThemeColors() {
 function readHyperliquidMarkerColors(): HyperliquidMarkerColors {
   const style = getComputedStyle(document.documentElement)
   return {
-    longEntry: resolveThemeCssColor(
+    buy: resolveThemeCssColor(
       style.getPropertyValue('--up'),
       MARKET_STYLE_PALETTE.light,
     ),
-    shortEntry: resolveThemeCssColor(
+    sell: resolveThemeCssColor(
       style.getPropertyValue('--down'),
       MARKET_STYLE_PALETTE.pocRed,
-    ),
-    reduce: resolveThemeCssColor(
-      style.getPropertyValue('--muted-foreground'),
-      MARKET_STYLE_PALETTE.medium,
-    ),
-    close: resolveThemeCssColor(
-      style.getPropertyValue('--muted-foreground'),
-      MARKET_STYLE_PALETTE.dark,
     ),
   }
 }
@@ -456,8 +449,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [accountFills, setAccountFills] = useState<HyperliquidFill[]>([])
   const [accountFillsNotice, setAccountFillsNotice] = useState<string | null>(null)
-  const [hoveredAccountEvents, setHoveredAccountEvents] = useState<
-    BucketedHyperliquidFillEvent[]
+  const [hoveredAccountFills, setHoveredAccountFills] = useState<
+    BucketedHyperliquidFill[]
   >([])
   const [candleRangeRevision, setCandleRangeRevision] = useState(0)
 
@@ -533,7 +526,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const accountMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
   const accountFillsRangeRef = useRef<string | null>(null)
-  const accountMarkersByBucketRef = useRef<Map<number, BucketedHyperliquidFillEvent[]>>(
+  const accountMarkersByBucketRef = useRef<Map<number, BucketedHyperliquidFill[]>>(
     new Map(),
   )
 
@@ -1520,7 +1513,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         anchoredVwapSeriesAttachmentRef.current?.update()
       }
       saveWidgetMarketInterval(panelId, next)
-      setHoveredAccountEvents([])
+      setHoveredAccountFills([])
       setDataState({ status: 'loading' })
       setChartReady(false)
       setStreamState('idle')
@@ -1559,7 +1552,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       accountFillsRangeRef.current = null
       setAccountFills([])
       setAccountFillsNotice(null)
-      setHoveredAccountEvents([])
+      setHoveredAccountFills([])
       setExchange(next)
     },
     [panelId],
@@ -2240,22 +2233,22 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       return
     }
 
-    const bucketed = bucketHyperliquidFillEvents(
-      classifyHyperliquidFills(accountFills),
-      interval,
-    )
-    const visible = filterHyperliquidFillEventsToLoadedCandles(
+    const bucketed = bucketHyperliquidFills(accountFills, interval)
+    const visible = filterHyperliquidFillsToLoadedCandles(
       bucketed,
       candlesRef.current.map((candle) => candle.time),
     )
-    const byBucket = new Map<number, BucketedHyperliquidFillEvent[]>()
-    for (const event of visible) {
-      const bucket = byBucket.get(event.bucketTime)
-      if (bucket) bucket.push(event)
-      else byBucket.set(event.bucketTime, [event])
+    const byBucket = new Map<number, BucketedHyperliquidFill[]>()
+    for (const fill of visible) {
+      const bucket = byBucket.get(fill.bucketTime)
+      if (bucket) bucket.push(fill)
+      else byBucket.set(fill.bucketTime, [fill])
     }
     markers.setMarkers(
-      hyperliquidFillEventsToMarkers(visible, readHyperliquidMarkerColors()),
+      hyperliquidFillGroupsToMarkers(
+        groupHyperliquidFillMarkers(visible),
+        readHyperliquidMarkerColors(),
+      ),
     )
     accountMarkersByBucketRef.current = byBucket
   }, [accountFills, candleRangeRevision, chartReady, exchange, interval])
@@ -2268,10 +2261,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const time = typeof param.time === 'number' ? param.time : null
       const next =
         time === null ? [] : (accountMarkersByBucketRef.current.get(time) ?? [])
-      setHoveredAccountEvents((current) => {
+      setHoveredAccountFills((current) => {
         if (
           current.length === next.length &&
-          current.every((event, index) => event.key === next[index]?.key)
+          current.every(
+            (fill, index) =>
+              hyperliquidFillIdentityKey(fill) ===
+              (next[index] ? hyperliquidFillIdentityKey(next[index]) : null),
+          )
         ) {
           return current
         }
@@ -3003,34 +3000,42 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         </div>
       )}
 
-      {hoveredAccountEvents.length > 0 && (
+      {hoveredAccountFills.length > 0 && (
         <div
           role="status"
           aria-live="polite"
           data-testid="hyperliquid-fill-readout"
           className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[min(20rem,80%)] flex-col gap-0.5 rounded-md border border-border bg-card/95 px-2 py-1 text-[10px] tabular-nums text-foreground shadow-sm"
         >
-          {hoveredAccountEvents.slice(0, 4).map((event) => (
-            <div key={event.key} className="flex flex-col">
+          {hoveredAccountFills.slice(0, 4).map((fill) => (
+            <div key={hyperliquidFillIdentityKey(fill)} className="flex flex-col">
               <span>
-                {event.kind === 'entry' ? 'Entry' : event.kind === 'reduce' ? 'Reduce' : 'Close'}{' '}
-                <span className={event.side === 'long' ? 'text-long' : 'text-short'}>
-                  {event.side}
+                <span className={fill.side === 'B' ? 'text-up' : 'text-down'}>
+                  {fill.side === 'B' ? 'Buy' : 'Sell'}
                 </span>{' '}
-                · {event.price.toLocaleString(undefined, { maximumFractionDigits: 2 })} ·{' '}
-                {event.size.toLocaleString(undefined, { maximumFractionDigits: 5 })} BTC
+                · {fill.price.toLocaleString(undefined, { maximumFractionDigits: 2 })} ·{' '}
+                {fill.size.toLocaleString(undefined, { maximumFractionDigits: 5 })} BTC
               </span>
               <span className="text-muted-foreground">
-                {formatSeriesLabel(event.time)} · pos{' '}
-                {event.positionBefore.toLocaleString(undefined, { maximumFractionDigits: 5 })} →{' '}
-                {event.positionAfter.toLocaleString(undefined, { maximumFractionDigits: 5 })}
+                {formatSeriesLabel(fill.time)} · pos{' '}
+                {fill.positionBefore === null
+                  ? '—'
+                  : fill.positionBefore.toLocaleString(undefined, {
+                      maximumFractionDigits: 5,
+                    })}{' '}
+                →{' '}
+                {fill.positionAfter === null
+                  ? '—'
+                  : fill.positionAfter.toLocaleString(undefined, {
+                      maximumFractionDigits: 5,
+                    })}
               </span>
             </div>
           ))}
-          {hoveredAccountEvents.length > 4 && (
+          {hoveredAccountFills.length > 4 && (
             <span className="text-muted-foreground">
-              +{hoveredAccountEvents.length - 4} more fill
-              {hoveredAccountEvents.length - 4 === 1 ? '' : 's'} in this candle
+              +{hoveredAccountFills.length - 4} more fill
+              {hoveredAccountFills.length - 4 === 1 ? '' : 's'} in this candle
             </span>
           )}
         </div>

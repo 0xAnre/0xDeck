@@ -1,18 +1,16 @@
 /**
  * Marker mapping for Hyperliquid account fills.
  *
- * Visuals stay small and unobtrusive: entries are arrows, partial closes are
- * circles (so they can never read as a close), full closes are squares. Colors
- * are injected from resolved theme tokens — no hardcoded hex here.
+ * Visuals are side-only and stay small: buys are green/up-token upward arrows
+ * below the bar, sells are red/down-token downward arrows above the bar. At
+ * most one buy and one sell marker are rendered per candle bucket.
  */
 import type { SeriesMarker, SeriesMarkerShape, UTCTimestamp } from 'lightweight-charts'
-import type { BucketedHyperliquidFillEvent } from './hyperliquidFills.ts'
+import type { HyperliquidFillMarkerGroup } from './hyperliquidFills.ts'
 
 export type HyperliquidMarkerColors = {
-  longEntry: string
-  shortEntry: string
-  reduce: string
-  close: string
+  buy: string
+  sell: string
 }
 
 export type HyperliquidMarkerStyle = {
@@ -22,29 +20,23 @@ export type HyperliquidMarkerStyle = {
   colorKey: keyof HyperliquidMarkerColors
 }
 
-/** Pure shape/position/color mapping, shared by the chart and tests. */
-export function hyperliquidFillEventMarkerStyle(
-  event: Pick<BucketedHyperliquidFillEvent, 'kind' | 'side'>,
+/** Pure side → shape/position/color mapping, shared by the chart and tests. */
+export function hyperliquidFillMarkerStyle(
+  side: HyperliquidFillMarkerGroup['side'],
 ): HyperliquidMarkerStyle {
-  if (event.kind === 'entry') {
-    return event.side === 'long'
-      ? { shape: 'arrowUp', position: 'belowBar', size: 1, colorKey: 'longEntry' }
-      : { shape: 'arrowDown', position: 'aboveBar', size: 1, colorKey: 'shortEntry' }
-  }
-  if (event.kind === 'reduce') {
-    return { shape: 'circle', position: 'aboveBar', size: 1, colorKey: 'reduce' }
-  }
-  return { shape: 'square', position: 'aboveBar', size: 1, colorKey: 'close' }
+  return side === 'B'
+    ? { shape: 'arrowUp', position: 'belowBar', size: 1, colorKey: 'buy' }
+    : { shape: 'arrowDown', position: 'aboveBar', size: 1, colorKey: 'sell' }
 }
 
-export function hyperliquidFillEventMarker(
-  event: BucketedHyperliquidFillEvent,
+export function hyperliquidFillGroupMarker(
+  group: HyperliquidFillMarkerGroup,
   colors: HyperliquidMarkerColors,
 ): SeriesMarker<UTCTimestamp> {
-  const style = hyperliquidFillEventMarkerStyle(event)
+  const style = hyperliquidFillMarkerStyle(group.side)
   return {
-    id: event.key,
-    time: event.bucketTime as UTCTimestamp,
+    id: group.key,
+    time: group.bucketTime as UTCTimestamp,
     position: style.position,
     shape: style.shape,
     size: style.size,
@@ -52,9 +44,9 @@ export function hyperliquidFillEventMarker(
   }
 }
 
-export function hyperliquidFillEventsToMarkers(
-  events: readonly BucketedHyperliquidFillEvent[],
+export function hyperliquidFillGroupsToMarkers(
+  groups: readonly HyperliquidFillMarkerGroup[],
   colors: HyperliquidMarkerColors,
 ): SeriesMarker<UTCTimestamp>[] {
-  return events.map((event) => hyperliquidFillEventMarker(event, colors))
+  return groups.map((group) => hyperliquidFillGroupMarker(group, colors))
 }

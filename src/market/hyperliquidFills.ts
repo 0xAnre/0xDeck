@@ -1,15 +1,11 @@
 /**
- * Pure Hyperliquid fill classification, dedupe, bucketing and filtering.
+ * Pure Hyperliquid fill parsing, dedupe, bucketing, filtering and marker grouping.
  *
- * Classification is based on `startPosition` (the signed position size before
- * the fill), never on the current position's average entry price. When a fill
- * omits `startPosition`, a chronological running position is used instead.
+ * Markers are side-only: every buy fill in a candle bucket becomes one upward
+ * marker and every sell fill becomes one downward marker.
  */
 import { candleIntervalDurationSeconds } from './candleIntervalDuration.ts'
 import type { CandleInterval } from './types.ts'
-
-export type HyperliquidFillKind = 'entry' | 'reduce' | 'close'
-export type HyperliquidFillEventSide = 'long' | 'short'
 
 export type HyperliquidFill = {
   coin: string
@@ -26,24 +22,20 @@ export type HyperliquidFill = {
   tid: number | null
 }
 
-export type HyperliquidFillEvent = {
-  /** Stable identity for this event (a reversal yields two event keys). */
-  key: string
-  kind: HyperliquidFillKind
-  side: HyperliquidFillEventSide
-  price: number
-  size: number
-  /** Actual execution time in epoch milliseconds. */
-  time: number
-  direction: string | null
-  tid: number | null
-  positionBefore: number
-  positionAfter: number
-}
-
-export type BucketedHyperliquidFillEvent = HyperliquidFillEvent & {
+export type BucketedHyperliquidFill = HyperliquidFill & {
   /** Candle open time (unix seconds) in the active chart interval. */
   bucketTime: number
+  /** Signed position before/after this fill when `startPosition` is present. */
+  positionBefore: number | null
+  positionAfter: number | null
+}
+
+/** At most one marker per side per candle bucket. */
+export type HyperliquidFillMarkerGroup = {
+  key: string
+  bucketTime: number
+  side: 'B' | 'A'
+  fills: BucketedHyperliquidFill[]
 }
 
 const HYPERLIQUID_COIN = 'BTC'
@@ -144,93 +136,6 @@ export function mergeHyperliquidFills(
   )
 }
 
-function signOf(value: number): -1 | 0 | 1 {
-  if (value > 0) return 1
-  if (value < 0) return -1
-  return 0
-}
-
-function sideForSignedPosition(value: number): HyperliquidFillEventSide {
-  return value >= 0 ? 'long' : 'short'
-}
-
-function buildEvent(
-  fill: HyperliquidFill,
-  kind: HyperliquidFillKind,
-  side: HyperliquidFillEventSide,
-  before: number,
-  after: number,
-): HyperliquidFillEvent {
-  return {
-    key: `${hyperliquidFillIdentityKey(fill)}:${kind}:${side}`,
-    kind,
-    side,
-    price: fill.price,
-    size: fill.size,
-    time: fill.time,
-    direction: fill.direction,
-    tid: fill.tid,
-    positionBefore: before,
-    positionAfter: after,
-  }
-}
-
-/**
- * Classify BTC fills into entry / reduce / close events.
- *
- * A sign flip produces a close for the old side and an entry for the new side
- * at the same fill time. A partial close is always `reduce`, never `close`.
- */
-export function classifyHyperliquidFills(rawFills: readonly unknown[]): HyperliquidFillEvent[] {
-  const parsed = rawFills
-    .map(parseHyperliquidFill)
-    .filter((fill): fill is HyperliquidFill => fill !== null)
-
-  const fills = dedupeHyperliquidFills(parsed).sort(
-    (a, b) =>
-      a.time - b.time ||
-      hyperliquidFillIdentityKey(a).localeCompare(hyperliquidFillIdentityKey(b)),
-  )
-
-  const events: HyperliquidFillEvent[] = []
-  let runningPosition = 0
-
-  for (const fill of fills) {
-    const before = fill.startPosition ?? runningPosition
-    const signedSize = fill.side === 'B' ? fill.size : -fill.size
-    const after = before + signedSize
-    runningPosition = after
-
-    if (after === before) continue
-
-    const beforeSign = signOf(before)
-    const afterSign = signOf(after)
-
-    if (beforeSign === 0) {
-      events.push(buildEvent(fill, 'entry', sideForSignedPosition(after), before, after))
-      continue
-    }
-
-    if (beforeSign === afterSign) {
-      const kind: HyperliquidFillKind =
-        Math.abs(after) > Math.abs(before) ? 'entry' : after === 0 ? 'close' : 'reduce'
-      events.push(buildEvent(fill, kind, sideForSignedPosition(before), before, after))
-      continue
-    }
-
-    if (afterSign === 0) {
-      events.push(buildEvent(fill, 'close', sideForSignedPosition(before), before, after))
-      continue
-    }
-
-    // Reversal: close the old side, then enter the new side at the same time.
-    events.push(buildEvent(fill, 'close', sideForSignedPosition(before), before, 0))
-    events.push(buildEvent(fill, 'entry', sideForSignedPosition(after), 0, after))
-  }
-
-  return events
-}
-
 /** Candle bucket (open time, unix seconds) for a fill execution time. */
 export function hyperliquidFillBucketSeconds(
   timeMs: number,
@@ -240,45 +145,82 @@ export function hyperliquidFillBucketSeconds(
   return Math.floor(Math.floor(timeMs / 1000) / duration) * duration
 }
 
-export function bucketHyperliquidFillEvents(
-  events: readonly HyperliquidFillEvent[],
+export function bucketHyperliquidFills(
+  fills: readonly HyperliquidFill[],
   interval: CandleInterval,
-): BucketedHyperliquidFillEvent[] {
-  return events.map((event) => ({
-    ...event,
-    bucketTime: hyperliquidFillBucketSeconds(event.time, interval),
-  }))
+): BucketedHyperliquidFill[] {
+  return fills.map((fill) => {
+    const positionBefore = fill.startPosition
+    const positionAfter =
+      positionBefore === null
+        ? null
+        : positionBefore + (fill.side === 'B' ? fill.size : -fill.size)
+    return {
+      ...fill,
+      bucketTime: hyperliquidFillBucketSeconds(fill.time, interval),
+      positionBefore,
+      positionAfter,
+    }
+  })
 }
 
 /**
- * Keep only events whose bucket has a loaded candle. Markers may never be
- * anchored to a time the chart does not have, and duplicate event keys (e.g.
- * after a REST/WS merge) are removed.
+ * Keep only fills whose bucket has a loaded candle. Markers may never be
+ * anchored to a time the chart does not have; duplicate identities (e.g. after
+ * a REST/WS merge) are removed.
  */
-export function filterHyperliquidFillEventsToLoadedCandles(
-  events: readonly BucketedHyperliquidFillEvent[],
+export function filterHyperliquidFillsToLoadedCandles(
+  fills: readonly BucketedHyperliquidFill[],
   candleTimes: Iterable<number>,
-): BucketedHyperliquidFillEvent[] {
+): BucketedHyperliquidFill[] {
   const loaded = new Set(candleTimes)
   const seen = new Set<string>()
-  const filtered: BucketedHyperliquidFillEvent[] = []
-  for (const event of events) {
-    if (!loaded.has(event.bucketTime)) continue
-    if (seen.has(event.key)) continue
-    seen.add(event.key)
-    filtered.push(event)
+  const filtered: BucketedHyperliquidFill[] = []
+  for (const fill of fills) {
+    if (!loaded.has(fill.bucketTime)) continue
+    const key = hyperliquidFillIdentityKey(fill)
+    if (seen.has(key)) continue
+    seen.add(key)
+    filtered.push(fill)
   }
   return filtered
 }
 
-export function hyperliquidFillEventLabel(event: HyperliquidFillEvent): string {
-  const side = event.side === 'long' ? 'Long' : 'Short'
-  switch (event.kind) {
-    case 'entry':
-      return `${side} entry`
-    case 'reduce':
-      return `${side} reduce`
-    case 'close':
-      return `${side} close`
+/**
+ * Collapse same-side fills in one candle bucket into a single marker group.
+ * Result has at most one `B` and one `A` group per bucket (max 2 markers).
+ */
+export function groupHyperliquidFillMarkers(
+  fills: readonly BucketedHyperliquidFill[],
+): HyperliquidFillMarkerGroup[] {
+  const groups = new Map<string, HyperliquidFillMarkerGroup>()
+  for (const fill of fills) {
+    const key = `${fill.bucketTime}:${fill.side}`
+    const group = groups.get(key)
+    if (group) {
+      group.fills.push(fill)
+    } else {
+      groups.set(key, {
+        key,
+        bucketTime: fill.bucketTime,
+        side: fill.side,
+        fills: [fill],
+      })
+    }
   }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      fills: [...group.fills].sort(
+        (a, b) =>
+          a.time - b.time ||
+          hyperliquidFillIdentityKey(a).localeCompare(hyperliquidFillIdentityKey(b)),
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        a.bucketTime - b.bucketTime ||
+        (a.side === b.side ? 0 : a.side === 'B' ? -1 : 1),
+    )
 }
