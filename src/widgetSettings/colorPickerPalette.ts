@@ -151,6 +151,10 @@ export const COLOR_PICKER_FLAT_COLORS: readonly string[] = COLOR_PICKER_ROWS.fla
   (row) => row.colors,
 )
 
+/** Number of focusable swatches in the grid. */
+export const COLOR_PICKER_SWATCH_COUNT =
+  COLOR_PICKER_ROWS.length * COLOR_PICKER_COLUMNS
+
 /** Documented custom-HEX example; reuses the project accent without duplicating it. */
 export const COLOR_PICKER_CUSTOM_HEX_EXAMPLE = MARKET_STYLE_PALETTE.pocRed
 
@@ -192,6 +196,47 @@ export function colorPickerSwatchLabel(
 ): string {
   if (row.id === 'grayscale') return `Gray ${column + 1}`
   return `${COLOR_PICKER_HUE_LABELS[column] ?? 'Color'} ${row.label.toLowerCase()}`
+}
+
+/**
+ * Roving-focus target for the palette grid (single-select ARIA grid pattern).
+ *
+ * Wrap semantics, so the grid is fully traversable in both directions with one
+ * key and every move lands on a swatch:
+ * - `ArrowRight`: next swatch; at the end of a row it continues at the start of
+ *   the next row, and the last swatch wraps to the first.
+ * - `ArrowLeft`: previous swatch; at the start of a row it continues at the end
+ *   of the previous row, and the first swatch wraps to the last.
+ * - `ArrowDown` / `ArrowUp`: same column one row down/up, wrapping from the last
+ *   row to the first (and vice versa).
+ * - `Home` / `End`: first / last swatch **of the current row**.
+ *
+ * Returns `null` for keys that are not grid navigation and for out-of-range
+ * indexes, so callers can leave the event alone.
+ */
+export function colorPickerNextSwatchIndex(index: number, key: string): number | null {
+  if (!Number.isInteger(index) || index < 0 || index >= COLOR_PICKER_SWATCH_COUNT) {
+    return null
+  }
+
+  const rowStart = index - (index % COLOR_PICKER_COLUMNS)
+
+  switch (key) {
+    case 'ArrowRight':
+      return (index + 1) % COLOR_PICKER_SWATCH_COUNT
+    case 'ArrowLeft':
+      return (index - 1 + COLOR_PICKER_SWATCH_COUNT) % COLOR_PICKER_SWATCH_COUNT
+    case 'ArrowDown':
+      return (index + COLOR_PICKER_COLUMNS) % COLOR_PICKER_SWATCH_COUNT
+    case 'ArrowUp':
+      return (index - COLOR_PICKER_COLUMNS + COLOR_PICKER_SWATCH_COUNT) % COLOR_PICKER_SWATCH_COUNT
+    case 'Home':
+      return rowStart
+    case 'End':
+      return rowStart + COLOR_PICKER_COLUMNS - 1
+    default:
+      return null
+  }
 }
 
 /**

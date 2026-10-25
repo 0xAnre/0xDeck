@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { CheckIcon, PlusIcon } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,7 @@ import {
   COLOR_PICKER_COLUMNS,
   COLOR_PICKER_CUSTOM_HEX_EXAMPLE,
   COLOR_PICKER_ROWS,
+  colorPickerNextSwatchIndex,
   colorPickerPaletteMatch,
   colorPickerSwatchLabel,
   colorPickerSwatchUsesDarkCheck,
@@ -31,10 +33,15 @@ type ColorOpacityFieldProps = {
   className?: string
 }
 
-/** Transparency checkerboard behind the current color; chrome uses theme tokens. */
+/**
+ * Transparency checkerboard behind the current color; chrome uses theme tokens.
+ *
+ * Uses the raw per-theme custom properties (`--muted`, `--popover`) that every
+ * `[data-theme]` block in `index.css` defines, rather than the `--color-*`
+ * aliases that `@theme inline` only emits for utilities actually generated.
+ */
 const CHECKERBOARD_STYLE: CSSProperties = {
-  backgroundImage:
-    'repeating-conic-gradient(var(--color-muted) 0% 25%, var(--color-popover) 0% 50%)',
+  backgroundImage: 'repeating-conic-gradient(var(--muted) 0% 25%, var(--popover) 0% 50%)',
   backgroundSize: '6px 6px',
 }
 
@@ -65,6 +72,7 @@ export function ColorOpacityField({
 
   const percent = normalizeColorPickerOpacityPercent(opacityPercent)
   const sliderId = opacityId ?? `${id}-opacity`
+  const sliderLabelId = `${sliderId}-label`
   const customInputId = `${id}-custom`
   const currentHex = normalizeColorPickerHexInput(color) ?? color
   const paletteMatch = colorPickerPaletteMatch(currentHex)
@@ -91,39 +99,11 @@ export function ColorOpacityField({
     if (normalized !== currentHex) onColorChange(normalized)
   }
 
-  function handleSwatchKeyDown(
-    event: KeyboardEvent<HTMLButtonElement>,
-    row: number,
-    column: number,
-  ) {
-    let nextRow = row
-    let nextColumn = column
-
-    switch (event.key) {
-      case 'ArrowLeft':
-        nextColumn = Math.max(0, column - 1)
-        break
-      case 'ArrowRight':
-        nextColumn = Math.min(COLOR_PICKER_COLUMNS - 1, column + 1)
-        break
-      case 'ArrowUp':
-        nextRow = Math.max(0, row - 1)
-        break
-      case 'ArrowDown':
-        nextRow = Math.min(COLOR_PICKER_ROWS.length - 1, row + 1)
-        break
-      case 'Home':
-        nextColumn = 0
-        break
-      case 'End':
-        nextColumn = COLOR_PICKER_COLUMNS - 1
-        break
-      default:
-        return
-    }
+  function handleSwatchKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const nextIndex = colorPickerNextSwatchIndex(index, event.key)
+    if (nextIndex === null) return
 
     event.preventDefault()
-    const nextIndex = nextRow * COLOR_PICKER_COLUMNS + nextColumn
     setActiveIndex(nextIndex)
     swatchRefs.current[nextIndex]?.focus()
   }
@@ -189,18 +169,20 @@ export function ColorOpacityField({
                         paletteMatch.row === rowIndex &&
                         paletteMatch.column === columnIndex
                       return (
-                        <button
+                        <Button
                           key={hex}
                           ref={(node) => {
                             swatchRefs.current[index] = node
                           }}
                           type="button"
+                          variant="outline"
+                          size="icon-sm"
                           role="gridcell"
                           aria-label={colorPickerSwatchLabel(row, columnIndex)}
                           aria-selected={selected}
                           tabIndex={activeIndex === index ? 0 : -1}
                           className={cn(
-                            'relative grid size-6 place-items-center rounded-[4px] border border-border transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
+                            'rounded-[4px]',
                             selected && 'ring-2 ring-ring ring-offset-1 ring-offset-popover',
                           )}
                           style={{ backgroundColor: hex }}
@@ -209,9 +191,7 @@ export function ColorOpacityField({
                             setCustomInvalid(false)
                             onColorChange(hex)
                           }}
-                          onKeyDown={(event) =>
-                            handleSwatchKeyDown(event, rowIndex, columnIndex)
-                          }
+                          onKeyDown={(event) => handleSwatchKeyDown(event, index)}
                         >
                           {selected ? (
                             <CheckIcon
@@ -223,7 +203,7 @@ export function ColorOpacityField({
                               }
                             />
                           ) : null}
-                        </button>
+                        </Button>
                       )
                     })}
                   </div>
@@ -232,21 +212,19 @@ export function ColorOpacityField({
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {paletteMatch === null ? (
-                  <button
-                    type="button"
-                    aria-pressed="true"
-                    aria-label={`Custom color ${currentHex}`}
-                    className="inline-flex h-6 items-center gap-1.5 rounded-md border border-border px-1.5 text-[0.625rem] font-medium uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3"
-                    onClick={() => onColorChange(currentHex)}
+                  <Badge
+                    variant="outline"
+                    aria-current="true"
+                    className="gap-1.5 px-1.5 text-xs font-medium uppercase"
                   >
                     <span
                       aria-hidden="true"
-                      className="size-3.5 rounded-[2px] border border-border"
+                      className="size-3 rounded-[2px] border border-border"
                       style={{ backgroundColor: currentHex }}
                     />
                     {currentHex}
                     <CheckIcon aria-hidden="true" />
-                  </button>
+                  </Badge>
                 ) : null}
                 <Button
                   type="button"
@@ -271,13 +249,14 @@ export function ColorOpacityField({
                   <Field data-invalid={customInvalid || undefined} className="gap-1.5">
                     <FieldLabel htmlFor={customInputId}>Custom HEX</FieldLabel>
                     <div className="flex items-center gap-1.5">
+                      {/* No `maxLength`: `normalizeColorPickerHexInput` trims surrounding
+                          whitespace, so a pasted `  d15F5b  ` must reach validation intact. */}
                       <Input
                         id={customInputId}
                         value={customInput}
                         placeholder={COLOR_PICKER_CUSTOM_HEX_EXAMPLE}
                         autoComplete="off"
                         spellCheck={false}
-                        maxLength={7}
                         aria-invalid={customInvalid || undefined}
                         onChange={(event) => {
                           setCustomInput(event.target.value)
@@ -298,7 +277,7 @@ export function ColorOpacityField({
 
               <Field className="gap-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <FieldLabel htmlFor={sliderId}>Opacity</FieldLabel>
+                  <FieldLabel id={sliderLabelId}>Opacity</FieldLabel>
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {percent}%
                   </span>
@@ -316,6 +295,7 @@ export function ColorOpacityField({
                   </span>
                   <Slider
                     id={sliderId}
+                    aria-labelledby={sliderLabelId}
                     aria-label={`${label} opacity`}
                     min={0}
                     max={100}
