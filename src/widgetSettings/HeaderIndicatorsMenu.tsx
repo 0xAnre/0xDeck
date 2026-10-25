@@ -8,6 +8,10 @@ import {
 import { cn } from '@/lib/utils'
 import { isIndicatorSupportedOnInterval, type MarketIndicatorId } from '@/market/indicators'
 import { rollingVwapInstanceDisplayLabel, type RollingVwapInstance } from '@/market/rollingVwapInstances'
+import {
+  rollingVwapSettingsTimeframeCompatibility,
+  rollingVwapTimeframeCompatibilityReason,
+} from '@/market/rollingVwapMinimumTimeframe'
 import type { CandleInterval } from '@/market/types'
 import { ChartObjectListRow } from '@/widgetSettings/ChartObjectListRow'
 import { marketIndicatorIcon, numberedChartObjectIcon } from '@/widgetSettings/chartObjectIcons'
@@ -141,37 +145,45 @@ export function HeaderIndicatorsMenu({
             )}
           </div>
 
-          {rollingVwapInstances.map((instance) => (
-            <ChartObjectListRow
-              key={instance.id}
-              icon={numberedChartObjectIcon('rolling-vwap')}
-              label={rollingVwapInstanceDisplayLabel(instance)}
-              hidden={!instance.enabled}
-              locked={instance.locked === true}
-              disabled={disabled || !rollingSupported}
-              onToggleHidden={
-                onRollingVwapToggle
-                  ? () => onRollingVwapToggle(instance.id, !instance.enabled)
-                  : undefined
-              }
-              onToggleLocked={
-                onRollingVwapLockToggle
-                  ? () => onRollingVwapLockToggle(instance.id, instance.locked !== true)
-                  : undefined
-              }
-              onSettings={
-                onRollingVwapSettingsClick
-                  ? () =>
-                      runIndicatorSettingsGearClick({
-                        indicatorId: 'rolling-vwap',
-                        closeDropdown: () => setMenuOpen(false),
-                        onIndicatorSettingsClick: () => onRollingVwapSettingsClick(instance.id),
-                      })
-                  : undefined
-              }
-              onDelete={onRollingVwapDelete ? () => onRollingVwapDelete(instance.id) : undefined}
-            />
-          ))}
+          {rollingVwapInstances.map((instance) => {
+            const compatibility = rollingVwapSettingsTimeframeCompatibility(
+              instance.settings.fixedTimePeriod,
+              marketInterval,
+            )
+            const unsupportedReason = rollingVwapTimeframeCompatibilityReason(compatibility)
+            const label = rollingVwapInstanceDisplayLabel(instance)
+            return (
+              <ChartObjectListRow
+                key={instance.id}
+                icon={numberedChartObjectIcon('rolling-vwap')}
+                label={unsupportedReason ? `${label} · ${unsupportedReason}` : label}
+                hidden={!instance.enabled || !compatibility.supported}
+                locked={instance.locked === true}
+                disabled={disabled || !rollingSupported}
+                onToggleHidden={
+                  onRollingVwapToggle
+                    ? () => onRollingVwapToggle(instance.id, !instance.enabled)
+                    : undefined
+                }
+                onToggleLocked={
+                  onRollingVwapLockToggle
+                    ? () => onRollingVwapLockToggle(instance.id, instance.locked !== true)
+                    : undefined
+                }
+                onSettings={
+                  onRollingVwapSettingsClick
+                    ? () =>
+                        runIndicatorSettingsGearClick({
+                          indicatorId: 'rolling-vwap',
+                          closeDropdown: () => setMenuOpen(false),
+                          onIndicatorSettingsClick: () => onRollingVwapSettingsClick(instance.id),
+                        })
+                    : undefined
+                }
+                onDelete={onRollingVwapDelete ? () => onRollingVwapDelete(instance.id) : undefined}
+              />
+            )
+          })}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

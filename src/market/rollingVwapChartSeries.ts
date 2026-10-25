@@ -5,7 +5,11 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import { isIndicatorSupportedOnInterval } from './indicators.ts'
+import {
+  rollingVwapSettingsTimeframeCompatibility,
+  rollingVwapTimeframeCompatibilityReason,
+  type RollingVwapTimeframeCompatibility,
+} from './rollingVwapMinimumTimeframe.ts'
 import { rollingVwapInstancePeriodLabel, type RollingVwapInstance } from './rollingVwapInstances.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import {
@@ -282,18 +286,28 @@ function bandPairVisible(instanceVisible: boolean, multiplier: number): boolean 
   return instanceVisible && multiplier > 0
 }
 
+/** Resolved compatibility for an instance on the active chart interval. */
+export function getRollingVwapInstanceTimeframeCompatibility(
+  instance: RollingVwapInstance,
+  interval: CandleInterval,
+): RollingVwapTimeframeCompatibility {
+  return rollingVwapSettingsTimeframeCompatibility(instance.settings.fixedTimePeriod, interval)
+}
+
 export function setRollingVwapInstanceSeriesVisibility(
   bundle: RollingVwapChartSeriesBundle,
   instance: RollingVwapInstance,
   interval: CandleInterval,
 ): void {
-  const instanceVisible =
-    instance.enabled && isIndicatorSupportedOnInterval('rolling-vwap', interval)
+  const compatibility = getRollingVwapInstanceTimeframeCompatibility(instance, interval)
+  const instanceVisible = instance.enabled && compatibility.supported
   const title = rollingVwapInstancePeriodLabel(instance, interval)
   bundle.center.applyOptions({
     visible: instanceVisible,
-    title,
-    lastValueVisible: true,
+    title: compatibility.supported
+      ? title
+      : `${title} (${rollingVwapTimeframeCompatibilityReason(compatibility) ?? 'unsupported'})`,
+    lastValueVisible: instanceVisible,
     priceLineVisible: false,
   })
 
