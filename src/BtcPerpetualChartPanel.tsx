@@ -311,6 +311,8 @@ import {
 import { HyperliquidAccountDialog } from '@/market/HyperliquidAccountDialog'
 import {
   clearHyperliquidAccountAddress,
+  HYPERLIQUID_ACCOUNT_CHANGED_EVENT,
+  HYPERLIQUID_ACCOUNT_STORAGE_KEY,
   hyperliquidUserFillsChannel,
   loadHyperliquidAccountAddress,
   saveHyperliquidAccountAddress,
@@ -551,6 +553,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const accountMarkersByBucketRef = useRef<Map<number, BucketedHyperliquidFillEvent[]>>(
     new Map(),
   )
+  const accountAddressRef = useRef<string | null>(accountAddress)
 
   const flushMarketChartViewportPersist = useCallback(
     (
@@ -1612,33 +1615,53 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
   }, [])
 
-  const handleAccountSave = useCallback(
-    (value: string) => {
-      const saved = saveHyperliquidAccountAddress(value)
-      if (saved === null) return
-      accountFillsRangeRef.current = null
-      setAccountFills([])
-      setAccountFillsNotice(null)
-      setHoveredAccountEvents([])
-      setAccountAddress(saved)
-      setAccountDialogOpen(true)
-      refreshAccountPosition(saved)
-    },
-    [refreshAccountPosition],
-  )
-
-  const handleAccountRemove = useCallback(() => {
-    clearHyperliquidAccountAddress()
+  const applyAccountAddress = useCallback((next: string | null) => {
+    if (accountAddressRef.current === next) return
+    accountAddressRef.current = next
     accountFillsRangeRef.current = null
-    accountPositionRequestRef.current += 1
-    setAccountAddress(null)
-    setAccountPosition(null)
-    setAccountPositionStatus('idle')
-    setAccountPositionError(null)
+    setAccountAddress(next)
     setAccountFills([])
     setAccountFillsNotice(null)
     setHoveredAccountEvents([])
   }, [])
+
+  const handleAccountSave = useCallback(
+    (value: string) => {
+      const saved = saveHyperliquidAccountAddress(value)
+      if (saved === null) return
+      applyAccountAddress(saved)
+      setAccountDialogOpen(true)
+      refreshAccountPosition(saved)
+    },
+    [applyAccountAddress, refreshAccountPosition],
+  )
+
+  const handleAccountRemove = useCallback(() => {
+    clearHyperliquidAccountAddress()
+    applyAccountAddress(null)
+    accountPositionRequestRef.current += 1
+    setAccountPosition(null)
+    setAccountPositionStatus('idle')
+    setAccountPositionError(null)
+  }, [applyAccountAddress])
+
+  useEffect(() => {
+    // Workspace-level account: another panel (or another tab) changing the
+    // address must update this panel too, without a reload.
+    const syncFromStorage = () => {
+      applyAccountAddress(loadHyperliquidAccountAddress())
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== HYPERLIQUID_ACCOUNT_STORAGE_KEY) return
+      syncFromStorage()
+    }
+    window.addEventListener(HYPERLIQUID_ACCOUNT_CHANGED_EVENT, syncFromStorage)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(HYPERLIQUID_ACCOUNT_CHANGED_EVENT, syncFromStorage)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [applyAccountAddress])
 
   const handleAccountClick = useCallback(() => {
     setAccountDialogOpen(true)

@@ -7,6 +7,15 @@
 
 export const HYPERLIQUID_ACCOUNT_STORAGE_KEY = '0xdeck-hyperliquid-account'
 
+/** Same-tab notification so every open BTC Perp panel shares one account. */
+export const HYPERLIQUID_ACCOUNT_CHANGED_EVENT =
+  '0xdeck-hyperliquid-account-changed'
+
+function notifyHyperliquidAccountChanged(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(HYPERLIQUID_ACCOUNT_CHANGED_EVENT))
+}
+
 export const HYPERLIQUID_ACCOUNT_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/
 export const HYPERLIQUID_ACCOUNT_INVALID_MESSAGE =
   "Enter a Hyperliquid address: '0x' followed by 40 hexadecimal characters"
@@ -90,6 +99,7 @@ export function saveHyperliquidAccountAddress(value: unknown): string | null {
     // Storage can be unavailable (private mode / quota); the in-memory state
     // still works for the current session.
   }
+  notifyHyperliquidAccountChanged()
   return normalized
 }
 
@@ -99,6 +109,7 @@ export function clearHyperliquidAccountAddress(): void {
   } catch {
     // Ignore unavailable storage.
   }
+  notifyHyperliquidAccountChanged()
 }
 
 export const HYPERLIQUID_ACCOUNT_API_PATH = '/market/hyperliquid/account'

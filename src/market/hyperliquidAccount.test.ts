@@ -6,6 +6,7 @@ import {
   hyperliquidAccountFillsPath,
   hyperliquidAccountPositionPath,
   hyperliquidUserFillsChannel,
+  HYPERLIQUID_ACCOUNT_CHANGED_EVENT,
   HYPERLIQUID_ACCOUNT_STORAGE_KEY,
   isValidHyperliquidAccountAddress,
   loadHyperliquidAccountAddress,
@@ -89,6 +90,25 @@ describe('Hyperliquid account address', () => {
     saveHyperliquidAccountAddress(ADDRESS)
     assert.equal(saveHyperliquidAccountAddress('0x1234'), null)
     assert.equal(loadHyperliquidAccountAddress(), ADDRESS)
+  })
+
+  it('notifies other panels/tabs when the workspace account changes', () => {
+    const events: string[] = []
+    // @ts-expect-error minimal window stub for the notification assertion
+    globalThis.window = {
+      dispatchEvent: (event: Event) => {
+        events.push(event.type)
+        return true
+      },
+    }
+    saveHyperliquidAccountAddress(ADDRESS)
+    clearHyperliquidAccountAddress()
+    // @ts-expect-error remove the stub
+    delete globalThis.window
+    assert.deepEqual(events, [
+      HYPERLIQUID_ACCOUNT_CHANGED_EVENT,
+      HYPERLIQUID_ACCOUNT_CHANGED_EVENT,
+    ])
   })
 
   it('ignores corrupt saved values and unavailable storage', () => {
