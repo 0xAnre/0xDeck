@@ -9,7 +9,7 @@ import { olderHistoryPageMadeProgress } from './btcPerpetualHistoryPageProgress.
 import { visibleTimeRangeNeedsHistoryLoad } from './marketChartViewport.ts'
 import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
-import type { CandleInterval, MarketCandle } from './types.ts'
+import type { CandleInterval, MarketCandle, MarketExchange } from './types.ts'
 
 const MAX_OLDER_HISTORY_PAGES_FOR_VIEWPORT = 40
 
@@ -17,6 +17,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
   params: {
     state: InfiniteHistoryState
     generation: number
+    exchange: MarketExchange
     interval: CandleInterval
     visibleTimeRange: { from: number; to: number }
     candlesRef: { current: MarketCandle[] }
@@ -31,6 +32,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
   const {
     state,
     generation,
+    exchange,
     interval,
     visibleTimeRange,
     candlesRef,
@@ -56,6 +58,7 @@ export async function loadOlderHistoryUntilVisibleFrom(
     await loadOlderBtcPerpHistory({
       state,
       generation,
+      exchange,
       interval,
       before: candles[0].time,
       candlesRef,

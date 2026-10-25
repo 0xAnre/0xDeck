@@ -1,5 +1,5 @@
 import type { IChartApi, ISeriesApi, LogicalRange } from 'lightweight-charts'
-import { fetchBinanceBtcusdtKlinesHistory } from '@/api/client'
+import { fetchMarketKlinesHistory } from '@/api/client'
 import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import type { ChartSeriesBundle } from '@/market/applyChartLiveCandle'
 import {
@@ -11,7 +11,7 @@ import {
 import { mergeOlderMarketCandles } from '@/market/mergeMarketCandles'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
-import type { CandleInterval, MarketCandle } from '@/market/types'
+import type { CandleInterval, MarketCandle, MarketExchange } from '@/market/types'
 
 export {
   INFINITE_HISTORY_BARS_BEFORE_THRESHOLD,
@@ -24,6 +24,7 @@ export type { InfiniteHistoryState, FetchBtcPerpHistory }
 type LoadOlderHistoryParams = {
   state: InfiniteHistoryState
   generation: number
+  exchange: MarketExchange
   interval: CandleInterval
   before: number
   candlesRef: { current: MarketCandle[] }
@@ -39,7 +40,9 @@ type LoadOlderHistoryParams = {
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
   const {
-    fetchHistory = fetchBinanceBtcusdtKlinesHistory,
+    exchange,
+    fetchHistory = (interval, before, signal) =>
+      fetchMarketKlinesHistory(exchange, interval, before, signal),
     getRollingVwapInstances,
     getAnchoredVwapInstances,
     ...rest
@@ -61,6 +64,7 @@ export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): P
 export function maybeRequestOlderBtcPerpHistory(params: {
   state: InfiniteHistoryState
   historyReady: boolean
+  exchange: MarketExchange
   range: LogicalRange | null
   candleSeries: ISeriesApi<'Candlestick'>
   candlesRef: { current: MarketCandle[] }
@@ -78,6 +82,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   const {
     state,
     historyReady,
+    exchange,
     range,
     candleSeries,
     candlesRef,
@@ -106,6 +111,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   void loadOlderBtcPerpHistory({
     state,
     generation,
+    exchange,
     interval,
     before,
     candlesRef,

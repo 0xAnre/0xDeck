@@ -11,6 +11,7 @@ import type {
   FixedRangeVolumeProfileRuntimeSnapshot,
   FixedRangeVolumeProfileRuntimeState,
 } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import type { MarketExchange } from './types.ts'
 
 export type RunFixedRangeVolumeProfilePipeline = (
   instance: FixedRangeVolumeProfileInstance,
@@ -19,6 +20,7 @@ export type RunFixedRangeVolumeProfilePipeline = (
 
 export type FixedRangeVolumeProfileRuntimeControllerOptions = {
   onChange: () => void
+  exchange?: MarketExchange
   runPipeline?: RunFixedRangeVolumeProfilePipeline
 }
 
@@ -31,6 +33,7 @@ function isAbortError(error: unknown): boolean {
 export class FixedRangeVolumeProfileRuntimeController {
   private readonly _onChange: () => void
   private readonly _runPipeline: RunFixedRangeVolumeProfilePipeline
+  private readonly _exchange: MarketExchange
   private readonly _states = new Map<string, FixedRangeVolumeProfileRuntimeState>()
   private readonly _abortControllers = new Map<string, AbortController>()
   private readonly _requestTokens = new Map<string, number>()
@@ -48,8 +51,14 @@ export class FixedRangeVolumeProfileRuntimeController {
 
   constructor(options: FixedRangeVolumeProfileRuntimeControllerOptions) {
     this._onChange = options.onChange
-    this._runPipeline = options.runPipeline ?? ((instance, opts) =>
-      runFixedRangeVolumeProfileDataPipeline(instance, opts))
+    this._exchange = options.exchange ?? 'binance'
+    this._runPipeline =
+      options.runPipeline ??
+      ((instance, opts) =>
+        runFixedRangeVolumeProfileDataPipeline(instance, {
+          ...opts,
+          exchange: this._exchange,
+        }))
   }
 
   getSnapshot(): FixedRangeVolumeProfileRuntimeSnapshot {

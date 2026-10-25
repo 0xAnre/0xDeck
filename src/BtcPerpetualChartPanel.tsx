@@ -273,9 +273,17 @@ import {
 } from '@/market/mergeCandleHistoryBuffer'
 import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
 import { candleIntervalDurationSeconds } from '@/market/candleIntervalDuration'
-import type { CandleInterval, MarketCandle } from '@/market/types'
-import { klineChannelForInterval } from '@/market/types'
+import type { CandleInterval, MarketCandle, MarketExchange } from '@/market/types'
+import { marketKlineChannelForInterval } from '@/market/types'
+import {
+  marketHistoryLimitNotice,
+  marketSymbolForExchange,
+} from '@/market/marketExchange'
 import { saveWidgetMarketIndicators } from '@/marketIndicatorStorage'
+import {
+  loadWidgetMarketExchange,
+  saveWidgetMarketExchange,
+} from '@/marketExchanges'
 import {
   loadWidgetMarketInterval,
   saveWidgetMarketInterval,
@@ -326,6 +334,9 @@ type LoadedVwapContext = {
 }
 
 export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
+  const [exchange, setExchange] = useState<MarketExchange>(() =>
+    loadWidgetMarketExchange(panelId),
+  )
   const [interval, setInterval] = useState<CandleInterval>(() =>
     loadWidgetMarketInterval(panelId),
   )
@@ -399,7 +410,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const loadGenerationRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const streamRef = useRef<WidgetStreamClient | null>(null)
+  const activeExchangeRef = useRef<MarketExchange>(exchange)
   const activeIntervalRef = useRef<CandleInterval>(interval)
+  const providerHistoryAvailableFromRef = useRef<number | null>(null)
   const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
   const historyReadyRef = useRef(false)
   const infiniteHistoryRef = useRef(createInfiniteHistoryState())
@@ -416,6 +429,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const fixedRangeVolumeProfileRuntimeById = useFixedRangeVolumeProfileRuntime(
     fixedRangeVolumeProfileInstances,
     fixedRangeVolumeProfileLiveRightEdge,
+    exchange,
   )
   const fixedRangeVolumeProfileRuntimeRef = useRef<FixedRangeVolumeProfileRuntimeSnapshot>(
     fixedRangeVolumeProfileRuntimeById,
@@ -491,13 +505,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       rollingVwapInstances: rollingVwapInstancesRef.current,
       anchoredVwapInstances: anchoredVwapInstancesRef.current,
     })
-    const notices = evaluateIndicatorHistoryPlan(plan, candlesRef.current)
+    const evaluated = evaluateIndicatorHistoryPlan(plan, candlesRef.current)
+    const notices = evaluated
       .map((entry) =>
         describeIndicatorHistoryStatus(entry, {
           preloadLimitReached: indicatorHistoryPreloadLimitRef.current,
         }),
       )
       .filter((notice): notice is string => notice !== null)
+    const limitNotice = marketHistoryLimitNotice({
+      exchange: activeExchangeRef.current,
+      interval: activeIntervalRef.current,
+      oldestCandleTime: candlesRef.current[0]?.time ?? null,
+      availableFrom: providerHistoryAvailableFromRef.current,
+      hasUnmetRequirements: evaluated.some((entry) => entry.status !== 'ready'),
+    })
+    if (limitNotice !== null && !notices.includes(limitNotice)) {
+      notices.push(limitNotice)
+    }
     setIndicatorHistoryNotices(notices)
   }, [])
 
@@ -1435,9 +1460,43 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  const handleExchangeChange = useCallback(
+    (next: MarketExchange) => {
+      if (next === activeExchangeRef.current) return
+
+      // Invalidate and stop every old-provider request/stream before the new
+      // provider state is rendered; stale responses are dropped by generation.
+      saveWidgetMarketExchange(panelId, next)
+      activeExchangeRef.current = next
+      loadGenerationRef.current += 1
+      historyReadyRef.current = false
+      loadedVwapContextRef.current = null
+      providerHistoryAvailableFromRef.current = null
+      cancelActiveVwapContextRequest(
+        vwapContextAbortRef,
+        vwapContextLatestRequestIdRef,
+      )
+      indicatorHistoryAbortRef.current?.abort()
+      indicatorHistoryAbortRef.current = null
+      abortRef.current?.abort()
+      abortRef.current = null
+      streamRef.current?.disconnect()
+      streamRef.current = null
+
+      setDataState({ status: 'loading' })
+      setChartReady(false)
+      setStreamState('idle')
+      setIndicatorHistoryNotices([])
+      setExchange(next)
+    },
+    [panelId],
+  )
+
   useMarketWidgetSettings({
     headerSettings,
     panelId,
+    marketExchange: exchange,
+    onMarketExchangeChange: handleExchangeChange,
     marketInterval: interval,
     onMarketIntervalChange: handleIntervalChange,
     marketIndicators: activeIndicators,
@@ -2043,6 +2102,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       maybeRequestOlderBtcPerpHistory({
         state: infiniteHistoryRef.current,
         historyReady: historyReadyRef.current,
+        exchange: activeExchangeRef.current,
         range,
         candleSeries: bundle.candle,
         candlesRef,
@@ -2233,7 +2293,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       flushMarketChartViewportPersist(intervalLeaving)
     }
 
+    activeExchangeRef.current = exchange
     activeIntervalRef.current = interval
+    providerHistoryAvailableFromRef.current = null
     loadGenerationRef.current += 1
     const generation = loadGenerationRef.current
     historyReadyRef.current = false
@@ -2265,7 +2327,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const controller = new AbortController()
     abortRef.current = controller
 
-    const channel = klineChannelForInterval(interval)
+    const channel = marketKlineChannelForInterval(exchange, interval)
     const streamBuffer = new Map<number, MarketCandle>()
     let historyReady = false
     const initialContextLevel = requiredVwapContextLevel(activeIndicatorsRef.current, interval)
@@ -2286,9 +2348,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (generation !== loadGenerationRef.current) return
         if (message.type !== 'event') return
 
-        const candle = parseMarketCandlePayload((message as ServerEventMessage).payload)
+        const candle = parseMarketCandlePayload(
+          (message as ServerEventMessage).payload,
+          {
+            exchange: activeExchangeRef.current,
+            interval: activeIntervalRef.current,
+          },
+        )
         if (!candle) return
-        if (candle.interval !== activeIntervalRef.current) return
 
         if (!historyReady) {
           bufferStreamCandle(streamBuffer, candle)
@@ -2353,6 +2420,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
               pendingViewportRestore = loadOlderHistoryUntilVisibleFrom({
                 state: infiniteHistoryRef.current,
                 generation: loadGenerationRef.current,
+                exchange: activeExchangeRef.current,
                 interval: currentInterval,
                 visibleTimeRange: saved.visibleTimeRange,
                 candlesRef,
@@ -2419,10 +2487,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         const response = await fetchBtcPerpKlinesForContextLevel(
           initialContextLevel,
           interval,
+          exchange,
           controller.signal,
         )
         if (generation !== loadGenerationRef.current) return
         if (response.interval !== interval) return
+        if (response.exchange !== undefined && response.exchange !== exchange) return
+        if (response.symbol !== marketSymbolForExchange(exchange)) return
+        providerHistoryAvailableFromRef.current = response.available_from ?? null
 
         const history = response.candles.filter((c) => c.interval === interval)
         const merged = mergeHistoryWithStreamBuffer(history, streamBuffer)
@@ -2508,7 +2580,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       streamRef.current?.disconnect()
       streamRef.current = null
     }
-  }, [flushMarketChartViewportPersist, interval, panelId, syncAllVwapVisibility, liveVwapContext, syncFixedRangeVolumeProfileLiveRightEdge])
+  }, [exchange, flushMarketChartViewportPersist, interval, panelId, syncAllVwapVisibility, liveVwapContext, syncFixedRangeVolumeProfileLiveRightEdge])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) return
@@ -2546,6 +2618,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         const response = await fetchBtcPerpKlinesForContextLevel(
           requestContextLevel,
           currentInterval,
+          activeExchangeRef.current,
           controller.signal,
         )
         const stillNeeded = requiredVwapContextLevel(
@@ -2562,11 +2635,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
             latestRequestId: vwapContextLatestRequestIdRef.current,
             requestContextLevel,
             stillNeededContextLevel: stillNeeded,
+            requestExchange: activeExchangeRef.current,
+            responseExchange: response.exchange,
           })
         ) {
           return
         }
 
+        providerHistoryAvailableFromRef.current = response.available_from ?? null
         const history = response.candles.filter((c) => c.interval === currentInterval)
         const beforeCandles = candlesRef.current
         const logicalRange = chart.timeScale().getVisibleLogicalRange()
@@ -2600,7 +2676,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     return () => {
       releaseOwnedVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef, owner)
     }
-  }, [activeIndicators, chartReady, interval, refreshIndicatorHistoryNotices, syncAllVwapVisibility])
+  }, [activeIndicators, chartReady, exchange, interval, refreshIndicatorHistoryNotices, syncAllVwapVisibility])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) {
@@ -2638,6 +2714,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         loadOlderBtcPerpHistory({
           state: infiniteHistoryRef.current,
           generation,
+          exchange: activeExchangeRef.current,
           interval: currentInterval,
           before,
           candlesRef,
@@ -2668,6 +2745,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     activeIndicators,
     anchoredVwapInstances,
     chartReady,
+    exchange,
     interval,
     refreshIndicatorHistoryNotices,
     rollingVwapInstances,

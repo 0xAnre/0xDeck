@@ -1,7 +1,8 @@
 import { useWidgetSettings } from '@/hooks/useWidgetSettings'
 import { KPI_AGG_OPTIONS, type KpiAggregation } from '@/kpiStorage'
+import { MARKET_EXCHANGE_OPTIONS } from '@/marketExchanges'
 import { MARKET_INTERVAL_OPTIONS } from '@/marketIntervalStorage'
-import type { CandleInterval } from '@/market/types'
+import type { CandleInterval, MarketExchange } from '@/market/types'
 import { TIME_RANGE_OPTIONS, type TimeRange } from '@/timeRangeStorage'
 import { HeaderColumnsSelect } from '@/widgetSettings/HeaderColumnsSelect'
 import { HeaderIndicatorsMenu } from '@/widgetSettings/HeaderIndicatorsMenu'
@@ -103,6 +104,25 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
           }
         />
       )}
+
+      {settings.fields.exchange &&
+        settings.marketExchange &&
+        settings.onMarketExchangeChange && (
+          <HeaderSelect
+            id={`${panelId}-exchange`}
+            aria-label="Exchange"
+            value={settings.marketExchange}
+            placeholder="Exchange"
+            disabled={settings.disabled}
+            options={MARKET_EXCHANGE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+            onValueChange={(value) =>
+              settings.onMarketExchangeChange?.(value as MarketExchange)
+            }
+          />
+        )}
 
       {settings.fields.interval && (
         <HeaderSelect

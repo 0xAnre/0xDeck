@@ -3,7 +3,7 @@ import {
   type FixedRangeVolumeProfileKlinesResponse,
   type FixedRangeVolumeProfileSourceInterval,
 } from '../api/fixedRangeVolumeProfileClient.ts'
-import { BINANCE_USDM_BTCUSDT_PERPETUAL_TICK_SIZE } from './binanceUsdmBtcusdtPerpetual.ts'
+import { marketPriceTickSize } from './marketExchange.ts'
 import {
   computeFixedRangeVolumeProfile,
   type FixedRangeVolumeProfileResult,
@@ -13,6 +13,7 @@ import {
   computeFixedRangeVolumeProfileRequestBounds,
 } from './fixedRangeVolumeProfileRequestBounds.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import type { MarketExchange } from './types.ts'
 export class FixedRangeVolumeProfilePipelineError extends Error {
   constructor(message: string) {
     super(message)
@@ -40,9 +41,11 @@ export async function runFixedRangeVolumeProfileDataPipeline(
     signal?: AbortSignal
     fetchKlines?: FetchFixedRangeVolumeProfileKlinesForPipeline
     liveRightEdge?: number | null
+    exchange?: MarketExchange
   } = {},
 ): Promise<FixedRangeVolumeProfilePipelineResult> {
   const liveRightEdge = options.liveRightEdge ?? null
+  const exchange = options.exchange ?? 'binance'
   const requestBounds = computeFixedRangeVolumeProfileRequestBounds(instance, liveRightEdge)
   if (!requestBounds) {
     throw new FixedRangeVolumeProfilePipelineError('Invalid volume profile request bounds')
@@ -56,7 +59,12 @@ export async function runFixedRangeVolumeProfileDataPipeline(
   const fetchKlines =
     options.fetchKlines ??
     ((startTime, endTime, signal) =>
-      fetchFixedRangeVolumeProfileKlines({ startTime, endTime, signal }))
+      fetchFixedRangeVolumeProfileKlines({
+        startTime,
+        endTime,
+        exchange,
+        signal,
+      }))
 
   const response = await fetchKlines(
     requestBounds.requestStartTime,
@@ -64,13 +72,17 @@ export async function runFixedRangeVolumeProfileDataPipeline(
     options.signal,
   )
 
+  const referencePrice =
+    response.candles.length > 0
+      ? response.candles[response.candles.length - 1].close
+      : null
   const profile = computeFixedRangeVolumeProfile({
     candles: response.candles,
     fromTime: computationBounds.fromTime,
     toTime: computationBounds.toTime,
     rowCount: instance.rowCount,
     valueAreaPercent: instance.valueAreaPercent,
-    tickSize: BINANCE_USDM_BTCUSDT_PERPETUAL_TICK_SIZE,
+    tickSize: marketPriceTickSize(exchange, referencePrice),
   })
 
   return {

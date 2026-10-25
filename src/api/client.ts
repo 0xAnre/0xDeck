@@ -9,7 +9,13 @@ import type {
   DatasetSummary,
   KpiAggregation,
 } from './types'
-import type { BinanceKlinesResponse, CandleInterval } from '@/market/types'
+import type {
+  BinanceKlinesResponse,
+  CandleInterval,
+  MarketExchange,
+  MarketKlinesResponse,
+} from '@/market/types'
+import { marketKlinesPath } from '../market/marketExchange.ts'
 import type { TimeRange } from '@/timeRangeStorage'
 
 import { MARKET_CHART_MIN_INITIAL_HISTORY_BARS } from '../market/chartInitialVisibleRange.ts'
@@ -103,74 +109,99 @@ export async function fetchDatasetKpi(
   return request<DatasetKpi>(`/datasets/${encodeURIComponent(name)}/kpi?${params}`)
 }
 
+export type MarketVwapContextLevel =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'quarterly'
+  | 'yearly'
+
+export async function fetchMarketKlines(
+  exchange: MarketExchange,
+  interval: CandleInterval,
+  limit = DEFAULT_BINANCE_KLINES_LIMIT,
+  signal?: AbortSignal,
+): Promise<MarketKlinesResponse> {
+  const params = new URLSearchParams({
+    interval,
+    limit: String(limit),
+  })
+  return request<MarketKlinesResponse>(
+    `${marketKlinesPath(exchange)}?${params}`,
+    { signal },
+  )
+}
+
+export async function fetchMarketKlinesContext(
+  exchange: MarketExchange,
+  level: MarketVwapContextLevel,
+  interval: CandleInterval,
+  signal?: AbortSignal,
+): Promise<MarketKlinesResponse> {
+  const params = new URLSearchParams({ interval })
+  return request<MarketKlinesResponse>(
+    `${marketKlinesPath(exchange, `/${level}-context`)}?${params}`,
+    { signal },
+  )
+}
+
+export async function fetchMarketKlinesHistory(
+  exchange: MarketExchange,
+  interval: CandleInterval,
+  beforeEpochSeconds: number,
+  signal?: AbortSignal,
+): Promise<MarketKlinesResponse> {
+  const params = new URLSearchParams({
+    interval,
+    before: String(beforeEpochSeconds),
+  })
+  return request<MarketKlinesResponse>(
+    `${marketKlinesPath(exchange, '/history')}?${params}`,
+    { signal },
+  )
+}
+
 export async function fetchBinanceBtcusdtKlines(
   interval: CandleInterval,
   limit = DEFAULT_BINANCE_KLINES_LIMIT,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({
-    interval,
-    limit: String(limit),
-  })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines?${params}`,
-    { signal },
-  )
+  return fetchMarketKlines('binance', interval, limit, signal)
 }
 
 export async function fetchBinanceBtcusdtKlinesDailyContext(
   interval: CandleInterval,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({ interval })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines/daily-context?${params}`,
-    { signal },
-  )
+  return fetchMarketKlinesContext('binance', 'daily', interval, signal)
 }
 
 export async function fetchBinanceBtcusdtKlinesWeeklyContext(
   interval: CandleInterval,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({ interval })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines/weekly-context?${params}`,
-    { signal },
-  )
+  return fetchMarketKlinesContext('binance', 'weekly', interval, signal)
 }
 
 export async function fetchBinanceBtcusdtKlinesMonthlyContext(
   interval: CandleInterval,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({ interval })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines/monthly-context?${params}`,
-    { signal },
-  )
+  return fetchMarketKlinesContext('binance', 'monthly', interval, signal)
 }
 
 export async function fetchBinanceBtcusdtKlinesQuarterlyContext(
   interval: CandleInterval,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({ interval })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines/quarterly-context?${params}`,
-    { signal },
-  )
+  return fetchMarketKlinesContext('binance', 'quarterly', interval, signal)
 }
 
 export async function fetchBinanceBtcusdtKlinesYearlyContext(
   interval: CandleInterval,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({ interval })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines/yearly-context?${params}`,
-    { signal },
-  )
+  return fetchMarketKlinesContext('binance', 'yearly', interval, signal)
 }
 
 export async function fetchBinanceBtcusdtKlinesHistory(
@@ -178,14 +209,7 @@ export async function fetchBinanceBtcusdtKlinesHistory(
   beforeEpochSeconds: number,
   signal?: AbortSignal,
 ): Promise<BinanceKlinesResponse> {
-  const params = new URLSearchParams({
-    interval,
-    before: String(beforeEpochSeconds),
-  })
-  return request<BinanceKlinesResponse>(
-    `/market/binance/usdm/btcusdt/klines/history?${params}`,
-    { signal },
-  )
+  return fetchMarketKlinesHistory('binance', interval, beforeEpochSeconds, signal)
 }
 
 export function pickDataset(

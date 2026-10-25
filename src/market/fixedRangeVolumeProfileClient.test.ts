@@ -105,6 +105,67 @@ describe('fixedRangeVolumeProfileClient parser', () => {
     )
   })
 
+
+  it('accepts a Hyperliquid BTC response and rejects cross-exchange bodies', () => {
+    const hlBody = {
+      ...validResponseBody(requested.startTime, requested.endTime, '1m', [
+        validCandle(100, '1m'),
+      ]),
+      exchange: 'hyperliquid',
+      symbol: 'BTC',
+    }
+    const parsed = parseFixedRangeVolumeProfileKlinesResponse(hlBody, {
+      ...requested,
+      exchange: 'hyperliquid',
+    })
+    assert.equal(parsed.exchange, 'hyperliquid')
+    assert.equal(parsed.symbol, 'BTC')
+
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(hlBody, requested),
+    )
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(
+        {
+          ...validResponseBody(requested.startTime, requested.endTime, '1m', [
+            validCandle(100, '1m'),
+          ]),
+          exchange: 'binance',
+          symbol: 'BTC',
+        },
+        { ...requested, exchange: 'hyperliquid' },
+      ),
+    )
+  })
+
+  it('routes Hyperliquid volume-profile requests to its own endpoint', async () => {
+    let requestedUrl = ''
+    await fetchFixedRangeVolumeProfileKlines({
+      startTime: 100,
+      endTime: 200,
+      exchange: 'hyperliquid',
+      fetchImpl: async (url) => {
+        requestedUrl = String(url)
+        return {
+          ok: true,
+          json: async () => ({
+            exchange: 'hyperliquid',
+            symbol: 'BTC',
+            start_time: 100,
+            end_time: 200,
+            source_interval: '1m',
+            candles: [validCandle(100, '1m')],
+          }),
+        } as Response
+      },
+    })
+
+    assert.match(
+      requestedUrl,
+      /^\/api\/market\/hyperliquid\/btc\/klines\/volume-profile\?/,
+    )
+  })
+
   it('throws on non-2xx fetch responses', async () => {
     await assert.rejects(
       fetchFixedRangeVolumeProfileKlines({

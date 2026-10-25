@@ -1,14 +1,13 @@
 import type { LogicalRange } from 'lightweight-charts'
-import {
-  fetchBinanceBtcusdtKlinesDailyContext,
-  fetchBinanceBtcusdtKlinesMonthlyContext,
-  fetchBinanceBtcusdtKlinesQuarterlyContext,
-  fetchBinanceBtcusdtKlinesWeeklyContext,
-  fetchBinanceBtcusdtKlinesYearlyContext,
-} from '../api/client.ts'
+import { fetchMarketKlinesContext } from '../api/client.ts'
 import { compareVwapContextLevels, type VwapContextLevel } from './indicators.ts'
 import { mergeOlderMarketCandles } from './mergeMarketCandles.ts'
-import type { BinanceKlinesResponse, CandleInterval, MarketCandle } from './types.ts'
+import type {
+  CandleInterval,
+  MarketCandle,
+  MarketExchange,
+  MarketKlinesResponse,
+} from './types.ts'
 
 export function mergeVwapContextCandles(
   existing: readonly MarketCandle[],
@@ -51,6 +50,8 @@ export function shouldApplyVwapContextResponse(params: {
   latestRequestId: number
   requestContextLevel: VwapContextLevel
   stillNeededContextLevel: VwapContextLevel
+  requestExchange?: MarketExchange
+  responseExchange?: MarketExchange
 }): boolean {
   const {
     requestGeneration,
@@ -61,10 +62,19 @@ export function shouldApplyVwapContextResponse(params: {
     latestRequestId,
     requestContextLevel,
     stillNeededContextLevel,
+    requestExchange,
+    responseExchange,
   } = params
   if (requestId !== latestRequestId) return false
   if (requestGeneration !== activeGeneration) return false
   if (responseInterval !== requestInterval) return false
+  if (
+    requestExchange !== undefined &&
+    responseExchange !== undefined &&
+    responseExchange !== requestExchange
+  ) {
+    return false
+  }
   if (compareVwapContextLevels(stillNeededContextLevel, requestContextLevel) < 0) return false
   return true
 }
@@ -83,19 +93,16 @@ export function vwapContextLevelSatisfiesLoaded(
 export async function fetchBtcPerpKlinesForContextLevel(
   level: VwapContextLevel,
   interval: CandleInterval,
+  exchange: MarketExchange = 'binance',
   signal?: AbortSignal,
-): Promise<BinanceKlinesResponse> {
+): Promise<MarketKlinesResponse> {
   switch (level) {
     case 'daily':
-      return fetchBinanceBtcusdtKlinesDailyContext(interval, signal)
     case 'weekly':
-      return fetchBinanceBtcusdtKlinesWeeklyContext(interval, signal)
     case 'monthly':
-      return fetchBinanceBtcusdtKlinesMonthlyContext(interval, signal)
     case 'quarterly':
-      return fetchBinanceBtcusdtKlinesQuarterlyContext(interval, signal)
     case 'yearly':
-      return fetchBinanceBtcusdtKlinesYearlyContext(interval, signal)
+      return fetchMarketKlinesContext(exchange, level, interval, signal)
     default: {
       const _exhaustive: never = level
       return _exhaustive

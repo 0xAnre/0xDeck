@@ -9,7 +9,7 @@ import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
-import type { CandleInterval } from '@/market/types'
+import type { CandleInterval, MarketExchange } from '@/market/types'
 import {
   type WidgetSettingsFields,
   type WidgetSettingsRegistration,
@@ -20,6 +20,8 @@ import { DEFAULT_TIME_RANGE } from '@/timeRangeStorage'
 type UseMarketWidgetSettingsArgs = {
   headerSettings: WidgetSettingsFields
   panelId: string
+  marketExchange: MarketExchange
+  onMarketExchangeChange: (exchange: MarketExchange) => void
   marketInterval: CandleInterval
   onMarketIntervalChange: (interval: CandleInterval) => void
   marketIndicators: MarketIndicatorId[]
@@ -104,6 +106,8 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
   const {
     headerSettings,
     panelId,
+    marketExchange,
+    onMarketExchangeChange,
     marketInterval,
     onMarketIntervalChange,
     marketIndicators,
@@ -165,6 +169,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onDatasetChange: noop,
       timeRange: DEFAULT_TIME_RANGE,
       onTimeRangeChange: noop as (range: TimeRange) => void,
+      marketExchange: headerSettings.exchange ? marketExchange : undefined,
+      onMarketExchangeChange: headerSettings.exchange
+        ? onMarketExchangeChange
+        : undefined,
       marketInterval,
       onMarketIntervalChange,
       marketIndicators: headerSettings.indicators ? marketIndicators : undefined,
@@ -252,8 +260,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       lineInstances,
       anchoredVwapInstances,
       headerSettings,
+      marketExchange,
       marketIndicators,
       marketInterval,
+      onMarketExchangeChange,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,
       onFixedRangeVolumeProfileToggle,
