@@ -221,4 +221,119 @@ describe('loadOlderBtcPerpHistoryCore', () => {
     assert.equal(state.requestedBefore.has(before), false)
     assert.equal(state.exhausted, false)
   })
+
+  it('releases before lock on abort so the same page can be retried', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = { current: [candle(1_700_001_000)] }
+    const before = candlesRef.current[0].time
+    const controller = new AbortController()
+
+    const abortedRequest = loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      signal: controller.signal,
+      fetchHistory: (_interval, _beforeEpochSeconds, signal) =>
+        new Promise<BinanceKlinesResponse>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'))
+          })
+        }),
+      applyMergedHistory: () => {
+        throw new Error('aborted page must not apply history')
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+    })
+
+    controller.abort()
+    await abortedRequest
+
+    assert.equal(state.loading, false)
+    assert.equal(state.requestedBefore.has(before), false)
+    assert.equal(candlesRef.current.length, 1)
+
+    let retryAttempts = 0
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async (interval) => {
+        retryAttempts += 1
+        return { symbol: 'BTCUSDT', interval, candles: [candle(before - 60)] }
+      },
+      applyMergedHistory: (_bundle, merged) => {
+        candlesRef.current = [...merged]
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+    })
+
+    assert.equal(retryAttempts, 1)
+    assert.equal(candlesRef.current.length, 2)
+    assert.equal(candlesRef.current[0].time, before - 60)
+  })
+
+  it('calls onHistoryMerged after prepending candles but not on abort', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = { current: [candle(1_700_002_000)] }
+    const before = candlesRef.current[0].time
+    const mergedLengths: number[] = []
+
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async (interval) => ({
+        symbol: 'BTCUSDT',
+        interval,
+        candles: [candle(before - 120), candle(before - 60)],
+      }),
+      applyMergedHistory: (_bundle, merged) => {
+        candlesRef.current = [...merged]
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+      onHistoryMerged: () => {
+        mergedLengths.push(candlesRef.current.length)
+      },
+    })
+
+    assert.deepEqual(mergedLengths, [3])
+
+    const abortController = new AbortController()
+    abortController.abort()
+    const abortCalls: number[] = []
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before: candlesRef.current[0].time,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      signal: abortController.signal,
+      fetchHistory: async () => {
+        throw new DOMException('Aborted', 'AbortError')
+      },
+      applyMergedHistory: () => {},
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+      onHistoryMerged: () => {
+        abortCalls.push(1)
+      },
+    })
+
+    assert.deepEqual(abortCalls, [])
+  })
 })

@@ -10,7 +10,7 @@ import {
   historySatisfiesIndicatorTarget,
   preloadIndicatorHistory,
 } from './indicatorHistoryPreload.ts'
-import type { BinanceKlinesResponse, MarketCandle } from './types.ts'
+import type { BinanceKlinesResponse, CandleInterval, MarketCandle } from './types.ts'
 
 const PAGE_SIZE = 500
 
@@ -60,6 +60,19 @@ function pageBefore(oldestTime: number): MarketCandle[] {
   return Array.from({ length: PAGE_SIZE }, (_, index) =>
     candle(oldestTime - (PAGE_SIZE - index) * 60),
   )
+}
+
+/** Never resolves; rejects with an AbortError once the signal aborts. */
+function abortableFetch(
+  requested: number[],
+): (interval: CandleInterval, beforeEpochSeconds: number, signal?: AbortSignal) => Promise<BinanceKlinesResponse> {
+  return (_interval, beforeEpochSeconds, signal) =>
+    new Promise<BinanceKlinesResponse>((_resolve, reject) => {
+      requested.push(beforeEpochSeconds)
+      signal?.addEventListener('abort', () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      })
+    })
 }
 
 describe('historySatisfiesIndicatorTarget', () => {
@@ -313,5 +326,138 @@ describe('preloadIndicatorHistory', () => {
 
     assert.equal(result, 'aborted')
     assert.equal(calls, 0)
+  })
+
+  it('releases an aborted page so a retried preload still fetches and satisfies the target', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = {
+      current: Array.from({ length: 750 }, (_, index) => candle(1_700_000_000 + index * 60)),
+    }
+    const before = candlesRef.current[0].time
+    const controller = new AbortController()
+    const abortedRequests: number[] = []
+
+    const abortedPreload = preloadIndicatorHistory({
+      state,
+      generation: 1,
+      target: { warmupBars: 1250, earliestTime: null },
+      candlesRef,
+      signal: controller.signal,
+      loadOlderPage: (cursor) =>
+        loadOlderBtcPerpHistoryCore({
+          state,
+          generation: 1,
+          interval: '1m',
+          before: cursor,
+          candlesRef,
+          bundle: fakeBundle(),
+          chart: fakeChart(),
+          signal: controller.signal,
+          fetchHistory: abortableFetch(abortedRequests),
+          applyMergedHistory: () => {
+            throw new Error('aborted page must not apply history')
+          },
+          mergeOlderCandles: (existing, older) => [...older, ...existing],
+        }),
+    })
+
+    controller.abort()
+
+    assert.equal(await abortedPreload, 'aborted')
+    assert.deepEqual(abortedRequests, [before])
+    assert.equal(state.requestedBefore.has(before), false)
+    assert.equal(state.loading, false)
+    assert.equal(candlesRef.current.length, 750)
+
+    const retryRequests: number[] = []
+    const retried = await preloadIndicatorHistory({
+      state,
+      generation: 1,
+      target: { warmupBars: 1250, earliestTime: null },
+      candlesRef,
+      loadOlderPage: (cursor) =>
+        loadOlderBtcPerpHistoryCore({
+          state,
+          generation: 1,
+          interval: '1m',
+          before: cursor,
+          candlesRef,
+          bundle: fakeBundle(),
+          chart: fakeChart(),
+          fetchHistory: async (interval, beforeEpochSeconds) => {
+            retryRequests.push(beforeEpochSeconds)
+            return { symbol: 'BTCUSDT', interval, candles: pageBefore(beforeEpochSeconds) }
+          },
+          applyMergedHistory: (_bundle, merged) => {
+            candlesRef.current = [...merged]
+          },
+          mergeOlderCandles: (existing, older) => [...older, ...existing],
+        }),
+    })
+
+    assert.equal(retried, 'satisfied')
+    assert.deepEqual(retryRequests, [before])
+    assert.equal(candlesRef.current.length, 1250)
+  })
+
+  it('keeps manual scroll-back at an aborted cursor working', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = {
+      current: Array.from({ length: 750 }, (_, index) => candle(1_700_000_000 + index * 60)),
+    }
+    const before = candlesRef.current[0].time
+    const controller = new AbortController()
+
+    const abortedPreload = preloadIndicatorHistory({
+      state,
+      generation: 1,
+      target: { warmupBars: 2000, earliestTime: null },
+      candlesRef,
+      signal: controller.signal,
+      loadOlderPage: (cursor) =>
+        loadOlderBtcPerpHistoryCore({
+          state,
+          generation: 1,
+          interval: '1m',
+          before: cursor,
+          candlesRef,
+          bundle: fakeBundle(),
+          chart: fakeChart(),
+          signal: controller.signal,
+          fetchHistory: abortableFetch([]),
+          applyMergedHistory: () => {
+            throw new Error('aborted page must not apply history')
+          },
+          mergeOlderCandles: (existing, older) => [...older, ...existing],
+        }),
+    })
+
+    controller.abort()
+    assert.equal(await abortedPreload, 'aborted')
+
+    const scrollBackRequests: number[] = []
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async (interval, beforeEpochSeconds) => {
+        scrollBackRequests.push(beforeEpochSeconds)
+        return { symbol: 'BTCUSDT', interval, candles: pageBefore(beforeEpochSeconds) }
+      },
+      applyMergedHistory: (_bundle, merged) => {
+        candlesRef.current = [...merged]
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+    })
+
+    assert.deepEqual(scrollBackRequests, [before])
+    assert.equal(candlesRef.current.length, 1250)
+    assert.equal(candlesRef.current[0].time, before - PAGE_SIZE * 60)
   })
 })

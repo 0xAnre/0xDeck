@@ -6,6 +6,7 @@ import {
   DUAL_EMA_WARMUP_BARS,
   evaluateIndicatorHistoryPlan,
   evaluateIndicatorHistoryRequirement,
+  INDICATOR_HISTORY_LIMIT_NOTICE,
   mergeIndicatorHistoryRequirements,
   resolveIndicatorHistoryPlan,
   resolveIndicatorHistoryRequirements,
@@ -39,12 +40,16 @@ function rollingInstance(
   return { id: 'rvwap-test', enabled: true, settings, displaySequence: 1, ...overrides }
 }
 
-function anchoredInstance(anchorTime: number): AnchoredVwapInstance {
+function anchoredInstance(
+  anchorTime: number,
+  overrides: Partial<AnchoredVwapInstance> = {},
+): AnchoredVwapInstance {
   return {
     id: 'avwap-test',
     anchorTime,
     displaySequence: 1,
     settings: {} as AnchoredVwapInstance['settings'],
+    ...overrides,
   }
 }
 
@@ -87,6 +92,21 @@ describe('indicator history requirements: Anchored VWAP', () => {
     assert.equal(requirement.label, 'Anchored VWAP 1')
     assert.equal(requirement.earliestTime, NOW - 9000)
     assert.equal(requirement.warmupBars, 2)
+  })
+
+  it('ignores hidden Anchored VWAP instances', () => {
+    assert.deepEqual(
+      resolveIndicatorHistoryRequirements({
+        interval: '1m',
+        indicators: [],
+        anchoredVwapInstances: [
+          anchoredInstance(NOW - 9000, { hidden: true }),
+          anchoredInstance(NOW - 60, { id: 'avwap-visible' }),
+        ],
+        nowSeconds: NOW,
+      }).map((requirement) => requirement.source),
+      ['avwap-visible'],
+    )
   })
 })
 
@@ -177,6 +197,41 @@ describe('indicator history requirements: Time-Based VWAP', () => {
       [],
     )
   })
+
+  it('keeps session VWAP out of the shared preload target', () => {
+    const plan = resolveIndicatorHistoryPlan({
+      interval: '1m',
+      indicators: ['daily-vwap', 'triple-ema'],
+      nowSeconds: NOW,
+    })
+    assert.equal(plan.requirements.length, 2)
+    assert.equal(plan.warmupBars, TRIPLE_EMA_WARMUP_BARS)
+    assert.equal(plan.earliestTime, null)
+  })
+
+  it('does not report a bar ratio for session VWAP warmup', () => {
+    const [requirement] = resolveIndicatorHistoryRequirements({
+      interval: '1m',
+      indicators: ['daily-vwap'],
+      nowSeconds: NOW,
+    })
+    const sessionStart = vwapCalendarPeriodStartSeconds('daily', NOW)
+    const partialBars = Array.from({ length: 750 }, (_, index) =>
+      candle(NOW - (750 - index) * 60),
+    )
+    const partialEntry = evaluateIndicatorHistoryRequirement(requirement, partialBars)
+    assert.equal(partialEntry.status, 'partial-warmup')
+    const partialNotice = describeIndicatorHistoryStatus(partialEntry)
+    assert.equal(partialNotice, 'Daily VWAP: history does not cover the current session yet')
+    assert.equal(/\d+\/\d+ bars/.test(partialNotice ?? ''), false)
+
+    const coveredBars = Array.from({ length: 750 }, (_, index) =>
+      candle(sessionStart - (750 - index) * 60),
+    )
+    const coveredEntry = evaluateIndicatorHistoryRequirement(requirement, coveredBars)
+    assert.equal(coveredEntry.status, 'ready')
+    assert.equal(describeIndicatorHistoryStatus(coveredEntry), null)
+  })
 })
 
 describe('indicator history requirements: shared merge', () => {
@@ -251,6 +306,39 @@ describe('indicator history status', () => {
     const entry = evaluateIndicatorHistoryRequirement(anchored, [candle(1000), candle(2000)])
     assert.equal(entry.status, 'ready')
     assert.equal(describeIndicatorHistoryStatus(entry), null)
+  })
+
+  it('reports the preload page cap distinctly from exhausted history', () => {
+    const entry = evaluateIndicatorHistoryRequirement(anchored, [candle(2000), candle(3000)])
+    assert.equal(entry.status, 'cannot-compute')
+    assert.equal(
+      describeIndicatorHistoryStatus(entry, { preloadLimitReached: true }),
+      `Anchored VWAP 1: ${INDICATOR_HISTORY_LIMIT_NOTICE}`,
+    )
+    assert.equal(
+      describeIndicatorHistoryStatus(entry, { preloadLimitReached: false }),
+      'Anchored VWAP 1: anchor is older than available history',
+    )
+  })
+
+  it('refreshes a partial-warmup notice once the candle buffer grows', () => {
+    const [requirement] = resolveIndicatorHistoryRequirements({
+      interval: '1w',
+      indicators: ['dual-ema'],
+      nowSeconds: NOW,
+    })
+    const partial = evaluateIndicatorHistoryRequirement(
+      requirement,
+      Array.from({ length: 750 }, (_, index) => candle(index)),
+    )
+    assert.equal(partial.status, 'partial-warmup')
+
+    const grown = evaluateIndicatorHistoryRequirement(
+      requirement,
+      Array.from({ length: 1250 }, (_, index) => candle(index)),
+    )
+    assert.equal(grown.status, 'ready')
+    assert.equal(describeIndicatorHistoryStatus(grown), null)
   })
 
   it('evaluates a merged plan into per-indicator notices', () => {

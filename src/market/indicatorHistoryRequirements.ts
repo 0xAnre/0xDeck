@@ -205,6 +205,7 @@ export function resolveIndicatorHistoryRequirements(
   }
 
   for (const instance of anchoredVwapInstances) {
+    if (instance.hidden) continue
     requirements.push(anchoredVwapRequirement(instance))
   }
 
@@ -221,13 +222,21 @@ export function resolveIndicatorHistoryRequirements(
   return requirements
 }
 
-/** Merge per-indicator requirements into one shared preload target. */
+/**
+ * Merge per-indicator requirements into one shared preload target.
+ *
+ * Time-Based VWAP is excluded from the target: its session window is already
+ * fetched by the panel's VWAP-context request, so preloading it again would
+ * duplicate the same `/klines` range. The requirement stays in the plan so the
+ * panel can still report a meaningful status for the session VWAP.
+ */
 export function mergeIndicatorHistoryRequirements(
   requirements: readonly IndicatorHistoryRequirement[],
 ): IndicatorHistoryPlan {
   let warmupBars = 0
   let earliestTime: number | null = null
   for (const requirement of requirements) {
+    if (requirement.kind === 'time-vwap') continue
     warmupBars = Math.max(warmupBars, requirement.warmupBars)
     if (requirement.earliestTime === null) continue
     earliestTime =
@@ -293,9 +302,29 @@ export function evaluateIndicatorHistoryPlan(
   )
 }
 
-export function describeIndicatorHistoryStatus(entry: IndicatorHistoryStatusEntry): string | null {
+export const INDICATOR_HISTORY_LIMIT_NOTICE =
+  'preload limit reached — switch to a larger timeframe'
+
+export type DescribeIndicatorHistoryStatusOptions = {
+  /**
+   * True when the shared preload stopped at its page cap instead of exhausting
+   * available history, so "older than available history" would be misleading.
+   */
+  preloadLimitReached?: boolean
+}
+
+export function describeIndicatorHistoryStatus(
+  entry: IndicatorHistoryStatusEntry,
+  options: DescribeIndicatorHistoryStatusOptions = {},
+): string | null {
   if (entry.status === 'ready') return null
   const { requirement, availableBars, oldestCandleTime } = entry
+
+  if (entry.status === 'partial-warmup' && requirement.kind === 'time-vwap') {
+    // Bar counts are meaningless for session VWAP (warmupBars is 1); what
+    // matters is whether the buffer reaches the current session open.
+    return `${requirement.label}: history does not cover the current session yet`
+  }
 
   if (entry.status === 'cannot-compute') {
     if (
@@ -304,7 +333,9 @@ export function describeIndicatorHistoryStatus(entry: IndicatorHistoryStatusEntr
       oldestCandleTime !== null &&
       oldestCandleTime > requirement.earliestTime
     ) {
-      return `${requirement.label}: anchor is older than available history`
+      return options.preloadLimitReached
+        ? `${requirement.label}: ${INDICATOR_HISTORY_LIMIT_NOTICE}`
+        : `${requirement.label}: anchor is older than available history`
     }
     return `${requirement.label}: not enough history (${availableBars}/${requirement.minimumBarsToCompute} bars to compute)`
   }
