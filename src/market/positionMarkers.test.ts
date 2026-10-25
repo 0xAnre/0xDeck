@@ -7,6 +7,8 @@ import {
 } from '../marketPositionMarkersStorage.ts'
 import {
   isPositionMarkersMenuVisible,
+  POSITION_MARKER_BUY_COLOR,
+  POSITION_MARKER_SELL_COLOR,
   shouldShowPositionMarkers,
 } from './positionMarkers.ts'
 
@@ -67,6 +69,11 @@ describe('Position Markers setting', () => {
 
     memory.set(WIDGET_MARKET_POSITION_MARKERS_STORAGE_KEY, '{not-json')
     assert.equal(loadWidgetMarketPositionMarkers('panel-a'), false)
+  })
+
+  it('defines fixed marker colors for every theme', () => {
+    assert.equal(POSITION_MARKER_BUY_COLOR, '#22C55E')
+    assert.equal(POSITION_MARKER_SELL_COLOR, '#EF4444')
   })
 
   it('is visible and active only for Hyperliquid when enabled', () => {

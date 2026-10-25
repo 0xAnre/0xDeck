@@ -290,7 +290,11 @@ import {
   loadWidgetMarketPositionMarkers,
   saveWidgetMarketPositionMarkers,
 } from '@/marketPositionMarkersStorage'
-import { shouldShowPositionMarkers } from '@/market/positionMarkers'
+import {
+  POSITION_MARKER_BUY_COLOR,
+  POSITION_MARKER_SELL_COLOR,
+  shouldShowPositionMarkers,
+} from '@/market/positionMarkers'
 import {
   loadWidgetMarketExchange,
   saveWidgetMarketExchange,
@@ -307,11 +311,10 @@ import {
   type WidgetStreamConnectionState,
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor, resolveThemeCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveCssColor } from '@/lib/resolveCssColor.ts'
 import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
-  MARKET_STYLE_PALETTE,
 } from '@/market/marketStylePalette'
 import {
   hyperliquidUserFillsChannel,
@@ -346,19 +349,10 @@ function readThemeColors() {
   }
 }
 
-/** Marker colors come from resolved theme tokens, never hardcoded widget hexes. */
-function readHyperliquidMarkerColors(): HyperliquidMarkerColors {
-  const style = getComputedStyle(document.documentElement)
-  return {
-    buy: resolveThemeCssColor(
-      style.getPropertyValue('--up'),
-      MARKET_STYLE_PALETTE.light,
-    ),
-    sell: resolveThemeCssColor(
-      style.getPropertyValue('--down'),
-      MARKET_STYLE_PALETTE.pocRed,
-    ),
-  }
+/** Fixed account-marker colors (same in every theme). */
+const HYPERLIQUID_MARKER_COLORS: HyperliquidMarkerColors = {
+  buy: POSITION_MARKER_BUY_COLOR,
+  sell: POSITION_MARKER_SELL_COLOR,
 }
 
 /** The BTC Perp widget always uses this built-in read-only account. */
@@ -2270,7 +2264,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     markers.setMarkers(
       hyperliquidFillGroupsToMarkers(
         groupHyperliquidFillMarkers(visible),
-        readHyperliquidMarkerColors(),
+        HYPERLIQUID_MARKER_COLORS,
       ),
     )
     accountMarkersByBucketRef.current = byBucket

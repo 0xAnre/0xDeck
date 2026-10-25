@@ -11,10 +11,14 @@ import {
   hyperliquidFillMarkerStyle,
   type HyperliquidMarkerColors,
 } from './hyperliquidMarkers.ts'
+import {
+  POSITION_MARKER_BUY_COLOR,
+  POSITION_MARKER_SELL_COLOR,
+} from './positionMarkers.ts'
 
 const COLORS: HyperliquidMarkerColors = {
-  buy: 'rgb(1, 2, 3)',
-  sell: 'rgb(4, 5, 6)',
+  buy: POSITION_MARKER_BUY_COLOR,
+  sell: POSITION_MARKER_SELL_COLOR,
 }
 
 function group(side: 'B' | 'A') {
@@ -47,6 +51,13 @@ describe('Hyperliquid side-only marker mapping', () => {
       size: 1,
       colorKey: 'sell',
     })
+  })
+
+  it('uses fixed buy/sell colors in every theme', () => {
+    assert.equal(POSITION_MARKER_BUY_COLOR, '#22C55E')
+    assert.equal(POSITION_MARKER_SELL_COLOR, '#EF4444')
+    assert.equal(hyperliquidFillGroupMarker(group('B'), COLORS).color, '#22C55E')
+    assert.equal(hyperliquidFillGroupMarker(group('A'), COLORS).color, '#EF4444')
   })
 
   it('uses the candle bucket as the marker time and a stable bucket+side id', () => {
