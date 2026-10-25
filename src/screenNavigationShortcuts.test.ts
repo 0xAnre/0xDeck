@@ -2,22 +2,33 @@ import assert from 'node:assert/strict'
 import { describe, it, mock } from 'node:test'
 import {
   createScreenNavigationSequenceHandler,
+  createWorkspaceScreenNavigationIntent,
   isEditableKeyboardTarget,
+  resolveLockedWorkspaceScreenScrollTop,
+  resolveNearestWorkspaceScreenIndex,
+  resolveScreenLockAlignmentScreenIndex,
+  resolveWorkspaceScreenExtentHeight,
   resolveWorkspaceScreenScrollTop,
   scrollToWorkspaceScreenAtIndex,
+  WORKSPACE_SCREEN_COUNT,
+  WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
   type ScreenNavigationKeyEvent,
 } from './screenNavigationShortcuts.ts'
 
 const KEY_FROM_CODE: Record<string, string> = {
-  KeyP: 'p',
+  KeyM: 'm',
   KeyA: 'a',
   KeyG: 'g',
+  Digit0: '0',
   Digit1: '1',
   Digit2: '2',
   Digit3: '3',
   Digit4: '4',
   Digit5: '5',
   Digit6: '6',
+  Digit7: '7',
+  Digit8: '8',
+  Digit9: '9',
 }
 
 function shortcutEvent(
@@ -37,10 +48,10 @@ function shortcutEvent(
 }
 
 describe('createScreenNavigationSequenceHandler', () => {
-  it('maps p then 1 through p then 5 to zero-based indexes 0 through 4', () => {
+  it('maps m then 1 through m then 9 to zero-based indexes 0 through 8', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    for (let digit = 1; digit <= 5; digit += 1) {
-      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
       assert.equal(
         sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })),
         digit - 1,
@@ -49,18 +60,27 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('does not navigate when pressing 1 through 5 without a preceding p', () => {
+  it('does not navigate for m then 0', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    for (let digit = 1; digit <= 5; digit += 1) {
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit0' })), null)
+    // The zero cancelled the sequence, so the next digit must not navigate either.
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit1' })), null)
+    sequence.dispose()
+  })
+
+  it('does not navigate when pressing 1 through 9 without a preceding m', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
       assert.equal(sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })), null)
     }
     sequence.dispose()
   })
 
-  it('does not navigate after p when the timeout expires before a digit', () => {
+  it('does not navigate after m when the timeout expires before a digit', () => {
     const timeoutMs = 50
     const sequence = createScreenNavigationSequenceHandler({ timeoutMs })
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
 
     return new Promise<void>((resolve, reject) => {
       setTimeout(() => {
@@ -75,19 +95,19 @@ describe('createScreenNavigationSequenceHandler', () => {
     })
   })
 
-  it('cancels the sequence after p then a non-matching key', () => {
+  it('cancels the sequence after m then a non-matching key', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyA' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
     sequence.dispose()
   })
 
-  it('allows a new p to start a fresh sequence after cancellation', () => {
+  it('allows a new m to start a fresh sequence after cancellation', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyA' })), null)
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4' })), 3)
     sequence.dispose()
   })
@@ -101,9 +121,42 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
+  it('does not navigate when using the retired p then 1 through 9 sequence', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: `Digit${digit}` })), null)
+    }
+    sequence.dispose()
+  })
+
+  it('does not arm a pending sequence from p', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
+    // A following m is required to navigate; p left nothing pending.
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), 1)
+    sequence.dispose()
+  })
+
+  it('navigates to screens 6 through 9 from shifted digits and alternate layouts', () => {
+    const sequence = createScreenNavigationSequenceHandler()
+    for (let digit = 6; digit <= 9; digit += 1) {
+      assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'm' })), null)
+      assert.equal(
+        sequence.handleKeyDown(
+          shortcutEvent({ code: `Digit${digit}`, key: String(digit), shiftKey: true }),
+        ),
+        digit - 1,
+      )
+    }
+    sequence.dispose()
+  })
+
   it('matches typed digit characters via event.key (e.g. AZERTY shift+digit)', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', key: 'm' })), null)
     assert.equal(
       sequence.handleKeyDown(
         shortcutEvent({ code: 'Digit2', key: '2', shiftKey: true }),
@@ -115,7 +168,7 @@ describe('createScreenNavigationSequenceHandler', () => {
 
   it('retains the sequence through a separate Shift keydown before a shifted digit', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', key: 'm' })), null)
     assert.equal(
       sequence.handleKeyDown(
         shortcutEvent({ code: 'ShiftLeft', key: 'Shift', shiftKey: true }),
@@ -131,9 +184,9 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('does not navigate from physical digit position when the typed character is not 1-5', () => {
+  it('does not navigate from physical digit position when the typed character is not 1-9', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', key: 'm' })), null)
     assert.equal(
       sequence.handleKeyDown(shortcutEvent({ code: 'Digit1', key: '&' })),
       null,
@@ -142,16 +195,16 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('arms the sequence when p is typed on a non-KeyP physical position (e.g. alternate layout)', () => {
+  it('arms the sequence when m is typed on a non-KeyM physical position (e.g. alternate layout)', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'p' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyR', key: 'm' })), null)
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit4', key: '4' })), 3)
     sequence.dispose()
   })
 
-  it('ignores Cmd+1 through Cmd+5 and Cmd+Option chords', () => {
+  it('ignores Cmd+1 through Cmd+9 and Cmd+Option chords', () => {
     const sequence = createScreenNavigationSequenceHandler()
-    for (let digit = 1; digit <= 5; digit += 1) {
+    for (let digit = 1; digit <= WORKSPACE_SCREEN_COUNT; digit += 1) {
       assert.equal(
         sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: `Digit${digit}` })),
         null,
@@ -163,7 +216,7 @@ describe('createScreenNavigationSequenceHandler', () => {
         null,
       )
     }
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     assert.equal(
       sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'Digit2' })),
       null,
@@ -171,17 +224,27 @@ describe('createScreenNavigationSequenceHandler', () => {
     sequence.dispose()
   })
 
-  it('ignores unrelated keys and modified p', () => {
+  it('ignores unrelated keys and modified m', () => {
     const sequence = createScreenNavigationSequenceHandler()
     assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit6' })), null)
     assert.equal(
-      sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'KeyP' })),
+      sequence.handleKeyDown(shortcutEvent({ metaKey: true, code: 'KeyM' })),
       null,
     )
     assert.equal(
-      sequence.handleKeyDown(shortcutEvent({ ctrlKey: true, code: 'KeyP' })),
+      sequence.handleKeyDown(shortcutEvent({ ctrlKey: true, code: 'KeyM' })),
       null,
     )
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ shiftKey: true, code: 'KeyM' })),
+      null,
+    )
+    assert.equal(
+      sequence.handleKeyDown(shortcutEvent({ altKey: true, code: 'KeyM' })),
+      null,
+    )
+    // None of the modified m presses armed a sequence.
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'Digit2' })), null)
     sequence.dispose()
   })
 
@@ -217,7 +280,7 @@ describe('createScreenNavigationSequenceHandler', () => {
     for (const target of [input, textarea, select, editable]) {
       const sequence = createScreenNavigationSequenceHandler()
       assert.equal(
-        sequence.handleKeyDown(shortcutEvent({ code: 'KeyP', target: target as never })),
+        sequence.handleKeyDown(shortcutEvent({ code: 'KeyM', target: target as never })),
         null,
       )
       assert.equal(
@@ -239,7 +302,7 @@ describe('createScreenNavigationSequenceHandler', () => {
     const originalClearTimeout = globalThis.clearTimeout
     globalThis.clearTimeout = clearTimeoutSpy
 
-    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyP' })), null)
+    assert.equal(sequence.handleKeyDown(shortcutEvent({ code: 'KeyM' })), null)
     sequence.dispose()
     assert.equal(clearTimeoutSpy.mock.callCount(), 1)
 
@@ -250,14 +313,15 @@ describe('createScreenNavigationSequenceHandler', () => {
 
 describe('resolveWorkspaceScreenScrollTop', () => {
   const pageHeight = 800
+  const nineScreens = {
+    clientHeight: pageHeight,
+    scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+  }
 
-  it('maps screen indexes 0 through 4 to exact page start offsets for Screens 1 through 5', () => {
-    const container = { clientHeight: pageHeight, scrollHeight: pageHeight * 6 }
-    assert.equal(resolveWorkspaceScreenScrollTop(container, 0), 0)
-    assert.equal(resolveWorkspaceScreenScrollTop(container, 1), pageHeight)
-    assert.equal(resolveWorkspaceScreenScrollTop(container, 2), pageHeight * 2)
-    assert.equal(resolveWorkspaceScreenScrollTop(container, 3), pageHeight * 3)
-    assert.equal(resolveWorkspaceScreenScrollTop(container, 4), pageHeight * 4)
+  it('maps screen indexes 0 through 8 to exact page start offsets for Screens 1 through 9', () => {
+    for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+      assert.equal(resolveWorkspaceScreenScrollTop(nineScreens, index), index * pageHeight)
+    }
   })
 
   it('does not depend on panel count or widget order', () => {
@@ -267,7 +331,7 @@ describe('resolveWorkspaceScreenScrollTop', () => {
     assert.equal(resolveWorkspaceScreenScrollTop(manyWidgetsOneScreen, 2), pageHeight * 2)
   })
 
-  it('sends p+2 and p+3 to Screen 2 and 3 starts when multiple widgets share Screen 1', () => {
+  it('sends m+2 and m+3 to Screen 2 and 3 starts when multiple widgets share Screen 1', () => {
     const container = { clientHeight: pageHeight, scrollHeight: pageHeight * 4 }
     assert.equal(resolveWorkspaceScreenScrollTop(container, 0), 0)
     assert.equal(resolveWorkspaceScreenScrollTop(container, 1), pageHeight)
@@ -293,8 +357,264 @@ describe('resolveWorkspaceScreenScrollTop', () => {
     assert.equal(resolveWorkspaceScreenScrollTop(noScroll, 1), null)
 
     assert.equal(resolveWorkspaceScreenScrollTop({ clientHeight: 0, scrollHeight: 1000 }, 0), null)
-    assert.equal(resolveWorkspaceScreenScrollTop({ clientHeight: pageHeight, scrollHeight: pageHeight * 2 }, -1), null)
-    assert.equal(resolveWorkspaceScreenScrollTop({ clientHeight: pageHeight, scrollHeight: pageHeight * 2 }, 5), null)
+    assert.equal(resolveWorkspaceScreenScrollTop(nineScreens, -1), null)
+    assert.equal(resolveWorkspaceScreenScrollTop(nineScreens, WORKSPACE_SCREEN_COUNT), null)
+  })
+})
+
+describe('resolveWorkspaceScreenExtentHeight', () => {
+  it('reserves exactly 9 viewports so empty screens stay reachable', () => {
+    assert.equal(resolveWorkspaceScreenExtentHeight(800), 800 * WORKSPACE_SCREEN_COUNT)
+    assert.equal(resolveWorkspaceScreenExtentHeight(517), 517 * WORKSPACE_SCREEN_COUNT)
+  })
+
+  it('reserves nothing before the workspace has a measurable viewport', () => {
+    assert.equal(resolveWorkspaceScreenExtentHeight(0), 0)
+    assert.equal(resolveWorkspaceScreenExtentHeight(-10), 0)
+  })
+})
+
+describe('workspace screen extent contract', () => {
+  const pageHeight = 800
+  const extentHeight = resolveWorkspaceScreenExtentHeight(pageHeight)
+
+  /** Scroller metrics as they would be with the extreme-end wrapper applied to empty content. */
+  function scrollerMetrics(contentHeight: number) {
+    return {
+      clientHeight: pageHeight,
+      // The wrapper's min-height is the floor of the scroller's scroll height.
+      scrollHeight: Math.max(contentHeight, extentHeight),
+    }
+  }
+
+  it('reserves an extent of at least 9 viewports', () => {
+    assert.ok(extentHeight >= pageHeight * WORKSPACE_SCREEN_COUNT)
+    for (const viewport of [320, 517, 800, 1080]) {
+      assert.ok(resolveWorkspaceScreenExtentHeight(viewport) >= viewport * WORKSPACE_SCREEN_COUNT)
+    }
+  })
+
+  it('maps indexes 0-8 to exact page tops when content is shorter than the extent', () => {
+    // Empty workspace, a single one-viewport-tall panel, and a partially filled second screen.
+    for (const contentHeight of [1, pageHeight, pageHeight * 2 - 250]) {
+      const emptyScreens = scrollerMetrics(contentHeight)
+      for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+        assert.equal(resolveWorkspaceScreenScrollTop(emptyScreens, index), index * pageHeight)
+        assert.equal(resolveLockedWorkspaceScreenScrollTop(emptyScreens, index), index * pageHeight)
+        assert.equal(resolveNearestWorkspaceScreenIndex(emptyScreens, index * pageHeight), index)
+      }
+    }
+  })
+
+  it('keeps exact page tops when the scroller adds padding beyond the 9-viewport extent', () => {
+    // e.g. `main.workspace-scroller` has 6px vertical padding, so scrollHeight can exceed 9 x clientHeight.
+    for (const extraPx of [1, 12, 48]) {
+      const paddedScroller = {
+        clientHeight: pageHeight,
+        scrollHeight: extentHeight + extraPx,
+      }
+      for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+        assert.equal(resolveWorkspaceScreenScrollTop(paddedScroller, index), index * pageHeight)
+        assert.equal(resolveLockedWorkspaceScreenScrollTop(paddedScroller, index), index * pageHeight)
+        assert.equal(resolveNearestWorkspaceScreenIndex(paddedScroller, index * pageHeight), index)
+      }
+      // The last screen's exact top is inside the scroll range, so it is never clamped.
+      assert.equal(
+        resolveLockedWorkspaceScreenScrollTop(paddedScroller, WORKSPACE_SCREEN_COUNT - 1),
+        (WORKSPACE_SCREEN_COUNT - 1) * pageHeight,
+      )
+    }
+  })
+})
+
+describe('resolveNearestWorkspaceScreenIndex', () => {
+  const pageHeight = 800
+  const nineScreens = {
+    clientHeight: pageHeight,
+    scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+  }
+
+  it('resolves exact screen tops to their own index', () => {
+    for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+      assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, index * pageHeight), index)
+    }
+  })
+
+  it('resolves an arbitrary offset between two screens to the nearest screen', () => {
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, 390), 0)
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, 410), 1)
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, pageHeight * 3 + 700), 4)
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, pageHeight * 6 + 10), 6)
+  })
+
+  it('clamps to the first and last screen for out-of-range offsets', () => {
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, -500), 0)
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, pageHeight * 40), 8)
+  })
+
+  it('treats an unmeasurable workspace as screen 1 and never returns an unreachable screen', () => {
+    assert.equal(resolveNearestWorkspaceScreenIndex({ clientHeight: 0, scrollHeight: 0 }, 900), 0)
+    const twoPages = { clientHeight: pageHeight, scrollHeight: pageHeight * 2 }
+    assert.equal(resolveNearestWorkspaceScreenIndex(twoPages, pageHeight), 1)
+    assert.equal(resolveNearestWorkspaceScreenIndex(twoPages, pageHeight * 5), 1)
+  })
+})
+
+describe('resolveLockedWorkspaceScreenScrollTop', () => {
+  const pageHeight = 800
+  const nineScreens = {
+    clientHeight: pageHeight,
+    scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+  }
+
+  it('holds the exact top of every screen 1 through 9', () => {
+    for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+      assert.equal(resolveLockedWorkspaceScreenScrollTop(nineScreens, index), index * pageHeight)
+    }
+  })
+
+  it('never rests between two screens: drift from a screen top always clamps back to that top', () => {
+    for (const activeIndex of [0, 3, 7, 8]) {
+      const lockedTop = resolveLockedWorkspaceScreenScrollTop(nineScreens, activeIndex)
+      assert.equal(lockedTop, activeIndex * pageHeight)
+      // Momentum/scrollbar drift below half a page keeps the same active screen and snaps back.
+      for (const drift of [-pageHeight / 2 + 1, -37, 0, 37, pageHeight / 2 - 1]) {
+        const drifted = (lockedTop ?? 0) + drift
+        assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, drifted), activeIndex)
+        assert.equal(
+          resolveLockedWorkspaceScreenScrollTop(nineScreens, activeIndex),
+          lockedTop,
+        )
+      }
+    }
+  })
+
+  it('clamps into the scroll range when the extent is shorter than the requested screen', () => {
+    const shortExtent = { clientHeight: pageHeight, scrollHeight: 1200 }
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(shortExtent, 0), 0)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(shortExtent, 1), 400)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(shortExtent, 5), 400)
+  })
+
+  it('returns null when the screen cannot be represented', () => {
+    assert.equal(resolveLockedWorkspaceScreenScrollTop({ clientHeight: 0, scrollHeight: 0 }, 0), null)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(nineScreens, -1), null)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(nineScreens, WORKSPACE_SCREEN_COUNT), null)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(nineScreens, 1.5), null)
+  })
+
+  it('re-aligns the active screen after a viewport resize', () => {
+    const beforeResize = {
+      clientHeight: 800,
+      scrollHeight: resolveWorkspaceScreenExtentHeight(800),
+    }
+    // Toggling ON at an arbitrary offset picks the nearest screen once, then resize keeps it.
+    const activeIndex = resolveNearestWorkspaceScreenIndex(beforeResize, 1700)
+    assert.equal(activeIndex, 2)
+
+    const afterResize = {
+      clientHeight: 700,
+      scrollHeight: resolveWorkspaceScreenExtentHeight(700),
+    }
+    assert.equal(
+      resolveLockedWorkspaceScreenScrollTop(afterResize, activeIndex),
+      1400,
+    )
+    assert.equal(
+      resolveNearestWorkspaceScreenIndex(afterResize, 1400),
+      activeIndex,
+    )
+  })
+})
+
+describe('resolveScreenLockAlignmentScreenIndex', () => {
+  const pageHeight = 800
+  const nineScreens = {
+    clientHeight: pageHeight,
+    scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+  }
+
+  it('aligns to the nearest screen when no navigation is in flight', () => {
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 2 + 50, {
+        intent: null,
+        nowMs: 0,
+      }),
+      2,
+    )
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 3 + 600, {
+        intent: null,
+        nowMs: 0,
+      }),
+      4,
+    )
+  })
+
+  it('aligns to the requested screen while an unlocked jump is still animating', () => {
+    // `m` + `5` starts a smooth scroll from Screen 1; the lock is toggled ON mid-animation.
+    const intent = createWorkspaceScreenNavigationIntent(4, 1_000)
+    const midwayOffset = pageHeight * 2.3
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, midwayOffset, { intent, nowMs: 1_150 }),
+      4,
+    )
+    // The nearest screen to that intermediate offset would have been Screen 3 - the stale-offset bug.
+    assert.equal(resolveNearestWorkspaceScreenIndex(nineScreens, midwayOffset), 2)
+  })
+
+  it('ignores an intent once its settle window has elapsed', () => {
+    const intent = createWorkspaceScreenNavigationIntent(4, 1_000)
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 2.3, {
+        intent,
+        nowMs: 1_000 + WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
+      }),
+      2,
+    )
+  })
+
+  it('ignores an out-of-range intent instead of locking to a non-existent screen', () => {
+    const beyondLastScreen = { screenIndex: WORKSPACE_SCREEN_COUNT, expiresAtMs: 2_000 }
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 3, {
+        intent: beyondLastScreen,
+        nowMs: 1_000,
+      }),
+      3,
+    )
+    const fractional = { screenIndex: 2.5, expiresAtMs: 2_000 }
+    assert.equal(
+      resolveScreenLockAlignmentScreenIndex(nineScreens, pageHeight * 3, {
+        intent: fractional,
+        nowMs: 1_000,
+      }),
+      3,
+    )
+  })
+
+  it('never resolves past the last reachable screen for a short extent', () => {
+    const shortExtent = { clientHeight: pageHeight, scrollHeight: 1200 }
+    const intent = createWorkspaceScreenNavigationIntent(7, 0)
+    const resolved = resolveScreenLockAlignmentScreenIndex(shortExtent, 400, {
+      intent,
+      nowMs: 10,
+    })
+    // The intent is honoured even when short: resolveLockedWorkspaceScreenScrollTop clamps it.
+    assert.equal(resolved, 7)
+    assert.equal(resolveLockedWorkspaceScreenScrollTop(shortExtent, resolved), 400)
+  })
+
+  it('builds an intent expiring one settle window after the jump starts', () => {
+    const intent = createWorkspaceScreenNavigationIntent(3, 5_000)
+    assert.deepEqual(intent, {
+      screenIndex: 3,
+      expiresAtMs: 5_000 + WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
+    })
+    assert.deepEqual(createWorkspaceScreenNavigationIntent(0, 0, 250), {
+      screenIndex: 0,
+      expiresAtMs: 250,
+    })
   })
 })
 
@@ -304,7 +624,8 @@ describe('scrollToWorkspaceScreenAtIndex', () => {
     const scrollCalls: { top: number; behavior?: ScrollBehavior }[] = []
     const container = {
       clientHeight: pageHeight,
-      scrollHeight: pageHeight * 5,
+      scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+      scrollTop: 0,
       scrollTo(options: { top: number; behavior?: ScrollBehavior }) {
         scrollCalls.push(options)
       },
@@ -314,16 +635,33 @@ describe('scrollToWorkspaceScreenAtIndex', () => {
     assert.deepEqual(scrollCalls, [{ top: pageHeight * 2, behavior: 'smooth' }])
   })
 
+  it('jumps without animation when Screen Lock requests instant alignment', () => {
+    const pageHeight = 600
+    const scrollCalls: { top: number; behavior?: ScrollBehavior }[] = []
+    const container = {
+      clientHeight: pageHeight,
+      scrollHeight: resolveWorkspaceScreenExtentHeight(pageHeight),
+      scrollTop: 0,
+      scrollTo(options: { top: number; behavior?: ScrollBehavior }) {
+        scrollCalls.push(options)
+      },
+    }
+
+    scrollToWorkspaceScreenAtIndex(container, 8, { behavior: 'auto' })
+    assert.deepEqual(scrollCalls, [{ top: pageHeight * 8, behavior: 'auto' }])
+  })
+
   it('no-ops when the target screen is missing and does not throw', () => {
     const container = {
       clientHeight: 500,
       scrollHeight: 500,
+      scrollTop: 0,
       scrollTo() {
         throw new Error('should not scroll')
       },
     }
     scrollToWorkspaceScreenAtIndex(container, 1)
-    scrollToWorkspaceScreenAtIndex(container, 4)
+    scrollToWorkspaceScreenAtIndex(container, 8)
   })
 
   it('scrolls to clamped offset for a partially filled final screen', () => {
@@ -331,6 +669,7 @@ describe('scrollToWorkspaceScreenAtIndex', () => {
     const container = {
       clientHeight: 800,
       scrollHeight: 1200,
+      scrollTop: 0,
       scrollTo(options: { top: number; behavior?: ScrollBehavior }) {
         scrollCalls.push(options)
       },

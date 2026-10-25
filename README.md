@@ -117,7 +117,15 @@ Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
 
 The outer workspace (`main.workspace-scroller` in `App.tsx`) scrolls vertically when panels extend below the viewport. Scrollbars are hidden for `.workspace-scroller` and `.panel-body` in `App.css` (content still scrolls).
 
-**Screen shortcuts:** press `p`, then `1`–`5` within ~500ms to jump to workspace screen positions 1–5 (scroll offsets 0…4 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`.
+**Screen shortcuts:** press `m`, then `1`–`9` within ~500ms to jump to workspace screen positions 1–9 (scroll offsets 0…8 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`.
+
+**Screens 1–9 always exist:** a wrapper inside `main.workspace-scroller` reserves a virtual 9-viewport scroll extent (`resolveWorkspaceScreenExtentHeight`), so empty screens below the last panel are still reachable. Widget positions, sizes and the persisted `0xdeck-workspace` layout shape are unchanged.
+
+**Screen Lock:** the header **Screen Lock** toggle (in-memory, not persisted) pins the workspace to the active screen.
+
+- **OFF** — free vertical workspace scrolling, exactly as before.
+- **ON** — wheel, trackpad, keyboard and focus scrolling cannot leave the active screen; any offset is returned to that screen's exact top, so the workspace never rests between two screens. `m` then `1`–`9` still jumps to the requested screen's top (instant, no animation). Turning the lock ON from an arbitrary offset aligns to the nearest screen, or to the destination of an `m` + digit jump that is still animating; resizing the viewport re-aligns to the active screen at the new height.
+- Widget interactions are unaffected: panel drag/resize, `.panel-body` internal scrolling and BTC Perp chart zoom/pan/drawings keep working because the lock only watches the workspace scroller.
 
 ## Documentation
 

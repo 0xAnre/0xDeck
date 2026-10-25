@@ -43,7 +43,7 @@ widgets/registry/          → WidgetDefinition catalog (id, layout, headerSetti
 widgets/stream/            → WebSocket message contract + client (BTC Perp relay channels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts)
 market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, FRVP, rectangle/line tools
-screenNavigationShortcuts.ts → Workspace screen jumps (`p` then `1`–`5`)
+screenNavigationShortcuts.ts → Workspace screen jumps (`m` then `1`–`9`) + Screen Lock alignment helpers
 api/client.ts              → Parquet datasets: preview, series, kpi
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
 panels.ts                  → instance ids (chart-abc123), layout helpers; catalog derived from registry
@@ -185,7 +185,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
 
-**Workspace screens:** `p` then `1`–`5` scrolls the outer workspace to screen positions 1–5 (`screenNavigationShortcuts.ts`). Outer `.workspace-scroller` and panel `.panel-body` use hidden scrollbars (`App.css`); both regions remain scrollable.
+**Workspace screens:** `m` then `1`–`9` scrolls the outer workspace to screen positions 1–9 (`screenNavigationShortcuts.ts`). A wrapper inside `.workspace-scroller` reserves a virtual 9-viewport extent so empty screens stay reachable without moving any widget. The header **Screen Lock** button (`App.tsx`, in-memory) pins the workspace to the active screen: manual scrolling snaps back to the active screen's exact top, `m` + digit still jumps, and viewport resize re-aligns. Lock math is pure in `screenNavigationShortcuts.ts`. Outer `.workspace-scroller` and panel `.panel-body` use hidden scrollbars (`App.css`); both regions remain scrollable.
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
 

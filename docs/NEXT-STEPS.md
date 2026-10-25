@@ -18,7 +18,7 @@ Make 0xDeck a market research workspace canvas where users can combine built-in 
 10. Header dropdowns for data widget settings (dataset, columns, range, metric, aggregation) ✅
 11. Custom widget path — [templates/widget/](../templates/widget/README.md), [WIDGET-GUIDE](./WIDGET-GUIDE.md), [WIDGET-STANDARD](./WIDGET-STANDARD.md) ✅
 12. BTC Perpetual — REST + WebSocket klines, indicators, rolling VWAP overlays, FRVP / rectangle / line tools ✅
-13. Workspace screen navigation — `p` then `1`–`5` ✅
+13. Workspace screen navigation — `m` then `1`–`9`, plus a global Screen Lock (ON/OFF) header toggle ✅
 
 ## Remaining
 
