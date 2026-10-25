@@ -111,7 +111,7 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
           value={settings.marketInterval}
           placeholder="Interval"
           disabled={settings.disabled}
-          className="w-[3.25rem]"
+          className="w-[4.25rem]"
           options={MARKET_INTERVAL_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
