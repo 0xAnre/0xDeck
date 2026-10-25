@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -7,7 +7,7 @@ import {
   type LayoutItem,
   type ResponsiveLayouts,
 } from 'react-grid-layout'
-import { XIcon } from 'lucide-react'
+import { LockIcon, LockOpenIcon, XIcon } from 'lucide-react'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './App.css'
@@ -42,9 +42,20 @@ import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 import {
   createScreenNavigationSequenceHandler,
+  resolveLockedWorkspaceScreenScrollTop,
+  resolveNearestWorkspaceScreenIndex,
+  resolveWorkspaceScreenExtentHeight,
   resolveWorkspaceScreenScrollTop,
   scrollToWorkspaceScreenAtIndex,
 } from './screenNavigationShortcuts'
+
+/** Sub-pixel scroll offsets are treated as aligned so Screen Lock never fights the browser. */
+const WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX = 0.5
+
+const SCREEN_LOCK_LABELS = {
+  off: 'Ekran kilidi kapalı — serbest kaydırma. Etkin ekrana kilitlemek için tıkla',
+  on: 'Ekran kilidi açık — çalışma alanı etkin ekrana sabitlendi. Kilidi açmak için tıkla',
+} as const
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
 const OVERLAP_COMPACTOR = getCompactor(null, true)
@@ -59,6 +70,10 @@ function App() {
   const { width, containerRef, mounted } = useContainerWidth()
   const [workspace, setWorkspace] = useState<WorkspaceState>(loadWorkspace)
   const [theme, setTheme] = useState<Theme>(loadTheme)
+  const [screenLock, setScreenLock] = useState(false)
+  const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(0)
+  const activeScreenIndexRef = useRef(0)
+  const lockedScrollTopRef = useRef(0)
   const [focusOrder, setFocusOrder] = useState<string[]>(
     () => loadWorkspace().activePanels,
   )
@@ -71,6 +86,72 @@ function App() {
     applyTheme(theme)
     saveTheme(theme)
   }, [theme])
+
+  // Viewport height of the workspace scroller drives the virtual 9-screen scroll extent and the
+  // Screen Lock alignment. Observing it keeps both correct on window/viewport resize.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+
+    const measure = () => setWorkspaceViewportHeight(container.clientHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [containerRef])
+
+  const alignLockedWorkspace = useCallback(
+    (screenIndex: number) => {
+      const container = containerRef.current
+      if (!container) return
+      const targetTop = resolveLockedWorkspaceScreenScrollTop(container, screenIndex)
+      if (targetTop === null) return
+      lockedScrollTopRef.current = targetTop
+      if (Math.abs(container.scrollTop - targetTop) <= WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX) return
+      container.scrollTo({ top: targetTop, behavior: 'auto' })
+    },
+    [containerRef],
+  )
+
+  // Screen Lock ON: re-align to the active screen's exact top after a viewport-height change.
+  useEffect(() => {
+    if (!screenLock) return
+    alignLockedWorkspace(activeScreenIndexRef.current)
+  }, [screenLock, workspaceViewportHeight, alignLockedWorkspace])
+
+  // Screen Lock ON: any workspace scroll offset (wheel, trackpad, keyboard, momentum, focus scroll)
+  // is reverted to the active screen's exact top, so the workspace never rests between screens.
+  // Widget interactions are untouched: panel bodies and the BTC Perp chart scroll/zoom themselves.
+  useEffect(() => {
+    if (!screenLock) return
+    const container = containerRef.current
+    if (!container) return
+
+    const settle = () => {
+      const targetTop = lockedScrollTopRef.current
+      if (Math.abs(container.scrollTop - targetTop) <= WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX) return
+      container.scrollTop = targetTop
+    }
+
+    settle()
+    container.addEventListener('scroll', settle, { passive: true })
+    return () => container.removeEventListener('scroll', settle)
+  }, [screenLock, containerRef])
+
+  const handleToggleScreenLock = useCallback(() => {
+    if (!screenLock) {
+      const container = containerRef.current
+      if (container) {
+        // Toggling ON from an arbitrary offset aligns to the nearest screen deterministically.
+        const nearestIndex = resolveNearestWorkspaceScreenIndex(container, container.scrollTop)
+        activeScreenIndexRef.current = nearestIndex
+        alignLockedWorkspace(nearestIndex)
+      }
+    }
+    setScreenLock((prev) => !prev)
+  }, [alignLockedWorkspace, containerRef, screenLock])
+
+  const workspaceExtentHeight = resolveWorkspaceScreenExtentHeight(workspaceViewportHeight)
 
   const visiblePanels = useMemo(
     () =>
@@ -184,6 +265,15 @@ function App() {
 
       const container = containerRef.current
       if (!container) return
+
+      if (screenLock) {
+        // Screen Lock ON: jump to the exact screen top with no animation and hold it there.
+        event.preventDefault()
+        activeScreenIndexRef.current = screenIndex
+        alignLockedWorkspace(screenIndex)
+        return
+      }
+
       if (resolveWorkspaceScreenScrollTop(container, screenIndex) === null) return
 
       event.preventDefault()
@@ -195,7 +285,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       sequence.dispose()
     }
-  }, [containerRef])
+  }, [alignLockedWorkspace, containerRef, screenLock])
 
   return (
     <ParquetDataProvider>
@@ -219,83 +309,105 @@ function App() {
           <ThemeSelect value={theme} onChange={handleThemeChange} />
           <WidgetSelect panelCount={visiblePanels.length} onAdd={handleAddPanel} />
           <DataSourceDialog />
+          <Button
+            type="button"
+            size="sm"
+            variant={screenLock ? 'default' : 'outline'}
+            aria-pressed={screenLock}
+            aria-label={SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}
+            title={SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}
+            onClick={handleToggleScreenLock}
+          >
+            {screenLock ? (
+              <LockIcon data-icon="inline-start" />
+            ) : (
+              <LockOpenIcon data-icon="inline-start" />
+            )}
+            Screen Lock
+            <span className="font-semibold">{screenLock ? 'ON' : 'OFF'}</span>
+          </Button>
         </div>
       </header>
 
       <main ref={containerRef} className="workspace-scroller min-h-0 flex-1 overflow-auto p-1.5">
-        {mounted && width > 0 && visiblePanels.length > 0 && (
-          <ResponsiveGridLayout
-            layouts={workspace.layouts}
-            width={width}
-            breakpoints={BREAKPOINTS}
-            cols={COLS}
-            rowHeight={ROW_HEIGHT}
-            margin={[8, 8]}
-            compactor={OVERLAP_COMPACTOR}
-            dragConfig={{
-              enabled: true,
-              handle: '.panel-drag-handle',
-              cancel: '.panel-close, .panel-controls',
-            }}
-            resizeConfig={{ enabled: true, handles: RESIZE_HANDLES }}
-            onLayoutChange={handleLayoutChange}
-            onDragStart={handleDragStart}
-            onDragStop={handleDragStop}
-            onResizeStart={handleResizeStart}
-            onResizeStop={handleResizeStop}
-          >
-            {visiblePanels.map((panel) => {
-              const definition = getWidgetDefinitionForInstance(panel.id)
-              if (!definition) return null
+        <div
+          className="workspace-screens"
+          style={workspaceExtentHeight > 0 ? { minHeight: workspaceExtentHeight } : undefined}
+        >
+          {mounted && width > 0 && visiblePanels.length > 0 && (
+            <ResponsiveGridLayout
+              layouts={workspace.layouts}
+              width={width}
+              breakpoints={BREAKPOINTS}
+              cols={COLS}
+              rowHeight={ROW_HEIGHT}
+              margin={[8, 8]}
+              compactor={OVERLAP_COMPACTOR}
+              dragConfig={{
+                enabled: true,
+                handle: '.panel-drag-handle',
+                cancel: '.panel-close, .panel-controls',
+              }}
+              resizeConfig={{ enabled: true, handles: RESIZE_HANDLES }}
+              onLayoutChange={handleLayoutChange}
+              onDragStart={handleDragStart}
+              onDragStop={handleDragStop}
+              onResizeStart={handleResizeStart}
+              onResizeStop={handleResizeStop}
+            >
+              {visiblePanels.map((panel) => {
+                const definition = getWidgetDefinitionForInstance(panel.id)
+                if (!definition) return null
 
-              const WidgetBody = definition.component
+                const WidgetBody = definition.component
 
-              return (
-              <Card
-                key={panel.id}
-                size="sm"
-                className="group/panel h-full gap-0 py-0"
-                style={{ zIndex: panelZIndex(panel.id) }}
-              >
-                <CardHeader
-                  className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"
+                return (
+                <Card
+                  key={panel.id}
+                  size="sm"
+                  className="group/panel h-full gap-0 py-0"
+                  style={{ zIndex: panelZIndex(panel.id) }}
                 >
-                  <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
-                    {panelDisplayTitle(panel, visiblePanels)}
-                  </CardTitle>
-                  {widgetHasHeaderControls(definition) && (
-                    <PanelHeaderControls panelId={panel.id} />
-                  )}
-                  <CardAction className="!col-start-auto !row-span-1 !row-start-auto ml-auto shrink-0">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="panel-close cursor-pointer shrink-0 opacity-0 transition-opacity group-hover/panel:opacity-100"
-                      aria-label={`${panel.title} panelini kapat`}
-                      onClick={() => handleRemovePanel(panel.id)}
-                    >
-                      <XIcon />
-                    </Button>
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="panel-body min-h-0 flex-1 overflow-auto px-2 pb-2 pt-0">
-                  <WidgetBody
-                    panelId={panel.id}
-                    headerSettings={definition.headerSettings}
-                  />
-                </CardContent>
-              </Card>
-              )
-            })}
-          </ResponsiveGridLayout>
-        )}
+                  <CardHeader
+                    className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"
+                  >
+                    <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
+                      {panelDisplayTitle(panel, visiblePanels)}
+                    </CardTitle>
+                    {widgetHasHeaderControls(definition) && (
+                      <PanelHeaderControls panelId={panel.id} />
+                    )}
+                    <CardAction className="!col-start-auto !row-span-1 !row-start-auto ml-auto shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="panel-close cursor-pointer shrink-0 opacity-0 transition-opacity group-hover/panel:opacity-100"
+                        aria-label={`${panel.title} panelini kapat`}
+                        onClick={() => handleRemovePanel(panel.id)}
+                      >
+                        <XIcon />
+                      </Button>
+                    </CardAction>
+                  </CardHeader>
+                  <CardContent className="panel-body min-h-0 flex-1 overflow-auto px-2 pb-2 pt-0">
+                    <WidgetBody
+                      panelId={panel.id}
+                      headerSettings={definition.headerSettings}
+                    />
+                  </CardContent>
+                </Card>
+                )
+              })}
+            </ResponsiveGridLayout>
+          )}
 
-        {mounted && visiblePanels.length === 0 && (
-          <p className="mx-auto my-8 text-center text-sm text-muted-foreground">
-            Widget eklemek için üstteki Widgets menüsünü kullan
-          </p>
-        )}
+          {mounted && visiblePanels.length === 0 && (
+            <p className="mx-auto my-8 text-center text-sm text-muted-foreground">
+              Widget eklemek için üstteki Widgets menüsünü kullan
+            </p>
+          )}
+        </div>
       </main>
     </div>
     </WidgetSettingsProvider>

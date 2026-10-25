@@ -42,7 +42,7 @@ Runtime adapters configure how a particular agent tool loads these rules; the sh
 1. Add a widget: Chart, KPI Card, Data Table, Notes, Market Times, Dashboard, Reports, **BTC Perp**
 2. Use the dropdowns in the widget header for dataset, columns, time range, metric, and aggregation (BTC Perp: interval, indicators, tools)
 3. Drag, resize, stack panels — layout persists in `localStorage`
-4. Scroll the workspace when content extends below the viewport; jump to screens 1–5 with `p` then `1`–`5` (see [README](../README.md#workspace-navigation))
+4. Scroll the workspace when content extends below the viewport; jump to screens 1–9 with `p` then `1`–`9`, or use the header **Screen Lock** button to pin the workspace to the active screen (see [README](../README.md#workspace-navigation))
 
 **Create a reusable widget**
 

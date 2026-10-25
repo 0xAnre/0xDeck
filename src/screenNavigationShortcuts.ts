@@ -10,8 +10,17 @@ export type ScreenNavigationKeyEvent = {
 
 export const SCREEN_NAVIGATION_SEQUENCE_TIMEOUT_MS = 500
 
+/** Number of reachable workspace screens (Screen 1…9, zero-based indexes 0…8). */
+export const WORKSPACE_SCREEN_COUNT = 9
+
+const LAST_WORKSPACE_SCREEN_INDEX = WORKSPACE_SCREEN_COUNT - 1
+
+function isValidScreenIndex(screenIndex: number): boolean {
+  return Number.isInteger(screenIndex) && screenIndex >= 0 && screenIndex <= LAST_WORKSPACE_SCREEN_INDEX
+}
+
 function screenIndexFromDigitKey(key: string): number | null {
-  const match = /^([1-5])$/.exec(key)
+  const match = /^([1-9])$/.exec(key)
   if (!match) return null
   return Number.parseInt(match[1], 10) - 1
 }
@@ -55,30 +64,81 @@ export type WorkspaceScrollMetrics = {
   scrollHeight: number
 }
 
+export type WorkspaceScroller = WorkspaceScrollMetrics & {
+  scrollTop: number
+  scrollTo: (options: { top: number; behavior?: ScrollBehavior }) => void
+}
+
+function resolveMaxScrollTop(container: WorkspaceScrollMetrics): number {
+  return Math.max(0, container.scrollHeight - container.clientHeight)
+}
+
 /**
- * Scroll offset for workspace screen index 0…4 (Screen 1…5), or null when unreachable.
+ * Minimum content height that exposes all {@link WORKSPACE_SCREEN_COUNT} screens as scroll pages,
+ * even when the grid content is shorter. Apply it to a wrapper inside the scroller so the virtual
+ * extent never moves, resizes or reorders widgets.
+ */
+export function resolveWorkspaceScreenExtentHeight(clientHeight: number): number {
+  if (clientHeight <= 0) return 0
+  return clientHeight * WORKSPACE_SCREEN_COUNT
+}
+
+/**
+ * Scroll offset for workspace screen index 0…8 (Screen 1…9), or null when unreachable.
  * Based on viewport page height inside the scroll container, not panel/widget order.
  */
 export function resolveWorkspaceScreenScrollTop(
   container: WorkspaceScrollMetrics,
   screenIndex: number,
 ): number | null {
-  if (screenIndex < 0 || screenIndex > 4) return null
+  if (!isValidScreenIndex(screenIndex)) return null
   const pageHeight = container.clientHeight
   if (pageHeight <= 0) return null
   const targetTop = screenIndex * pageHeight
   if (targetTop >= container.scrollHeight) return null
-  const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
-  return Math.min(targetTop, maxScrollTop)
+  return Math.min(targetTop, resolveMaxScrollTop(container))
+}
+
+/**
+ * Screen index closest to the current scroll offset. Used when Screen Lock turns on from an
+ * arbitrary offset so the workspace deterministically snaps to one screen.
+ */
+export function resolveNearestWorkspaceScreenIndex(
+  container: WorkspaceScrollMetrics,
+  scrollTop: number,
+): number {
+  const pageHeight = container.clientHeight
+  if (pageHeight <= 0) return 0
+  const reachableIndex = Math.min(
+    LAST_WORKSPACE_SCREEN_INDEX,
+    Math.floor(resolveMaxScrollTop(container) / pageHeight),
+  )
+  const nearest = Math.round(scrollTop / pageHeight)
+  return Math.min(Math.max(nearest, 0), Math.max(reachableIndex, 0))
+}
+
+/**
+ * Scroll offset Screen Lock must hold for `screenIndex`: the exact page top (never a mid-screen
+ * offset), clamped into the scrollable range so the workspace can always be returned to it.
+ */
+export function resolveLockedWorkspaceScreenScrollTop(
+  container: WorkspaceScrollMetrics,
+  screenIndex: number,
+): number | null {
+  if (!isValidScreenIndex(screenIndex)) return null
+  const pageHeight = container.clientHeight
+  if (pageHeight <= 0) return null
+  return Math.min(screenIndex * pageHeight, resolveMaxScrollTop(container))
 }
 
 export function scrollToWorkspaceScreenAtIndex(
-  container: WorkspaceScrollMetrics & { scrollTo: (options: { top: number; behavior?: ScrollBehavior }) => void },
+  container: WorkspaceScroller,
   screenIndex: number,
+  options: { behavior?: ScrollBehavior } = {},
 ): void {
   const targetTop = resolveWorkspaceScreenScrollTop(container, screenIndex)
   if (targetTop === null) return
-  container.scrollTo({ top: targetTop, behavior: 'smooth' })
+  container.scrollTo({ top: targetTop, behavior: options.behavior ?? 'smooth' })
 }
 
 export type ScreenNavigationSequenceHandler = {
@@ -87,7 +147,7 @@ export type ScreenNavigationSequenceHandler = {
 }
 
 /**
- * Two-key screen navigation: `p` then `1`…`5` within a short timeout maps to workspace screen indexes 0…4.
+ * Two-key screen navigation: `p` then `1`…`9` within a short timeout maps to workspace screen indexes 0…8.
  */
 export function createScreenNavigationSequenceHandler(
   options: { timeoutMs?: number } = {},
