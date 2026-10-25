@@ -11,6 +11,10 @@
  */
 
 import { MARKET_STYLE_PALETTE } from '../market/marketStylePalette.ts'
+import {
+  lineChartStrokeDashPattern,
+  type LineChartStrokeStyle,
+} from '../market/lineChartStroke.ts'
 
 export type ColorPickerRowId =
   | 'grayscale'
@@ -44,12 +48,13 @@ export const COLOR_PICKER_COLUMNS = 10
  * (measured 16px wide, `FieldGroup` 0px, all 10 grid tracks 0px,
  * `scrollWidth` 98 > `clientWidth` 16), which clipped the palette into a narrow
  * vertical strip. These constants are the single source of truth for the width
- * the palette actually needs; `ColorOpacityField` sizes the popover with them
- * and `colorPickerPalette.test.ts` pins the relationship.
+ * the palette actually needs; `ColorOpacityField` spreads `COLOR_PICKER_*_STYLE`
+ * (derived from these constants below) into inline styles, so the guard in
+ * `colorPickerPalette.test.ts` pins the geometry that is actually rendered.
  */
-export const COLOR_PICKER_SWATCH_SIZE_REM = 1.5 // Button size="icon-sm" → size-6
-export const COLOR_PICKER_GRID_GAP_REM = 0.25 // gap-1
-export const COLOR_PICKER_CONTENT_PADDING_REM = 0.5 // p-2
+export const COLOR_PICKER_SWATCH_SIZE_REM = 1.5 // 1.5rem = 24px swatch cell
+export const COLOR_PICKER_GRID_GAP_REM = 0.25 // 0.25rem = 4px grid gap
+export const COLOR_PICKER_CONTENT_PADDING_REM = 0.5 // 0.5rem = 8px popover padding
 
 /** Width the 10-column swatch grid needs: swatches + gaps, without padding. */
 export const COLOR_PICKER_GRID_WIDTH_REM =
@@ -63,6 +68,91 @@ export const COLOR_PICKER_POPOVER_WIDTH_PX = Math.ceil(
 
 /** Viewport-safe width cap so the popover never overflows a narrow window. */
 export const COLOR_PICKER_POPOVER_MAX_WIDTH_CSS = 'calc(100vw - 1.5rem)'
+
+/**
+ * Inline styles the popover, the swatch rows and every swatch cell are rendered
+ * with. `ColorOpacityField` spreads these instead of hardcoding duplicate
+ * Tailwind utilities (`p-2`, `grid-cols-[repeat(10,minmax(1.5rem,1fr))]`,
+ * `gap-1`, the `size-6` cell), so the geometry guard in
+ * `colorPickerPalette.test.ts` protects the geometry that is actually painted:
+ * changing one of the `*_REM` constants above moves the styles and the derived
+ * popover width together, while a stray class cannot silently shrink a track or
+ * the padding.
+ */
+export const COLOR_PICKER_CONTENT_STYLE = {
+  width: COLOR_PICKER_POPOVER_WIDTH_PX,
+  maxWidth: COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
+  padding: `${COLOR_PICKER_CONTENT_PADDING_REM}rem`,
+}
+
+/** Ten uniform tracks with a one-swatch floor, so the grid never collapses. */
+export const COLOR_PICKER_GRID_STYLE = {
+  gridTemplateColumns: `repeat(${COLOR_PICKER_COLUMNS}, minmax(${COLOR_PICKER_SWATCH_SIZE_REM}rem, 1fr))`,
+  gap: `${COLOR_PICKER_GRID_GAP_REM}rem`,
+}
+
+/** Square swatch cell, in the same unit as the grid track floor. */
+export const COLOR_PICKER_SWATCH_STYLE = {
+  width: `${COLOR_PICKER_SWATCH_SIZE_REM}rem`,
+  height: `${COLOR_PICKER_SWATCH_SIZE_REM}rem`,
+}
+
+/**
+ * Geometry of the in-popover line-style previews (CSS pixels).
+ *
+ * The previews sit inside `ToggleGroupItem` buttons, whose shared button styles
+ * would otherwise force every descendant `<svg>` to an icon size; the inline
+ * width/height from these constants is authoritative.
+ */
+export const COLOR_PICKER_LINE_PREVIEW_WIDTH_PX = 56
+export const COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX = 12
+export const COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX = 2
+
+export type ColorPickerLinePreview = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  strokeWidth: number
+  /** SVG `stroke-dasharray` value; `undefined` paints a solid line. */
+  strokeDasharray: string | undefined
+}
+
+/**
+ * Horizontal preview line for a stroke style, using the same dash pattern the
+ * chart renderer uses (`lineChartStrokeDashPattern`), so `Dot` reads as dotted
+ * rather than as an arbitrary decorative pattern.
+ */
+export function colorPickerLinePreview(
+  style: LineChartStrokeStyle | undefined,
+): ColorPickerLinePreview {
+  const dash = style ? lineChartStrokeDashPattern(style) : []
+  const inset = COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX
+  const y = COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX / 2
+
+  return {
+    x1: inset,
+    y1: y,
+    x2: COLOR_PICKER_LINE_PREVIEW_WIDTH_PX - inset,
+    y2: y,
+    strokeWidth: COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX,
+    strokeDasharray: dash.length > 0 ? dash.join(' ') : undefined,
+  }
+}
+
+/**
+ * Selected value for the line-style `ToggleGroup` (`type="single"`).
+ *
+ * A mixed/indeterminate state must not falsely select `Line` or `Dot`, so it
+ * resolves to the empty string, which no `ToggleGroupItem` value matches.
+ */
+export function colorPickerLineStyleToggleValue(
+  style: LineChartStrokeStyle | undefined,
+  mixed: boolean,
+): string {
+  if (mixed) return ''
+  return style ?? ''
+}
 
 /** Hue family for each palette column (red → pink). */
 export const COLOR_PICKER_HUE_LABELS = [

@@ -4,16 +4,24 @@ import { isMarketStyleHexColor } from '../market/marketStylePalette.ts'
 import {
   COLOR_PICKER_COLUMNS,
   COLOR_PICKER_CONTENT_PADDING_REM,
+  COLOR_PICKER_CONTENT_STYLE,
   COLOR_PICKER_FLAT_COLORS,
   COLOR_PICKER_GRID_GAP_REM,
+  COLOR_PICKER_GRID_STYLE,
   COLOR_PICKER_GRID_WIDTH_REM,
   COLOR_PICKER_HUE_LABELS,
+  COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX,
+  COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX,
+  COLOR_PICKER_LINE_PREVIEW_WIDTH_PX,
   COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
   COLOR_PICKER_POPOVER_WIDTH_PX,
   COLOR_PICKER_ROWS,
   COLOR_PICKER_SWATCH_COUNT,
   COLOR_PICKER_SWATCH_SIZE_REM,
+  COLOR_PICKER_SWATCH_STYLE,
   clampColorPickerOpacityPercent,
+  colorPickerLinePreview,
+  colorPickerLineStyleToggleValue,
   colorPickerNextSwatchIndex,
   colorPickerPaletteMatch,
   colorPickerSwatchLabel,
@@ -325,5 +333,63 @@ describe('colorPickerPalette', () => {
 
     // Viewport cap is viewport-relative, so narrow windows stay usable.
     assert.equal(COLOR_PICKER_POPOVER_MAX_WIDTH_CSS, 'calc(100vw - 1.5rem)')
+  })
+
+  it('renders the popover, grid and swatch geometry from those same constants', () => {
+    // These objects are spread into inline styles by `ColorOpacityField`, so the
+    // assertions below pin the geometry that is actually painted: a hardcoded
+    // Tailwind utility can no longer silently disagree with the constants.
+    assert.deepEqual(COLOR_PICKER_CONTENT_STYLE, {
+      width: COLOR_PICKER_POPOVER_WIDTH_PX,
+      maxWidth: COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
+      padding: '0.5rem',
+    })
+    assert.deepEqual(COLOR_PICKER_GRID_STYLE, {
+      gridTemplateColumns: 'repeat(10, minmax(1.5rem, 1fr))',
+      gap: '0.25rem',
+    })
+    assert.deepEqual(COLOR_PICKER_SWATCH_STYLE, { width: '1.5rem', height: '1.5rem' })
+
+    // The inline values still mirror the exported `rem` constants one-to-one.
+    assert.equal(COLOR_PICKER_CONTENT_STYLE.padding, `${COLOR_PICKER_CONTENT_PADDING_REM}rem`)
+    assert.equal(COLOR_PICKER_GRID_STYLE.gap, `${COLOR_PICKER_GRID_GAP_REM}rem`)
+    assert.equal(COLOR_PICKER_SWATCH_STYLE.width, `${COLOR_PICKER_SWATCH_SIZE_REM}rem`)
+    assert.equal(COLOR_PICKER_SWATCH_STYLE.height, `${COLOR_PICKER_SWATCH_SIZE_REM}rem`)
+  })
+
+  it('previews Line as solid and Dot with the renderer dash pattern', () => {
+    const solid = colorPickerLinePreview('solid')
+    assert.equal(solid.strokeDasharray, undefined)
+    assert.equal(solid.strokeWidth, COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX)
+    assert.equal(solid.x1, COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX)
+    assert.equal(solid.x2, COLOR_PICKER_LINE_PREVIEW_WIDTH_PX - COLOR_PICKER_LINE_PREVIEW_STROKE_WIDTH_PX)
+    assert.equal(solid.y1, COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX / 2)
+    assert.equal(solid.y2, COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX / 2)
+
+    // `lineChartStrokeDashPattern('dotted')` is `[2, 3]`.
+    assert.equal(colorPickerLinePreview('dotted').strokeDasharray, '2 3')
+
+    // A legacy, unsanitized `dashed` value still renders as a solid preview.
+    assert.equal(
+      colorPickerLinePreview('dashed' as unknown as 'solid').strokeDasharray,
+      undefined,
+    )
+    assert.equal(colorPickerLinePreview(undefined).strokeDasharray, undefined)
+  })
+
+  it('never falsely selects a style in the mixed state', () => {
+    assert.equal(colorPickerLineStyleToggleValue('solid', false), 'solid')
+    assert.equal(colorPickerLineStyleToggleValue('dotted', false), 'dotted')
+    // Only `solid` and `dotted` are ever emitted by the toggle.
+    assert.deepEqual(
+      ['solid', 'dotted'].map((style) => colorPickerLineStyleToggleValue(style as 'solid', false)),
+      ['solid', 'dotted'],
+    )
+
+    // Mixed/indeterminate and undefined both match no `ToggleGroupItem` value.
+    assert.equal(colorPickerLineStyleToggleValue('solid', true), '')
+    assert.equal(colorPickerLineStyleToggleValue('dotted', true), '')
+    assert.equal(colorPickerLineStyleToggleValue(undefined, false), '')
+    assert.equal(colorPickerLineStyleToggleValue(undefined, true), '')
   })
 })

@@ -7,13 +7,25 @@ import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import {
+  LINE_CHART_STROKE_STYLE_LABELS,
+  LINE_CHART_STROKE_STYLES,
+  isLineChartStrokeStyle,
+  type LineChartStrokeStyle,
+} from '@/market/lineChartStroke'
+import {
   COLOR_PICKER_COLUMNS,
+  COLOR_PICKER_CONTENT_STYLE,
   COLOR_PICKER_CUSTOM_HEX_EXAMPLE,
-  COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
-  COLOR_PICKER_POPOVER_WIDTH_PX,
+  COLOR_PICKER_GRID_STYLE,
+  COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX,
+  COLOR_PICKER_LINE_PREVIEW_WIDTH_PX,
   COLOR_PICKER_ROWS,
+  COLOR_PICKER_SWATCH_STYLE,
+  colorPickerLinePreview,
+  colorPickerLineStyleToggleValue,
   colorPickerNextSwatchIndex,
   colorPickerPaletteMatch,
   colorPickerSwatchLabel,
@@ -33,6 +45,20 @@ type ColorOpacityFieldProps = {
   onColorChange: (color: string) => void
   onOpacityChange: (opacityPercent: number) => void
   className?: string
+  /**
+   * Current stroke style, shown as a `Line` / `Dot` row at the bottom of the
+   * popover. The row only renders when `onLineStyleChange` is passed, so
+   * fill-only color fields (rectangle fill, FRVP histogram, VWAP fills, info
+   * box background/text) keep a color + opacity popover without a style row.
+   */
+  lineStyle?: LineChartStrokeStyle
+  /**
+   * Mixed/indeterminate style state: the row renders with nothing selected
+   * instead of falsely claiming the first series' style.
+   */
+  lineStyleMixed?: boolean
+  /** Opt-in line-style row; omitted for fill-only controls. Receives `'solid' | 'dotted'`. */
+  onLineStyleChange?: (style: LineChartStrokeStyle) => void
 }
 
 /**
@@ -48,12 +74,63 @@ const CHECKERBOARD_STYLE: CSSProperties = {
 }
 
 /**
+ * Solid or dotted stroke preview for the in-popover line-style toggles.
+ *
+ * Painted in the field's current color and opacity so the two options read as a
+ * preview of the line they style, and dotted uses the renderer's own dash
+ * pattern (`lineChartStrokeDashPattern('dotted')` = `[2, 3]`).
+ */
+function LineStylePreview({
+  style,
+  color,
+  opacityPercent,
+}: {
+  style: LineChartStrokeStyle
+  color: string
+  opacityPercent: number
+}) {
+  const preview = colorPickerLinePreview(style)
+
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox={`0 0 ${COLOR_PICKER_LINE_PREVIEW_WIDTH_PX} ${COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX}`}
+      // The shared button styles size every descendant `<svg>` like an icon, so
+      // the preview geometry is set inline from the palette constants instead of
+      // with a size class.
+      style={{
+        width: `${COLOR_PICKER_LINE_PREVIEW_WIDTH_PX}px`,
+        height: `${COLOR_PICKER_LINE_PREVIEW_HEIGHT_PX}px`,
+      }}
+      className="block"
+    >
+      <line
+        x1={preview.x1}
+        y1={preview.y1}
+        x2={preview.x2}
+        y2={preview.y2}
+        stroke={color}
+        strokeOpacity={opacityPercent / 100}
+        strokeWidth={preview.strokeWidth}
+        strokeDasharray={preview.strokeDasharray}
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+/**
  * Shared `Color + Opacity` field used by every BTC Perp style dialog.
  *
  * The trigger opens a compact TradingView-inspired palette popover that owns
  * the custom HEX input and the 0–100 opacity slider. Props and emitted values
  * stay identical to the previous native color input: `#RRGGBB` and an integer
  * percentage, so chart style pipelines need no changes.
+ *
+ * Stroke controls may additionally opt into a `Line` / `Dot` row at the bottom
+ * of the popover (`lineStyle` + `onLineStyleChange`); fill-only controls omit
+ * both.
  */
 export function ColorOpacityField({
   id,
@@ -64,6 +141,9 @@ export function ColorOpacityField({
   onColorChange,
   onOpacityChange,
   className,
+  lineStyle,
+  lineStyleMixed = false,
+  onLineStyleChange,
 }: ColorOpacityFieldProps) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -75,6 +155,7 @@ export function ColorOpacityField({
   const percent = normalizeColorPickerOpacityPercent(opacityPercent)
   const sliderId = opacityId ?? `${id}-opacity`
   const sliderLabelId = `${sliderId}-label`
+  const lineStyleHintId = `${id}-line-style-hint`
   const customInputId = `${id}-custom`
   const currentHex = normalizeColorPickerHexInput(color) ?? color
   const paletteMatch = colorPickerPaletteMatch(currentHex)
@@ -145,14 +226,12 @@ export function ColorOpacityField({
             // Explicit palette-derived width, not `w-fit`: the popover's first child
             // is a `@container/field-group` (`container-type: inline-size`) which
             // contributes no intrinsic inline size, so `fit-content` collapsed the
-            // content to its padding and clipped the palette. `maxWidth` keeps it
-            // inside narrow viewports; Radix `collisionPadding`/flip/shift handle
-            // the rest.
-            style={{
-              width: COLOR_PICKER_POPOVER_WIDTH_PX,
-              maxWidth: COLOR_PICKER_POPOVER_MAX_WIDTH_CSS,
-            }}
-            className="max-h-[min(70vh,var(--radix-popover-content-available-height))] gap-0 overflow-y-auto overscroll-contain p-2"
+            // content to its padding and clipped the palette. The width, viewport cap
+            // and padding all come from `COLOR_PICKER_CONTENT_STYLE` (single source
+            // of truth with the grid geometry); Radix `collisionPadding`/flip/shift
+            // handle the rest.
+            style={COLOR_PICKER_CONTENT_STYLE}
+            className="max-h-[min(70vh,var(--radix-popover-content-available-height))] gap-0 overflow-y-auto overscroll-contain"
             onOpenAutoFocus={(event) => {
               event.preventDefault()
               const match = colorPickerPaletteMatch(currentHex)
@@ -174,7 +253,8 @@ export function ColorOpacityField({
                     role="row"
                     // Tracks never shrink below one swatch, so the grid can't be
                     // squeezed into the collapsed width that caused the clipping.
-                    className="grid grid-cols-[repeat(10,minmax(1.5rem,1fr))] gap-1"
+                    className="grid"
+                    style={COLOR_PICKER_GRID_STYLE}
                   >
                     {row.colors.map((hex, columnIndex) => {
                       const index = rowIndex * COLOR_PICKER_COLUMNS + columnIndex
@@ -190,6 +270,10 @@ export function ColorOpacityField({
                           }}
                           type="button"
                           variant="outline"
+                          // Cell size comes from `COLOR_PICKER_SWATCH_STYLE` (inline),
+                          // not from this size variant, so the palette constants own
+                          // the rendered 24px track; `icon-sm` only supplies the
+                          // component-owned check-glyph scale.
                           size="icon-sm"
                           role="gridcell"
                           aria-label={colorPickerSwatchLabel(row, columnIndex)}
@@ -209,7 +293,7 @@ export function ColorOpacityField({
                             // 30% / 40% while focused or hovered.
                             selected && 'hover:ring-ring/100 focus-visible:ring-ring/100',
                           )}
-                          style={{ backgroundColor: hex }}
+                          style={{ ...COLOR_PICKER_SWATCH_STYLE, backgroundColor: hex }}
                           onClick={() => {
                             setActiveIndex(index)
                             setCustomInvalid(false)
@@ -341,6 +425,49 @@ export function ColorOpacityField({
                   />
                 </div>
               </Field>
+
+              {onLineStyleChange ? (
+                <>
+                  {/* Screen-reader-only mixed-state hint: the row stays unpressed, so
+                      the indeterminate state needs a text alternative. */}
+                  {lineStyleMixed ? (
+                    <span id={lineStyleHintId} className="sr-only">
+                      Multiple line styles on chart
+                    </span>
+                  ) : null}
+                  <ToggleGroup
+                    type="single"
+                    variant="outline"
+                    size="sm"
+                    aria-label="Line style"
+                    aria-describedby={lineStyleMixed ? lineStyleHintId : undefined}
+                    className="grid w-full grid-cols-2"
+                    value={colorPickerLineStyleToggleValue(lineStyle, lineStyleMixed)}
+                    onValueChange={(value) => {
+                      // A radio-style group reports `''` when the checked item is
+                      // re-clicked; keep the current style instead of clearing it.
+                      if (!isLineChartStrokeStyle(value)) return
+                      onLineStyleChange(value)
+                    }}
+                  >
+                    {LINE_CHART_STROKE_STYLES.map((style) => (
+                      <ToggleGroupItem
+                        key={style}
+                        value={style}
+                        aria-label={LINE_CHART_STROKE_STYLE_LABELS[style]}
+                        title={LINE_CHART_STROKE_STYLE_LABELS[style]}
+                        className="w-full"
+                      >
+                        <LineStylePreview
+                          style={style}
+                          color={currentHex}
+                          opacityPercent={percent}
+                        />
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </>
+              ) : null}
             </FieldGroup>
           </PopoverContent>
         </Popover>

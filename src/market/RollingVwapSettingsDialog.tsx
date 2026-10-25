@@ -8,11 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { LINE_CHART_STROKE_STYLE_LABELS } from '@/market/lineChartStroke'
 import {
-  isRollingVwapLineStyle,
   isRollingVwapLineWidth,
-  ROLLING_VWAP_LINE_STYLES,
   ROLLING_VWAP_LINE_WIDTHS,
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
@@ -197,42 +194,20 @@ function RollingVwapSettingsDialogBody({
               label="Color"
               color={draft.lineColor}
               opacityPercent={draft.lineOpacity}
+              lineStyle={draft.lineStyle}
               onColorChange={(lineColor) =>
                 setDraft((current) => ({ ...current, lineColor }))
               }
               onOpacityChange={(lineOpacity) =>
                 setDraft((current) => ({ ...current, lineOpacity }))
               }
-            />
-            <p className="font-medium text-foreground" id="rolling-vwap-line-style-label">
-              Line style
-            </p>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              className="grid w-full grid-cols-2"
-              aria-labelledby="rolling-vwap-line-style-label"
-              value={draft.lineStyle}
-              onValueChange={(value) => {
-                if (!value || !isRollingVwapLineStyle(value)) return
+              onLineStyleChange={(lineStyle) =>
                 setDraft((current) => ({
                   ...current,
-                  lineStyle: value,
+                  lineStyle,
                 }))
-              }}
-            >
-              {ROLLING_VWAP_LINE_STYLES.map((style) => (
-                <ToggleGroupItem
-                  key={style}
-                  value={style}
-                  aria-label={`Line style ${LINE_CHART_STROKE_STYLE_LABELS[style]}`}
-                  className="w-full"
-                >
-                  {LINE_CHART_STROKE_STYLE_LABELS[style]}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+              }
+            />
           </section>
 
           <section className="space-y-3">
@@ -269,6 +244,9 @@ function RollingVwapSettingsDialogBody({
                     label="Color"
                     color={draft.bandColors[bandKey]}
                     opacityPercent={draft.bandOpacities[bandKey]}
+                    // Deviation bands are stroke lines, but this overlay stores a single
+                    // center-line `lineStyle` and always renders band lines solid, so a
+                    // style row here would edit the center line only and mislead.
                     onColorChange={(color) =>
                       setDraft((current) => ({
                         ...current,
