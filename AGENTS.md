@@ -29,7 +29,7 @@ A **market research workspace canvas** with a **reusable widget model** — not 
 - Trade execution UI
 - Bot monitoring and control panels
 
-**Included:** draggable/resizable widget grid, layout persistence, 6 built-in color themes (including `black`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`).
+**Included:** draggable/resizable widget grid, layout persistence, 6 built-in color themes (including `black`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` and Hyperliquid `BTC` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`).
 
 **Not included:** auth, generic multi-exchange connectors, trade execution APIs. Parquet widgets do not use live feeds; **BTC Perp** is the live market widget (see `src/widgets/stream/`, `/api/ws/{channel}`, `backend/app/market/`).
 
@@ -42,19 +42,19 @@ App.tsx                    → header, theme/widget menus, grid shell; renders r
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract + client (BTC Perp relay channels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts)
-market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, FRVP, rectangle/line tools
+market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, FRVP, rectangle/line tools, exchange routing/tick/history limits
 screenNavigationShortcuts.ts → Workspace screen jumps (`m` then `1`–`9`) + Screen Lock alignment helpers
 api/client.ts              → Parquet datasets: preview, series, kpi
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
 panels.ts                  → instance ids (chart-abc123), layout helpers; catalog derived from registry
 ParquetDataContext.tsx     → dataset catalog + useWidgetParquetData hook
 backend/app/               → FastAPI + DuckDB Parquet queries
-backend/app/market/        → Binance USD-M BTCUSDT klines, VWAP context, volume-profile source
+backend/app/market/        → exchange-aware BTC perp providers (Binance USD-M + Hyperliquid), shared VWAP context, volume-profile source
 layoutStorage.ts           → localStorage workspace (activePanels + lg layout)
 datasetStorage.ts          → per-widget dataset + workspace column defaults
 timeRangeStorage.ts        → per-widget time range
 WidgetSettingsContext.tsx  → per-widget settings registry
-PanelHeaderControls.tsx    → header dropdowns (dataset, columns, range, metric, aggregation)
+PanelHeaderControls.tsx    → header dropdowns (dataset, columns, range, metric, aggregation, market exchange/interval/indicators/tools)
 ```
 
 Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on last interaction. Only **lg** layout is persisted.
@@ -132,7 +132,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `react-grid-layout` + `App.css` | Drag/resize grid — no shadcn equivalent |
 | `layoutStorage.ts`, `themeStorage.ts`, `datasetStorage.ts` | Persistence logic |
 | `ThemeSelect`, `WidgetSelect` | Thin app wrappers composing shadcn |
-| `PanelHeaderControls`, `useParquetWidgetSettings`, `useMarketWidgetSettings` | Header dropdowns (Parquet + interval/indicators/tools) |
+| `PanelHeaderControls`, `useParquetWidgetSettings`, `useMarketWidgetSettings` | Header dropdowns (Parquet + exchange/interval/indicators/tools) |
 | `BtcPerpetualChartPanel`, `src/market/*` | Lightweight Charts candlestick + indicators + FRVP tool |
 | `formatTime.ts`, `formatCellValue.ts` | Epoch timestamp + cell display helpers |
 
@@ -158,7 +158,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | Binance USD-M BTCUSDT perpetual candles; header interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
@@ -173,6 +173,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-time-ranges` | Per-widget time range (`15m` … `all`) |
 | `0xdeck-widget-kpi-config` | Per-widget `{ metricColumn, aggregation }` |
 | `0xdeck-data-config` | Workspace default dataset + columns (from Data Table) |
+| `0xdeck-widget-market-exchanges` | Per-instance BTC Perp exchange (`binance` default / `hyperliquid`) |
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
