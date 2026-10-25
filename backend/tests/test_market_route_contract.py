@@ -7,6 +7,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.market.common import HistoryPage
 from app.market.providers import (
     BINANCE_PROVIDER,
     HYPERLIQUID_PROVIDER,
@@ -15,6 +16,68 @@ from app.market.providers import (
     relay_for_channel,
 )
 from app.ws import is_valid_channel
+
+# --------------------------------------------------------------------------
+# Hermeticity guard.
+#
+# These tests exercise the real FastAPI routes with mocked upstream data. A
+# live request here passes on a developer machine and fails on a
+# restricted-egress CI runner (GitHub Actions cannot reach Binance from US
+# egress) — that is exactly how PR #141's backend job broke: the Binance
+# volume-profile route called a module-level fetcher instead of going through
+# `BINANCE_PROVIDER`, so the provider patch never intercepted it.
+#
+# `setUpModule` makes any *unmocked* outbound connection in this module raise
+# immediately, so the failure is loud and local instead of a 502 only in CI.
+# `TestClient` reaches the app through Starlette's ASGI transport, so these
+# seams are only used by real egress.
+# --------------------------------------------------------------------------
+
+
+class LiveNetworkBlocked(AssertionError):
+    """A route-contract test tried to reach a real exchange endpoint."""
+
+
+def _blocked_live_network(*args: object, **kwargs: object) -> None:
+    raise LiveNetworkBlocked(
+        "route-contract tests must be hermetic: patch the provider/relay call "
+        "site instead of reaching the live upstream"
+    )
+
+
+LIVE_NETWORK_SEAMS = (
+    "socket.socket.connect",
+    "socket.socket.connect_ex",
+    "socket.create_connection",
+    "httpx.HTTPTransport.handle_request",
+    "httpx.AsyncHTTPTransport.handle_async_request",
+    "websockets.connect",
+    "websockets.asyncio.client.connect",
+)
+
+# The socket seams are the load-bearing part of the guard (every real HTTP or
+# WebSocket client ends up there); the library seams only add a clearer message
+# and tolerate a renamed client API in a future dependency bump.
+LIVE_NETWORK_REQUIRED_SEAMS = ("socket.socket.connect", "socket.create_connection")
+
+_LIVE_NETWORK_PATCHERS: list[object] = []
+
+
+def setUpModule() -> None:  # noqa: N802 - unittest hook
+    for seam in LIVE_NETWORK_SEAMS:
+        try:
+            patcher = patch(seam, _blocked_live_network)
+            patcher.start()
+        except (AttributeError, ModuleNotFoundError):
+            if seam in LIVE_NETWORK_REQUIRED_SEAMS:
+                raise
+            continue
+        _LIVE_NETWORK_PATCHERS.append(patcher)
+
+
+def tearDownModule() -> None:  # noqa: N802 - unittest hook
+    while _LIVE_NETWORK_PATCHERS:
+        _LIVE_NETWORK_PATCHERS.pop().stop()  # type: ignore[attr-defined]
 
 # --------------------------------------------------------------------------
 # Route/path contract shared with the frontend.
@@ -68,11 +131,10 @@ PROVIDERS: dict[str, MarketDataProvider] = {
     "hyperliquid": HYPERLIQUID_PROVIDER,
 }
 
-# Where each exchange's context fetch function is resolved at call time.
-# Binance routes import the fetchers into `app.main`; Hyperliquid routes go
-# through the provider, which resolves them on the market module.
+# Every route resolves its context fetcher through its provider at call time,
+# so this is where the fetchers must be patched for both exchanges.
 CONTEXT_PATCH_TARGETS = {
-    "binance": "app.main.fetch_klines_{level}_context_sync",
+    "binance": "app.market.binance_usdm_btc.fetch_klines_{level}_context_sync",
     "hyperliquid": "app.market.hyperliquid_btc.fetch_klines_{level}_context_sync",
 }
 
@@ -189,8 +251,11 @@ class MarketKlinesIntervalAcceptanceTests(unittest.TestCase):
     def test_history_accepts_every_chart_interval(self) -> None:
         for exchange in MARKET_KLINES_BASE_PATHS:
             provider = PROVIDERS[exchange]
-            with patch.object(provider, "fetch_history_before_sync") as fetch:
-                fetch.return_value.candles = []
+            with patch.object(
+                provider,
+                "fetch_history_before_sync",
+                return_value=HistoryPage(candles=[]),
+            ) as fetch:
                 for interval in CHART_INTERVALS:
                     response = self.client.get(
                         klines_url(exchange, "/history"),
@@ -201,6 +266,8 @@ class MarketKlinesIntervalAcceptanceTests(unittest.TestCase):
                         200,
                         f"{exchange} history {interval}: {response.text[:200]}",
                     )
+                    self.assertEqual(response.json()["candles"], [])
+                fetch.assert_called_with(CHART_INTERVALS[-1], 1_700_000_000)
 
 
 class MarketContextIntervalAcceptanceTests(unittest.TestCase):
@@ -263,12 +330,16 @@ class MarketVolumeProfilePathTests(unittest.TestCase):
         )
 
     def test_volume_profile_route_returns_200_for_both_exchanges(self) -> None:
+        # The route must resolve the source klines through its provider object.
+        # Patching the provider therefore *proves* interception: if a route
+        # bypassed the seam (module-level fetcher), `fetch` would never be
+        # called and the real upstream would be reached.
         for exchange, provider in PROVIDERS.items():
             with patch.object(
                 provider,
                 "fetch_volume_profile_source_klines_sync",
                 return_value=("1m", []),
-            ):
+            ) as fetch:
                 response = self.client.get(
                     klines_url(exchange, "/volume-profile"),
                     params={"start_time": 1_700_000_000, "end_time": 1_700_003_600},
@@ -278,9 +349,31 @@ class MarketVolumeProfilePathTests(unittest.TestCase):
                 200,
                 f"{exchange}: {response.text[:200]}",
             )
+            fetch.assert_called_once_with(1_700_000_000, 1_700_003_600)
             body = response.json()
             self.assertEqual(body["exchange"], exchange)
+            self.assertEqual(body["symbol"], provider.symbol)
             self.assertEqual(body["source_interval"], "1m")
+            self.assertEqual(body["start_time"], 1_700_000_000)
+            self.assertEqual(body["end_time"], 1_700_003_600)
+            self.assertEqual(body["candles"], [])
+            self.assertIn("available_from", body)
+            self.assertIn("history_unavailable", body)
+
+    def test_volume_profile_routes_reject_an_invalid_time_range(self) -> None:
+        # Validation happens before the provider is called, so this is a 400
+        # with no upstream access at all.
+        for exchange, provider in PROVIDERS.items():
+            with patch.object(
+                provider,
+                "fetch_volume_profile_source_klines_sync",
+            ) as fetch:
+                response = self.client.get(
+                    klines_url(exchange, "/volume-profile"),
+                    params={"start_time": 1_700_003_600, "end_time": 1_700_000_000},
+                )
+            self.assertEqual(response.status_code, 400, exchange)
+            fetch.assert_not_called()
 
 
 if __name__ == "__main__":

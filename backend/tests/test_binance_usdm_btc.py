@@ -823,7 +823,7 @@ class BinanceWeeklyContextEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
 
-    @patch("app.main.fetch_klines_weekly_context_sync")
+    @patch("app.market.binance_usdm_btc.fetch_klines_weekly_context_sync")
     def test_weekly_context_endpoint_shape(self, mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [
             normalize_rest_kline_row(SAMPLE_REST_ROW, "1m", now_ms=FIXED_NOW_MS),
@@ -847,7 +847,7 @@ class BinanceWeeklyContextEndpointTests(unittest.TestCase):
         )
         self.assertEqual(result.status_code, 400)
 
-    @patch("app.main.fetch_klines_weekly_context_sync")
+    @patch("app.market.binance_usdm_btc.fetch_klines_weekly_context_sync")
     def test_weekly_context_pagination_failure_returns_502(self, mock_fetch: MagicMock) -> None:
         mock_fetch.side_effect = HTTPException(
             status_code=502,
@@ -866,7 +866,7 @@ class BinanceDailyContextEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
 
-    @patch("app.main.fetch_klines_daily_context_sync")
+    @patch("app.market.binance_usdm_btc.fetch_klines_daily_context_sync")
     def test_daily_context_endpoint_shape(self, mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [
             normalize_rest_kline_row(SAMPLE_REST_ROW, "1m", now_ms=FIXED_NOW_MS),
@@ -967,7 +967,7 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
         )
         self.assertEqual(result.status_code, 400)
 
-    @patch("app.main.fetch_klines_monthly_context_sync")
+    @patch("app.market.binance_usdm_btc.fetch_klines_monthly_context_sync")
     def test_monthly_context_4h_success_shape(self, mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [
             normalize_rest_kline_row(SAMPLE_REST_ROW, "4h", now_ms=FIXED_NOW_MS),
@@ -981,7 +981,7 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
         self.assertEqual(body["interval"], "4h")
         self.assertEqual(len(body["candles"]), 1)
 
-    @patch("app.main.fetch_klines_quarterly_context_sync")
+    @patch("app.market.binance_usdm_btc.fetch_klines_quarterly_context_sync")
     def test_quarterly_context_4h_success_shape(self, mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [
             normalize_rest_kline_row(SAMPLE_REST_ROW, "4h", now_ms=FIXED_NOW_MS),
@@ -993,7 +993,7 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json()["interval"], "4h")
 
-    @patch("app.main.fetch_klines_yearly_context_sync")
+    @patch("app.market.binance_usdm_btc.fetch_klines_yearly_context_sync")
     def test_yearly_context_1d_and_1w_success_shape(self, mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [
             normalize_rest_kline_row(SAMPLE_REST_ROW, "1d", now_ms=FIXED_NOW_MS),
@@ -1272,7 +1272,7 @@ class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
         self.assertEqual(source_interval, "3m")
         self.assertEqual(candles[0]["interval"], "3m")
 
-    @patch("app.main.fetch_volume_profile_source_klines_sync")
+    @patch("app.market.binance_usdm_btc.fetch_volume_profile_source_klines_sync")
     def test_volume_profile_endpoint_success_shape(self, mock_fetch: MagicMock) -> None:
         start_time = 1_700_000_000
         end_time = 1_700_000_600
@@ -1302,7 +1302,7 @@ class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
         )
         self.assertEqual(result.status_code, 400)
 
-    @patch("app.main.fetch_volume_profile_source_klines_sync")
+    @patch("app.market.binance_usdm_btc.fetch_volume_profile_source_klines_sync")
     def test_volume_profile_endpoint_invalid_query_does_not_fetch(self, mock_fetch: MagicMock) -> None:
         result = self.client.get(
             "/api/market/binance/usdm/btcusdt/klines/volume-profile",
@@ -1311,7 +1311,7 @@ class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
         self.assertEqual(result.status_code, 400)
         mock_fetch.assert_not_called()
 
-    @patch("app.main.fetch_volume_profile_source_klines_sync")
+    @patch("app.market.binance_usdm_btc.fetch_volume_profile_source_klines_sync")
     def test_volume_profile_endpoint_propagates_upstream_502(self, mock_fetch: MagicMock) -> None:
         mock_fetch.side_effect = HTTPException(status_code=502, detail="Binance market data request timed out")
         result = self.client.get(

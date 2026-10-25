@@ -15,14 +15,6 @@ from .market.common import (
     validate_interval,
     validate_volume_profile_time_range,
 )
-from .market.binance_usdm_btc import (
-    fetch_klines_daily_context_sync,
-    fetch_klines_monthly_context_sync,
-    fetch_klines_quarterly_context_sync,
-    fetch_klines_weekly_context_sync,
-    fetch_klines_yearly_context_sync,
-    fetch_volume_profile_source_klines_sync,
-)
 from .market.providers import (
     BINANCE_PROVIDER,
     HYPERLIQUID_PROVIDER,
@@ -180,31 +172,19 @@ def _binance_history(before: int, interval: str) -> dict[str, object]:
     return _history_body(BINANCE_PROVIDER, safe_interval, safe_before)
 
 
+# Every Binance route goes through `BINANCE_PROVIDER`, exactly like the
+# Hyperliquid routes go through `HYPERLIQUID_PROVIDER`. A module-level import of
+# a market fetcher here would bypass the provider seam: patching the provider in
+# tests would not intercept the call, so the route would reach the live upstream
+# (PR #141 backend CI failure).
 def _binance_context(level: str, interval: str) -> dict[str, object]:
     safe_interval = validate_interval(interval)
-    fetchers = {
-        "daily": fetch_klines_daily_context_sync,
-        "weekly": fetch_klines_weekly_context_sync,
-        "monthly": fetch_klines_monthly_context_sync,
-        "quarterly": fetch_klines_quarterly_context_sync,
-        "yearly": fetch_klines_yearly_context_sync,
-    }
-    return _klines_body(BINANCE_PROVIDER, safe_interval, fetchers[level](safe_interval))
+    return _context_body(BINANCE_PROVIDER, level, safe_interval)
 
 
 def _binance_volume_profile(start_time: int, end_time: int) -> dict[str, object]:
     safe_start, safe_end = validate_volume_profile_time_range(start_time, end_time)
-    source_interval, candles = fetch_volume_profile_source_klines_sync(
-        safe_start,
-        safe_end,
-    )
-    return _volume_profile_body_from(
-        BINANCE_PROVIDER,
-        safe_start,
-        safe_end,
-        source_interval,
-        candles,
-    )
+    return _volume_profile_body(BINANCE_PROVIDER, safe_start, safe_end)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/history")
