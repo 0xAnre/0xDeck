@@ -41,6 +41,7 @@ describe('rollingVwapAutoWindowMs', () => {
   it('maps each supported interval to Pine timeStep windows', () => {
     assert.equal(rollingVwapAutoWindowMs('1m'), MS_IN_HOUR)
     assert.equal(rollingVwapAutoWindowMs('5m'), MS_IN_HOUR * 4)
+    assert.equal(rollingVwapAutoWindowMs('15m'), MS_IN_DAY)
     assert.equal(rollingVwapAutoWindowMs('30m'), MS_IN_DAY)
     assert.equal(rollingVwapAutoWindowMs('1h'), MS_IN_DAY)
     assert.equal(rollingVwapAutoWindowMs('2h'), MS_IN_DAY * 3)

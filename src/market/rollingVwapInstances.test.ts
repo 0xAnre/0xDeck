@@ -81,6 +81,7 @@ describe('rollingVwapInstancePeriodLabel', () => {
     const expected: Record<string, string> = {
       '1m': '1H',
       '5m': '4H',
+      '15m': '1D',
       '30m': '1D',
       '1h': '1D',
       '2h': '3D',

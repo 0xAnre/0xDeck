@@ -34,6 +34,7 @@ export function saveWidgetMarketInterval(panelId: string, interval: CandleInterv
 const MARKET_INTERVAL_LABELS: Record<CandleInterval, string> = {
   '1m': '1m',
   '5m': '5m',
+  '15m': '15m',
   '30m': '30m',
   '1h': '1H',
   '2h': '2H',

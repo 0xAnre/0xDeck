@@ -105,6 +105,18 @@ describe('indicator support matrix', () => {
     assert.equal(isIndicatorSupportedOnInterval('weekly-vwap', '2h'), true)
   })
 
+  it('enables 3 EMA, 2 EMA, daily/weekly and rolling VWAP on 15m', () => {
+    for (const id of ['triple-ema', 'dual-ema', 'daily-vwap', 'weekly-vwap', 'rolling-vwap'] as const) {
+      assert.equal(isIndicatorSupportedOnInterval(id, '15m'), true)
+    }
+  })
+
+  it('keeps monthly, quarterly and yearly VWAP unchanged on 15m', () => {
+    assert.equal(isIndicatorSupportedOnInterval('monthly-vwap', '15m'), false)
+    assert.equal(isIndicatorSupportedOnInterval('quarterly-vwap', '15m'), false)
+    assert.equal(isIndicatorSupportedOnInterval('yearly-vwap', '15m'), false)
+  })
+
   it('keeps monthly and quarterly disabled on 1h and 2h', () => {
     assert.equal(isIndicatorSupportedOnInterval('monthly-vwap', '1h'), false)
     assert.equal(isIndicatorSupportedOnInterval('quarterly-vwap', '1h'), false)

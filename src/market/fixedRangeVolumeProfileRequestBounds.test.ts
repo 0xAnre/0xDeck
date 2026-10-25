@@ -41,6 +41,16 @@ describe('fixedRangeVolumeProfileRequestBounds', () => {
     assert.equal(bounds?.requestEndTime, to + 14_400)
   })
 
+  it('includes the last 15m candle in exclusive API end', () => {
+    const from = 1_700_000_000
+    const to = from + 900
+    const bounds = computeFixedRangeVolumeProfileRequestBounds(instance(from, to, '15m'))
+    assert.deepEqual(bounds, {
+      requestStartTime: from,
+      requestEndTime: to + 900,
+    })
+  })
+
   it('includes the last 1h and 2h candles in exclusive API end', () => {
     const from = 1_700_000_000
     const oneHour = computeFixedRangeVolumeProfileRequestBounds(
