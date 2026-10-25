@@ -24,7 +24,7 @@ export function readLineHandleFillStyle(): string {
   return readLineStrokeStyle()
 }
 
-/** Hex value for `<input type="color">`. */
+/** Hex value for the shared color picker. */
 export function readLineStrokeColorHexForInstance(instance: { strokeColor?: string }): string {
   return isLineChartHexColor(instance.strokeColor) ? instance.strokeColor : LINE_DEFAULT_STROKE_COLOR
 }

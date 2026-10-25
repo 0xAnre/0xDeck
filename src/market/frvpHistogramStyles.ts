@@ -58,7 +58,7 @@ const DIRECTION_DEFAULT_HEX: Record<FrvpHistogramDirection, string> = {
   down: FRVP_HISTOGRAM_DEFAULT_DOWN_COLOR,
 }
 
-/** Hex value for `<input type="color">`: instance color, else the legacy default. */
+/** Hex value for the shared color picker: instance color, else the legacy default. */
 export function frvpHistogramColorInputValue(
   instance: FixedRangeVolumeProfileInstance,
   direction: FrvpHistogramDirection,

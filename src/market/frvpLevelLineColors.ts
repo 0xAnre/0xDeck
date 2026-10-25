@@ -26,7 +26,7 @@ export function readFrvpVahValLineStrokeStyle(): string {
   )
 }
 
-/** Hex value for `<input type="color">`. */
+/** Hex value for the shared color picker. */
 export function readFrvpPocLineColorInputHex(): string {
   return FRVP_POC_DEFAULT_HEX
 }

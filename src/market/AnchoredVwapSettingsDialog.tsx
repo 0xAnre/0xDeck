@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { LINE_CHART_STROKE_STYLE_LABELS } from '@/market/lineChartStroke'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
   sanitizeAnchoredVwapDrawingSettings,
@@ -16,9 +15,7 @@ import {
   type AnchoredVwapDrawingSettings,
 } from '@/market/anchoredVwapDrawingSettings'
 import {
-  isRollingVwapLineStyle,
   isRollingVwapLineWidth,
-  ROLLING_VWAP_LINE_STYLES,
   ROLLING_VWAP_LINE_WIDTHS,
 } from '@/market/rollingVwapSettings'
 
@@ -83,28 +80,6 @@ function BandPairSection({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        className="grid w-full grid-cols-2"
-        value={draft.lineStyle}
-        onValueChange={(value) => {
-          if (!value || !isRollingVwapLineStyle(value)) return
-          onChange({ ...draft, lineStyle: value })
-        }}
-      >
-        {ROLLING_VWAP_LINE_STYLES.map((style) => (
-          <ToggleGroupItem
-            key={style}
-            value={style}
-            aria-label={`Line style ${LINE_CHART_STROKE_STYLE_LABELS[style]}`}
-            className="w-full"
-          >
-            {LINE_CHART_STROKE_STYLE_LABELS[style]}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
       <div className="space-y-2">
         <label className="flex items-center gap-2">
           <input
@@ -119,8 +94,12 @@ function BandPairSection({
           label="Upper color"
           color={draft.upperColor}
           opacityPercent={draft.upperOpacity}
+          // The band pair shares one `lineStyle` for its upper and lower lines, so
+          // both stroke fields expose the same `Line` / `Dot` row (the fill below does not).
+          lineStyle={draft.lineStyle}
           onColorChange={(upperColor) => onChange({ ...draft, upperColor })}
           onOpacityChange={(upperOpacity) => onChange({ ...draft, upperOpacity })}
+          onLineStyleChange={(lineStyle) => onChange({ ...draft, lineStyle })}
         />
         <label className="flex items-center gap-2">
           <input
@@ -135,8 +114,10 @@ function BandPairSection({
           label="Lower color"
           color={draft.lowerColor}
           opacityPercent={draft.lowerOpacity}
+          lineStyle={draft.lineStyle}
           onColorChange={(lowerColor) => onChange({ ...draft, lowerColor })}
           onOpacityChange={(lowerOpacity) => onChange({ ...draft, lowerOpacity })}
+          onLineStyleChange={(lineStyle) => onChange({ ...draft, lineStyle })}
         />
         <ColorOpacityField
           id={`${idPrefix}-fill-color`}
@@ -213,36 +194,12 @@ function AnchoredVwapSettingsDialogBody({
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            className="grid w-full grid-cols-2"
-            value={draft.vwapLine.lineStyle}
-            onValueChange={(value) => {
-              if (!value || !isRollingVwapLineStyle(value)) return
-              setDraft((current) => ({
-                ...current,
-                vwapLine: { ...current.vwapLine, lineStyle: value },
-              }))
-            }}
-          >
-            {ROLLING_VWAP_LINE_STYLES.map((style) => (
-              <ToggleGroupItem
-                key={style}
-                value={style}
-                aria-label={`Line style ${LINE_CHART_STROKE_STYLE_LABELS[style]}`}
-                className="w-full"
-              >
-                {LINE_CHART_STROKE_STYLE_LABELS[style]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
           <ColorOpacityField
             id="anchored-vwap-line-color"
             label="Color"
             color={draft.vwapLine.lineColor}
             opacityPercent={draft.vwapLine.lineOpacity}
+            lineStyle={draft.vwapLine.lineStyle}
             onColorChange={(lineColor) =>
               setDraft((current) => ({
                 ...current,
@@ -253,6 +210,12 @@ function AnchoredVwapSettingsDialogBody({
               setDraft((current) => ({
                 ...current,
                 vwapLine: { ...current.vwapLine, lineOpacity },
+              }))
+            }
+            onLineStyleChange={(lineStyle) =>
+              setDraft((current) => ({
+                ...current,
+                vwapLine: { ...current.vwapLine, lineStyle },
               }))
             }
           />

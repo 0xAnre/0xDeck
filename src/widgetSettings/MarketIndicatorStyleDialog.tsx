@@ -8,7 +8,6 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { MARKET_INDICATOR_DEFINITIONS, type MarketIndicatorId } from '@/market/indicators'
 import {
-  LINE_CHART_STROKE_STYLE_LABELS,
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
 } from '@/market/lineChartStroke'
@@ -112,6 +111,8 @@ export function MarketIndicatorStyleDialog({
               label="Color"
               color={colorInputValue}
               opacityPercent={opacityInputValue}
+              lineStyle={lineStyleSelectValue}
+              lineStyleMixed={usesDistinctSeriesLineStyles}
               onColorChange={(color) =>
                 onPresentationChange(indicatorId, {
                   ...presentation,
@@ -124,37 +125,20 @@ export function MarketIndicatorStyleDialog({
                   opacity,
                 })
               }
+              onLineStyleChange={(lineStyle) =>
+                onPresentationChange(indicatorId, { ...presentation, lineStyle })
+              }
             />
             {usesDistinctSeriesLineWidths ? (
               <p className="text-xs text-muted-foreground">
                 Mixed line widths on chart. Pick a width to apply to all lines.
               </p>
             ) : null}
-            {usesDistinctSeriesLineStyles ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {seriesLineStyles.map((style, index) => (
-                  <span
-                    key={`${style}-${index}`}
-                    className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground"
-                  >
-                    {LINE_CHART_STROKE_STYLE_LABELS[style]}
-                  </span>
-                ))}
-                <p className="text-xs text-muted-foreground">
-                  Mixed line styles on chart. Pick a style to apply it to all lines.
-                </p>
-              </div>
-            ) : null}
             <LineChartStrokeSelectFields
               widthId="indicator-width"
-              styleId="indicator-style"
               lineWidth={lineWidthInputValue}
-              lineStyle={lineStyleSelectValue}
               onLineWidthChange={(lineWidth) =>
                 onPresentationChange(indicatorId, { ...presentation, lineWidth })
-              }
-              onLineStyleChange={(lineStyle) =>
-                onPresentationChange(indicatorId, { ...presentation, lineStyle })
               }
             />
           </FieldGroup>

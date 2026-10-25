@@ -64,18 +64,17 @@ export function LineStyleDialog({
               label="Color"
               color={readLineStrokeColorHexForInstance(instance)}
               opacityPercent={lineInstanceStrokeOpacityPercent(instance)}
+              lineStyle={lineInstanceStrokeStyle(instance)}
               onColorChange={(color) => onStrokeColorChange(instance.id, color)}
               onOpacityChange={(opacityPercent) =>
                 onStrokeOpacityChange(instance.id, opacityPercent)
               }
+              onLineStyleChange={(lineStyle) => onLineStyleChange(instance.id, lineStyle)}
             />
             <LineChartStrokeSelectFields
               widthId="line-width"
-              styleId="line-style"
               lineWidth={lineInstanceStrokeWidth(instance)}
-              lineStyle={lineInstanceStrokeStyle(instance)}
               onLineWidthChange={(lineWidth) => onLineWidthChange(instance.id, lineWidth)}
-              onLineStyleChange={(lineStyle) => onLineStyleChange(instance.id, lineStyle)}
             />
           </FieldGroup>
         ) : null}
