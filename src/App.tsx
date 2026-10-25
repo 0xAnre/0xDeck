@@ -391,9 +391,11 @@ function App() {
                   <CardHeader
                     className="panel-drag-handle !flex cursor-grab items-center gap-1.5 px-2 pb-1 pt-1.5 active:cursor-grabbing"
                   >
-                    <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
-                      {panelDisplayTitle(panel, visiblePanels)}
-                    </CardTitle>
+                    {!definition.hideHeaderTitle && (
+                      <CardTitle className="min-w-0 max-w-[30%] shrink truncate text-xs font-semibold">
+                        {panelDisplayTitle(panel, visiblePanels)}
+                      </CardTitle>
+                    )}
                     {widgetHasHeaderControls(definition) && (
                       <PanelHeaderControls panelId={panel.id} />
                     )}

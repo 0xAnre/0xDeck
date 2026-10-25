@@ -34,6 +34,11 @@ export type WidgetDefinition = {
   id: string
   title: string
   description: string
+  /**
+   * Render the panel header without the static title label. `title` is still
+   * used by the Widgets menu and the close-button `aria-label`.
+   */
+  hideHeaderTitle?: boolean
   component: ComponentType<WidgetInstanceProps>
   grid: WidgetGrid
   headerSettings: WidgetSettingsFields

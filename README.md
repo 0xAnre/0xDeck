@@ -89,7 +89,7 @@ Add widgets, then use the header dropdowns on each panel to set dataset, columns
 
 ## BTC Perpetual widget
 
-Live **BTC perpetual** chart (TradingView Lightweight Charts) with a header **Exchange** picker:
+Live **BTC perpetual** chart (TradingView Lightweight Charts) with a header **Exchange** picker. The panel header shows only its dropdowns (**Exchange | Timeframes | Indicators | Tools**) — no static `BTC Perp` title:
 
 - **Binance USD-M `BTCUSDT`** (default, unchanged) — REST klines + WebSocket relay.
 - **Hyperliquid `BTC`** — `POST /info` `candleSnapshot` REST klines + WebSocket candle subscription relay.

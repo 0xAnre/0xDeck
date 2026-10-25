@@ -4,6 +4,7 @@ import {
   marketSymbolForExchange,
 } from '../market/marketExchange.ts'
 import type { MarketExchange, MarketSymbol } from '../market/types.ts'
+import { API_BASE } from './apiBase.ts'
 
 export const FIXED_RANGE_VP_SOURCE_INTERVALS = [
   '1m',
@@ -39,8 +40,6 @@ export type FixedRangeVolumeProfileSourceCandle = FixedRangeVolumeProfileCandle 
   interval: FixedRangeVolumeProfileSourceInterval
   closed: boolean
 }
-
-const API_BASE = '/api'
 
 export class FixedRangeVolumeProfileClientError extends Error {
   status?: number

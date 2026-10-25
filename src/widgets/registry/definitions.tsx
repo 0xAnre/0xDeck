@@ -113,6 +113,8 @@ export const WIDGET_REGISTRY = [
     id: 'btc-perpetual-chart',
     title: 'BTC Perp',
     description: 'BTCUSDT perpetual · candles · EMA',
+    /** Keep the header to the four dropdowns — no static `BTC Perp` label. */
+    hideHeaderTitle: true,
     component: BtcPerpetualChartPanel,
     grid: { x: 0, y: 0, w: 18, h: 14, minW: 9, minH: 10 },
     headerSettings: {

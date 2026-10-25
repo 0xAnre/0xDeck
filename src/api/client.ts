@@ -19,10 +19,9 @@ import { marketKlinesPath } from '../market/marketExchange.ts'
 import type { TimeRange } from '@/timeRangeStorage'
 
 import { MARKET_CHART_MIN_INITIAL_HISTORY_BARS } from '../market/chartInitialVisibleRange.ts'
+import { API_BASE } from './apiBase.ts'
 
 const DEFAULT_BINANCE_KLINES_LIMIT = MARKET_CHART_MIN_INITIAL_HISTORY_BARS
-
-const API_BASE = '/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
