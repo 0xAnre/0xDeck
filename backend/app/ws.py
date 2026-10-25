@@ -7,7 +7,10 @@ from typing import Any
 
 from fastapi import WebSocket
 
-CHANNEL_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
+# 96 chars accommodates account channels such as
+# `hyperliquid.account.0x<40 hex>.userfills` (72 chars) while remaining a
+# narrow, bounded identifier.
+CHANNEL_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,95}$")
 
 
 def utc_timestamp() -> str:

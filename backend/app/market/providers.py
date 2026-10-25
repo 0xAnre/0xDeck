@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from . import binance_usdm_btc as binance
+from . import hyperliquid_account
 from . import hyperliquid_btc as hyperliquid
 from .common import (
     VOLUME_PROFILE_SOURCE_INTERVALS,
@@ -200,4 +201,10 @@ def provider_for_channel(channel: str) -> MarketDataProvider | None:
 
 def relay_for_channel(channel: str) -> object | None:
     provider = provider_for_channel(channel)
-    return provider.relay if provider is not None else None
+    if provider is not None:
+        return provider.relay
+    # Account channels are not candle channels, so they are not part of the
+    # candle provider protocol; route them to the dedicated account relay.
+    if hyperliquid_account.parse_account_user_fills_channel(channel) is not None:
+        return hyperliquid_account.hyperliquid_user_fills_relay
+    return None

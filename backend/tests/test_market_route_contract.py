@@ -7,6 +7,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.market import hyperliquid_account
 from app.market.common import HistoryPage
 from app.market.providers import (
     BINANCE_PROVIDER,
@@ -108,6 +109,10 @@ MARKET_KLINES_BASE_PATHS = {
     "hyperliquid": "/market/hyperliquid/btc/klines",
 }
 
+# Read-only account routes are separate from the candle provider seam.
+HYPERLIQUID_ACCOUNT_PATH = "/market/hyperliquid/account/{address}"
+HYPERLIQUID_ACCOUNT_SUFFIXES = ("/position", "/fills", "/fills/by-time")
+
 CHART_INTERVALS = ("1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w")
 
 # Intervals the UI can request per VWAP context level. Mirrors
@@ -152,11 +157,16 @@ def registered_market_paths() -> set[str]:
 
 
 def expected_market_paths() -> set[str]:
-    return {
+    paths = {
         f"{API_PREFIX}{MARKET_KLINES_BASE_PATHS[exchange]}{suffix}"
         for exchange in MARKET_KLINES_BASE_PATHS
         for suffix in MARKET_KLINES_SUFFIXES
     }
+    paths.update(
+        f"{API_PREFIX}{HYPERLIQUID_ACCOUNT_PATH}{suffix}"
+        for suffix in HYPERLIQUID_ACCOUNT_SUFFIXES
+    )
+    return paths
 
 
 def klines_url(exchange: str, suffix: str = "") -> str:
@@ -169,6 +179,13 @@ class MarketRouteContractTests(unittest.TestCase):
 
     def test_app_registers_exactly_the_market_routes_the_frontend_builds(self) -> None:
         self.assertEqual(registered_market_paths(), expected_market_paths())
+
+    def test_hyperliquid_account_routes_are_registered(self) -> None:
+        for suffix in HYPERLIQUID_ACCOUNT_SUFFIXES:
+            self.assertIn(
+                f"{API_PREFIX}{HYPERLIQUID_ACCOUNT_PATH}{suffix}",
+                registered_market_paths(),
+            )
 
     def test_hyperliquid_klines_route_is_registered(self) -> None:
         # The user-visible failure mode: a server without these routes answers
@@ -184,6 +201,19 @@ class MarketRouteContractTests(unittest.TestCase):
         # the assertion above is meaningful (not a wildcard/catch-all route).
         response = self.client.get("/api/market/does-not-exist/btc/klines")
         self.assertEqual(response.status_code, 404)
+
+    def test_account_ws_channel_maps_to_the_account_relay(self) -> None:
+        channel = "hyperliquid.account.0xaf68caebaa151dd592112a07e2344b3950e13561.userfills"
+        self.assertTrue(is_valid_channel(channel))
+        self.assertIsNone(provider_for_channel(channel))
+        self.assertIs(
+            relay_for_channel(channel),
+            hyperliquid_account.hyperliquid_user_fills_relay,
+        )
+        self.assertEqual(
+            hyperliquid_account.parse_account_user_fills_channel(channel),
+            "0xaf68caebaa151dd592112a07e2344b3950e13561",
+        )
 
     def test_every_ws_channel_the_frontend_uses_maps_to_a_relay(self) -> None:
         for exchange, template in WS_CHANNELS.items():

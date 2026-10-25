@@ -15,6 +15,7 @@ from .market.common import (
     validate_interval,
     validate_volume_profile_time_range,
 )
+from .market import hyperliquid_account
 from .market.providers import (
     BINANCE_PROVIDER,
     HYPERLIQUID_PROVIDER,
@@ -325,6 +326,33 @@ def get_hyperliquid_btc_klines(
     safe_limit = clamp_limit(limit)
     candles = HYPERLIQUID_PROVIDER.fetch_klines_sync(safe_interval, safe_limit)
     return _klines_body(HYPERLIQUID_PROVIDER, safe_interval, candles)
+
+
+# Read-only Hyperliquid account data. These routes are deliberately separate
+# from the candle provider seam: positions/fills are account concerns, not
+# market-data concerns. `hyperliquid_account._post_info` is the patchable
+# upstream seam for hermetic tests.
+@app.get("/api/market/hyperliquid/account/{address}/position")
+def get_hyperliquid_account_position(address: str) -> dict[str, object]:
+    return hyperliquid_account.fetch_clearinghouse_state_sync(address)
+
+
+@app.get("/api/market/hyperliquid/account/{address}/fills")
+def get_hyperliquid_account_fills(address: str) -> dict[str, object]:
+    return hyperliquid_account.fetch_user_fills_sync(address)
+
+
+@app.get("/api/market/hyperliquid/account/{address}/fills/by-time")
+def get_hyperliquid_account_fills_by_time(
+    address: str,
+    start_time: int,
+    end_time: int,
+) -> dict[str, object]:
+    return hyperliquid_account.fetch_user_fills_by_time_sync(
+        address,
+        start_time,
+        end_time,
+    )
 
 
 @app.get("/api/health")

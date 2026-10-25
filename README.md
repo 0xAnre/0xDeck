@@ -89,10 +89,10 @@ Add widgets, then use the header dropdowns on each panel to set dataset, columns
 
 ## BTC Perpetual widget
 
-Live **BTC perpetual** chart (TradingView Lightweight Charts) with a header **Exchange** picker. The panel header shows only its dropdowns (**Exchange | Timeframes | Indicators | Tools**) — no static `BTC Perp` title:
+Live **BTC perpetual** chart (TradingView Lightweight Charts) with a header **Exchange** picker. The panel header shows only its dropdowns (**Exchange | Timeframes | Indicators | Tools**) — no static `BTC Perp` title. When Hyperliquid is selected, a built-in read-only account automatically adds Entry/Close markers on the existing candle series:
 
 - **Binance USD-M `BTCUSDT`** (default, unchanged) — REST klines + WebSocket relay.
-- **Hyperliquid `BTC`** — `POST /info` `candleSnapshot` REST klines + WebSocket candle subscription relay.
+- **Hyperliquid `BTC`** — `POST /info` `candleSnapshot` REST klines + WebSocket candle subscription relay. A built-in **read-only account address** renders entry, reduce and close markers from `userFills`; no wallet connection, signature, API key, trading permission or user configuration is used.
 
 Historical klines and VWAP context come from the backend REST API; candle updates use the backend WebSocket relay for the selected exchange (see [backend/README.md](backend/README.md)). Exchange selection is per widget instance and persisted under `0xdeck-widget-market-exchanges` (default `binance` when unset/invalid).
 
@@ -117,7 +117,8 @@ Historical klines and VWAP context come from the backend REST API; candle update
 | **Price tick / FRVP** | FRVP uses the selected exchange's price increment: Binance `0.1`, Hyperliquid 5 significant figures (≈`1` at BTC ~80k). Hyperliquid source intervals are provider-aware (including native `3m`); a profile range older than the provider's history window shows an explicit "history unavailable / available from" notice instead of an empty profile. |
 | **Rolling VWAP** | Overlay instances (not a single on/off toggle). Add, enable/disable, open settings, or delete from the indicators menu. Settings cover fixed/auto period, min bars, standard-deviation bands, band colors, info box, and center-line style. Persisted per panel as `{ id, enabled, settings }[]` under `0xdeck-widget-rolling-vwap-instances`. `0xdeck-widget-rolling-vwap-settings` is legacy (read when migrating a pre-instance overlay; not written on save). Renders only when its effective window fits the chart timeframe: 1D→1m, 1W→5m, 2W→15m, 1M→30m, 3M→1h, 6M→2h, 1Y→4h; longer windows are unsupported. |
 | **Tools** | Header **Tools** menu when `headerSettings.tools` is true: **Fixed Range Volume Profile**, **Rectangle / Box**, **Line**. FRVP instances persist (`0xdeck-widget-fixed-range-vp-instances`) and can be deleted from the menu. Rectangles persist (`0xdeck-widget-rectangle-instances`); create from the menu, select/move/resize on chart, lock/unlock, delete, and set fill (default `#A3A3A3` at `25%` opacity). Lines persist (`0xdeck-widget-line-instances`); create, select/move/resize, delete. |
-| **Persistence** | Exchange, interval, indicators, rolling VWAP, drawings, and workspace layout survive refresh (see [AGENTS.md](AGENTS.md) persistence keys) |
+| **Account markers** | Hyperliquid only, default **OFF**. Toggle **Position Markers** in the existing **Indicators** menu (per widget, persisted as `0xdeck-widget-market-position-markers`) to render side-only markers on the existing candlestick series via `createSeriesMarkers`: buy fills → one green/up-token upward arrow, sell fills → one red/down-token downward arrow, at most one per side per candle bucket (max 2 markers). Hovering a candle lists every individual fill (time, side, price, size, position). No dialogs, wallet connection, signature, API key or trading permission. Markers re-bucket on interval change, stay hidden on Binance/outside loaded history, and never touch candle, indicator, VWAP, FRVP or drawing data. Account fills load only while the toggle is ON. Historical fills page through `userFillsByTime`; a capped window shows an explicit truncation notice. |
+| **Persistence** | Exchange, interval, indicators, rolling VWAP, drawings and workspace layout survive refresh (see [AGENTS.md](AGENTS.md) persistence keys) |
 
 Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
 
