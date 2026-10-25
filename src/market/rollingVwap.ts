@@ -106,6 +106,8 @@ function intervalToMs(interval: CandleInterval): number {
       return MS_IN_MIN
     case '5m':
       return MS_IN_MIN * 5
+    case '15m':
+      return MS_IN_MIN * 15
     case '30m':
       return MS_IN_MIN * 30
     case '1h':

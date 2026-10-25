@@ -125,12 +125,12 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         )
 
     def test_supported_intervals_accepted(self) -> None:
-        for interval in ("1m", "5m", "30m", "1h", "2h", "4h", "1d", "1w"):
+        for interval in ("1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w"):
             self.assertEqual(validate_interval(interval), interval)
 
     def test_invalid_interval_rejected(self) -> None:
         with self.assertRaises(HTTPException) as ctx:
-            validate_interval("15m")
+            validate_interval("3m")
         self.assertEqual(ctx.exception.status_code, 400)
 
     def test_normalize_rest_row_open_and_closed(self) -> None:
@@ -196,6 +196,38 @@ class BinanceUsdmBtcNormalizationTests(unittest.TestCase):
         self.assertIsNotNone(candle)
         self.assertEqual(candle["close"], 62050.4)
 
+    def test_parse_15m_ws_payload_normalizes_relay_candle(self) -> None:
+        kline = {
+            "t": 1_710_000_000_000,
+            "T": 1_710_000_899_999,
+            "s": "BTCUSDT",
+            "i": "15m",
+            "o": "62000.1",
+            "h": "62350.2",
+            "l": "61850.3",
+            "c": "62250.4",
+            "v": "1234.567",
+            "x": True,
+        }
+        payload = json.dumps({"e": "kline", "k": kline})
+        candle = parse_binance_ws_payload(payload)
+        self.assertIsNotNone(candle)
+        self.assertEqual(candle["symbol"], "BTCUSDT")
+        self.assertEqual(candle["interval"], "15m")
+        self.assertEqual(candle["time"], 1_710_000_000)
+        self.assertEqual(candle["open"], 62000.1)
+        self.assertEqual(candle["high"], 62350.2)
+        self.assertEqual(candle["low"], 61850.3)
+        self.assertEqual(candle["close"], 62250.4)
+        self.assertEqual(candle["volume"], 1234.567)
+        self.assertTrue(candle["closed"])
+
+        open_kline = dict(kline, x=False)
+        open_candle = normalize_ws_kline(open_kline)
+        self.assertEqual(open_candle["interval"], "15m")
+        self.assertEqual(open_candle["time"], 1_710_000_000)
+        self.assertFalse(open_candle["closed"])
+
 
 class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -224,7 +256,7 @@ class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
     def test_rest_endpoint_rejects_invalid_interval(self) -> None:
         result = self.client.get(
             "/api/market/binance/usdm/btcusdt/klines",
-            params={"interval": "15m"},
+            params={"interval": "3m"},
         )
         self.assertEqual(result.status_code, 400)
 
@@ -242,6 +274,20 @@ class BinanceUsdmBtcRestEndpointTests(unittest.TestCase):
             )
             self.assertEqual(result.status_code, 200)
             self.assertEqual(result.json()["interval"], interval)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_rest_endpoint_accepts_15m(self, mock_get: MagicMock) -> None:
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json.return_value = [SAMPLE_REST_ROW]
+        mock_get.return_value = response
+
+        result = self.client.get(
+            "/api/market/binance/usdm/btcusdt/klines",
+            params={"interval": "15m", "limit": 1},
+        )
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["interval"], "15m")
 
     @patch("app.market.binance_usdm_btc.httpx.get")
     def test_rest_endpoint_rejects_malformed_kline_row(self, mock_get: MagicMock) -> None:
@@ -376,7 +422,7 @@ class BinanceDailyContextTests(unittest.TestCase):
 
     def test_daily_fetch_window_uses_earlier_of_calendar_and_500_bars(self) -> None:
         calendar_start, _ = daily_context_window_ms(FIXED_NOW_MS)
-        for interval in ("1m", "5m", "30m", "4h", "1d"):
+        for interval in ("1m", "5m", "15m", "30m", "4h", "1d"):
             start_ms, end_ms = context_fetch_window_ms(calendar_start, FIXED_NOW_MS, interval)
             self.assertEqual(end_ms, FIXED_NOW_MS)
             recent_start = FIXED_NOW_MS - MIN_INITIAL_HISTORY_BARS * INTERVAL_DURATION_MS[interval]
@@ -658,9 +704,25 @@ class BinanceHistoryBeforeTests(unittest.TestCase):
         client = TestClient(app)
         result = client.get(
             "/api/market/binance/usdm/btcusdt/klines/history",
-            params={"interval": "15m", "before": 1_700_000_000},
+            params={"interval": "3m", "before": 1_700_000_000},
         )
         self.assertEqual(result.status_code, 400)
+
+    @patch("app.market.binance_usdm_btc.httpx.get")
+    def test_history_before_accepts_15m(self, mock_get: MagicMock) -> None:
+        before_seconds = int(datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc).timestamp())
+        start_ms, _ = history_before_window_ms(before_seconds, "15m")
+        mock_get.return_value = _mock_klines_response([_kline_row(start_ms)])
+        client = TestClient(app)
+        result = client.get(
+            "/api/market/binance/usdm/btcusdt/klines/history",
+            params={"interval": "15m", "before": before_seconds},
+        )
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        self.assertEqual(body["interval"], "15m")
+        self.assertEqual(len(body["candles"]), 1)
+        self.assertEqual(body["candles"][0]["time"], start_ms // 1000)
 
     @patch("app.market.binance_usdm_btc.fetch_klines_paginated_sync")
     def test_history_before_pagination_failure_raises(self, mock_paginated: MagicMock) -> None:
@@ -962,6 +1024,15 @@ class BinanceLongHorizonEndpointContractTests(unittest.TestCase):
             self.assertEqual(parse_channel_interval(channel_for_interval(interval)), interval)
             self.assertIn(f"@kline_{interval}", binance_ws_stream_url(interval))
             self.assertEqual(INTERVAL_DURATION_MS[interval], duration_ms)
+
+    def test_15m_channel_ws_url_and_duration(self) -> None:
+        self.assertEqual(parse_channel_interval(channel_for_interval("15m")), "15m")
+        self.assertIn("@kline_15m", binance_ws_stream_url("15m"))
+        self.assertEqual(INTERVAL_DURATION_MS["15m"], 900_000)
+
+    def test_15m_channel_literal_and_round_trip(self) -> None:
+        self.assertEqual(channel_for_interval("15m"), "binance.usdm.btcusdt.kline.15m")
+        self.assertEqual(parse_channel_interval("binance.usdm.btcusdt.kline.15m"), "15m")
 
 
 class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):

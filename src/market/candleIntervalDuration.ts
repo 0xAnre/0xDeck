@@ -3,6 +3,7 @@ import { CANDLE_INTERVALS, type CandleInterval } from './types.ts'
 const CANDLE_INTERVAL_DURATION_SECONDS: Record<CandleInterval, number> = {
   '1m': 60,
   '5m': 300,
+  '15m': 900,
   '30m': 1800,
   '1h': 3600,
   '2h': 7200,
