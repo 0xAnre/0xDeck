@@ -111,7 +111,7 @@ export const WIDGET_REGISTRY = [
     title: 'BTC Perp',
     description: 'BTCUSDT perpetual · candles · EMA',
     component: BtcPerpetualChartPanel,
-    grid: { x: 0, y: 0, w: 18, h: 14, minW: 12, minH: 10 },
+    grid: { x: 0, y: 0, w: 18, h: 14, minW: 9, minH: 10 },
     headerSettings: {
       dataset: false,
       timeRange: false,
