@@ -1,27 +1,33 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from . import config, datasets
-from .market.binance_usdm_btc import (
+from .market.common import (
     DEFAULT_INTERVAL,
     DEFAULT_LIMIT,
-    binance_kline_relay,
     clamp_limit,
+    validate_before_epoch_seconds,
+    validate_interval,
+    validate_volume_profile_time_range,
+)
+from .market.binance_usdm_btc import (
     fetch_klines_daily_context_sync,
-    fetch_klines_history_before_sync,
     fetch_klines_monthly_context_sync,
     fetch_klines_quarterly_context_sync,
     fetch_klines_weekly_context_sync,
     fetch_klines_yearly_context_sync,
-    fetch_klines_sync,
     fetch_volume_profile_source_klines_sync,
-    validate_before_epoch_seconds,
-    validate_interval,
-    validate_volume_profile_time_range,
+)
+from .market.providers import (
+    BINANCE_PROVIDER,
+    HYPERLIQUID_PROVIDER,
+    MarketDataProvider,
+    relay_for_channel,
 )
 from .ws import is_valid_channel, ws_manager
 
@@ -47,6 +53,90 @@ def require_folder() -> Path:
     return folder
 
 
+def _klines_body(
+    provider: MarketDataProvider,
+    interval: str,
+    candles: list,
+    *,
+    available_from: int | None = None,
+    history_unavailable: bool = False,
+) -> dict[str, object]:
+    if available_from is None:
+        available_from = provider.available_from_seconds(
+            int(time.time() * 1000),
+            interval,
+        )
+    return {
+        "exchange": provider.exchange,
+        "symbol": provider.symbol,
+        "interval": interval,
+        "candles": candles,
+        "history_limit": provider.history_limit_candles,
+        "available_from": available_from,
+        "history_unavailable": history_unavailable,
+    }
+
+
+def _history_body(
+    provider: MarketDataProvider,
+    interval: str,
+    before: int,
+) -> dict[str, object]:
+    page = provider.fetch_history_before_sync(interval, before)
+    return _klines_body(
+        provider,
+        interval,
+        page.candles,
+        available_from=page.available_from,
+        history_unavailable=page.history_unavailable,
+    )
+
+
+def _context_body(
+    provider: MarketDataProvider,
+    level: str,
+    interval: str,
+) -> dict[str, object]:
+    candles = provider.fetch_context_sync(level, interval)
+    return _klines_body(provider, interval, candles)
+
+
+def _volume_profile_body_from(
+    provider: MarketDataProvider,
+    start_time: int,
+    end_time: int,
+    source_interval: str,
+    candles: list,
+) -> dict[str, object]:
+    return {
+        "exchange": provider.exchange,
+        "symbol": provider.symbol,
+        "start_time": start_time,
+        "end_time": end_time,
+        "source_interval": source_interval,
+        "candles": candles,
+        "history_limit": provider.history_limit_candles,
+    }
+
+
+def _volume_profile_body(
+    provider: MarketDataProvider,
+    start_time: int,
+    end_time: int,
+) -> dict[str, object]:
+    source_interval, candles = provider.fetch_volume_profile_source_klines_sync(
+        start_time,
+        end_time,
+    )
+    return _volume_profile_body_from(
+        provider,
+        start_time,
+        end_time,
+        source_interval,
+        candles,
+    )
+
+
 @app.websocket("/api/ws/{channel}")
 async def websocket_channel(websocket: WebSocket, channel: str) -> None:
     if not is_valid_channel(channel):
@@ -56,7 +146,9 @@ async def websocket_channel(websocket: WebSocket, channel: str) -> None:
     if not await ws_manager.connect(channel, websocket):
         return
 
-    await binance_kline_relay.on_client_connected(channel)
+    relay = relay_for_channel(channel)
+    if relay is not None:
+        await relay.on_client_connected(channel)  # type: ignore[attr-defined]
 
     try:
         while True:
@@ -66,7 +158,41 @@ async def websocket_channel(websocket: WebSocket, channel: str) -> None:
         pass
     finally:
         ws_manager.disconnect(channel, websocket)
-        await binance_kline_relay.on_client_disconnected(channel)
+        if relay is not None:
+            await relay.on_client_disconnected(channel)  # type: ignore[attr-defined]
+
+
+def _binance_history(before: int, interval: str) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    safe_before = validate_before_epoch_seconds(before)
+    return _history_body(BINANCE_PROVIDER, safe_interval, safe_before)
+
+
+def _binance_context(level: str, interval: str) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    fetchers = {
+        "daily": fetch_klines_daily_context_sync,
+        "weekly": fetch_klines_weekly_context_sync,
+        "monthly": fetch_klines_monthly_context_sync,
+        "quarterly": fetch_klines_quarterly_context_sync,
+        "yearly": fetch_klines_yearly_context_sync,
+    }
+    return _klines_body(BINANCE_PROVIDER, safe_interval, fetchers[level](safe_interval))
+
+
+def _binance_volume_profile(start_time: int, end_time: int) -> dict[str, object]:
+    safe_start, safe_end = validate_volume_profile_time_range(start_time, end_time)
+    source_interval, candles = fetch_volume_profile_source_klines_sync(
+        safe_start,
+        safe_end,
+    )
+    return _volume_profile_body_from(
+        BINANCE_PROVIDER,
+        safe_start,
+        safe_end,
+        source_interval,
+        candles,
+    )
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/history")
@@ -74,79 +200,42 @@ def get_binance_usdm_btcusdt_klines_history(
     before: int,
     interval: str = DEFAULT_INTERVAL,
 ) -> dict[str, object]:
-    safe_interval = validate_interval(interval)
-    safe_before = validate_before_epoch_seconds(before)
-    candles = fetch_klines_history_before_sync(safe_interval, safe_before)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    return _binance_history(before, interval)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/daily-context")
 def get_binance_usdm_btcusdt_klines_daily_context(
     interval: str = DEFAULT_INTERVAL,
 ) -> dict[str, object]:
-    safe_interval = validate_interval(interval)
-    candles = fetch_klines_daily_context_sync(safe_interval)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    return _binance_context("daily", interval)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/weekly-context")
 def get_binance_usdm_btcusdt_klines_weekly_context(
     interval: str = DEFAULT_INTERVAL,
 ) -> dict[str, object]:
-    safe_interval = validate_interval(interval)
-    candles = fetch_klines_weekly_context_sync(safe_interval)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    return _binance_context("weekly", interval)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/monthly-context")
 def get_binance_usdm_btcusdt_klines_monthly_context(
     interval: str = DEFAULT_INTERVAL,
 ) -> dict[str, object]:
-    safe_interval = validate_interval(interval)
-    candles = fetch_klines_monthly_context_sync(safe_interval)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    return _binance_context("monthly", interval)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/quarterly-context")
 def get_binance_usdm_btcusdt_klines_quarterly_context(
     interval: str = DEFAULT_INTERVAL,
 ) -> dict[str, object]:
-    safe_interval = validate_interval(interval)
-    candles = fetch_klines_quarterly_context_sync(safe_interval)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    return _binance_context("quarterly", interval)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/yearly-context")
 def get_binance_usdm_btcusdt_klines_yearly_context(
     interval: str = DEFAULT_INTERVAL,
 ) -> dict[str, object]:
-    safe_interval = validate_interval(interval)
-    candles = fetch_klines_yearly_context_sync(safe_interval)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    return _binance_context("yearly", interval)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines/volume-profile")
@@ -154,15 +243,7 @@ def get_binance_usdm_btcusdt_klines_volume_profile(
     start_time: int,
     end_time: int,
 ) -> dict[str, object]:
-    safe_start, safe_end = validate_volume_profile_time_range(start_time, end_time)
-    source_interval, candles = fetch_volume_profile_source_klines_sync(safe_start, safe_end)
-    return {
-        "symbol": "BTCUSDT",
-        "start_time": safe_start,
-        "end_time": safe_end,
-        "source_interval": source_interval,
-        "candles": candles,
-    }
+    return _binance_volume_profile(start_time, end_time)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines")
@@ -172,12 +253,86 @@ def get_binance_usdm_btcusdt_klines(
 ) -> dict[str, object]:
     safe_interval = validate_interval(interval)
     safe_limit = clamp_limit(limit)
-    candles = fetch_klines_sync(safe_interval, safe_limit)
-    return {
-        "symbol": "BTCUSDT",
-        "interval": safe_interval,
-        "candles": candles,
-    }
+    candles = BINANCE_PROVIDER.fetch_klines_sync(safe_interval, safe_limit)
+    return _klines_body(BINANCE_PROVIDER, safe_interval, candles)
+
+
+def _hyperliquid_history(before: int, interval: str) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    safe_before = validate_before_epoch_seconds(before)
+    return _history_body(HYPERLIQUID_PROVIDER, safe_interval, safe_before)
+
+
+def _hyperliquid_context(level: str, interval: str) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    return _context_body(HYPERLIQUID_PROVIDER, level, safe_interval)
+
+
+def _hyperliquid_volume_profile(start_time: int, end_time: int) -> dict[str, object]:
+    safe_start, safe_end = validate_volume_profile_time_range(start_time, end_time)
+    return _volume_profile_body(HYPERLIQUID_PROVIDER, safe_start, safe_end)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/history")
+def get_hyperliquid_btc_klines_history(
+    before: int,
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    return _hyperliquid_history(before, interval)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/daily-context")
+def get_hyperliquid_btc_klines_daily_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    return _hyperliquid_context("daily", interval)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/weekly-context")
+def get_hyperliquid_btc_klines_weekly_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    return _hyperliquid_context("weekly", interval)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/monthly-context")
+def get_hyperliquid_btc_klines_monthly_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    return _hyperliquid_context("monthly", interval)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/quarterly-context")
+def get_hyperliquid_btc_klines_quarterly_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    return _hyperliquid_context("quarterly", interval)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/yearly-context")
+def get_hyperliquid_btc_klines_yearly_context(
+    interval: str = DEFAULT_INTERVAL,
+) -> dict[str, object]:
+    return _hyperliquid_context("yearly", interval)
+
+
+@app.get("/api/market/hyperliquid/btc/klines/volume-profile")
+def get_hyperliquid_btc_klines_volume_profile(
+    start_time: int,
+    end_time: int,
+) -> dict[str, object]:
+    return _hyperliquid_volume_profile(start_time, end_time)
+
+
+@app.get("/api/market/hyperliquid/btc/klines")
+def get_hyperliquid_btc_klines(
+    interval: str = DEFAULT_INTERVAL,
+    limit: int = DEFAULT_LIMIT,
+) -> dict[str, object]:
+    safe_interval = validate_interval(interval)
+    safe_limit = clamp_limit(limit)
+    candles = HYPERLIQUID_PROVIDER.fetch_klines_sync(safe_interval, safe_limit)
+    return _klines_body(HYPERLIQUID_PROVIDER, safe_interval, candles)
 
 
 @app.get("/api/health")
