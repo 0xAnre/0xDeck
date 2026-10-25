@@ -22,8 +22,6 @@ type UseMarketWidgetSettingsArgs = {
   panelId: string
   marketExchange: MarketExchange
   onMarketExchangeChange: (exchange: MarketExchange) => void
-  marketAccountAddress: string | null
-  onMarketAccountClick: () => void
   marketInterval: CandleInterval
   onMarketIntervalChange: (interval: CandleInterval) => void
   marketIndicators: MarketIndicatorId[]
@@ -110,8 +108,6 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     panelId,
     marketExchange,
     onMarketExchangeChange,
-    marketAccountAddress,
-    onMarketAccountClick,
     marketInterval,
     onMarketIntervalChange,
     marketIndicators,
@@ -177,8 +173,6 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onMarketExchangeChange: headerSettings.exchange
         ? onMarketExchangeChange
         : undefined,
-      marketAccountAddress: headerSettings.account ? marketAccountAddress : undefined,
-      onMarketAccountClick: headerSettings.account ? onMarketAccountClick : undefined,
       marketInterval,
       onMarketIntervalChange,
       marketIndicators: headerSettings.indicators ? marketIndicators : undefined,
@@ -266,11 +260,9 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       lineInstances,
       anchoredVwapInstances,
       headerSettings,
-      marketAccountAddress,
       marketExchange,
       marketIndicators,
       marketInterval,
-      onMarketAccountClick,
       onMarketExchangeChange,
       onFixedRangeVolumeProfileArm,
       onFixedRangeVolumeProfileDelete,

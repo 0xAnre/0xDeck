@@ -1,24 +1,14 @@
 /**
- * Read-only Hyperliquid account address + account API contract.
+ * Permanent read-only Hyperliquid account used by the BTC Perp widget.
  *
- * The address is workspace-level (one account for the whole app), never a
- * wallet connection: no signing, no API key, no trading permission.
+ * The address is built in, not user-configurable: no wallet connection,
+ * signing, API key, or trading permission is involved. Casing is preserved in
+ * this constant; API/validation paths normalize to lower-case.
  */
-
-export const HYPERLIQUID_ACCOUNT_STORAGE_KEY = '0xdeck-hyperliquid-account'
-
-/** Same-tab notification so every open BTC Perp panel shares one account. */
-export const HYPERLIQUID_ACCOUNT_CHANGED_EVENT =
-  '0xdeck-hyperliquid-account-changed'
-
-function notifyHyperliquidAccountChanged(): void {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(new Event(HYPERLIQUID_ACCOUNT_CHANGED_EVENT))
-}
+export const DEFAULT_HYPERLIQUID_ACCOUNT_ADDRESS =
+  '0x01567bEFc20Aa7D5D1a8EB2107efae633fF090f5'
 
 export const HYPERLIQUID_ACCOUNT_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/
-export const HYPERLIQUID_ACCOUNT_INVALID_MESSAGE =
-  "Enter a Hyperliquid address: '0x' followed by 40 hexadecimal characters"
 
 export type HyperliquidAccountFillSide = 'B' | 'A'
 
@@ -80,36 +70,17 @@ export function normalizeHyperliquidAccountAddress(value: unknown): string | nul
   return value.trim().toLowerCase()
 }
 
-export function loadHyperliquidAccountAddress(): string | null {
-  try {
-    const raw = localStorage.getItem(HYPERLIQUID_ACCOUNT_STORAGE_KEY)
-    return normalizeHyperliquidAccountAddress(raw)
-  } catch {
-    return null
-  }
-}
-
-/** Persist a valid address; returns the normalized value or `null` if invalid. */
-export function saveHyperliquidAccountAddress(value: unknown): string | null {
-  const normalized = normalizeHyperliquidAccountAddress(value)
-  if (normalized === null) return null
-  try {
-    localStorage.setItem(HYPERLIQUID_ACCOUNT_STORAGE_KEY, normalized)
-  } catch {
-    // Storage can be unavailable (private mode / quota); the in-memory state
-    // still works for the current session.
-  }
-  notifyHyperliquidAccountChanged()
-  return normalized
-}
-
-export function clearHyperliquidAccountAddress(): void {
-  try {
-    localStorage.removeItem(HYPERLIQUID_ACCOUNT_STORAGE_KEY)
-  } catch {
-    // Ignore unavailable storage.
-  }
-  notifyHyperliquidAccountChanged()
+/**
+ * Use a supplied address when valid, otherwise the built-in default. The BTC
+ * Perp widget calls this with no argument, so the fixed account is always used.
+ */
+export function resolveHyperliquidAccountAddress(value?: unknown): string {
+  const supplied = normalizeHyperliquidAccountAddress(value)
+  if (supplied !== null) return supplied
+  // The constant is validated by `hyperliquidAccount.test.ts`.
+  return normalizeHyperliquidAccountAddress(
+    DEFAULT_HYPERLIQUID_ACCOUNT_ADDRESS,
+  ) as string
 }
 
 export const HYPERLIQUID_ACCOUNT_API_PATH = '/market/hyperliquid/account'

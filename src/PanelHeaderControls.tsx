@@ -1,7 +1,4 @@
-import { WalletIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useWidgetSettings } from '@/hooks/useWidgetSettings'
-import { cn } from '@/lib/utils'
 import { KPI_AGG_OPTIONS, type KpiAggregation } from '@/kpiStorage'
 import { MARKET_EXCHANGE_OPTIONS } from '@/marketExchanges'
 import { MARKET_INTERVAL_OPTIONS } from '@/marketIntervalStorage'
@@ -10,7 +7,7 @@ import { TIME_RANGE_OPTIONS, type TimeRange } from '@/timeRangeStorage'
 import { HeaderColumnsSelect } from '@/widgetSettings/HeaderColumnsSelect'
 import { HeaderIndicatorsMenu } from '@/widgetSettings/HeaderIndicatorsMenu'
 import { HeaderToolsMenu } from '@/widgetSettings/HeaderToolsMenu'
-import { HEADER_CONTROL_TRIGGER_CLASS, HeaderSelect } from '@/widgetSettings/HeaderSelect'
+import { HeaderSelect } from '@/widgetSettings/HeaderSelect'
 
 function datasetLabel(name: string) {
   return name.replace(/\.parquet$/i, '')
@@ -126,35 +123,6 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
               settings.onMarketExchangeChange?.(value as MarketExchange)
             }
           />
-        )}
-
-      {settings.fields.account &&
-        settings.marketExchange === 'hyperliquid' &&
-        settings.onMarketAccountClick && (
-          <Button
-            id={`${panelId}-account`}
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-label="Hyperliquid account"
-            title="Hyperliquid read-only account"
-            className={cn(
-              HEADER_CONTROL_TRIGGER_CLASS,
-              'flex w-[6.75rem] items-center justify-start gap-1 px-1.5 font-normal',
-            )}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation()
-              settings.onMarketAccountClick?.()
-            }}
-          >
-            <WalletIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">
-              {settings.marketAccountAddress
-                ? `${settings.marketAccountAddress.slice(0, 6)}…${settings.marketAccountAddress.slice(-4)}`
-                : 'Account'}
-            </span>
-          </Button>
         )}
 
       {settings.fields.interval && (

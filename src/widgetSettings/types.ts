@@ -19,8 +19,6 @@ export type WidgetSettingsFields = {
   metric: boolean
   aggregation: boolean
   exchange?: boolean
-  /** Hyperliquid read-only account entry point (header button + dialog). */
-  account?: boolean
   interval: boolean
   indicators: boolean
   tools?: boolean
@@ -44,8 +42,6 @@ export type WidgetSettingsRegistration = {
   onAggregationChange?: (aggregation: KpiAggregation) => void
   marketExchange?: MarketExchange
   onMarketExchangeChange?: (exchange: MarketExchange) => void
-  marketAccountAddress?: string | null
-  onMarketAccountClick?: () => void
   marketInterval?: CandleInterval
   onMarketIntervalChange?: (interval: CandleInterval) => void
   marketIndicators?: MarketIndicatorId[]

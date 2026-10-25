@@ -308,20 +308,11 @@ import {
   MARKET_STYLE_MULTI_LINE_SHADES,
   MARKET_STYLE_PALETTE,
 } from '@/market/marketStylePalette'
-import { HyperliquidAccountDialog } from '@/market/HyperliquidAccountDialog'
 import {
-  clearHyperliquidAccountAddress,
-  HYPERLIQUID_ACCOUNT_CHANGED_EVENT,
-  HYPERLIQUID_ACCOUNT_STORAGE_KEY,
   hyperliquidUserFillsChannel,
-  loadHyperliquidAccountAddress,
-  saveHyperliquidAccountAddress,
-  type HyperliquidBtcPosition,
+  resolveHyperliquidAccountAddress,
 } from '@/market/hyperliquidAccount'
-import {
-  fetchHyperliquidAccountFillsByTime,
-  fetchHyperliquidAccountPosition,
-} from '@/market/hyperliquidAccountApi'
+import { fetchHyperliquidAccountFillsByTime } from '@/market/hyperliquidAccountApi'
 import {
   bucketHyperliquidFillEvents,
   classifyHyperliquidFills,
@@ -372,7 +363,8 @@ function readHyperliquidMarkerColors(): HyperliquidMarkerColors {
   }
 }
 
-type HyperliquidAccountPositionStatus = 'idle' | 'loading' | 'ready' | 'error'
+/** The BTC Perp widget always uses this built-in read-only account. */
+const HYPERLIQUID_ACCOUNT_ADDRESS = resolveHyperliquidAccountAddress()
 
 function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
   switch (state) {
@@ -462,14 +454,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [editingAnchoredVwapInstanceId, setEditingAnchoredVwapInstanceId] = useState<string | null>(
     null,
   )
-  const [accountAddress, setAccountAddress] = useState<string | null>(() =>
-    loadHyperliquidAccountAddress(),
-  )
-  const [accountDialogOpen, setAccountDialogOpen] = useState(false)
-  const [accountPosition, setAccountPosition] = useState<HyperliquidBtcPosition | null>(null)
-  const [accountPositionStatus, setAccountPositionStatus] =
-    useState<HyperliquidAccountPositionStatus>('idle')
-  const [accountPositionError, setAccountPositionError] = useState<string | null>(null)
   const [accountFills, setAccountFills] = useState<HyperliquidFill[]>([])
   const [accountFillsNotice, setAccountFillsNotice] = useState<string | null>(null)
   const [hoveredAccountEvents, setHoveredAccountEvents] = useState<
@@ -549,11 +533,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const viewportPersistTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const accountMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
   const accountFillsRangeRef = useRef<string | null>(null)
-  const accountPositionRequestRef = useRef(0)
   const accountMarkersByBucketRef = useRef<Map<number, BucketedHyperliquidFillEvent[]>>(
     new Map(),
   )
-  const accountAddressRef = useRef<string | null>(accountAddress)
 
   const flushMarketChartViewportPersist = useCallback(
     (
@@ -1574,116 +1556,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setChartReady(false)
       setStreamState('idle')
       setIndicatorHistoryNotices([])
-      setAccountDialogOpen(false)
       accountFillsRangeRef.current = null
-      accountPositionRequestRef.current += 1
       setAccountFills([])
       setAccountFillsNotice(null)
       setHoveredAccountEvents([])
-      setAccountPosition(null)
-      setAccountPositionStatus('idle')
-      setAccountPositionError(null)
       setExchange(next)
     },
     [panelId],
   )
-
-  const refreshAccountPosition = useCallback((address: string | null) => {
-    const requestId = ++accountPositionRequestRef.current
-    if (address === null || activeExchangeRef.current !== 'hyperliquid') {
-      setAccountPosition(null)
-      setAccountPositionError(null)
-      setAccountPositionStatus('idle')
-      return
-    }
-
-    setAccountPositionStatus('loading')
-    setAccountPositionError(null)
-    void fetchHyperliquidAccountPosition(address)
-      .then((response) => {
-        if (requestId !== accountPositionRequestRef.current) return
-        setAccountPosition(response.btc_position)
-        setAccountPositionStatus('ready')
-      })
-      .catch((error: unknown) => {
-        if (requestId !== accountPositionRequestRef.current) return
-        setAccountPosition(null)
-        setAccountPositionStatus('error')
-        setAccountPositionError(
-          error instanceof Error ? error.message : 'Could not load the BTC position',
-        )
-      })
-  }, [])
-
-  const applyAccountAddress = useCallback((next: string | null) => {
-    if (accountAddressRef.current === next) return
-    accountAddressRef.current = next
-    accountFillsRangeRef.current = null
-    setAccountAddress(next)
-    setAccountFills([])
-    setAccountFillsNotice(null)
-    setHoveredAccountEvents([])
-  }, [])
-
-  const handleAccountSave = useCallback(
-    (value: string) => {
-      const saved = saveHyperliquidAccountAddress(value)
-      if (saved === null) return
-      applyAccountAddress(saved)
-      setAccountDialogOpen(true)
-      refreshAccountPosition(saved)
-    },
-    [applyAccountAddress, refreshAccountPosition],
-  )
-
-  const handleAccountRemove = useCallback(() => {
-    clearHyperliquidAccountAddress()
-    applyAccountAddress(null)
-    accountPositionRequestRef.current += 1
-    setAccountPosition(null)
-    setAccountPositionStatus('idle')
-    setAccountPositionError(null)
-  }, [applyAccountAddress])
-
-  useEffect(() => {
-    // Workspace-level account: another panel (or another tab) changing the
-    // address must update this panel too, without a reload.
-    const syncFromStorage = () => {
-      applyAccountAddress(loadHyperliquidAccountAddress())
-    }
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== HYPERLIQUID_ACCOUNT_STORAGE_KEY) return
-      syncFromStorage()
-    }
-    window.addEventListener(HYPERLIQUID_ACCOUNT_CHANGED_EVENT, syncFromStorage)
-    window.addEventListener('storage', onStorage)
-    return () => {
-      window.removeEventListener(HYPERLIQUID_ACCOUNT_CHANGED_EVENT, syncFromStorage)
-      window.removeEventListener('storage', onStorage)
-    }
-  }, [applyAccountAddress])
-
-  const handleAccountClick = useCallback(() => {
-    setAccountDialogOpen(true)
-    refreshAccountPosition(accountAddress)
-  }, [accountAddress, refreshAccountPosition])
-
-  const handleAccountDialogOpenChange = useCallback((open: boolean) => {
-    setAccountDialogOpen(open)
-    if (open) return
-    accountPositionRequestRef.current += 1
-    setAccountPosition(null)
-    setAccountPositionStatus('idle')
-    setAccountPositionError(null)
-  }, [])
 
   useMarketWidgetSettings({
     headerSettings,
     panelId,
     marketExchange: exchange,
     onMarketExchangeChange: handleExchangeChange,
-    marketAccountAddress: accountAddress,
-    onMarketAccountClick: handleAccountClick,
     marketInterval: interval,
     onMarketIntervalChange: handleIntervalChange,
     marketIndicators: activeIndicators,
@@ -2274,7 +2160,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [anchoredVwapInstances, chartReady])
 
   useEffect(() => {
-    if (exchange !== 'hyperliquid' || accountAddress === null) return
+    if (exchange !== 'hyperliquid') return
     if (!chartReady) return
 
     const candles = candlesRef.current
@@ -2291,7 +2177,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const controller = new AbortController()
     setAccountFillsNotice(null)
     void fetchHyperliquidAccountFillsByTime(
-      accountAddress,
+      HYPERLIQUID_ACCOUNT_ADDRESS,
       startTime,
       endTime,
       controller.signal,
@@ -2321,11 +2207,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
 
     return () => controller.abort()
-  }, [accountAddress, candleRangeRevision, chartReady, exchange, interval])
+  }, [candleRangeRevision, chartReady, exchange, interval])
 
   useEffect(() => {
-    if (exchange !== 'hyperliquid' || accountAddress === null) return
-    const channel = hyperliquidUserFillsChannel(accountAddress)
+    if (exchange !== 'hyperliquid') return
+    const channel = hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS)
     const client = new WidgetStreamClient({
       channel,
       onMessage: (message) => {
@@ -2343,12 +2229,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     })
     client.connect()
     return () => client.disconnect()
-  }, [accountAddress, exchange])
+  }, [exchange])
 
   useEffect(() => {
     const markers = accountMarkersRef.current
     if (!markers) return
-    if (exchange !== 'hyperliquid' || accountAddress === null || !chartReady) {
+    if (exchange !== 'hyperliquid' || !chartReady) {
       markers.setMarkers([])
       accountMarkersByBucketRef.current = new Map()
       return
@@ -2372,7 +2258,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       hyperliquidFillEventsToMarkers(visible, readHyperliquidMarkerColors()),
     )
     accountMarkersByBucketRef.current = byBucket
-  }, [accountAddress, accountFills, candleRangeRevision, chartReady, exchange, interval])
+  }, [accountFills, candleRangeRevision, chartReady, exchange, interval])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -3193,17 +3079,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           }
         }}
         onSave={handleRollingVwapSettingsSave}
-      />
-      <HyperliquidAccountDialog
-        key={`${accountDialogOpen ? 'open' : 'closed'}-${accountAddress ?? 'none'}`}
-        open={accountDialogOpen}
-        onOpenChange={handleAccountDialogOpenChange}
-        savedAddress={accountAddress}
-        position={accountPosition}
-        positionStatus={accountPositionStatus}
-        positionError={accountPositionError}
-        onSave={handleAccountSave}
-        onRemove={handleAccountRemove}
       />
       <MarketIndicatorStyleDialog
         indicatorId={editingMarketIndicatorId}
