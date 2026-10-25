@@ -40,7 +40,7 @@ Runtime adapters configure how a particular agent tool loads these rules; the sh
 **Build a workspace**
 
 1. Add a widget: Chart, KPI Card, Data Table, Notes, Market Times, Dashboard, Reports, **BTC Perp**
-2. Use the dropdowns in the widget header for dataset, columns, time range, metric, and aggregation (BTC Perp: interval, indicators, tools)
+2. Use the dropdowns in the widget header for dataset, columns, time range, metric, and aggregation (BTC Perp: exchange, interval, indicators, tools)
 3. Drag, resize, stack panels — layout persists in `localStorage`
 4. Scroll the workspace when content extends below the viewport; jump to screens 1–9 with `m` then `1`–`9`, or use the header **Screen Lock** button to pin the workspace to the active screen (see [README](../README.md#workspace-navigation))
 
@@ -62,7 +62,7 @@ Runtime adapters configure how a particular agent tool loads these rules; the sh
 | Reports | Preview tab | Export mock; saved queries planned |
 | Notes | localStorage | Markdown edit + preview |
 | Market Times | — | Exchange sessions, open/close countdown |
-| BTC Perp | REST klines + WebSocket relay | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line tools |
+| BTC Perp | REST klines + WebSocket relay (Binance USD-M / Hyperliquid) | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line tools |
 
 ## Data layout
 

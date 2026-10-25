@@ -13,6 +13,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `id` | Stable template id (kebab-case); used as instance id prefix |
 | `title` | Widgets menu label |
 | `description` | Short hint in catalog / docs |
+| `hideHeaderTitle` | Optional; `true` omits the static title label from the panel header. `title` still labels the Widgets menu and the close button. |
 | `component` | React body implementing `WidgetInstanceProps` |
 | `grid` | Default position and **minimum** size (`minW`, `minH`); also default open size |
 | `headerSettings` | Which header controls this widget supports (see below) |
@@ -42,8 +43,8 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 - **`headerSettings` in the registry is the single source of truth** for which header fields appear.
 - Do not enable a field the body does not support.
 - Parquet widgets register live values via **`useParquetWidgetSettings({ headerSettings, panelId, … })`**.
-- BTC Perp registers interval, indicators, and tools via **`useMarketWidgetSettings`**.
-- `PanelHeaderControls` renders the shared header.
+- BTC Perp registers exchange, interval, indicators, and tools via **`useMarketWidgetSettings`**.
+- `PanelHeaderControls` renders the shared header in the order Exchange | Timeframe | Indicators | Tools. BTC Perp sets `hideHeaderTitle` so the static title label is not rendered; the row starts with the Exchange dropdown and the close button stays right-aligned.
 
 | Field | Meaning |
 |-------|---------|
@@ -52,6 +53,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 | `columns` | Column multi-select (table) |
 | `metric` | KPI metric column |
 | `aggregation` | KPI aggregation |
+| `exchange` | Market exchange picker (BTC Perp: Binance, Hyperliquid) |
 | `interval` | Candle interval (`1m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`) for live market widgets |
 | `indicators` | Market indicator multi-select (BTC Perp; availability is interval-specific) |
 | `tools` | Chart tools menu (BTC Perp: FRVP, rectangle/box, line) |

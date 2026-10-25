@@ -1,7 +1,20 @@
-import type { CandleInterval, MarketCandle } from './types.ts'
+import type {
+  CandleInterval,
+  MarketCandle,
+  MarketExchange,
+  MarketSymbol,
+} from './types.ts'
 import { CANDLE_INTERVALS } from './types.ts'
+import { marketSymbolForExchange } from './marketExchange.ts'
 
 const VALID_INTERVALS = new Set<string>(CANDLE_INTERVALS)
+const VALID_SYMBOLS = new Set<string>(['BTCUSDT', 'BTC'] satisfies MarketSymbol[])
+
+export type ParseMarketCandleExpectation = {
+  exchange?: MarketExchange
+  interval?: CandleInterval
+  symbol?: MarketSymbol
+}
 
 function isCandleInterval(value: unknown): value is CandleInterval {
   return typeof value === 'string' && VALID_INTERVALS.has(value)
@@ -22,12 +35,27 @@ function readNonNegativeNumber(value: unknown): number | null {
   return parsed
 }
 
-export function parseMarketCandlePayload(payload: unknown): MarketCandle | null {
+export function parseMarketCandlePayload(
+  payload: unknown,
+  expectation: ParseMarketCandleExpectation = {},
+): MarketCandle | null {
   if (!payload || typeof payload !== 'object') return null
 
   const record = payload as Record<string, unknown>
-  if (record.symbol !== 'BTCUSDT') return null
+  if (typeof record.symbol !== 'string' || !VALID_SYMBOLS.has(record.symbol)) {
+    return null
+  }
+  const symbol = record.symbol as MarketSymbol
   if (!isCandleInterval(record.interval)) return null
+
+  if (expectation.interval && record.interval !== expectation.interval) return null
+  if (expectation.symbol && symbol !== expectation.symbol) return null
+  if (
+    expectation.exchange &&
+    symbol !== marketSymbolForExchange(expectation.exchange)
+  ) {
+    return null
+  }
 
   const time = readNumber(record.time)
   const open = readNumber(record.open)
@@ -50,7 +78,7 @@ export function parseMarketCandlePayload(payload: unknown): MarketCandle | null 
   if (typeof record.closed !== 'boolean') return null
 
   return {
-    symbol: 'BTCUSDT',
+    symbol,
     interval: record.interval,
     time: Math.trunc(time),
     open,

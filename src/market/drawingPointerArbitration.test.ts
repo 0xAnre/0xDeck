@@ -81,12 +81,16 @@ function frvpRuntime(
       requestEndTime: instance.toTime,
       sourceInterval: '1m',
       profile,
+      historyUnavailable: false,
+      availableFrom: null,
       pipeline: {
         instanceId: instance.id,
         requestStartTime: instance.fromTime,
         requestEndTime: instance.toTime,
         sourceInterval: '1m',
         profile,
+        historyUnavailable: false,
+        availableFrom: null,
       },
     },
   }

@@ -15,6 +15,10 @@ export type FixedRangeVolumeProfileRuntimeReady = {
   sourceInterval: FixedRangeVolumeProfilePipelineResult['sourceInterval']
   profile: FixedRangeVolumeProfilePipelineResult['profile']
   pipeline: FixedRangeVolumeProfilePipelineResult
+  /** True when the requested range predates the provider's history window. */
+  historyUnavailable: boolean
+  /** Earliest candle open (unix seconds) the provider can serve, when limited. */
+  availableFrom: number | null
 }
 
 export type FixedRangeVolumeProfileRuntimeError = {

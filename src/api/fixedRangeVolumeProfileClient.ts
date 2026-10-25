@@ -1,4 +1,10 @@
 import type { FixedRangeVolumeProfileCandle } from '../market/fixedRangeVolumeProfile.ts'
+import {
+  marketKlinesPath,
+  marketSymbolForExchange,
+} from '../market/marketExchange.ts'
+import type { MarketExchange, MarketSymbol } from '../market/types.ts'
+import { API_BASE } from './apiBase.ts'
 
 export const FIXED_RANGE_VP_SOURCE_INTERVALS = [
   '1m',
@@ -16,19 +22,24 @@ export type FixedRangeVolumeProfileSourceInterval =
   (typeof FIXED_RANGE_VP_SOURCE_INTERVALS)[number]
 
 export type FixedRangeVolumeProfileKlinesResponse = {
-  symbol: 'BTCUSDT'
+  exchange: MarketExchange
+  symbol: MarketSymbol
   start_time: number
   end_time: number
   source_interval: FixedRangeVolumeProfileSourceInterval
   candles: FixedRangeVolumeProfileSourceCandle[]
+  /** Provider candle limit for the source interval, when the provider documents one. */
+  history_limit?: number | null
+  /** Earliest candle open (unix seconds) the provider can serve for the source interval. */
+  available_from?: number | null
+  /** True when part of the requested range predates the provider's history window. */
+  history_unavailable?: boolean
 }
 
 export type FixedRangeVolumeProfileSourceCandle = FixedRangeVolumeProfileCandle & {
   interval: FixedRangeVolumeProfileSourceInterval
   closed: boolean
 }
-
-const API_BASE = '/api'
 
 export class FixedRangeVolumeProfileClientError extends Error {
   status?: number
@@ -62,15 +73,29 @@ function parseOhlc(
 
 export function parseFixedRangeVolumeProfileKlinesResponse(
   body: unknown,
-  requested: { startTime: number; endTime: number },
+  requested: {
+    startTime: number
+    endTime: number
+    exchange?: MarketExchange
+  },
 ): FixedRangeVolumeProfileKlinesResponse {
   if (!body || typeof body !== 'object') {
     throw new FixedRangeVolumeProfileClientError('Volume profile response must be an object')
   }
   const root = body as Record<string, unknown>
+  const exchange = requested.exchange ?? 'binance'
 
-  if (root.symbol !== 'BTCUSDT') {
-    throw new FixedRangeVolumeProfileClientError('Volume profile response symbol must be BTCUSDT')
+  if (root.exchange !== undefined && root.exchange !== exchange) {
+    throw new FixedRangeVolumeProfileClientError(
+      `Volume profile response exchange must be ${exchange}`,
+    )
+  }
+
+  const expectedSymbol = marketSymbolForExchange(exchange)
+  if (root.symbol !== expectedSymbol) {
+    throw new FixedRangeVolumeProfileClientError(
+      `Volume profile response symbol must be ${expectedSymbol}`,
+    )
   }
 
   if (!Number.isInteger(root.start_time) || root.start_time !== requested.startTime) {
@@ -86,6 +111,32 @@ export function parseFixedRangeVolumeProfileKlinesResponse(
   const sourceInterval = root.source_interval
   if (!Array.isArray(root.candles)) {
     throw new FixedRangeVolumeProfileClientError('Volume profile response candles must be an array')
+  }
+
+  // Availability metadata is optional and additive (Binance omits/returns
+  // neutral values), so older responses stay readable.
+  if (
+    root.history_unavailable !== undefined &&
+    typeof root.history_unavailable !== 'boolean'
+  ) {
+    throw new FixedRangeVolumeProfileClientError(
+      'Volume profile response history_unavailable must be boolean',
+    )
+  }
+  const historyUnavailable = root.history_unavailable === true
+  let availableFrom: number | null = null
+  if (root.available_from !== undefined && root.available_from !== null) {
+    if (!Number.isInteger(root.available_from) || (root.available_from as number) <= 0) {
+      throw new FixedRangeVolumeProfileClientError(
+        'Volume profile response available_from is invalid',
+      )
+    }
+    availableFrom = root.available_from as number
+  }
+  if (historyUnavailable && availableFrom === null) {
+    throw new FixedRangeVolumeProfileClientError(
+      'Volume profile response history_unavailable requires available_from',
+    )
   }
 
   const byTime = new Map<number, FixedRangeVolumeProfileSourceCandle>()
@@ -138,17 +189,23 @@ export function parseFixedRangeVolumeProfileKlinesResponse(
   const candles = [...byTime.values()].sort((a, b) => a.time - b.time)
 
   return {
-    symbol: 'BTCUSDT',
+    exchange,
+    symbol: expectedSymbol,
     start_time: requested.startTime,
     end_time: requested.endTime,
     source_interval: sourceInterval,
     candles,
+    history_limit:
+      root.history_limit === undefined ? null : (root.history_limit as number | null),
+    available_from: availableFrom,
+    history_unavailable: historyUnavailable,
   }
 }
 
 export type FetchFixedRangeVolumeProfileKlinesParams = {
   startTime: number
   endTime: number
+  exchange?: MarketExchange
   signal?: AbortSignal
   fetchImpl?: typeof fetch
 }
@@ -156,7 +213,7 @@ export type FetchFixedRangeVolumeProfileKlinesParams = {
 export async function fetchFixedRangeVolumeProfileKlines(
   params: FetchFixedRangeVolumeProfileKlinesParams,
 ): Promise<FixedRangeVolumeProfileKlinesResponse> {
-  const { startTime, endTime, signal, fetchImpl = fetch } = params
+  const { startTime, endTime, exchange = 'binance', signal, fetchImpl = fetch } = params
   if (!Number.isSafeInteger(startTime) || !Number.isSafeInteger(endTime) || startTime >= endTime) {
     throw new FixedRangeVolumeProfileClientError('Volume profile request bounds are invalid')
   }
@@ -166,7 +223,7 @@ export async function fetchFixedRangeVolumeProfileKlines(
     end_time: String(endTime),
   })
 
-  const response = await fetchImpl(`${API_BASE}/market/binance/usdm/btcusdt/klines/volume-profile?${query}`, {
+  const response = await fetchImpl(`${API_BASE}${marketKlinesPath(exchange, '/volume-profile')}?${query}`, {
     headers: { Accept: 'application/json' },
     signal,
   })
@@ -183,5 +240,9 @@ export async function fetchFixedRangeVolumeProfileKlines(
   }
 
   const json = (await response.json()) as unknown
-  return parseFixedRangeVolumeProfileKlinesResponse(json, { startTime, endTime })
+  return parseFixedRangeVolumeProfileKlinesResponse(json, {
+    startTime,
+    endTime,
+    exchange,
+  })
 }

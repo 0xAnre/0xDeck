@@ -9,7 +9,7 @@ import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
-import type { CandleInterval } from '@/market/types'
+import type { CandleInterval, MarketExchange } from '@/market/types'
 import type { TimeRange } from '@/timeRangeStorage'
 
 export type WidgetSettingsFields = {
@@ -18,6 +18,7 @@ export type WidgetSettingsFields = {
   columns: boolean
   metric: boolean
   aggregation: boolean
+  exchange?: boolean
   interval: boolean
   indicators: boolean
   tools?: boolean
@@ -39,6 +40,8 @@ export type WidgetSettingsRegistration = {
   onMetricChange?: (column: string) => void
   aggregation?: KpiAggregation
   onAggregationChange?: (aggregation: KpiAggregation) => void
+  marketExchange?: MarketExchange
+  onMarketExchangeChange?: (exchange: MarketExchange) => void
   marketInterval?: CandleInterval
   onMarketIntervalChange?: (interval: CandleInterval) => void
   marketIndicators?: MarketIndicatorId[]

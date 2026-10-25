@@ -1,6 +1,9 @@
 import { BtcPerpetualChartPanel } from '@/BtcPerpetualChartPanel'
 import { ChartPanel } from '@/ChartPanel'
-import { BTC_USDM_KLINE_CHANNELS } from '@/market/types'
+import {
+  BTC_USDM_KLINE_CHANNELS,
+  HYPERLIQUID_BTC_KLINE_CHANNELS,
+} from '@/market/types'
 import { DashboardPanel } from '@/DashboardPanel'
 import { DataTablePanel } from '@/DataTablePanel'
 import { KpiCardPanel } from '@/KpiCardPanel'
@@ -110,6 +113,8 @@ export const WIDGET_REGISTRY = [
     id: 'btc-perpetual-chart',
     title: 'BTC Perp',
     description: 'BTCUSDT perpetual · candles · EMA',
+    /** Keep the header to the four dropdowns — no static `BTC Perp` label. */
+    hideHeaderTitle: true,
     component: BtcPerpetualChartPanel,
     grid: { x: 0, y: 0, w: 18, h: 14, minW: 9, minH: 10 },
     headerSettings: {
@@ -118,6 +123,7 @@ export const WIDGET_REGISTRY = [
       columns: false,
       metric: false,
       aggregation: false,
+      exchange: true,
       interval: true,
       indicators: true,
       tools: true,
@@ -126,7 +132,10 @@ export const WIDGET_REGISTRY = [
     data: {
       kind: 'query-and-stream',
       queries: ['candles'],
-      channels: Object.values(BTC_USDM_KLINE_CHANNELS),
+      channels: [
+        ...Object.values(BTC_USDM_KLINE_CHANNELS),
+        ...Object.values(HYPERLIQUID_BTC_KLINE_CHANNELS),
+      ],
     },
   },
   {

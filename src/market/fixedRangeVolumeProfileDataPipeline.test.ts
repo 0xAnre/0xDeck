@@ -225,4 +225,124 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
     // range result (POC/VAH/VAL/rows all computed over the same candles).
     assert.deepEqual(on.profile, off.profile)
   })
+
+  it('uses the exchange-specific price tick for Hyperliquid', async () => {
+    const hlInstance: FixedRangeVolumeProfileInstance = {
+      ...instance,
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_060,
+      rowCount: 12,
+    }
+    const result = await runFixedRangeVolumeProfileDataPipeline(hlInstance, {
+      exchange: 'hyperliquid',
+      fetchKlines: async (startTime, endTime) => ({
+        exchange: 'hyperliquid',
+        symbol: 'BTC',
+        start_time: startTime,
+        end_time: endTime,
+        source_interval: '1m',
+        candles: [
+          {
+            time: 1_700_000_000,
+            open: 80240,
+            high: 80454,
+            low: 80240,
+            close: 80380,
+            volume: 10,
+            interval: '1m',
+            closed: true,
+          },
+          {
+            time: 1_700_000_060,
+            open: 80380,
+            high: 80520,
+            low: 80300,
+            close: 80450,
+            volume: 8,
+            interval: '1m',
+            closed: true,
+          },
+        ],
+      }),
+    })
+
+    // Hyperliquid ticks are integers at ~80k, unlike Binance's 0.1.
+    assert.equal(result.profile.rowHeight % 1, 0)
+    assert.ok(result.profile.rowHeight >= 1)
+  })
+
+  it('propagates Hyperliquid availability metadata instead of an empty profile alone', async () => {
+    const result = await runFixedRangeVolumeProfileDataPipeline(instance, {
+      exchange: 'hyperliquid',
+      fetchKlines: async (startTime, endTime) => ({
+        exchange: 'hyperliquid',
+        symbol: 'BTC',
+        start_time: startTime,
+        end_time: endTime,
+        source_interval: '1m',
+        candles: [],
+        history_limit: 5000,
+        available_from: 1_700_000_100,
+        history_unavailable: true,
+      }),
+    })
+
+    assert.equal(result.historyUnavailable, true)
+    assert.equal(result.availableFrom, 1_700_000_100)
+    assert.equal(result.profile.candleCount, 0)
+  })
+
+  it('defaults availability metadata for provider responses without it', async () => {
+    const result = await runFixedRangeVolumeProfileDataPipeline(instance, {
+      fetchKlines: async (startTime, endTime) => ({
+        symbol: 'BTCUSDT',
+        start_time: startTime,
+        end_time: endTime,
+        source_interval: '1m',
+        candles: [],
+      }),
+    })
+
+    assert.equal(result.historyUnavailable, false)
+    assert.equal(result.availableFrom, null)
+  })
+
+  it('uses the Binance 0.1 tick by default', async () => {
+    const result = await runFixedRangeVolumeProfileDataPipeline(
+      { ...instance, fromTime: 1_700_000_000, toTime: 1_700_000_060 },
+      {
+        fetchKlines: async (startTime, endTime) => ({
+          symbol: 'BTCUSDT',
+          start_time: startTime,
+          end_time: endTime,
+          source_interval: '1m',
+          candles: [
+            {
+              time: 1_700_000_000,
+              open: 100,
+              high: 110,
+              low: 99,
+              close: 105,
+              volume: 10,
+              interval: '1m',
+              closed: true,
+            },
+            {
+              time: 1_700_000_060,
+              open: 105,
+              high: 115,
+              low: 104,
+              close: 110,
+              volume: 8,
+              interval: '1m',
+              closed: true,
+            },
+          ],
+        }),
+      },
+    )
+
+    const tickRatio = result.profile.rowHeight / 0.1
+    assert.ok(Math.abs(tickRatio - Math.round(tickRatio)) < 1e-9)
+  })
 })

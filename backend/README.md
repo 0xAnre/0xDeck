@@ -60,11 +60,20 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/binance/usdm/btcusdt/klines/quarterly-context` | Klines for quarterly VWAP (`4h`, `1d`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/yearly-context` | Klines for yearly VWAP (`1d`, `1w`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/volume-profile` | Source klines for fixed-range volume profile (`start_time`, `end_time` as Unix seconds; auto-picks finest Binance interval up to ~5000 candles) |
-| WS | `/api/ws/{channel}` | WebSocket transport; Binance BTC kline relay on `binance.usdm.btcusdt.kline.{interval}` |
+| GET | `/api/market/hyperliquid/btc/klines` | Latest Hyperliquid BTC perpetual klines (`interval`: `1m` … `1w`) |
+| GET | `/api/market/hyperliquid/btc/klines/history` | Older Hyperliquid klines (`interval`, `before`); returns `history_unavailable: true` beyond the 5000-candle window |
+| GET | `/api/market/hyperliquid/btc/klines/{daily,weekly,monthly,quarterly,yearly}-context` | Hyperliquid klines for the matching VWAP context window |
+| GET | `/api/market/hyperliquid/btc/klines/volume-profile` | Hyperliquid source klines for fixed-range volume profile (`start_time`, `end_time`); source interval is provider-aware (may be `3m`) and the response carries `available_from` / `history_unavailable` when the range predates the 5000-candle window |
+| WS | `/api/ws/{channel}` | WebSocket transport; Binance relay on `binance.usdm.btcusdt.kline.{interval}`, Hyperliquid relay on `hyperliquid.btc.kline.{interval}` |
 
 ### WebSocket (`/api/ws/{channel}`)
 
-Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). Generic channels accept `ping` / `pong` only. **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`). The backend opens a shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
+Channel names: letters, digits, `.`, `_`, `-` (1–64 chars). Generic channels accept `ping` / `pong` only.
+
+- **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`). The backend opens one shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
+- **Hyperliquid BTC perpetual:** subscribe to `hyperliquid.btc.kline.1m` (same eight older intervals plus `1w`). The backend opens one shared upstream, sends a single `candle` subscription per channel, derives closed candles from the next interval open, and relays `{ exchange: "hyperliquid", symbol: "BTC", ... }` payloads (`app/market/hyperliquid_btc.py`). Duplicate client subscriptions reuse the same upstream.
+
+Both providers implement the small interface in `app/market/providers.py`; shared calendar/history helpers live in `app/market/common.py`.
 
 **Server → client** (every message includes `type`, `channel`, `timestamp` UTC ISO):
 

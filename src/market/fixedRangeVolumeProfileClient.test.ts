@@ -105,6 +105,116 @@ describe('fixedRangeVolumeProfileClient parser', () => {
     )
   })
 
+
+  it('accepts a Hyperliquid BTC response and rejects cross-exchange bodies', () => {
+    const hlBody = {
+      ...validResponseBody(requested.startTime, requested.endTime, '1m', [
+        validCandle(100, '1m'),
+      ]),
+      exchange: 'hyperliquid',
+      symbol: 'BTC',
+    }
+    const parsed = parseFixedRangeVolumeProfileKlinesResponse(hlBody, {
+      ...requested,
+      exchange: 'hyperliquid',
+    })
+    assert.equal(parsed.exchange, 'hyperliquid')
+    assert.equal(parsed.symbol, 'BTC')
+
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(hlBody, requested),
+    )
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(
+        {
+          ...validResponseBody(requested.startTime, requested.endTime, '1m', [
+            validCandle(100, '1m'),
+          ]),
+          exchange: 'binance',
+          symbol: 'BTC',
+        },
+        { ...requested, exchange: 'hyperliquid' },
+      ),
+    )
+  })
+
+  it('parses availability metadata and defaults it for older responses', () => {
+    const limited = parseFixedRangeVolumeProfileKlinesResponse(
+      {
+        ...validResponseBody(requested.startTime, requested.endTime, '1m', []),
+        exchange: 'hyperliquid',
+        symbol: 'BTC',
+        history_limit: 5000,
+        available_from: 1_000,
+        history_unavailable: true,
+      },
+      { ...requested, exchange: 'hyperliquid' },
+    )
+    assert.equal(limited.history_unavailable, true)
+    assert.equal(limited.available_from, 1_000)
+    assert.equal(limited.history_limit, 5000)
+
+    // Binance (and older payloads) omit the fields: neutral defaults, unchanged shape.
+    const bare = parseFixedRangeVolumeProfileKlinesResponse(
+      validResponseBody(requested.startTime, requested.endTime, '1m', [
+        validCandle(100, '1m'),
+      ]),
+      requested,
+    )
+    assert.equal(bare.history_unavailable, false)
+    assert.equal(bare.available_from, null)
+    assert.equal(bare.history_limit, null)
+  })
+
+  it('rejects unavailable metadata without an availability timestamp', () => {
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(
+        {
+          ...validResponseBody(requested.startTime, requested.endTime, '1m', []),
+          history_unavailable: true,
+        },
+        requested,
+      ),
+    )
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(
+        {
+          ...validResponseBody(requested.startTime, requested.endTime, '1m', []),
+          history_unavailable: 'yes',
+        },
+        requested,
+      ),
+    )
+  })
+
+  it('routes Hyperliquid volume-profile requests to its own endpoint', async () => {
+    let requestedUrl = ''
+    await fetchFixedRangeVolumeProfileKlines({
+      startTime: 100,
+      endTime: 200,
+      exchange: 'hyperliquid',
+      fetchImpl: async (url) => {
+        requestedUrl = String(url)
+        return {
+          ok: true,
+          json: async () => ({
+            exchange: 'hyperliquid',
+            symbol: 'BTC',
+            start_time: 100,
+            end_time: 200,
+            source_interval: '1m',
+            candles: [validCandle(100, '1m')],
+          }),
+        } as Response
+      },
+    })
+
+    assert.match(
+      requestedUrl,
+      /^\/api\/market\/hyperliquid\/btc\/klines\/volume-profile\?/,
+    )
+  })
+
   it('throws on non-2xx fetch responses', async () => {
     await assert.rejects(
       fetchFixedRangeVolumeProfileKlines({
