@@ -6,9 +6,9 @@ import { isMarketStyleHexColor, isMarketStyleOpacityPercent } from './marketStyl
  * FRVP histogram bar styling (per-instance Up/Down color + 0–100 opacity).
  *
  * The configured opacity is the ceiling for the Value Area rows; the render
- * geometry scales it by the Value-Area/outside shares, so an instance without
- * custom histogram fields keeps today's exact appearance:
- * Up `#DBDBDB` / Down `#808080` at 100% → 0.55 / 0.25 row alphas.
+ * geometry scales it by the Value-Area/outside shares (55 / 25 of it). The
+ * default is 50% for both directions, so a profile without custom histogram
+ * fields renders 0.275 inside the Value Area and 0.125 outside it.
  */
 export type FixedRangeVolumeProfileHistogramStyleInput = {
   upColor: string
@@ -24,10 +24,10 @@ export type FrvpHistogramDirection = 'up' | 'down'
 export const FRVP_HISTOGRAM_DEFAULT_UP_COLOR = BTC_PERPETUAL_CANDLESTICK_COLORS.upColor
 export const FRVP_HISTOGRAM_DEFAULT_DOWN_COLOR = BTC_PERPETUAL_CANDLESTICK_COLORS.downColor
 
-/** 100% configured opacity === the legacy 0.55 / 0.25 row alphas. */
-export const FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT = 100
+/** Default configured opacity (Value-Area ceiling) for both directions. */
+export const FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT = 50
 
-/** Legacy histogram appearance used by instances without custom settings. */
+/** Default histogram appearance used by instances without custom settings. */
 export function frvpHistogramStyleDefaults(): FixedRangeVolumeProfileHistogramStyleInput {
   return {
     upColor: FRVP_HISTOGRAM_DEFAULT_UP_COLOR,
@@ -107,11 +107,10 @@ export function setFrvpInstanceHistogramOpacityPercent(
 ): FixedRangeVolumeProfileInstance {
   if (!isMarketStyleOpacityPercent(opacityPercent)) return instance
   const key = DIRECTION_OPACITY_KEY[direction]
-  if (opacityPercent === FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT) {
-    const next = { ...instance }
-    delete next[key]
-    return next
-  }
+  // Always persist an explicit user choice, even when it equals the default:
+  // deleting at the default would make the value indistinguishable from a
+  // profile that never configured the field, so a later default change would
+  // silently rewrite the user's setting.
   return { ...instance, [key]: opacityPercent }
 }
 

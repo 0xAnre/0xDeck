@@ -345,11 +345,11 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     assert.equal(frvpInstanceLevelLineStyle(created, 'val'), 'solid')
     assert.equal(frvpInstanceLevelLineStyle(created, 'val'), DEFAULT_FRVP_VAL_LINE_STYLE)
 
-    // Histogram keeps the legacy appearance until the user changes it.
+    // Histogram uses the documented default appearance until the user changes it.
     assert.equal(frvpHistogramColorInputValue(created, 'up'), '#DBDBDB')
     assert.equal(frvpHistogramColorInputValue(created, 'down'), '#808080')
-    assert.equal(frvpHistogramOpacityPercent(created, 'up'), 100)
-    assert.equal(frvpHistogramOpacityPercent(created, 'down'), 100)
+    assert.equal(frvpHistogramOpacityPercent(created, 'up'), 50)
+    assert.equal(frvpHistogramOpacityPercent(created, 'down'), 50)
   })
 
   it('keeps the persisted settings of previously saved profiles (no migration)', () => {

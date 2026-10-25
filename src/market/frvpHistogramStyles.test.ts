@@ -87,16 +87,16 @@ function alphaOf(rgba: string): number {
 }
 
 describe('frvpHistogramStyles', () => {
-  it('defaults to the BTC candle colors at 100% configured opacity', () => {
+  it('defaults to the BTC candle colors at 50% configured opacity', () => {
     assert.deepEqual(frvpHistogramStyleDefaults(), {
       upColor: BTC_PERPETUAL_CANDLESTICK_COLORS.upColor,
       downColor: BTC_PERPETUAL_CANDLESTICK_COLORS.downColor,
-      upOpacityPercent: 100,
-      downOpacityPercent: 100,
+      upOpacityPercent: 50,
+      downOpacityPercent: 50,
     })
     assert.equal(FRVP_HISTOGRAM_DEFAULT_UP_COLOR, '#DBDBDB')
     assert.equal(FRVP_HISTOGRAM_DEFAULT_DOWN_COLOR, '#808080')
-    assert.equal(FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT, 100)
+    assert.equal(FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT, 50)
   })
 
   it('resolves the legacy fallback for instances without custom histogram fields', () => {
@@ -113,8 +113,8 @@ describe('frvpHistogramStyles', () => {
     assert.equal(instance.histogramDownColor, undefined)
     assert.equal(frvpHistogramColorInputValue(instance, 'up'), '#DBDBDB')
     assert.equal(frvpHistogramColorInputValue(instance, 'down'), '#808080')
-    assert.equal(frvpHistogramOpacityPercent(instance, 'up'), 100)
-    assert.equal(frvpHistogramOpacityPercent(instance, 'down'), 100)
+    assert.equal(frvpHistogramOpacityPercent(instance, 'up'), 50)
+    assert.equal(frvpHistogramOpacityPercent(instance, 'down'), 50)
     assert.deepEqual(frvpHistogramStyleForInstance(instance), frvpHistogramStyleDefaults())
   })
 
@@ -125,7 +125,7 @@ describe('frvpHistogramStyles', () => {
     assert.equal(frvpHistogramColorInputValue(instance, 'up'), '#112233')
     assert.equal(frvpHistogramColorInputValue(instance, 'down'), '#445566')
     assert.equal(frvpHistogramOpacityPercent(instance, 'up'), 40)
-    assert.equal(frvpHistogramOpacityPercent(instance, 'down'), 100)
+    assert.equal(frvpHistogramOpacityPercent(instance, 'down'), 50)
   })
 
   it('drops invalid colors and out-of-range opacities without touching stored values', () => {
@@ -135,12 +135,24 @@ describe('frvpHistogramStyles', () => {
     assert.equal(setFrvpInstanceHistogramOpacityPercent(instance, 'up', Number.NaN), instance)
   })
 
-  it('stores 100% opacity as the default by removing the field', () => {
+  it('persists every explicit opacity choice, including the current default', () => {
     let instance = setFrvpInstanceHistogramOpacityPercent(newInstance(), 'down', 35)
     assert.equal(instance.histogramDownOpacityPercent, 35)
+
+    // An explicit choice equal to the default must stay stored instead of being
+    // deleted, otherwise it would silently follow a future default change.
+    instance = setFrvpInstanceHistogramOpacityPercent(instance, 'down', 50)
+    assert.equal(instance.histogramDownOpacityPercent, 50)
+    assert.equal(frvpHistogramOpacityPercent(instance, 'down'), 50)
+
+    // Previously saved explicit values keep resolving to themselves.
     instance = setFrvpInstanceHistogramOpacityPercent(instance, 'down', 100)
-    assert.equal(instance.histogramDownOpacityPercent, undefined)
+    assert.equal(instance.histogramDownOpacityPercent, 100)
     assert.equal(frvpHistogramOpacityPercent(instance, 'down'), 100)
+
+    const reloaded = sanitizeOne(JSON.parse(JSON.stringify(instance)) as Record<string, unknown>)
+    assert.equal(reloaded.histogramDownOpacityPercent, 100)
+    assert.equal(frvpHistogramOpacityPercent(reloaded, 'down'), 100)
   })
 
   it('sanitizes persisted histogram fields and ignores invalid ones', () => {
@@ -180,18 +192,18 @@ describe('frvpHistogramStyles', () => {
     assert.equal(styles.upColor, '#112233')
     assert.equal(styles.downColor, '#808080')
     assert.equal(styles.upOpacityPercent, 60)
-    assert.equal(styles.downOpacityPercent, 100)
+    assert.equal(styles.downOpacityPercent, 50)
   })
 })
 
 describe('FRVP histogram Value-Area opacity', () => {
-  it('renders the legacy rgba output byte-for-byte without custom settings', () => {
+  it('renders the default 50% opacity split without custom settings', () => {
     const va = rowColors({ ...frvpHistogramStyleDefaults(), inValueArea: true })
     const outside = rowColors({ ...frvpHistogramStyleDefaults(), inValueArea: false })
-    assert.equal(va.upColor, 'rgba(219, 219, 219, 0.55)')
-    assert.equal(va.downColor, 'rgba(128, 128, 128, 0.55)')
-    assert.equal(outside.upColor, 'rgba(219, 219, 219, 0.25)')
-    assert.equal(outside.downColor, 'rgba(128, 128, 128, 0.25)')
+    assert.equal(va.upColor, 'rgba(219, 219, 219, 0.275)')
+    assert.equal(va.downColor, 'rgba(128, 128, 128, 0.275)')
+    assert.equal(outside.upColor, 'rgba(219, 219, 219, 0.125)')
+    assert.equal(outside.downColor, 'rgba(128, 128, 128, 0.125)')
   })
 
   it('keeps the Value-Area rows stronger than outside rows at every opacity', () => {
@@ -289,7 +301,7 @@ describe('FRVP histogram Value-Area opacity', () => {
     assert.equal(model.rows.length, 2)
     // Rows keep their computed price order: 100–110 then 110–120.
     assert.equal(model.rows[0].upColor, 'rgba(17, 34, 51, 0.275)')
-    assert.equal(model.rows[0].downColor, 'rgba(128, 128, 128, 0.55)')
+    assert.equal(model.rows[0].downColor, 'rgba(128, 128, 128, 0.275)')
     assert.equal(model.rows[1].upColor, 'rgba(17, 34, 51, 0.125)')
   })
 })

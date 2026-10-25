@@ -21,8 +21,8 @@ export const FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY =
 
 /**
  * Effective alpha percentage for one row: the configured 0–100% opacity scaled
- * by the Value-Area share (55 inside, 25 outside), so at the legacy 100%
- * setting the alphas are exactly the historical 0.55 / 0.25.
+ * by the Value-Area share (55 inside, 25 outside), so at 100% configured opacity
+ * the alphas are 0.55 / 0.25 and at the 50% default they are 0.275 / 0.125.
  */
 export function fixedRangeVolumeProfileRowOpacityPercent(
   configuredOpacityPercent: number,

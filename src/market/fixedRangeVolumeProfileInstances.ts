@@ -50,7 +50,7 @@ export type FixedRangeVolumeProfileInstance = {
   valStrokeOpacityPercent?: number
   /**
    * Histogram bar styling: per-direction color + 0–100 configured opacity.
-   * Missing fields render the legacy appearance (candle colors, 0.55/0.25 alphas).
+   * Missing fields resolve to the defaults (candle colors, 50% → 0.275/0.125 row alphas).
    */
   histogramUpColor?: string
   histogramUpOpacityPercent?: number

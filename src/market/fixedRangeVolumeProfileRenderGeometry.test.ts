@@ -99,12 +99,12 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       bottom: 10,
       inValueArea: false,
     })
-    assert.match(inVa?.upColor ?? '', new RegExp(String(FRVP_VALUE_AREA_ROW_OPACITY)))
-    assert.match(outVa?.upColor ?? '', new RegExp(String(FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY)))
+    assert.equal(inVa?.upColor, 'rgba(219, 219, 219, 0.275)')
+    assert.equal(outVa?.upColor, 'rgba(219, 219, 219, 0.125)')
   })
 
 
-  it('keeps the legacy 0.55 / 0.25 row alphas when no histogram style is set', () => {
+  it('keeps the 25:55 split of the default 50% opacity when no histogram style is set', () => {
     const inVa = buildFixedRangeVolumeProfileRowBarGeometry({
       row: row(),
       rangeLeft: 200,
@@ -123,10 +123,10 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
       bottom: 10,
       inValueArea: false,
     })
-    assert.equal(inVa?.upColor, 'rgba(219, 219, 219, 0.55)')
-    assert.equal(inVa?.downColor, 'rgba(128, 128, 128, 0.55)')
-    assert.equal(outVa?.upColor, 'rgba(219, 219, 219, 0.25)')
-    assert.equal(outVa?.downColor, 'rgba(128, 128, 128, 0.25)')
+    assert.equal(inVa?.upColor, 'rgba(219, 219, 219, 0.275)')
+    assert.equal(inVa?.downColor, 'rgba(128, 128, 128, 0.275)')
+    assert.equal(outVa?.upColor, 'rgba(219, 219, 219, 0.125)')
+    assert.equal(outVa?.downColor, 'rgba(128, 128, 128, 0.125)')
     assert.equal(FRVP_VALUE_AREA_ROW_OPACITY_PERCENT, 55)
     assert.equal(FRVP_OUTSIDE_VALUE_AREA_ROW_OPACITY_PERCENT, 25)
   })

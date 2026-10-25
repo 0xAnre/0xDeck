@@ -24,6 +24,7 @@ import {
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
 import {
+  FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT,
   frvpHistogramColorInputValue,
   frvpHistogramOpacityPercent,
   type FrvpHistogramDirection,
@@ -264,9 +265,8 @@ export function FixedRangeVolumeProfileSettingsDialog({
             <FieldGroup className="gap-3 border-t border-border pt-3">
               <p className="text-sm font-medium">Histogram</p>
               <FieldDescription>
-                Opacity is the Value-Area ceiling (100% = the existing look); rows outside the
-                value area render at the existing ~25/55 of it, so the histogram alpha tops out at
-                0.55.
+                Opacity is the Value-Area ceiling; rows outside the value area render at ~25/55
+                of it. Default is {FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT}% for both directions.
               </FieldDescription>
               <HistogramStyleFields
                 instance={instance}
