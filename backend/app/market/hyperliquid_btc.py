@@ -12,6 +12,9 @@ import websockets
 from fastapi import HTTPException
 
 from app.ws import WebSocketChannelManager, ws_manager
+
+# Shared helpers are re-exported here so existing callers/tests keep importing
+# the same module names (mirrors `binance_usdm_btc`).
 from .common import (
     DEFAULT_INTERVAL,
     DEFAULT_LIMIT,
@@ -24,7 +27,6 @@ from .common import (
     MS_PER_UTC_WEEK,
     NormalizedCandle,
     QUARTERLY_CONTEXT_INTERVALS,
-    SUPPORTED_INTERVALS,
     VOLUME_PROFILE_END_TIME_INVALID_DETAIL,
     VOLUME_PROFILE_INTERVAL_DURATION_MS,
     VOLUME_PROFILE_MAX_ESTIMATED_CANDLES,
@@ -78,8 +80,36 @@ CHANNEL_PATTERN = re.compile(
     r"^hyperliquid\.btc\.kline\.(1m|5m|15m|30m|1h|2h|4h|1d|1w)$",
 )
 
+# Hyperliquid natively serves `3m` candles. It is only reachable as a
+# volume-profile source interval (never as a chart/WS interval), so it is kept
+# out of the shared chart interval set.
+HYPERLIQUID_SOURCE_ONLY_INTERVAL_DURATIONS_MS: dict[str, int] = {"3m": 3 * 60_000}
+HYPERLIQUID_INTERVAL_DURATIONS_MS: dict[str, int] = {
+    **INTERVAL_DURATION_MS,
+    **HYPERLIQUID_SOURCE_ONLY_INTERVAL_DURATIONS_MS,
+}
+HYPERLIQUID_CANDLE_INTERVALS = frozenset(HYPERLIQUID_INTERVAL_DURATIONS_MS)
+
+# Provider-aware volume-profile source intervals: only intervals Hyperliquid
+# can both normalize and estimate. Selection can therefore never pick an
+# interval this provider cannot serve.
+HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS: tuple[str, ...] = tuple(
+    interval
+    for interval in VOLUME_PROFILE_SOURCE_INTERVALS
+    if interval in HYPERLIQUID_INTERVAL_DURATIONS_MS
+    and interval in VOLUME_PROFILE_INTERVAL_DURATION_MS
+)
+
 BASE_RECONNECT_DELAY_S = 1.0
 MAX_RECONNECT_DELAY_S = 30.0
+
+
+def hyperliquid_interval_duration_ms(interval: str) -> int:
+    """Duration for any Hyperliquid candle interval (chart or source-only)."""
+    duration = HYPERLIQUID_INTERVAL_DURATIONS_MS.get(interval)
+    if duration is None:
+        raise ValueError(f"Unsupported interval '{interval}'")
+    return duration
 
 
 def channel_for_interval(interval: str) -> str:
@@ -113,7 +143,7 @@ def normalize_candle(
         raise ValueError("Invalid Hyperliquid candle")
 
     item_interval = str(item["i"])
-    if item_interval not in SUPPORTED_INTERVALS:
+    if item_interval not in HYPERLIQUID_CANDLE_INTERVALS:
         raise ValueError("Unsupported candle interval")
     if interval is not None and item_interval != interval:
         raise ValueError("Candle interval mismatch")
@@ -165,7 +195,9 @@ def parse_hyperliquid_ws_payload(
 
 
 def history_available_from_ms(now_ms: int, interval: str) -> int:
-    return now_ms - HYPERLIQUID_HISTORY_LIMIT_CANDLES * interval_duration_ms(interval)
+    return now_ms - HYPERLIQUID_HISTORY_LIMIT_CANDLES * hyperliquid_interval_duration_ms(
+        interval
+    )
 
 
 def history_available_from_seconds(now_ms: int, interval: str) -> int:
@@ -305,7 +337,7 @@ def fetch_klines_paginated_sync(
             range_complete = True
             break
         # No more requested candles can fit after the last returned open.
-        if last_open_ms + interval_duration_ms(interval) > end_time_ms:
+        if last_open_ms + hyperliquid_interval_duration_ms(interval) > end_time_ms:
             range_complete = True
             break
 
@@ -450,7 +482,7 @@ def fetch_klines_sync(
 ) -> list[NormalizedCandle]:
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     safe_limit = clamp_limit(limit)
-    start_ms = reference_ms - safe_limit * interval_duration_ms(interval)
+    start_ms = reference_ms - safe_limit * hyperliquid_interval_duration_ms(interval)
     candles = fetch_klines_paginated_sync(
         interval,
         start_ms,
@@ -470,7 +502,11 @@ def fetch_volume_profile_source_klines_sync(
     http_post: Callable[..., httpx.Response] | None = None,
 ) -> tuple[str, list[NormalizedCandle]]:
     validate_volume_profile_time_range(start_time, end_time)
-    source_interval = select_volume_profile_source_interval(start_time, end_time)
+    source_interval = select_volume_profile_source_interval(
+        start_time,
+        end_time,
+        HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS,
+    )
     start_ms = start_time * 1000
     end_ms = end_time * 1000 - 1
     reference_ms = now_ms if now_ms is not None else int(time.time() * 1000)

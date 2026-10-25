@@ -92,6 +92,31 @@ describe('computeWeeklyVwap', () => {
     assertClose(firstOfWeekB.vwap, 10)
   })
 
+  it('buckets by provider weekly boundaries (Hyperliquid weeks open Thursday)', () => {
+    // Hyperliquid 1w candles open Thursday 00:00 UTC, Binance on Monday. Weeks
+    // are derived from each provider's own candle open timestamps, so two
+    // consecutive weekly candles can never be merged into one session.
+    const thursdays = [4, 11, 18, 25].map(
+      (day) => Math.floor(Date.UTC(2024, 0, day, 0, 0, 0) / 1000),
+    )
+    const candles = thursdays.map((time, index) =>
+      candle({ time, interval: '1w', high: 10 + index, low: 10 + index, close: 10 + index, volume: 1 }),
+    )
+
+    assert.equal(new Set(thursdays.map((time) => utcWeekKey(time))).size, thursdays.length)
+
+    const points = computeWeeklyVwap(candles)
+    assert.equal(points.length, thursdays.length)
+    // Each weekly candle is its own session: its VWAP is its own hlc3, never a
+    // weighted mix of two provider weeks.
+    points.forEach((point, index) => assertClose(point.vwap, 10 + index))
+    // Sessions still reset week over week: previous values point at the prior
+    // provider week, not two weeks back.
+    points.slice(1).forEach((point, index) => {
+      assertClose(point.previousVwap, points[index].vwap)
+    })
+  })
+
   it('carries previous week final bands into the new UTC week', () => {
     const candles = [
       candle({ time: WEEK_A_MONDAY + 60, high: 10, low: 10, close: 10, volume: 1 }),

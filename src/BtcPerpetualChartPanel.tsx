@@ -279,6 +279,7 @@ import {
   marketHistoryLimitNotice,
   marketSymbolForExchange,
 } from '@/market/marketExchange'
+import { fixedRangeVolumeProfileAvailabilityNotices } from '@/market/frvpHistoryAvailability'
 import { saveWidgetMarketIndicators } from '@/marketIndicatorStorage'
 import {
   loadWidgetMarketExchange,
@@ -519,6 +520,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       oldestCandleTime: candlesRef.current[0]?.time ?? null,
       availableFrom: providerHistoryAvailableFromRef.current,
       hasUnmetRequirements: evaluated.some((entry) => entry.status !== 'ready'),
+      historyUnavailable: infiniteHistoryRef.current.historyUnavailable,
     })
     if (limitNotice !== null && !notices.includes(limitNotice)) {
       notices.push(limitNotice)
@@ -2113,7 +2115,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         signal: abortRef.current?.signal,
         getRollingVwapInstances: () => rollingVwapInstancesRef.current,
         getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
-        onHistoryMerged: refreshIndicatorHistoryNotices,
+        onHistoryStateChange: refreshIndicatorHistoryNotices,
       })
     }
 
@@ -2495,6 +2497,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (response.exchange !== undefined && response.exchange !== exchange) return
         if (response.symbol !== marketSymbolForExchange(exchange)) return
         providerHistoryAvailableFromRef.current = response.available_from ?? null
+        // Seed the provider horizon so panning never requests candles the
+        // provider cannot serve.
+        infiniteHistoryRef.current.availableFrom = response.available_from ?? null
 
         const history = response.candles.filter((c) => c.interval === interval)
         const merged = mergeHistoryWithStreamBuffer(history, streamBuffer)
@@ -2643,6 +2648,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }
 
         providerHistoryAvailableFromRef.current = response.available_from ?? null
+        infiniteHistoryRef.current.availableFrom = response.available_from ?? null
         const history = response.candles.filter((c) => c.interval === currentInterval)
         const beforeCandles = candlesRef.current
         const logicalRange = chart.timeScale().getVisibleLogicalRange()
@@ -2723,7 +2729,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           signal: controller.signal,
           getRollingVwapInstances: () => rollingVwapInstancesRef.current,
           getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
-          onHistoryMerged: refreshIndicatorHistoryNotices,
+          onHistoryStateChange: refreshIndicatorHistoryNotices,
         }),
     })
       .then((result) => {
@@ -2753,6 +2759,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const streamLabel = chartReady ? streamStatusLabel(streamState) : null
 
+  // Volume profile availability is provider-driven: an FRVP selection older
+  // than the provider horizon must show an explicit state, never an empty profile.
+  const frvpAvailabilityNotices = fixedRangeVolumeProfileAvailabilityNotices(
+    fixedRangeVolumeProfileRuntimeById,
+    exchange,
+  )
+  const historyNotices = [...indicatorHistoryNotices, ...frvpAvailabilityNotices]
+
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-1">
       {!chartReady && (
@@ -2769,13 +2783,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         </div>
       )}
 
-      {indicatorHistoryNotices.length > 0 && (
+      {historyNotices.length > 0 && (
         <div
           role="status"
           aria-live="polite"
           className="flex shrink-0 flex-wrap gap-x-2 text-[10px] text-muted-foreground"
         >
-          {indicatorHistoryNotices.map((notice) => (
+          {historyNotices.map((notice) => (
             <span key={notice}>{notice}</span>
           ))}
         </div>

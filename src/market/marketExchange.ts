@@ -106,11 +106,18 @@ export type MarketHistoryLimitNoticeParams = {
   oldestCandleTime: number | null
   availableFrom: number | null
   hasUnmetRequirements: boolean
+  /** Provider reported that the requested history page predates its horizon. */
+  historyUnavailable?: boolean
 }
 
 /**
  * Explicit "older history is unavailable" notice once the loaded buffer has
- * reached the provider's recent-history horizon and indicators still lack data.
+ * reached the provider's recent-history horizon.
+ *
+ * `historyUnavailable` comes straight from the `/klines/history` response, so
+ * panning to the horizon shows the notice even when every active indicator is
+ * already satisfied. The oldest-candle heuristic stays for the case where the
+ * horizon is known but no page has been requested yet.
  */
 export function marketHistoryLimitNotice({
   exchange,
@@ -118,8 +125,10 @@ export function marketHistoryLimitNotice({
   oldestCandleTime,
   availableFrom,
   hasUnmetRequirements,
+  historyUnavailable = false,
 }: MarketHistoryLimitNoticeParams): string | null {
   if (exchange !== 'hyperliquid') return null
+  if (historyUnavailable) return HYPERLIQUID_HISTORY_LIMIT_NOTICE
   if (!hasUnmetRequirements) return null
   if (oldestCandleTime === null || availableFrom === null) return null
 

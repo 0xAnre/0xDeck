@@ -63,7 +63,7 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/hyperliquid/btc/klines` | Latest Hyperliquid BTC perpetual klines (`interval`: `1m` … `1w`) |
 | GET | `/api/market/hyperliquid/btc/klines/history` | Older Hyperliquid klines (`interval`, `before`); returns `history_unavailable: true` beyond the 5000-candle window |
 | GET | `/api/market/hyperliquid/btc/klines/{daily,weekly,monthly,quarterly,yearly}-context` | Hyperliquid klines for the matching VWAP context window |
-| GET | `/api/market/hyperliquid/btc/klines/volume-profile` | Hyperliquid source klines for fixed-range volume profile (`start_time`, `end_time`) |
+| GET | `/api/market/hyperliquid/btc/klines/volume-profile` | Hyperliquid source klines for fixed-range volume profile (`start_time`, `end_time`); source interval is provider-aware (may be `3m`) and the response carries `available_from` / `history_unavailable` when the range predates the 5000-candle window |
 | WS | `/api/ws/{channel}` | WebSocket transport; Binance relay on `binance.usdm.btcusdt.kline.{interval}`, Hyperliquid relay on `hyperliquid.btc.kline.{interval}` |
 
 ### WebSocket (`/api/ws/{channel}`)

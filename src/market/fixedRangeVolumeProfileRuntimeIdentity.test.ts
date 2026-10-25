@@ -70,12 +70,16 @@ function readyState(
     requestEndTime: target.toTime,
     sourceInterval: '1m',
     profile: value,
+    historyUnavailable: false,
+    availableFrom: null,
     pipeline: {
       instanceId: target.id,
       requestStartTime: target.fromTime,
       requestEndTime: target.toTime,
       sourceInterval: '1m',
       profile: value,
+      historyUnavailable: false,
+      availableFrom: null,
     },
   }
 }

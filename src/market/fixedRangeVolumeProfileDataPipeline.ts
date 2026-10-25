@@ -27,6 +27,10 @@ export type FixedRangeVolumeProfilePipelineResult = {
   requestEndTime: number
   sourceInterval: FixedRangeVolumeProfileSourceInterval
   profile: FixedRangeVolumeProfileResult
+  /** True when the requested range predates the provider's history window. */
+  historyUnavailable: boolean
+  /** Earliest candle open (unix seconds) the provider can serve, when limited. */
+  availableFrom: number | null
 }
 
 export type FetchFixedRangeVolumeProfileKlinesForPipeline = (
@@ -91,5 +95,7 @@ export async function runFixedRangeVolumeProfileDataPipeline(
     requestEndTime: requestBounds.requestEndTime,
     sourceInterval: response.source_interval,
     profile,
+    historyUnavailable: response.history_unavailable === true,
+    availableFrom: response.available_from ?? null,
   }
 }

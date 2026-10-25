@@ -114,6 +114,7 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             value={settings.marketExchange}
             placeholder="Exchange"
             disabled={settings.disabled}
+            className="w-[6.75rem]"
             options={MARKET_EXCHANGE_OPTIONS.map((option) => ({
               value: option.value,
               label: option.label,

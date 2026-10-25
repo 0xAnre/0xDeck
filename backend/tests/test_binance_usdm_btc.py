@@ -1289,6 +1289,11 @@ class BinanceUsdmBtcVolumeProfileSourceTests(unittest.TestCase):
         self.assertEqual(body["end_time"], end_time)
         self.assertEqual(body["source_interval"], "1m")
         self.assertEqual(len(body["candles"]), 1)
+        # Availability metadata is additive for Binance: the provider has no
+        # recent-history horizon, so older ranges stay fully serviceable.
+        self.assertFalse(body["history_unavailable"])
+        self.assertIsNone(body["available_from"])
+        self.assertIsNone(body["history_limit"])
 
     def test_volume_profile_endpoint_rejects_invalid_query(self) -> None:
         result = self.client.get(

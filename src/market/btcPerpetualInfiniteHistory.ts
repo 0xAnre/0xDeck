@@ -34,8 +34,11 @@ type LoadOlderHistoryParams = {
   fetchHistory?: FetchBtcPerpHistory
   getRollingVwapInstances?: () => readonly RollingVwapInstance[]
   getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
-  /** Called after older candles were prepended, so derived state (e.g. notices) can refresh. */
-  onHistoryMerged?: () => void
+  /**
+   * Called whenever the history state changed (candles prepended, provider
+   * horizon reached, or history exhausted) so derived state such as notices refreshes.
+   */
+  onHistoryStateChange?: () => void
 }
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
@@ -76,8 +79,11 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   fetchHistory?: FetchBtcPerpHistory
   getRollingVwapInstances?: () => readonly RollingVwapInstance[]
   getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
-  /** Called after older candles were prepended, so derived state (e.g. notices) can refresh. */
-  onHistoryMerged?: () => void
+  /**
+   * Called whenever the history state changed (candles prepended, provider
+   * horizon reached, or history exhausted) so derived state such as notices refreshes.
+   */
+  onHistoryStateChange?: () => void
 }): void {
   const {
     state,
@@ -94,7 +100,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     fetchHistory,
     getRollingVwapInstances,
     getAnchoredVwapInstances,
-    onHistoryMerged,
+    onHistoryStateChange,
   } = params
 
   if (!historyReady || !range || state.exhausted || state.loading) return
@@ -121,6 +127,6 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     fetchHistory,
     getRollingVwapInstances,
     getAnchoredVwapInstances,
-    onHistoryMerged,
+    onHistoryStateChange,
   })
 }

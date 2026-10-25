@@ -179,6 +179,8 @@ export class FixedRangeVolumeProfileRuntimeController {
           sourceInterval: pipeline.sourceInterval,
           profile: pipeline.profile,
           pipeline,
+          historyUnavailable: pipeline.historyUnavailable,
+          availableFrom: pipeline.availableFrom,
         })
         this._onChange()
       })

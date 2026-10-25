@@ -271,6 +271,42 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
     assert.ok(result.profile.rowHeight >= 1)
   })
 
+  it('propagates Hyperliquid availability metadata instead of an empty profile alone', async () => {
+    const result = await runFixedRangeVolumeProfileDataPipeline(instance, {
+      exchange: 'hyperliquid',
+      fetchKlines: async (startTime, endTime) => ({
+        exchange: 'hyperliquid',
+        symbol: 'BTC',
+        start_time: startTime,
+        end_time: endTime,
+        source_interval: '1m',
+        candles: [],
+        history_limit: 5000,
+        available_from: 1_700_000_100,
+        history_unavailable: true,
+      }),
+    })
+
+    assert.equal(result.historyUnavailable, true)
+    assert.equal(result.availableFrom, 1_700_000_100)
+    assert.equal(result.profile.candleCount, 0)
+  })
+
+  it('defaults availability metadata for provider responses without it', async () => {
+    const result = await runFixedRangeVolumeProfileDataPipeline(instance, {
+      fetchKlines: async (startTime, endTime) => ({
+        symbol: 'BTCUSDT',
+        start_time: startTime,
+        end_time: endTime,
+        source_interval: '1m',
+        candles: [],
+      }),
+    })
+
+    assert.equal(result.historyUnavailable, false)
+    assert.equal(result.availableFrom, null)
+  })
+
   it('uses the Binance 0.1 tick by default', async () => {
     const result = await runFixedRangeVolumeProfileDataPipeline(
       { ...instance, fromTime: 1_700_000_000, toTime: 1_700_000_060 },

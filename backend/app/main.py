@@ -108,6 +108,16 @@ def _volume_profile_body_from(
     source_interval: str,
     candles: list,
 ) -> dict[str, object]:
+    # Explicit availability metadata: a provider with a recent-history horizon
+    # (Hyperliquid) reports the earliest source candle it can serve so the UI
+    # can show "history unavailable / available from" instead of an empty
+    # profile. Providers without a horizon report `null` / `false` (unchanged
+    # Binance behaviour, additive fields only).
+    available_from = provider.available_from_seconds(
+        int(time.time() * 1000),
+        source_interval,
+    )
+    history_unavailable = available_from is not None and start_time < available_from
     return {
         "exchange": provider.exchange,
         "symbol": provider.symbol,
@@ -116,6 +126,8 @@ def _volume_profile_body_from(
         "source_interval": source_interval,
         "candles": candles,
         "history_limit": provider.history_limit_candles,
+        "available_from": available_from,
+        "history_unavailable": history_unavailable,
     }
 
 

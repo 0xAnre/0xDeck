@@ -44,6 +44,8 @@ function pipelineResult(id: string): FixedRangeVolumeProfilePipelineResult {
     requestEndTime: 260,
     sourceInterval: '1m',
     profile: emptyProfile(),
+    historyUnavailable: false,
+    availableFrom: null,
   }
 }
 
@@ -420,5 +422,42 @@ describe('fixedRangeVolumeProfileRuntimeController', () => {
     controller.dispose()
     await new Promise((resolve) => setTimeout(resolve, 30))
     assert.equal(aborted, true)
+  })
+})
+
+describe('fixedRangeVolumeProfileRuntimeController availability', () => {
+  it('exposes provider availability metadata on the ready state', async () => {
+    const controller = new FixedRangeVolumeProfileRuntimeController({
+      onChange: () => {},
+      runPipeline: async (item) => ({
+        ...pipelineResult(item.id),
+        historyUnavailable: true,
+        availableFrom: 1_700_000_000,
+      }),
+    })
+
+    controller.syncInstances([instance()])
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const state = controller.getSnapshot()['frvp-1']
+    assert.equal(state?.status, 'ready')
+    assert.equal(state?.status === 'ready' ? state.historyUnavailable : null, true)
+    assert.equal(state?.status === 'ready' ? state.availableFrom : null, 1_700_000_000)
+    controller.dispose()
+  })
+
+  it('reports availability as neutral for a fully available profile', async () => {
+    const controller = new FixedRangeVolumeProfileRuntimeController({
+      onChange: () => {},
+      runPipeline: async (item) => pipelineResult(item.id),
+    })
+
+    controller.syncInstances([instance()])
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const state = controller.getSnapshot()['frvp-1']
+    assert.equal(state?.status === 'ready' ? state.historyUnavailable : null, false)
+    assert.equal(state?.status === 'ready' ? state.availableFrom : undefined, null)
+    controller.dispose()
   })
 })

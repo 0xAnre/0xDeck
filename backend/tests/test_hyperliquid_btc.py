@@ -39,7 +39,7 @@ SAMPLE_ITEM = {
 
 
 def _item(open_ms: int, interval: str = "1h", volume: str = "1.5") -> dict:
-    duration = hyperliquid.interval_duration_ms(interval)
+    duration = hyperliquid.hyperliquid_interval_duration_ms(interval)
     price = f"{80240 + open_ms % 1000}.0"
     return {
         "t": open_ms,
@@ -292,6 +292,139 @@ class HyperliquidEndpointTests(unittest.TestCase):
         self.assertEqual(body["exchange"], "hyperliquid")
         self.assertEqual(body["source_interval"], "1m")
         self.assertEqual(body["candles"][0]["volume"], 12.5)
+        self.assertFalse(body["history_unavailable"])
+        self.assertIsInstance(body["available_from"], int)
+
+    @patch("app.market.hyperliquid_btc.httpx.post")
+    def test_volume_profile_endpoint_serves_multi_day_range(
+        self,
+        mock_post: MagicMock,
+    ) -> None:
+        now_ms = int(time.time() * 1000)
+        start_time = now_ms // 1000 - 8 * 86_400
+        end_time = now_ms // 1000 - 86_400
+        start_ms = start_time * 1000
+        mock_post.side_effect = [
+            _mock_post_response([
+                _item(start_ms + offset * 180_000, "3m") for offset in range(3)
+            ]),
+            _mock_post_response([]),
+        ]
+
+        result = self.client.get(
+            "/api/market/hyperliquid/btc/klines/volume-profile",
+            params={"start_time": start_time, "end_time": end_time},
+        )
+
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        # A 7-day range needs more than 5000 1m candles, so selection falls to
+        # Hyperliquid's native 3m interval and normalization must accept it.
+        self.assertEqual(body["source_interval"], "3m")
+        self.assertEqual(len(body["candles"]), 3)
+        self.assertTrue(
+            all(candle["interval"] == "3m" for candle in body["candles"])
+        )
+        self.assertTrue(
+            all(candle["exchange"] == "hyperliquid" for candle in body["candles"])
+        )
+        self.assertFalse(body["history_unavailable"])
+        self.assertEqual(
+            mock_post.call_args_list[0].kwargs["json"]["req"]["interval"],
+            "3m",
+        )
+
+    @patch("app.market.hyperliquid_btc.httpx.post")
+    def test_volume_profile_endpoint_reports_history_unavailable(
+        self,
+        mock_post: MagicMock,
+    ) -> None:
+        now_seconds = int(time.time())
+        # A one-day profile older than the 5000-candle 1m horizon is not
+        # available; the response must say so instead of silently returning [].
+        start_time = now_seconds - 30 * 86_400
+        end_time = start_time + 86_400
+
+        result = self.client.get(
+            "/api/market/hyperliquid/btc/klines/volume-profile",
+            params={"start_time": start_time, "end_time": end_time},
+        )
+
+        mock_post.assert_not_called()
+        self.assertEqual(result.status_code, 200)
+        body = result.json()
+        self.assertEqual(body["source_interval"], "1m")
+        self.assertEqual(body["candles"], [])
+        self.assertTrue(body["history_unavailable"])
+        self.assertGreater(body["available_from"], start_time)
+
+
+class HyperliquidVolumeProfileSourceIntervalTests(unittest.TestCase):
+    def test_source_intervals_are_serviceable_and_include_3m(self) -> None:
+        intervals = hyperliquid.HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS
+        self.assertIn("3m", intervals)
+        for interval in intervals:
+            self.assertGreater(
+                hyperliquid.hyperliquid_interval_duration_ms(interval),
+                0,
+            )
+            self.assertGreater(
+                hyperliquid.volume_profile_interval_duration_ms(interval),
+                0,
+            )
+        self.assertEqual(
+            tuple(intervals),
+            HYPERLIQUID_PROVIDER.volume_profile_source_intervals,
+        )
+        self.assertEqual(
+            tuple(binance.VOLUME_PROFILE_SOURCE_INTERVALS),
+            BINANCE_PROVIDER.volume_profile_source_intervals,
+        )
+
+    def test_multi_day_selection_uses_a_serviceable_interval(self) -> None:
+        start_time = 1_700_000_000
+        end_time = start_time + 7 * 86_400
+        source_interval = hyperliquid.select_volume_profile_source_interval(
+            start_time,
+            end_time,
+            hyperliquid.HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS,
+        )
+        self.assertEqual(source_interval, "3m")
+        # Normalization and duration must both accept the selected interval.
+        self.assertGreater(
+            hyperliquid.hyperliquid_interval_duration_ms(source_interval),
+            0,
+        )
+        candle = hyperliquid.normalize_candle(
+            _item(start_time * 1000, source_interval),
+            source_interval,
+            now_ms=start_time * 1000 + 1,
+        )
+        self.assertEqual(candle["interval"], "3m")
+
+    def test_selection_never_picks_an_interval_without_a_duration(self) -> None:
+        # Every declared source interval must survive the whole request path;
+        # a provider list entry without a duration would raise here.
+        start_time = 1_700_000_000
+        for days in (1, 4, 7, 30, 365):
+            end_time = start_time + days * 86_400
+            source_interval = hyperliquid.select_volume_profile_source_interval(
+                start_time,
+                end_time,
+                hyperliquid.HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS,
+            )
+            self.assertIn(
+                source_interval,
+                hyperliquid.HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS,
+            )
+            hyperliquid.hyperliquid_interval_duration_ms(source_interval)
+            hyperliquid.volume_profile_interval_duration_ms(source_interval)
+
+    def test_chart_interval_validation_still_rejects_source_only_interval(self) -> None:
+        # `3m` stays a volume-profile source interval, not a chart interval.
+        with self.assertRaises(Exception):
+            HYPERLIQUID_PROVIDER.validate_interval("3m")
+        self.assertEqual(HYPERLIQUID_PROVIDER.validate_interval("1m"), "1m")
 
 
 class HyperliquidRelayTests(unittest.IsolatedAsyncioTestCase):

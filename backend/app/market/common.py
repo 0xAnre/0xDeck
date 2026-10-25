@@ -179,8 +179,19 @@ def validate_volume_profile_time_range(start_time: int, end_time: int) -> tuple[
     return start_time, end_time
 
 
-def select_volume_profile_source_interval(start_time: int, end_time: int) -> str:
-    for interval in VOLUME_PROFILE_SOURCE_INTERVALS:
+def select_volume_profile_source_interval(
+    start_time: int,
+    end_time: int,
+    intervals: tuple[str, ...] = VOLUME_PROFILE_SOURCE_INTERVALS,
+) -> str:
+    """Pick the finest source interval that keeps the profile request legal.
+
+    `intervals` is provider-aware: every provider passes the intervals it can
+    actually serve as volume-profile source data, so the chosen interval is
+    always serviceable (a duration exists for candle estimation and the
+    provider can normalize that interval).
+    """
+    for interval in intervals:
         estimated = estimate_volume_profile_candle_count(start_time, end_time, interval)
         if estimated <= VOLUME_PROFILE_MAX_ESTIMATED_CANDLES:
             return interval

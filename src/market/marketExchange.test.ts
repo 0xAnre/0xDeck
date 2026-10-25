@@ -129,6 +129,33 @@ describe('provider history limits', () => {
     )
   })
 
+  it('surfaces the limit from the explicit history_unavailable flag', () => {
+    // Panning to the horizon with satisfied indicators still has to surface
+    // the explicit state (the flag comes straight from /klines/history).
+    assert.equal(
+      marketHistoryLimitNotice({
+        exchange: 'hyperliquid',
+        interval: '1h',
+        oldestCandleTime: 2_000_000,
+        availableFrom: 1_000,
+        hasUnmetRequirements: false,
+        historyUnavailable: true,
+      }),
+      HYPERLIQUID_HISTORY_LIMIT_NOTICE,
+    )
+    assert.equal(
+      marketHistoryLimitNotice({
+        exchange: 'binance',
+        interval: '1h',
+        oldestCandleTime: 1_000,
+        availableFrom: 1_000,
+        hasUnmetRequirements: false,
+        historyUnavailable: true,
+      }),
+      null,
+    )
+  })
+
   it('surfaces the limit only when Hyperliquid indicators are unmet at the horizon', () => {
     assert.equal(
       marketHistoryLimitNotice({

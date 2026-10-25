@@ -27,6 +27,12 @@ export type FixedRangeVolumeProfileKlinesResponse = {
   end_time: number
   source_interval: FixedRangeVolumeProfileSourceInterval
   candles: FixedRangeVolumeProfileSourceCandle[]
+  /** Provider candle limit for the source interval, when the provider documents one. */
+  history_limit?: number | null
+  /** Earliest candle open (unix seconds) the provider can serve for the source interval. */
+  available_from?: number | null
+  /** True when part of the requested range predates the provider's history window. */
+  history_unavailable?: boolean
 }
 
 export type FixedRangeVolumeProfileSourceCandle = FixedRangeVolumeProfileCandle & {
@@ -108,6 +114,32 @@ export function parseFixedRangeVolumeProfileKlinesResponse(
     throw new FixedRangeVolumeProfileClientError('Volume profile response candles must be an array')
   }
 
+  // Availability metadata is optional and additive (Binance omits/returns
+  // neutral values), so older responses stay readable.
+  if (
+    root.history_unavailable !== undefined &&
+    typeof root.history_unavailable !== 'boolean'
+  ) {
+    throw new FixedRangeVolumeProfileClientError(
+      'Volume profile response history_unavailable must be boolean',
+    )
+  }
+  const historyUnavailable = root.history_unavailable === true
+  let availableFrom: number | null = null
+  if (root.available_from !== undefined && root.available_from !== null) {
+    if (!Number.isInteger(root.available_from) || (root.available_from as number) <= 0) {
+      throw new FixedRangeVolumeProfileClientError(
+        'Volume profile response available_from is invalid',
+      )
+    }
+    availableFrom = root.available_from as number
+  }
+  if (historyUnavailable && availableFrom === null) {
+    throw new FixedRangeVolumeProfileClientError(
+      'Volume profile response history_unavailable requires available_from',
+    )
+  }
+
   const byTime = new Map<number, FixedRangeVolumeProfileSourceCandle>()
   for (const item of root.candles) {
     if (!item || typeof item !== 'object') {
@@ -164,6 +196,10 @@ export function parseFixedRangeVolumeProfileKlinesResponse(
     end_time: requested.endTime,
     source_interval: sourceInterval,
     candles,
+    history_limit:
+      root.history_limit === undefined ? null : (root.history_limit as number | null),
+    available_from: availableFrom,
+    history_unavailable: historyUnavailable,
   }
 }
 

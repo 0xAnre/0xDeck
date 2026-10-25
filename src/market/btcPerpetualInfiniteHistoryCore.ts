@@ -8,6 +8,10 @@ export type InfiniteHistoryState = {
   loading: boolean
   requestedBefore: Set<number>
   generation: number
+  /** True once the provider reported that history older than its horizon is unavailable. */
+  historyUnavailable: boolean
+  /** Earliest candle open time (unix seconds) the provider can serve, when limited. */
+  availableFrom: number | null
 }
 
 export type FetchBtcPerpHistory = (
@@ -29,6 +33,8 @@ export function createInfiniteHistoryState(): InfiniteHistoryState {
     loading: false,
     requestedBefore: new Set<number>(),
     generation: 0,
+    historyUnavailable: false,
+    availableFrom: null,
   }
 }
 
@@ -37,6 +43,42 @@ export function resetInfiniteHistoryState(state: InfiniteHistoryState, generatio
   state.loading = false
   state.requestedBefore.clear()
   state.generation = generation
+  state.historyUnavailable = false
+  state.availableFrom = null
+}
+
+/** Record provider availability metadata from a history page. */
+export function recordHistoryAvailability(
+  state: InfiniteHistoryState,
+  response: {
+    history_unavailable?: boolean
+    available_from?: number | null
+  },
+): void {
+  if (response.history_unavailable === true) {
+    state.historyUnavailable = true
+  }
+  const availableFrom = response.available_from
+  if (
+    typeof availableFrom === 'number' &&
+    Number.isFinite(availableFrom) &&
+    availableFrom > 0
+  ) {
+    state.availableFrom =
+      state.availableFrom === null ? availableFrom : Math.max(state.availableFrom, availableFrom)
+  }
+}
+
+/**
+ * True when the provider horizon is known and `before` is at or beyond it: such
+ * a page cannot contain any candle, so it must never be requested.
+ */
+export function isHistoryBeforeProviderHorizon(
+  state: InfiniteHistoryState,
+  beforeEpochSeconds: number,
+): boolean {
+  const { availableFrom } = state
+  return availableFrom !== null && beforeEpochSeconds <= availableFrom
 }
 
 export function releaseHistoryBeforeRequest(
@@ -65,8 +107,11 @@ type LoadOlderHistoryParams = {
   fetchHistory: FetchBtcPerpHistory
   applyMergedHistory: ApplyMergedHistory
   mergeOlderCandles: MergeOlderCandles
-  /** Called after older candles were prepended, so derived state (e.g. notices) can refresh. */
-  onHistoryMerged?: () => void
+  /**
+   * Called whenever the history state changed (candles prepended, provider
+   * horizon reached, or history exhausted) so derived state such as notices refreshes.
+   */
+  onHistoryStateChange?: () => void
 }
 
 export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams): Promise<void> {
@@ -82,11 +127,20 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
     fetchHistory,
     applyMergedHistory,
     mergeOlderCandles,
-    onHistoryMerged,
+    onHistoryStateChange,
   } = params
 
   if (state.loading || state.exhausted || state.generation !== generation) return
   if (state.requestedBefore.has(before)) return
+
+  // The provider horizon is already known: never request (or emit) candles
+  // beyond it, and surface the explicit unavailable state instead.
+  if (isHistoryBeforeProviderHorizon(state, before)) {
+    state.exhausted = true
+    state.historyUnavailable = true
+    onHistoryStateChange?.()
+    return
+  }
 
   state.loading = true
   state.requestedBefore.add(before)
@@ -102,9 +156,15 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
       return
     }
 
+    recordHistoryAvailability(state, response)
+    // A page flagged unavailable is clamped at the provider horizon, so no
+    // older candle can exist: retire the cursor after merging what arrived.
+    const reachedProviderHorizon = response.history_unavailable === true
+
     const older = response.candles.filter((candle) => candle.interval === interval)
     if (older.length === 0) {
       state.exhausted = true
+      onHistoryStateChange?.()
       return
     }
 
@@ -113,6 +173,7 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
     const addedCount = merged.length - previousLength
     if (addedCount <= 0) {
       state.exhausted = true
+      onHistoryStateChange?.()
       return
     }
 
@@ -127,7 +188,11 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
       })
     }
 
-    onHistoryMerged?.()
+    if (reachedProviderHorizon) {
+      state.exhausted = true
+    }
+
+    onHistoryStateChange?.()
   } catch (error) {
     // Never retain a cursor whose request did not deliver candles: aborted and
     // failed pages must stay retryable by both the preload and viewport backfill.

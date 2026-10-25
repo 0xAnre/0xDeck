@@ -281,7 +281,7 @@ describe('loadOlderBtcPerpHistoryCore', () => {
     assert.equal(candlesRef.current[0].time, before - 60)
   })
 
-  it('calls onHistoryMerged after prepending candles but not on abort', async () => {
+  it('calls onHistoryStateChange after prepending candles but not on abort', async () => {
     const state = createInfiniteHistoryState()
     state.generation = 1
     const candlesRef = { current: [candle(1_700_002_000)] }
@@ -305,7 +305,7 @@ describe('loadOlderBtcPerpHistoryCore', () => {
         candlesRef.current = [...merged]
       },
       mergeOlderCandles: (existing, older) => [...older, ...existing],
-      onHistoryMerged: () => {
+      onHistoryStateChange: () => {
         mergedLengths.push(candlesRef.current.length)
       },
     })
@@ -329,11 +329,150 @@ describe('loadOlderBtcPerpHistoryCore', () => {
       },
       applyMergedHistory: () => {},
       mergeOlderCandles: (existing, older) => [...older, ...existing],
-      onHistoryMerged: () => {
+      onHistoryStateChange: () => {
         abortCalls.push(1)
       },
     })
 
     assert.deepEqual(abortCalls, [])
+  })
+})
+
+describe('loadOlderBtcPerpHistoryCore provider availability', () => {
+  it('records history_unavailable and available_from from the history page', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = { current: [candle(1_700_002_000)] }
+    const notifications: string[] = []
+
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before: candlesRef.current[0].time,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async (interval) => ({
+        symbol: 'BTC',
+        interval,
+        candles: [],
+        history_unavailable: true,
+        available_from: 1_700_000_000,
+      }),
+      applyMergedHistory: () => {},
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+      onHistoryStateChange: () => {
+        notifications.push('change')
+      },
+    })
+
+    assert.equal(state.historyUnavailable, true)
+    assert.equal(state.availableFrom, 1_700_000_000)
+    assert.equal(state.exhausted, true)
+    assert.equal(state.loading, false)
+    // The exhausted/unavailable transition still refreshes derived notices.
+    assert.deepEqual(notifications, ['change'])
+    // Nothing was emitted past the provider horizon.
+    assert.equal(candlesRef.current.length, 1)
+  })
+
+  it('never requests or emits candles beyond a known provider horizon', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    state.availableFrom = 1_700_000_000
+    const candlesRef = { current: [candle(1_700_000_000)] }
+    let calls = 0
+    const notifications: string[] = []
+
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before: candlesRef.current[0].time,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async () => {
+        calls += 1
+        throw new Error('must not request beyond the provider horizon')
+      },
+      applyMergedHistory: () => {},
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+      onHistoryStateChange: () => {
+        notifications.push('change')
+      },
+    })
+
+    assert.equal(calls, 0)
+    assert.equal(state.exhausted, true)
+    assert.equal(state.historyUnavailable, true)
+    assert.deepEqual(candlesRef.current.map((item) => item.time), [1_700_000_000])
+    assert.deepEqual(notifications, ['change'])
+  })
+
+  it('retires the cursor after a page clamped to the provider horizon', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = { current: [candle(1_700_010_000)] }
+    let calls = 0
+
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before: candlesRef.current[0].time,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async (interval) => {
+        calls += 1
+        return {
+          symbol: 'BTC',
+          interval,
+          candles: [candle(1_700_000_300), candle(1_700_000_360)],
+          history_unavailable: true,
+          available_from: 1_700_000_300,
+        }
+      },
+      applyMergedHistory: (_bundle, merged) => {
+        candlesRef.current = [...merged]
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+    })
+
+    assert.equal(calls, 1)
+    assert.equal(state.exhausted, true)
+    assert.equal(state.historyUnavailable, true)
+    assert.equal(candlesRef.current[0].time, 1_700_000_300)
+
+    // A second pan to the new oldest candle must not hit the network again.
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before: candlesRef.current[0].time,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: fakeChart(),
+      fetchHistory: async () => {
+        calls += 1
+        throw new Error('must not request beyond the provider horizon')
+      },
+      applyMergedHistory: () => {},
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+    })
+
+    assert.equal(calls, 1)
+  })
+
+  it('resets provider availability when the history state is renewed', () => {
+    const state = createInfiniteHistoryState()
+    state.historyUnavailable = true
+    state.availableFrom = 1_700_000_000
+    resetInfiniteHistoryState(state, 4)
+    assert.equal(state.historyUnavailable, false)
+    assert.equal(state.availableFrom, null)
+    assert.equal(state.exhausted, false)
   })
 })

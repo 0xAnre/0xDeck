@@ -138,6 +138,55 @@ describe('fixedRangeVolumeProfileClient parser', () => {
     )
   })
 
+  it('parses availability metadata and defaults it for older responses', () => {
+    const limited = parseFixedRangeVolumeProfileKlinesResponse(
+      {
+        ...validResponseBody(requested.startTime, requested.endTime, '1m', []),
+        exchange: 'hyperliquid',
+        symbol: 'BTC',
+        history_limit: 5000,
+        available_from: 1_000,
+        history_unavailable: true,
+      },
+      { ...requested, exchange: 'hyperliquid' },
+    )
+    assert.equal(limited.history_unavailable, true)
+    assert.equal(limited.available_from, 1_000)
+    assert.equal(limited.history_limit, 5000)
+
+    // Binance (and older payloads) omit the fields: neutral defaults, unchanged shape.
+    const bare = parseFixedRangeVolumeProfileKlinesResponse(
+      validResponseBody(requested.startTime, requested.endTime, '1m', [
+        validCandle(100, '1m'),
+      ]),
+      requested,
+    )
+    assert.equal(bare.history_unavailable, false)
+    assert.equal(bare.available_from, null)
+    assert.equal(bare.history_limit, null)
+  })
+
+  it('rejects unavailable metadata without an availability timestamp', () => {
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(
+        {
+          ...validResponseBody(requested.startTime, requested.endTime, '1m', []),
+          history_unavailable: true,
+        },
+        requested,
+      ),
+    )
+    assert.throws(() =>
+      parseFixedRangeVolumeProfileKlinesResponse(
+        {
+          ...validResponseBody(requested.startTime, requested.endTime, '1m', []),
+          history_unavailable: 'yes',
+        },
+        requested,
+      ),
+    )
+  })
+
   it('routes Hyperliquid volume-profile requests to its own endpoint', async () => {
     let requestedUrl = ''
     await fetchFixedRangeVolumeProfileKlines({

@@ -4,7 +4,12 @@ from typing import Protocol
 
 from . import binance_usdm_btc as binance
 from . import hyperliquid_btc as hyperliquid
-from .common import HistoryPage, NormalizedCandle
+from .common import (
+    VOLUME_PROFILE_SOURCE_INTERVALS,
+    HistoryPage,
+    NormalizedCandle,
+    validate_interval,
+)
 
 
 class MarketDataProvider(Protocol):
@@ -13,6 +18,9 @@ class MarketDataProvider(Protocol):
     exchange: str
     symbol: str
     history_limit_candles: int | None
+    # Provider-aware FRVP source intervals: only intervals this provider can
+    # serve end to end (duration + kline normalization).
+    volume_profile_source_intervals: tuple[str, ...]
 
     def validate_interval(self, interval: str) -> str: ...
     def channel_for_interval(self, interval: str) -> str: ...
@@ -42,6 +50,7 @@ class BinanceUsdmBtcProvider:
     exchange = "binance"
     symbol = binance.SYMBOL
     history_limit_candles: int | None = None
+    volume_profile_source_intervals: tuple[str, ...] = VOLUME_PROFILE_SOURCE_INTERVALS
 
     def validate_interval(self, interval: str) -> str:
         return binance.validate_interval(interval)
@@ -93,9 +102,12 @@ class HyperliquidBtcProvider:
     exchange = "hyperliquid"
     symbol = hyperliquid.SYMBOL
     history_limit_candles: int | None = hyperliquid.HYPERLIQUID_HISTORY_LIMIT_CANDLES
+    volume_profile_source_intervals: tuple[str, ...] = (
+        hyperliquid.HYPERLIQUID_VOLUME_PROFILE_SOURCE_INTERVALS
+    )
 
     def validate_interval(self, interval: str) -> str:
-        return binance.validate_interval(interval)
+        return validate_interval(interval)
 
     def channel_for_interval(self, interval: str) -> str:
         return hyperliquid.channel_for_interval(interval)
