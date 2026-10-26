@@ -5,6 +5,7 @@ import {
   applyRsiPaneSettings,
   clearRsiPaneData,
   createRsiChartPane,
+  moveRsiPaneAbove,
   removeRsiChartPane,
   RSI_PANE_STRETCH_FACTOR,
   setRsiPaneHistoryData,
@@ -70,12 +71,17 @@ function makeChart() {
   const calls: string[] = []
   const seriesBundle = makeSeries()
   let createdSeriesOptions: LineSeriesPartialOptions = {}
+  let paneIndex = 1
 
   const pane = {
     setStretchFactor: (factor: number) => {
       calls.push(`stretchFactor:${factor}`)
     },
-    paneIndex: () => 1,
+    paneIndex: () => paneIndex,
+    moveTo: (target: number) => {
+      calls.push(`moveTo:${target}`)
+      paneIndex = target
+    },
     addSeries: (_definition: unknown, options: LineSeriesPartialOptions) => {
       calls.push('pane.addSeries')
       createdSeriesOptions = options
@@ -102,6 +108,9 @@ function makeChart() {
     calls,
     pane,
     seriesBundle,
+    setPaneIndex: (next: number) => {
+      paneIndex = next
+    },
     createdSeriesOptions: () => createdSeriesOptions,
   }
 }
@@ -218,5 +227,33 @@ describe('removeRsiChartPane', () => {
     assert.deepEqual(harness.calls.slice(-1), ['removeSeries:rsi'])
     assert.equal(harness.calls.includes('removePane'), false)
     assert.equal(harness.calls.includes('removeSeries:other'), false)
+  })
+})
+
+describe('moveRsiPaneAbove', () => {
+  it('moves the new RSI pane above a pane that must stay last (Bottom liquidations)', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    // `chart.addPane()` always appends, so the RSI pane starts below the
+    // liquidations pane and has to move up one slot.
+    harness.setPaneIndex(2)
+    harness.calls.length = 0
+
+    moveRsiPaneAbove(bundle, 1)
+
+    assert.deepEqual(harness.calls, ['moveTo:1'])
+    assert.equal(harness.pane.paneIndex(), 1)
+  })
+
+  it('never moves the RSI pane when it already sits at or above the target', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    harness.setPaneIndex(1)
+    harness.calls.length = 0
+
+    moveRsiPaneAbove(bundle, 1)
+    moveRsiPaneAbove(bundle, 2)
+
+    assert.deepEqual(harness.calls, [])
   })
 })

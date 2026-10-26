@@ -138,6 +138,9 @@ export function applyMarketIndicatorPresentationToBundle(
         )
       }
       return
+    case 'aggregated-liquidations':
+      // The liquidation pane owns fixed long/short colors, not line styles.
+      return
     default: {
       const unreachable: never = indicatorId
       return unreachable

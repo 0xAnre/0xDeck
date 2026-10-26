@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from . import binance_usdm_btc as binance
+from . import binance_usdm_liquidations
 from . import hyperliquid_account
 from . import hyperliquid_btc as hyperliquid
 from .common import (
@@ -207,4 +208,8 @@ def relay_for_channel(channel: str) -> object | None:
     # candle provider protocol; route them to the dedicated account relay.
     if hyperliquid_account.parse_account_user_fills_channel(channel) is not None:
         return hyperliquid_account.hyperliquid_user_fills_relay
+    # Liquidation order flow is also not a candle channel; route it to the
+    # dedicated forceOrder relay without widening the provider protocol.
+    if binance_usdm_liquidations.parse_liquidations_channel(channel) is not None:
+        return binance_usdm_liquidations.binance_liquidations_relay
     return None

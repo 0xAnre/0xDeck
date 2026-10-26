@@ -1,4 +1,5 @@
 import type { IChartApi, ISeriesApi, MouseEventParams, SeriesType, Time } from 'lightweight-charts'
+import { resolveCandlePaneElement } from './candlePane.ts'
 import {
   applyFixedRangeVolumeProfileCrosshairTime,
   cancelFixedRangeVolumeProfileInteraction,
@@ -230,7 +231,7 @@ export function attachFixedRangeVolumeProfileChartTool(
       return
     }
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      const chartRoot = chart.panes()[0]?.getHTMLElement() ?? null
+      const chartRoot = resolveCandlePaneElement(chart)
       if (isRectangleKeyboardFocusOnOutsideControl(event.target, chartRoot)) return
       if (!snapshot.interaction.selectedId) return
       if (

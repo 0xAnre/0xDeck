@@ -60,6 +60,7 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/binance/usdm/btcusdt/klines/quarterly-context` | Klines for quarterly VWAP (`4h`, `1d`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/yearly-context` | Klines for yearly VWAP (`1d`, `1w`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/volume-profile` | Source klines for fixed-range volume profile (`start_time`, `end_time` as Unix seconds; auto-picks finest Binance interval up to ~5000 candles) |
+| GET | `/api/market/binance/usdm/btcusdt/liquidations/history` | Persisted normalized `forceOrder` liquidations, newest first (`before` optional epoch-ms cursor, `limit` 1–1000 default 500; returns `events`, `has_more`, `next_before`) |
 | GET | `/api/market/hyperliquid/btc/klines` | Latest Hyperliquid BTC perpetual klines (`interval`: `1m` … `1w`) |
 | GET | `/api/market/hyperliquid/btc/klines/history` | Older Hyperliquid klines (`interval`, `before`); returns `history_unavailable: true` beyond the 5000-candle window |
 | GET | `/api/market/hyperliquid/btc/klines/{daily,weekly,monthly,quarterly,yearly}-context` | Hyperliquid klines for the matching VWAP context window |
@@ -67,13 +68,14 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/hyperliquid/account/{address}/position` | Read-only `clearinghouseState`; normalizes `positions` and the BTC `btc_position` (side, size, average entry). Invalid address → `422` |
 | GET | `/api/market/hyperliquid/account/{address}/fills` | Most recent `userFills` (`count`, `truncated`, `complete`, `response_cap`); upstream cap is 2000 |
 | GET | `/api/market/hyperliquid/account/{address}/fills/by-time` | `userFillsByTime` for `start_time` / `end_time` (epoch **milliseconds**), paged forward through the window. `truncated: true` means the 2000-per-response cap or page budget stopped the window early |
-| WS | `/api/ws/{channel}` | WebSocket transport; Binance relay on `binance.usdm.btcusdt.kline.{interval}`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
+| WS | `/api/ws/{channel}` | WebSocket transport; Binance relays on `binance.usdm.btcusdt.kline.{interval}` and `binance.usdm.btcusdt.liquidations`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
 
 ### WebSocket (`/api/ws/{channel}`)
 
 Channel names: letters, digits, `.`, `_`, `-` (1–96 chars). Generic channels accept `ping` / `pong` only.
 
 - **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`). The backend opens one shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
+- **Binance USD-M BTCUSDT liquidations:** subscribe to `binance.usdm.btcusdt.liquidations` (no interval in the channel; aggregation to a candle interval is a frontend concern). One process-lifetime upstream `btcusdt@forceOrder` subscription relays normalized `{ exchange: "binance", symbol: "BTCUSDT", side, price, quantity, notional, time, trade_time, id }` payloads (`app/market/binance_usdm_liquidations.py`). Each normalized event is persisted before it is published, so reconnecting or reloading a chart can load stored history. `SELL` orders map to `long` liquidations and `BUY` orders map to `short`; malformed, unknown-side and non-positive/non-finite events are dropped. There is no REST backfill before collection started, and Binance `forceOrder` snapshots are not a complete market-wide liquidation total.
 - **Hyperliquid BTC perpetual:** subscribe to `hyperliquid.btc.kline.1m` (same eight older intervals plus `1w`). The backend opens one shared upstream, sends a single `candle` subscription per channel, derives closed candles from the next interval open, and relays `{ exchange: "hyperliquid", symbol: "BTC", ... }` payloads (`app/market/hyperliquid_btc.py`). Duplicate client subscriptions reuse the same upstream.
 - **Hyperliquid read-only account fills:** subscribe to `hyperliquid.account.0x<40 hex>.userfills`. One shared upstream `userFills` subscription per channel relays normalized `{ user, is_snapshot, fills }` payloads (`app/market/hyperliquid_account.py`); reconnect replays the snapshot and clients dedupe by `tid` (fallback `hash`+`oid`+`time`+`coin`).
 
@@ -97,6 +99,16 @@ Both providers implement the small interface in `app/market/providers.py`; share
 Invalid JSON or unsupported client messages receive an `error` message. Implementation: `app/ws.py` (`WebSocketChannelManager`, `publish(channel, payload)` for future use).
 
 Frontend dev: Vite (`57341`) proxies `/api` WebSocket upgrades to this backend (`57342`).
+
+### Persistent liquidation history (SQLite)
+
+Liquidation collection starts when the backend process starts, even with no chart clients connected, and stops at shutdown. Disconnecting the last chart does not stop it. Stored history therefore begins with the first run of the backend that had collection enabled: there is no fabricated data and no upstream REST backfill of earlier liquidations.
+
+- Database file: `backend/.liquidations.sqlite3` (gitignored, WAL mode). Override with `OXDECK_LIQUIDATIONS_DB=/absolute/path.sqlite3`.
+- Schema (`liquidation_events`): `id` (stable normalized event id, primary key), `trade_time`, `event_time`, `side`, `price`, `quantity`, `notional`, `exchange`, `symbol`, `created_at`; index on `(trade_time DESC, id DESC)` for pagination.
+- Writes use `INSERT OR IGNORE`, so replaying the same Binance snapshot never creates a second row.
+- `GET /api/market/binance/usdm/btcusdt/liquidations/history?before=<epoch_ms>&limit=<n>` reads newest first. `before` is an exclusive epoch-millisecond cursor; `limit` is 1–1000 (default 500). The response is `{ exchange: "binance", symbol: "BTCUSDT", events: [...], has_more: bool, next_before: int | null }`, where `events` are the same normalized objects the WebSocket relays.
+- Tests set `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`; the collector also accepts an injected `connect_ws` and store, so backend tests never open a real upstream socket.
 
 ### Query parameters
 

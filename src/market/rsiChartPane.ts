@@ -151,6 +151,20 @@ export function clearRsiPaneData(bundle: RsiChartPaneBundle): void {
 }
 
 /**
+ * Move a newly created RSI pane above a pane that must stay the last one (the
+ * Aggregated Liquidations pane with `Position: Bottom`).
+ *
+ * Only ever moves to a lower index: `chart.addPane()` updates the pane model
+ * immediately but creates the pane widgets on the next invalidation frame, and
+ * `moveTo` asserts against those widgets, so moving down is the safe direction.
+ */
+export function moveRsiPaneAbove(bundle: RsiChartPaneBundle, paneIndex: number): void {
+  if (bundle.pane.paneIndex() > paneIndex) {
+    bundle.pane.moveTo(paneIndex)
+  }
+}
+
+/**
  * Remove only the RSI series. Removing a pane's last series also removes that
  * pane, while the candle pane and every other overlay stay untouched.
  */

@@ -1,4 +1,5 @@
 import type { IChartApi } from 'lightweight-charts'
+import { bindCandlePaneElementListeners, resolveCandlePaneElement } from './candlePane.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import {
@@ -19,11 +20,11 @@ export function attachChartObjectSettingsPanePointer(
   chart: IChartApi,
   callbacks: ChartObjectSettingsPanePointerCallbacks,
 ): ChartObjectSettingsPanePointerController {
-  const pane = chart.panes()[0]
-  const paneElement = pane.getHTMLElement()
-  if (!paneElement) {
+  const initialPaneElement = resolveCandlePaneElement(chart)
+  if (!initialPaneElement) {
     return { dispose: () => {} }
   }
+  let paneElement = initialPaneElement
 
   const resolvePaneY = (event: MouseEvent): number => {
     const rect = paneElement.getBoundingClientRect()
@@ -44,11 +45,17 @@ export function attachChartObjectSettingsPanePointer(
   // Native pane dblclick: chart.subscribeDblClick misses drawing hits because
   // line/rectangle pointerdown calls preventDefault (suppresses compat mouse clicks)
   // and move/resize capture can cancel the chart's internal click-sequence dblclick.
-  paneElement.addEventListener('dblclick', onPaneDblClick)
+  const paneElementBinding = bindCandlePaneElementListeners(
+    chart,
+    [{ type: 'dblclick', listener: onPaneDblClick as EventListener }],
+    (next) => {
+      paneElement = next
+    },
+  )
 
   return {
     dispose: () => {
-      paneElement.removeEventListener('dblclick', onPaneDblClick)
+      paneElementBinding.dispose()
     },
   }
 }

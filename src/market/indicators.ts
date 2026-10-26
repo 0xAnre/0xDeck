@@ -10,6 +10,7 @@ export const MARKET_INDICATOR_IDS = [
   'yearly-vwap',
   'rolling-vwap',
   'rsi',
+  'aggregated-liquidations',
 ] as const
 
 export type MarketIndicatorId = (typeof MARKET_INDICATOR_IDS)[number]
@@ -79,6 +80,11 @@ export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndic
   },
   rsi: {
     label: 'RSI',
+    supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
+    contextLevel: null,
+  },
+  'aggregated-liquidations': {
+    label: 'Aggregated Liquidations',
     supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
     contextLevel: null,
   },

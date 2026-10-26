@@ -272,6 +272,7 @@ import {
   applyRsiPaneSettings,
   clearRsiPaneData,
   createRsiChartPane,
+  moveRsiPaneAbove,
   removeRsiChartPane,
   setRsiPaneHistoryData,
 } from '@/market/rsiChartPane'
@@ -292,8 +293,35 @@ import {
 } from '@/market/mergeCandleHistoryBuffer'
 import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
 import { candleIntervalDurationSeconds } from '@/market/candleIntervalDuration'
+import {
+  AGGREGATED_LIQUIDATIONS_CHANNEL,
+  bucketAggregatedLiquidationEvents,
+  filterAggregatedLiquidationBucketsToCandles,
+  parseAggregatedLiquidationEvent,
+  type AggregatedLiquidationEvent,
+} from '@/market/aggregatedLiquidations'
+import {
+  AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
+  AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
+  fetchAggregatedLiquidationsHistory,
+  mergeAggregatedLiquidationEvents,
+} from '@/market/aggregatedLiquidationsHistory'
+import {
+  createAggregatedLiquidationsChartOverlay,
+  type AggregatedLiquidationsChartOverlay,
+} from '@/market/aggregatedLiquidationsChartSeries'
+import {
+  type AggregatedLiquidationsSettings,
+} from '@/market/aggregatedLiquidationsSettings'
+import { AggregatedLiquidationsSettingsDialog } from '@/market/AggregatedLiquidationsSettingsDialog'
+import { registerCandleChartSeries } from '@/market/candlePane'
+import {
+  loadWidgetLiquidationsSettings,
+  saveWidgetLiquidationsSettings,
+} from '@/liquidationsSettingsStorage'
 import type { CandleInterval, MarketCandle, MarketExchange } from '@/market/types'
 import { marketKlineChannelForInterval } from '@/market/types'
+import { isMarketChartSelectionChange } from '@/market/marketChartSelection'
 import {
   marketHistoryLimitNotice,
   marketSymbolForExchange,
@@ -325,7 +353,7 @@ import {
   type WidgetStreamConnectionState,
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
 import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
@@ -468,10 +496,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [positionMarkersEnabled, setPositionMarkersEnabled] = useState(() =>
     loadWidgetMarketPositionMarkers(panelId),
   )
+  const [liquidationSettings, setLiquidationSettings] = useState<AggregatedLiquidationsSettings>(
+    () => loadWidgetLiquidationsSettings(panelId),
+  )
+  const [liquidationsSettingsOpen, setLiquidationsSettingsOpen] = useState(false)
+  const [liquidationEvents, setLiquidationEvents] = useState<AggregatedLiquidationEvent[]>([])
+  const [liquidationHistoryRevision, setLiquidationHistoryRevision] = useState(0)
   const [hoveredAccountFills, setHoveredAccountFills] = useState<
     BucketedHyperliquidFill[]
   >([])
   const [candleRangeRevision, setCandleRangeRevision] = useState(0)
+
+  const liquidationsEnabled = activeIndicators.includes('aggregated-liquidations')
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -549,6 +585,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const accountMarkersByBucketRef = useRef<Map<number, BucketedHyperliquidFill[]>>(
     new Map(),
   )
+  const liquidationOverlayRef = useRef<AggregatedLiquidationsChartOverlay | null>(null)
+  const liquidationSettingsRef = useRef(liquidationSettings)
 
   const flushMarketChartViewportPersist = useCallback(
     (
@@ -1295,9 +1333,21 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleMarketIndicatorSettingsClick = useCallback(
     (indicatorId: MarketIndicatorId) => {
+      if (indicatorId === 'aggregated-liquidations') {
+        setLiquidationsSettingsOpen(true)
+        return
+      }
       openChartObjectSettings({ kind: 'market-indicator', indicatorId })
     },
     [openChartObjectSettings],
+  )
+
+  const handleLiquidationSettingsChange = useCallback(
+    (next: AggregatedLiquidationsSettings) => {
+      saveWidgetLiquidationsSettings(panelId, next)
+      setLiquidationSettings(next)
+    },
+    [panelId],
   )
 
   const handleMarketIndicatorPresentationChange = useCallback(
@@ -1493,6 +1543,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const handleMarketIndicatorsChange = useCallback(
     (next: MarketIndicatorId[]) => {
       saveWidgetMarketIndicators(panelId, next)
+      if (!next.includes('aggregated-liquidations')) {
+        setLiquidationEvents([])
+      }
       setActiveIndicators(next)
     },
     [panelId],
@@ -1517,6 +1570,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       }
       if (bundle.rsi) return
       bundle.rsi = createRsiChartPane(chart, rsiSettingsRef.current)
+      // A new pane is appended after every existing pane, which would leave the
+      // `Position: Bottom` liquidations pane above it. Move the RSI pane above
+      // that pane so `Bottom` keeps meaning the last pane.
+      const liquidationOverlay = liquidationOverlayRef.current
+      if (liquidationOverlay?.getPosition() === 'bottom') {
+        moveRsiPaneAbove(bundle.rsi, liquidationOverlay.getPaneIndex())
+      }
       applyMarketIndicatorPresentationToBundle(
         bundle,
         'rsi',
@@ -1543,6 +1603,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
+      // Re-selecting the active interval must not mark the chart as not-ready:
+      // the load effect is keyed on [exchange, interval] and would not run again.
+      if (
+        !isMarketChartSelectionChange(
+          { exchange: activeExchangeRef.current, interval: activeIntervalRef.current },
+          { interval: next },
+        )
+      ) {
+        return
+      }
+
       const cancelled = cancelFixedRangeVolumeProfileInteraction(
         fixedRangeVolumeProfileInteractionRef.current,
       )
@@ -1587,7 +1658,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleExchangeChange = useCallback(
     (next: MarketExchange) => {
-      if (next === activeExchangeRef.current) return
+      // Re-selecting the active provider must not mark the chart as not-ready.
+      if (
+        !isMarketChartSelectionChange(
+          { exchange: activeExchangeRef.current, interval: activeIntervalRef.current },
+          { exchange: next },
+        )
+      ) {
+        return
+      }
 
       // Invalidate and stop every old-provider request/stream before the new
       // provider state is rendered; stale responses are dropped by generation.
@@ -2217,6 +2296,112 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     syncRsiPane,
   ])
 
+  const mergeLiquidationEventsIntoBuffer = useCallback(
+    (incoming: AggregatedLiquidationEvent[]) => {
+      if (incoming.length === 0) return
+      setLiquidationEvents((current) =>
+        mergeAggregatedLiquidationEvents(current, incoming, {
+          candleTimes: candlesRef.current.map((candle) => candle.time),
+          interval: activeIntervalRef.current,
+        }),
+      )
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!liquidationsEnabled) return
+
+    const client = new WidgetStreamClient({
+      channel: AGGREGATED_LIQUIDATIONS_CHANNEL,
+      onStateChange: (state) => {
+        // Once the live socket is open, refresh the stored window so events
+        // collected between page load and the socket handshake are included.
+        if (state === 'open') {
+          setLiquidationHistoryRevision((revision) => revision + 1)
+        }
+      },
+      onMessage: (message) => {
+        if (message.type !== 'event') return
+        const event = parseAggregatedLiquidationEvent(
+          (message as ServerEventMessage).payload,
+        )
+        if (!event) return
+        mergeLiquidationEventsIntoBuffer([event])
+      },
+    })
+    client.connect()
+    return () => client.disconnect()
+  }, [liquidationsEnabled, mergeLiquidationEventsIntoBuffer])
+
+  useEffect(() => {
+    if (!liquidationsEnabled || !chartReady || !historyReadyRef.current) return
+    const candleTimes = candlesRef.current.map((candle) => candle.time)
+    if (candleTimes.length === 0) return
+
+    const generation = loadGenerationRef.current
+    const controller = new AbortController()
+    const oldestTimeMs = Math.min(...candleTimes) * 1000
+
+    void (async () => {
+      try {
+        const history = await fetchAggregatedLiquidationsHistory({
+          oldestTimeMs,
+          limit: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
+          maxPages: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        if (generation !== loadGenerationRef.current) return
+        mergeLiquidationEventsIntoBuffer(history.events)
+      } catch {
+        // History is additive evidence, not a prerequisite: a failed read
+        // leaves the existing live-only buffer untouched.
+      }
+    })()
+
+    return () => controller.abort()
+  }, [
+    candleRangeRevision,
+    chartReady,
+    interval,
+    exchange,
+    liquidationHistoryRevision,
+    liquidationsEnabled,
+    mergeLiquidationEventsIntoBuffer,
+  ])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady || !liquidationsEnabled) return
+
+    const overlay = createAggregatedLiquidationsChartOverlay(
+      chart,
+      liquidationSettingsRef.current.position,
+    )
+    liquidationOverlayRef.current = overlay
+
+    return () => {
+      overlay.dispose()
+      if (liquidationOverlayRef.current === overlay) {
+        liquidationOverlayRef.current = null
+      }
+    }
+  }, [chartReady, liquidationsEnabled])
+
+  useEffect(() => {
+    liquidationSettingsRef.current = liquidationSettings
+    liquidationOverlayRef.current?.setPosition(liquidationSettings.position)
+  }, [liquidationSettings])
+
+  useEffect(() => {
+    const buckets = filterAggregatedLiquidationBucketsToCandles(
+      bucketAggregatedLiquidationEvents(liquidationEvents, interval),
+      candlesRef.current.map((candle) => candle.time),
+    )
+    liquidationOverlayRef.current?.setBuckets(buckets)
+  }, [candleRangeRevision, chartReady, interval, liquidationEvents, liquidationsEnabled])
+
   useEffect(() => {
     const chart = chartRef.current
     const bundle = seriesRef.current
@@ -2443,6 +2628,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           background: { type: ColorType.Solid, color: colors.background },
           textColor: colors.text,
           attributionLogo: false,
+          // Native pane separators: a faint theme-derived hairline instead of
+          // the library's high-contrast default. `enableResize` keeps the
+          // existing drag-to-resize pane behaviour.
+          panes: {
+            enableResize: true,
+            separatorColor: rgbaFromResolvedCssColor(colors.text, 0.12),
+            separatorHoverColor: rgbaFromResolvedCssColor(colors.text, 0.24),
+          },
         },
         grid: {
           vertLines: { visible: false },
@@ -2471,6 +2664,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         ...BTC_PERPETUAL_CANDLESTICK_COLORS,
         ...btcPerpetualCurrentPriceLineOptions(colors.text),
       })
+      registerCandleChartSeries(chart, candleSeries)
       // One marker primitive for the lifetime of this chart instance. Account
       // markers are always updated through `setMarkers`, never a second chart.
       accountMarkersRef.current = createSeriesMarkers(candleSeries, [])
@@ -3193,6 +3387,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           }
         }}
         onSave={handleRollingVwapSettingsSave}
+      />
+      <AggregatedLiquidationsSettingsDialog
+        open={liquidationsSettingsOpen}
+        settings={liquidationSettings}
+        returnFocusId={`${panelId}-indicators`}
+        onOpenChange={setLiquidationsSettingsOpen}
+        onSettingsChange={handleLiquidationSettingsChange}
       />
       <MarketIndicatorStyleDialog
         indicatorId={editingMarketIndicatorId}

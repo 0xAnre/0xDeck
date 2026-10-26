@@ -7,6 +7,7 @@ import {
   type MarketIndicatorId,
 } from './indicators.ts'
 import { marketApiBasePath, marketKlinesPath } from './marketExchange.ts'
+import { aggregatedLiquidationsHistoryPath } from './aggregatedLiquidationsHistory.ts'
 import {
   hyperliquidAccountFillsByTimePath,
   hyperliquidAccountFillsPath,
@@ -90,6 +91,25 @@ describe('Hyperliquid account route contract (paths the client builds)', () => {
     // The backend WS channel cap is 96; this channel is 72 chars.
     assert.ok(
       hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS).length <= 96,
+    )
+  })
+})
+
+describe('persistent liquidation history route contract', () => {
+  it('builds the path the backend registers for stored liquidations', () => {
+    assert.equal(
+      `${API_BASE}${aggregatedLiquidationsHistoryPath()}`,
+      '/api/market/binance/usdm/btcusdt/liquidations/history',
+    )
+  })
+
+  it('passes the pagination cursor and limit as query parameters', () => {
+    assert.equal(
+      `${API_BASE}${aggregatedLiquidationsHistoryPath({
+        before: 1_792_000_000_000,
+        limit: 1000,
+      })}`,
+      '/api/market/binance/usdm/btcusdt/liquidations/history?before=1792000000000&limit=1000',
     )
   })
 })

@@ -155,3 +155,32 @@ describe('requiredVwapContextLevel', () => {
     assert.equal(requiredVwapContextLevel(['yearly-vwap'], '1w'), 'yearly')
   })
 })
+
+describe('aggregated-liquidations registry', () => {
+  it('is registered, selectable on every interval and has no VWAP context', () => {
+    assert.equal(isMarketIndicatorId('aggregated-liquidations'), true)
+    const def = MARKET_INDICATOR_DEFINITIONS['aggregated-liquidations']
+    assert.equal(def.label, 'Aggregated Liquidations')
+    assert.equal(def.contextLevel, null)
+    assert.equal(indicatorContextLevel('aggregated-liquidations'), null)
+    for (const interval of CANDLE_INTERVALS) {
+      assert.equal(
+        isIndicatorSupportedOnInterval('aggregated-liquidations', interval),
+        true,
+      )
+      const option = buildMarketIndicatorOptions(interval).find(
+        (item) => item.value === 'aggregated-liquidations',
+      )
+      assert.equal(option?.label, 'Aggregated Liquidations')
+      assert.equal(option?.disabled, false)
+    }
+  })
+
+  it('does not widen the required VWAP context', () => {
+    assert.equal(requiredVwapContextLevel(['aggregated-liquidations'], '1m'), 'daily')
+    assert.equal(
+      requiredVwapContextLevel(['aggregated-liquidations', 'yearly-vwap'], '1d'),
+      'yearly',
+    )
+  })
+})

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -15,7 +17,7 @@ from .market.common import (
     validate_interval,
     validate_volume_profile_time_range,
 )
-from .market import hyperliquid_account
+from .market import binance_usdm_liquidations, hyperliquid_account, liquidation_store
 from .market.providers import (
     BINANCE_PROVIDER,
     HYPERLIQUID_PROVIDER,
@@ -24,7 +26,23 @@ from .market.providers import (
 )
 from .ws import is_valid_channel, ws_manager
 
-app = FastAPI(title="0xDeck API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Liquidation history is collected continuously while the backend runs,
+    # independent of chart clients. Tests disable the collector with
+    # OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1 so TestClient stays hermetic.
+    collector_disabled = os.environ.get(
+        "OXDECK_DISABLE_LIQUIDATION_COLLECTOR"
+    ) == "1"
+    if not collector_disabled:
+        await binance_usdm_liquidations.binance_liquidations_relay.start_collection()
+    try:
+        yield
+    finally:
+        await binance_usdm_liquidations.binance_liquidations_relay.shutdown()
+
+
+app = FastAPI(title="0xDeck API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -188,6 +206,57 @@ def _binance_volume_profile(start_time: int, end_time: int) -> dict[str, object]
     return _volume_profile_body(BINANCE_PROVIDER, safe_start, safe_end)
 
 
+LIQUIDATIONS_HISTORY_PATH = (
+    "/api/market/binance/usdm/btcusdt/liquidations/history"
+)
+
+
+def _validate_liquidation_history_limit(limit: int) -> int:
+    if (
+        limit < liquidation_store.MIN_HISTORY_LIMIT
+        or limit > liquidation_store.MAX_HISTORY_LIMIT
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameter 'limit' must be between "
+                f"{liquidation_store.MIN_HISTORY_LIMIT} and "
+                f"{liquidation_store.MAX_HISTORY_LIMIT}"
+            ),
+        )
+    return limit
+
+
+def _validate_liquidation_history_before(before: int | None) -> int | None:
+    if before is None:
+        return None
+    if before <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'before' must be a positive epoch timestamp in milliseconds",
+        )
+    return before
+
+
+def _binance_liquidation_history(
+    before: int | None,
+    limit: int,
+) -> dict[str, object]:
+    safe_before = _validate_liquidation_history_before(before)
+    safe_limit = _validate_liquidation_history_limit(limit)
+    page = liquidation_store.read_liquidation_history(
+        before=safe_before,
+        limit=safe_limit,
+    )
+    return {
+        "exchange": liquidation_store.LIQUIDATIONS_EXCHANGE,
+        "symbol": liquidation_store.LIQUIDATIONS_SYMBOL,
+        "events": page.events,
+        "has_more": page.has_more,
+        "next_before": page.next_before,
+    }
+
+
 @app.get("/api/market/binance/usdm/btcusdt/klines/history")
 def get_binance_usdm_btcusdt_klines_history(
     before: int,
@@ -237,6 +306,14 @@ def get_binance_usdm_btcusdt_klines_volume_profile(
     end_time: int,
 ) -> dict[str, object]:
     return _binance_volume_profile(start_time, end_time)
+
+
+@app.get(LIQUIDATIONS_HISTORY_PATH)
+def get_binance_usdm_btcusdt_liquidations_history(
+    before: int | None = None,
+    limit: int = liquidation_store.DEFAULT_HISTORY_LIMIT,
+) -> dict[str, object]:
+    return _binance_liquidation_history(before, limit)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines")

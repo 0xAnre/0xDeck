@@ -201,6 +201,9 @@ export function resolveIndicatorHistoryRequirements(
         // RSI is computed from the candles already loaded for the chart; it
         // never fetches its own history.
         break
+      case 'aggregated-liquidations':
+        // Live-only pane; no historical warmup or context requirement.
+        break
       default: {
         const unreachable: never = indicatorId
         return unreachable

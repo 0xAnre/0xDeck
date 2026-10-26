@@ -20,6 +20,7 @@ import {
   type RollingVwapChartSeriesBundle,
 } from './rollingVwapChartSeries.ts'
 import { createRollingVwapInstance } from './rollingVwapInstances.ts'
+import { registerCandleChartSeries } from './candlePane.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import type { MarketCandle } from './types.ts'
 import {
@@ -131,6 +132,35 @@ describe('rollingVwap chart series defaults', () => {
       assert.equal(options.lastValueVisible, false)
       assert.equal(options.crosshairMarkerVisible, false)
       assert.equal(options.pointMarkersVisible, false)
+    }
+  })
+
+  it('creates every overlay series in the candle pane when it is not pane 0', () => {
+    const panes: Array<{ paneIndex: () => number }> = []
+    const candlePane = { paneIndex: () => panes.indexOf(candlePane) }
+    const liquidationPane = { paneIndex: () => panes.indexOf(liquidationPane) }
+    // Top position: the liquidation pane owns index 0, candles move to index 1.
+    panes.push(liquidationPane, candlePane)
+
+    const paneIndexes: Array<number | undefined> = []
+    const chart = {
+      panes: () => panes,
+      addSeries: (_type: unknown, _options: Record<string, unknown>, paneIndex?: number) => {
+        paneIndexes.push(paneIndex)
+        return {
+          setData: () => {},
+          update: () => {},
+          applyOptions: () => {},
+        }
+      },
+    } as unknown as IChartApi
+    registerCandleChartSeries(chart, { getPane: () => candlePane } as never)
+
+    createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+
+    assert.equal(paneIndexes.length, 7)
+    for (const paneIndex of paneIndexes) {
+      assert.equal(paneIndex, 1)
     }
   })
 

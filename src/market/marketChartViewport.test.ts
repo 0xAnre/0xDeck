@@ -4,7 +4,9 @@ import {
   MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS,
   MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET,
   MARKET_CHART_INITIAL_VISIBLE_BARS,
+  MARKET_CHART_VIEWPORT_VERSION,
   applyDefaultMarketChartPresentation,
+  captureMarketChartViewport,
   parsePersistedMarketChartViewport,
   rebaseSavedVisibleLogicalRange,
   restoreMarketChartViewport,
@@ -15,6 +17,7 @@ import {
   visibleTimeRangeOverlapsLoadedCandles,
   visibleTimeRangeToLogicalRange,
 } from './marketChartViewport.ts'
+import { registerCandleChartSeries } from './candlePane.ts'
 import type { MarketCandle } from './types.ts'
 
 function makeChartStub(candleTimes: number[] = [], barDurationSeconds = 60) {
@@ -22,9 +25,28 @@ function makeChartStub(candleTimes: number[] = [], barDurationSeconds = 60) {
   let visibleTimeRange: { from: number; to: number } | null = null
   let rightOffset = 0
   let scrollPosition = 0
-  let autoScale = true
-  let scaleMargins = { top: 0.2, bottom: 0.1 }
-  let priceVisible: { from: number; to: number } | null = null
+
+  type StubPriceScaleState = {
+    autoScale: boolean
+    scaleMargins: { top: number; bottom: number }
+    priceVisible: { from: number; to: number } | null
+  }
+
+  const priceScaleStates = new Map<number, StubPriceScaleState>()
+  const priceScalePaneIndexes: number[] = []
+  const priceScaleState = (paneIndex: number): StubPriceScaleState => {
+    const existing = priceScaleStates.get(paneIndex)
+    if (existing) return existing
+    const created: StubPriceScaleState = {
+      autoScale: true,
+      scaleMargins: { top: 0.2, bottom: 0.1 },
+      priceVisible: null,
+    }
+    priceScaleStates.set(paneIndex, created)
+    return created
+  }
+  // Pane 0 exists up front so `getState()` can read it without recording a call.
+  priceScaleState(0)
 
   const timeAtLogical = (index: number): number => {
     if (candleTimes.length > 0) {
@@ -60,21 +82,26 @@ function makeChartStub(candleTimes: number[] = [], barDurationSeconds = 60) {
       },
       getVisibleRange: () => visibleTimeRange,
     }),
-    priceScale: () => ({
-      applyOptions: (options: {
-        scaleMargins?: { top: number; bottom: number }
-      }) => {
-        if (options.scaleMargins) scaleMargins = options.scaleMargins
-      },
-      options: () => ({ autoScale, scaleMargins }),
-      setAutoScale: (on: boolean) => {
-        autoScale = on
-      },
-      setVisibleRange: (range: { from: number; to: number }) => {
-        priceVisible = range
-      },
-      getVisibleRange: () => priceVisible,
-    }),
+    priceScale: (_priceScaleId: string, paneIndex = 0) => {
+      priceScalePaneIndexes.push(paneIndex)
+      const state = priceScaleState(paneIndex)
+      return {
+        applyOptions: (options: {
+          scaleMargins?: { top: number; bottom: number }
+        }) => {
+          if (options.scaleMargins) state.scaleMargins = options.scaleMargins
+        },
+        options: () => ({ autoScale: state.autoScale, scaleMargins: state.scaleMargins }),
+        setAutoScale: (on: boolean) => {
+          state.autoScale = on
+        },
+        setVisibleRange: (range: { from: number; to: number }) => {
+          state.priceVisible = range
+          state.autoScale = false
+        },
+        getVisibleRange: () => state.priceVisible,
+      }
+    },
   }
 
   return {
@@ -84,10 +111,16 @@ function makeChartStub(candleTimes: number[] = [], barDurationSeconds = 60) {
       visibleTimeRange,
       rightOffset,
       scrollPosition,
-      autoScale,
-      scaleMargins,
-      priceVisible,
+      ...priceScaleState(0),
     }),
+    getPaneState: (paneIndex: number) => priceScaleState(paneIndex),
+    setPaneState: (paneIndex: number, next: Partial<StubPriceScaleState>) => {
+      priceScaleStates.set(paneIndex, { ...priceScaleState(paneIndex), ...next })
+    },
+    getPriceScalePaneIndexes: () => [...priceScalePaneIndexes],
+    resetPriceScalePaneIndexes: () => {
+      priceScalePaneIndexes.length = 0
+    },
     setScrollPosition: (position: number) => {
       scrollPosition = position
     },
@@ -107,7 +140,7 @@ const sampleCandles = (times: number[]): MarketCandle[] =>
 
 describe('parsePersistedMarketChartViewport', () => {
   const valid = {
-    version: 1,
+    version: 2,
     visibleLogicalRange: { from: 12, to: 28 },
     visibleTimeRange: { from: 1_700_000_000, to: 1_700_010_000 },
     autoScale: true,
@@ -179,7 +212,7 @@ describe('restoreMarketChartViewport', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 0, to: 2.5 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: false,
@@ -198,7 +231,7 @@ describe('restoreMarketChartViewport', () => {
   it('requests older history when the saved window starts before loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: -5, to: 2 },
       visibleTimeRange: { from: 1_699_999_000, to: 1_700_000_120 },
       autoScale: true,
@@ -214,7 +247,7 @@ describe('restoreMarketChartViewport', () => {
   it('requests older history when the saved window is entirely before loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: -20, to: -10 },
       visibleTimeRange: { from: 1_699_998_000, to: 1_699_999_500 },
       autoScale: true,
@@ -230,7 +263,7 @@ describe('restoreMarketChartViewport', () => {
   it('falls back when the saved window is entirely after loaded candles', () => {
     const { chart, getState } = makeChartStub()
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 50, to: 60 },
       visibleTimeRange: { from: 1_800_000_000, to: 1_800_010_000 },
       autoScale: true,
@@ -246,7 +279,7 @@ describe('restoreMarketChartViewport', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 0, to: 10 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
@@ -263,7 +296,7 @@ describe('restoreMarketChartViewport', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 500, to: 510 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
@@ -279,7 +312,7 @@ describe('restoreMarketChartViewport', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 0.65, to: 2.65 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
@@ -302,7 +335,7 @@ describe('restoreMarketChartViewport', () => {
     const times = shifted.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 0, to: 10 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
@@ -318,7 +351,7 @@ describe('restoreMarketChartViewport', () => {
     const times = candles.map((c) => c.time)
     const { chart, getState } = makeChartStub(times)
     const saved = {
-      version: 1 as const,
+      version: 2 as const,
       visibleLogicalRange: { from: 0, to: 10 },
       visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
       autoScale: true,
@@ -457,5 +490,108 @@ describe('visibleTimeRange helpers', () => {
       true,
     )
     assert.equal(savedVisibleTimeRangeIsRestorable(savedTime, smallWindow), true)
+  })
+})
+
+describe('candle pane price scale targeting', () => {
+  const candles = sampleCandles([1_700_000_000, 1_700_000_060, 1_700_000_120])
+
+  /**
+   * `Position: Top` moves the aggregated-liquidations pane to index 0, so the
+   * candle pane is index 1. Viewport persistence must never read or write pane 0
+   * in that layout: `chart.priceScale('right')` defaults to pane 0 and would
+   * capture the liquidation/volume scale and later apply its price range to the
+   * candles (blank candle pane with a near-zero price scale).
+   */
+  const registerCandleSeriesAtPane = (
+    chart: unknown,
+    paneIndex: number,
+    paneIdentity: object = {},
+  ) => {
+    const pane = { paneIndex: () => paneIndex, ...paneIdentity }
+    registerCandleChartSeries(
+      chart as never,
+      { getPane: () => pane } as never,
+    )
+    return pane
+  }
+
+  it('captures the price scale of the candle pane while the liquidation pane owns index 0', () => {
+    const times = candles.map((candle) => candle.time)
+    const harness = makeChartStub(times)
+    harness.chart.timeScale().setVisibleLogicalRange({ from: 0, to: 2 })
+    registerCandleSeriesAtPane(harness.chart, 1)
+    // Pane 0 is the liquidation pane: non-autoscaled with a USD-volume range.
+    harness.setPaneState(0, {
+      autoScale: false,
+      scaleMargins: { top: 0, bottom: 0.08 },
+      priceVisible: { from: -1.68, to: 1.68 },
+    })
+
+    const captured = captureMarketChartViewport(harness.chart as never, candles)
+
+    assert.ok(captured)
+    assert.equal(captured.autoScale, true)
+    assert.deepEqual(captured.scaleMargins, { top: 0.2, bottom: 0.1 })
+    assert.deepEqual(
+      harness.getPriceScalePaneIndexes().filter((index) => index !== 0),
+      [1],
+    )
+  })
+
+  it('applies a restored viewport to the candle pane and leaves the liquidation pane untouched', () => {
+    const times = candles.map((candle) => candle.time)
+    const harness = makeChartStub(times)
+    harness.chart.timeScale().setVisibleLogicalRange({ from: 0, to: 2 })
+    registerCandleSeriesAtPane(harness.chart, 1)
+
+    const saved = {
+      version: MARKET_CHART_VIEWPORT_VERSION,
+      visibleLogicalRange: { from: 0, to: 2.5 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_120 },
+      autoScale: false,
+      priceRange: { from: 1.2, to: 1.8 },
+      scaleMargins: { top: 0.05, bottom: 0.15 },
+      rightOffset: 4,
+    }
+
+    assert.equal(restoreMarketChartViewport(harness.chart as never, saved, candles), 'restored')
+
+    assert.deepEqual(harness.getPaneState(1).priceVisible, saved.priceRange)
+    assert.equal(harness.getPaneState(1).autoScale, false)
+    assert.deepEqual(harness.getPaneState(1).scaleMargins, saved.scaleMargins)
+    assert.equal(harness.getPaneState(0).priceVisible, null)
+    assert.equal(harness.getPaneState(0).autoScale, true)
+    assert.deepEqual(harness.getPaneState(0).scaleMargins, { top: 0.2, bottom: 0.1 })
+  })
+
+  it('applies the default presentation to the candle pane while the liquidation pane owns index 0', () => {
+    const harness = makeChartStub()
+    registerCandleSeriesAtPane(harness.chart, 1)
+
+    applyDefaultMarketChartPresentation(harness.chart as never, 100)
+
+    assert.deepEqual(harness.getPaneState(1).scaleMargins, MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS)
+    assert.equal(harness.getPaneState(1).autoScale, true)
+    assert.deepEqual(harness.getPaneState(0).scaleMargins, { top: 0.2, bottom: 0.1 })
+  })
+
+  it('rejects legacy v1 viewports that may carry a liquidation price scale', () => {
+    const legacy = {
+      version: 1,
+      visibleLogicalRange: { from: 0, to: 10 },
+      visibleTimeRange: { from: 1_700_000_000, to: 1_700_000_600 },
+      autoScale: false,
+      priceRange: { from: -1.68, to: 1.68 },
+      scaleMargins: { top: 0, bottom: 0.08 },
+      rightOffset: 8,
+    }
+    assert.equal(parsePersistedMarketChartViewport(legacy), null)
+    const harness = makeChartStub(candles.map((candle) => candle.time))
+    assert.equal(
+      restoreMarketChartViewport(harness.chart as never, legacy as never, candles),
+      'invalid',
+    )
+    assert.deepEqual(harness.getState().logicalRange, null)
   })
 })

@@ -27,6 +27,7 @@ import {
 } from './rollingVwapSettings.ts'
 import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
+import { resolveCandlePaneIndex } from './candlePane.ts'
 
 /** Same gray as anchored Daily/Weekly VWAP center lines. */
 export const ROLLING_VWAP_LINE_COLOR = DEFAULT_ROLLING_VWAP_LINE_COLOR
@@ -187,6 +188,9 @@ export function createRollingVwapChartSeriesBundle(
   },
 ): RollingVwapChartSeriesBundle {
   const lineWidth = options?.lineWidth ?? DEFAULT_ROLLING_VWAP_LINE_WIDTH
+  // Overlays belong to the candle pane, which is not pane 0 when the
+  // aggregated-liquidations pane sits above the candles.
+  const paneIndex = resolveCandlePaneIndex(chart)
   const center = chart.addSeries(LineSeries, {
     ...rollingVwapCenterLineOptions({
       lineWidth,
@@ -196,7 +200,7 @@ export function createRollingVwapChartSeriesBundle(
     }),
     title: options?.title ?? '',
     visible: false,
-  })
+  }, paneIndex)
 
   const bands = {} as Record<RollingVwapBandSeriesKey, ISeriesApi<'Line'>>
   const ordered: ISeriesApi<'Line'>[] = [center]
@@ -207,7 +211,7 @@ export function createRollingVwapChartSeriesBundle(
       ...rollingVwapBandLineOptions(lineWidth),
       color: rollingVwapBandSeriesColor(bandStyle, colorKey),
       visible: false,
-    })
+    }, paneIndex)
     bands[key] = series
     ordered.push(series)
   }

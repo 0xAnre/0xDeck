@@ -42,7 +42,7 @@ App.tsx                    → header, theme/widget menus, grid shell; renders r
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract + client (BTC Perp relay channels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts, account markers)
-market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, FRVP, rectangle/line tools, exchange routing/tick/history limits, Hyperliquid account fill grouping/markers
+market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, Aggregated Liquidations pane, FRVP, rectangle/line tools, exchange routing/tick/history limits, Hyperliquid account fill grouping/markers
 screenNavigationShortcuts.ts → Workspace screen jumps (`m` then `1`–`9`) + Screen Lock alignment helpers
 api/client.ts              → Parquet datasets: preview, series, kpi
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
@@ -158,7 +158,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances, Aggregated Liquidations), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline, and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
@@ -178,6 +178,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
 | `0xdeck-widget-market-rsi-settings` | Per-instance RSI period and overbought/oversold levels (BTC Perp) |
 | `0xdeck-widget-market-position-markers` | Per-instance Hyperliquid Position Markers toggle (default OFF) |
+| `0xdeck-widget-liquidations-settings` | Per-instance Aggregated Liquidations source (`binance` only in V1) and pane position (`bottom` default / `top`) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |
 | `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |
@@ -191,6 +192,8 @@ Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDe
 **Workspace screens:** `m` then `1`–`9` scrolls the outer workspace to screen positions 1–9 (`screenNavigationShortcuts.ts`). A wrapper inside `.workspace-scroller` reserves a virtual 9-viewport extent so empty screens stay reachable without moving any widget. The header **Screen Lock** button (`App.tsx`, in-memory) pins the workspace to the active screen: manual scrolling snaps back to the active screen's exact top, `m` + digit still jumps, and viewport resize re-aligns. Lock math is pure in `screenNavigationShortcuts.ts`. Outer `.workspace-scroller` and panel `.panel-body` use hidden scrollbars (`App.css`); both regions remain scrollable.
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
+
+Backend persistence: normalized Binance USD-M liquidation history is stored in `backend/.liquidations.sqlite3` (gitignored, WAL mode; override with `OXDECK_LIQUIDATIONS_DB`). Collection runs continuously while the backend is started (not only while a chart is open) and serves `GET /api/market/binance/usdm/btcusdt/liquidations/history`; there is no backfill before collection starts. Tests disable the collector with `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`.
 
 ## Run & build
 
