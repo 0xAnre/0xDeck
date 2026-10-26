@@ -277,6 +277,11 @@ export function chartObjectSettingsTargetForPaneRole(
       ? { kind: 'aggregated-liquidations' }
       : null
   }
+  if (paneRole === 'order-book-depth') {
+    return activeIndicators.includes('order-book-depth')
+      ? { kind: 'market-indicator', indicatorId: 'order-book-depth' }
+      : null
+  }
   return null
 }
 

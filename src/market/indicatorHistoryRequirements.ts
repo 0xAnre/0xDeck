@@ -204,6 +204,10 @@ export function resolveIndicatorHistoryRequirements(
       case 'aggregated-liquidations':
         // Live-only pane; no historical warmup or context requirement.
         break
+      case 'order-book-depth':
+        // Samples are restored from their own history route; candle warmup is
+        // not required for the imbalance line.
+        break
       default: {
         const unreachable: never = indicatorId
         return unreachable

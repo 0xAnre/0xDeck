@@ -105,6 +105,10 @@ export function readMarketIndicatorSeriesLineWidths(
     }
     case 'rsi':
       return bundle.rsi ? [readLineSeriesLineWidth(bundle.rsi.series)] : []
+    case 'order-book-depth':
+      return bundle.orderBookDepth
+        ? [readLineSeriesLineWidth(bundle.orderBookDepth.series)]
+        : []
     case 'aggregated-liquidations':
       return []
     default: {
@@ -142,6 +146,10 @@ export function readMarketIndicatorSeriesLineStyles(
     }
     case 'rsi':
       return bundle.rsi ? [readLineSeriesLineStyle(bundle.rsi.series)] : []
+    case 'order-book-depth':
+      return bundle.orderBookDepth
+        ? [readLineSeriesLineStyle(bundle.orderBookDepth.series)]
+        : []
     case 'aggregated-liquidations':
       return []
     default: {
@@ -179,6 +187,10 @@ export function readMarketIndicatorSeriesColors(
     }
     case 'rsi':
       return bundle.rsi ? [readLineSeriesColorHex(bundle.rsi.series)] : []
+    case 'order-book-depth':
+      return bundle.orderBookDepth
+        ? [readLineSeriesColorHex(bundle.orderBookDepth.series)]
+        : []
     case 'aggregated-liquidations':
       return []
     default: {

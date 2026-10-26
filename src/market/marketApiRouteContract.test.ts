@@ -8,6 +8,7 @@ import {
 } from './indicators.ts'
 import { marketApiBasePath, marketKlinesPath } from './marketExchange.ts'
 import { aggregatedLiquidationsHistoryPath } from './aggregatedLiquidationsHistory.ts'
+import { orderBookDepthHistoryPath } from './orderBookDepthHistory.ts'
 import {
   hyperliquidAccountFillsByTimePath,
   hyperliquidAccountFillsPath,
@@ -110,6 +111,26 @@ describe('persistent liquidation history route contract', () => {
         limit: 1000,
       })}`,
       '/api/market/binance/usdm/btcusdt/liquidations/history?before=1792000000000&limit=1000',
+    )
+  })
+})
+
+describe('persisted order-book imbalance history route contract', () => {
+  it('builds the path the backend registers for stored samples', () => {
+    assert.equal(
+      `${API_BASE}${orderBookDepthHistoryPath()}`,
+      '/api/market/binance/usdm/btcusdt/orderbook/imbalance/history?distance=2.5',
+    )
+  })
+
+  it('always selects a distance and passes the pagination cursor', () => {
+    assert.equal(
+      `${API_BASE}${orderBookDepthHistoryPath({
+        distance: 0.5,
+        before: 1_792_000_000_000,
+        limit: 1000,
+      })}`,
+      '/api/market/binance/usdm/btcusdt/orderbook/imbalance/history?distance=0.5&before=1792000000000&limit=1000',
     )
   })
 })

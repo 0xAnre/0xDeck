@@ -253,6 +253,35 @@ describe('hitTestChartObjectSettingsTarget', () => {
     )
   })
 
+  it('routes double-click on the Order Book Depth pane to its indicator settings', () => {
+    const { chart, series } = createChartAndSeries()
+    assert.deepEqual(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series,
+          paneX: 5,
+          paneY: 5,
+          paneRole: 'order-book-depth',
+          activeIndicators: ['order-book-depth'],
+        }),
+      ),
+      { kind: 'market-indicator', indicatorId: 'order-book-depth' },
+    )
+    assert.equal(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series,
+          paneX: 5,
+          paneY: 5,
+          paneRole: 'order-book-depth',
+        }),
+      ),
+      null,
+    )
+  })
+
   it('routes double-click on the liquidation pane to the liquidations settings', () => {
     const { chart, series } = createChartAndSeries()
     assert.deepEqual(

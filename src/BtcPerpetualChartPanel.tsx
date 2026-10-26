@@ -282,6 +282,35 @@ import {
   saveWidgetRsiSettings,
 } from '@/marketRsiSettingsStorage'
 import {
+  ORDER_BOOK_DEPTH_CHANNEL,
+  mergeOrderBookDepthSamples,
+  orderBookDepthCoverageNotice,
+  parseOrderBookDepthSample,
+  type OrderBookDepthSample,
+} from '@/market/orderBookDepth'
+import {
+  ORDER_BOOK_DEPTH_HISTORY_MAX_LIMIT,
+  ORDER_BOOK_DEPTH_HISTORY_MAX_PAGES,
+  fetchOrderBookDepthHistory,
+} from '@/market/orderBookDepthHistory'
+import {
+  applyOrderBookDepthPaneSettings,
+  clearOrderBookDepthPaneData,
+  createOrderBookDepthChartPane,
+  moveOrderBookDepthPaneTo,
+  removeOrderBookDepthChartPane,
+  setOrderBookDepthPaneHistoryData,
+  type OrderBookDepthChartPaneBundle,
+} from '@/market/orderBookDepthChartPane'
+import {
+  sanitizeOrderBookDepthSettings,
+  type OrderBookDepthSettings,
+} from '@/market/orderBookDepthSettings'
+import {
+  loadWidgetOrderBookDepthSettings,
+  saveWidgetOrderBookDepthSettings,
+} from '@/orderBookDepthSettingsStorage'
+import {
   isIndicatorSupportedOnInterval,
   requiredVwapContextLevel,
   type MarketIndicatorId,
@@ -448,6 +477,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [rsiSettings, setRsiSettings] = useState<RsiSettings>(() =>
     loadWidgetRsiSettings(panelId),
   )
+  const [orderBookDepthSettings, setOrderBookDepthSettings] =
+    useState<OrderBookDepthSettings>(() => loadWidgetOrderBookDepthSettings(panelId))
+  const [orderBookDepthSamples, setOrderBookDepthSamples] = useState<
+    OrderBookDepthSample[]
+  >([])
+  const [orderBookDepthHistoryRevision, setOrderBookDepthHistoryRevision] = useState(0)
   const [marketIndicatorPresentation, setMarketIndicatorPresentation] =
     useState<MarketIndicatorPresentation>({})
   const [editingMarketIndicatorSeriesColors, setEditingMarketIndicatorSeriesColors] = useState<
@@ -508,6 +543,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [candleRangeRevision, setCandleRangeRevision] = useState(0)
 
   const liquidationsEnabled = activeIndicators.includes('aggregated-liquidations')
+  const orderBookDepthEnabled = activeIndicators.includes('order-book-depth')
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -521,6 +557,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const providerHistoryAvailableFromRef = useRef<number | null>(null)
   const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
   const rsiSettingsRef = useRef<RsiSettings>(rsiSettings)
+  const orderBookDepthSettingsRef = useRef<OrderBookDepthSettings>(orderBookDepthSettings)
+  const orderBookDepthSamplesRef = useRef<OrderBookDepthSample[]>([])
+  const orderBookDepthPaneRef = useRef<OrderBookDepthChartPaneBundle | null>(null)
   const historyReadyRef = useRef(false)
   const infiniteHistoryRef = useRef(createInfiniteHistoryState())
   const indicatorHistoryAbortRef = useRef<AbortController | null>(null)
@@ -1567,6 +1606,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (!next.includes('aggregated-liquidations')) {
         setLiquidationEvents([])
       }
+      if (!next.includes('order-book-depth')) {
+        orderBookDepthSamplesRef.current = []
+        setOrderBookDepthSamples([])
+      }
       setActiveIndicators(next)
     },
     [panelId],
@@ -1592,11 +1635,21 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (bundle.rsi) return
       bundle.rsi = createRsiChartPane(chart, rsiSettingsRef.current)
       // A new pane is appended after every existing pane, which would leave the
-      // `Position: Bottom` liquidations pane above it. Move the RSI pane above
-      // that pane so `Bottom` keeps meaning the last pane.
+      // Order Book Depth and `Position: Bottom` liquidations panes above it.
+      // Move the RSI pane above the first pane that must stay below it.
+      const orderBookDepthPane = orderBookDepthPaneRef.current
       const liquidationOverlay = liquidationOverlayRef.current
+      let targetPaneIndex: number | null =
+        orderBookDepthPane?.pane.paneIndex() ?? null
       if (liquidationOverlay?.getPosition() === 'bottom') {
-        moveRsiPaneAbove(bundle.rsi, liquidationOverlay.getPaneIndex())
+        const liquidationPaneIndex = liquidationOverlay.getPaneIndex()
+        targetPaneIndex =
+          targetPaneIndex === null
+            ? liquidationPaneIndex
+            : Math.min(targetPaneIndex, liquidationPaneIndex)
+      }
+      if (targetPaneIndex !== null) {
+        moveRsiPaneAbove(bundle.rsi, targetPaneIndex)
       }
       applyMarketIndicatorPresentationToBundle(
         bundle,
@@ -1618,6 +1671,85 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (!bundle?.rsi) return
       applyRsiPaneSettings(bundle.rsi, sanitized)
       setRsiPaneHistoryData(bundle.rsi, candlesRef.current)
+    },
+    [panelId],
+  )
+
+  /**
+   * Create or remove the Order Book Depth pane to match the indicator
+   * selection. Ordering is candles → RSI → Order Book Depth → bottom
+   * Aggregated Liquidations, regardless of which indicator was enabled first.
+   */
+  const syncOrderBookDepthPane = useCallback(
+    (chart: IChartApi, bundle: ChartSeriesBundle) => {
+      const shouldShow = activeIndicatorsRef.current.includes('order-book-depth')
+      if (!shouldShow) {
+        const existing = orderBookDepthPaneRef.current
+        if (existing) {
+          removeOrderBookDepthChartPane(chart, existing)
+          orderBookDepthPaneRef.current = null
+        }
+        bundle.orderBookDepth = null
+        return
+      }
+      if (orderBookDepthPaneRef.current) return
+
+      const pane = createOrderBookDepthChartPane(
+        chart,
+        orderBookDepthSettingsRef.current,
+      )
+      orderBookDepthPaneRef.current = pane
+      bundle.orderBookDepth = pane
+
+      // `chart.addPane()` appends after every existing pane. Move it below the
+      // RSI pane and above a bottom-positioned liquidation pane. Moving to a
+      // lower index is the safe direction while pane widgets are still pending.
+      let targetPaneIndex = pane.pane.paneIndex()
+      const rsiPaneIndex = bundle.rsi?.pane.paneIndex()
+      if (rsiPaneIndex !== undefined) {
+        targetPaneIndex = Math.min(targetPaneIndex, rsiPaneIndex + 1)
+      }
+      const liquidationOverlay = liquidationOverlayRef.current
+      if (liquidationOverlay?.getPosition() === 'bottom') {
+        targetPaneIndex = Math.min(
+          targetPaneIndex,
+          liquidationOverlay.getPaneIndex(),
+        )
+      }
+      moveOrderBookDepthPaneTo(pane, targetPaneIndex)
+
+      applyMarketIndicatorPresentationToBundle(
+        bundle,
+        'order-book-depth',
+        loadWidgetMarketIndicatorPresentation(panelId, 'order-book-depth'),
+      )
+      setOrderBookDepthPaneHistoryData(
+        pane,
+        orderBookDepthSamplesRef.current.filter(
+          (sample) => sample.distance === pane.settings.distance,
+        ),
+        activeIntervalRef.current,
+      )
+    },
+    [panelId],
+  )
+
+  const handleOrderBookDepthSettingsChange = useCallback(
+    (next: OrderBookDepthSettings) => {
+      const sanitized = sanitizeOrderBookDepthSettings(next)
+      orderBookDepthSettingsRef.current = sanitized
+      setOrderBookDepthSettings(sanitized)
+      saveWidgetOrderBookDepthSettings(panelId, sanitized)
+      const pane = orderBookDepthPaneRef.current
+      if (!pane) return
+      applyOrderBookDepthPaneSettings(pane, sanitized)
+      setOrderBookDepthPaneHistoryData(
+        pane,
+        orderBookDepthSamplesRef.current.filter(
+          (sample) => sample.distance === sanitized.distance,
+        ),
+        activeIntervalRef.current,
+      )
     },
     [panelId],
   )
@@ -2301,12 +2433,23 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [rsiSettings])
 
   useEffect(() => {
+    orderBookDepthSettingsRef.current = orderBookDepthSettings
+  }, [orderBookDepthSettings])
+
+  useEffect(() => {
+    orderBookDepthSamplesRef.current = orderBookDepthSamples
+  }, [orderBookDepthSamples])
+
+  useEffect(() => {
     const chart = chartRef.current
     const bundle = seriesRef.current
     if (!bundle) return
     applyEmaIndicatorSeriesVisibility(bundle, activeIndicators)
     syncAllVwapVisibility(bundle)
-    if (chart) syncRsiPane(chart, bundle)
+    if (chart) {
+      syncRsiPane(chart, bundle)
+      syncOrderBookDepthPane(chart, bundle)
+    }
     syncWidgetMarketIndicatorPresentations(panelId, bundle)
   }, [
     activeIndicators,
@@ -2315,6 +2458,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     panelId,
     rollingVwapInstances,
     syncAllVwapVisibility,
+    syncOrderBookDepthPane,
     syncRsiPane,
   ])
 
@@ -2423,6 +2567,100 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     )
     liquidationOverlayRef.current?.setBuckets(buckets)
   }, [candleRangeRevision, chartReady, interval, liquidationEvents, liquidationsEnabled])
+
+  const mergeOrderBookDepthSamplesIntoBuffer = useCallback(
+    (incoming: OrderBookDepthSample[]) => {
+      if (incoming.length === 0) return
+      setOrderBookDepthSamples((current) =>
+        mergeOrderBookDepthSamples(current, incoming),
+      )
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!orderBookDepthEnabled) return
+
+    const client = new WidgetStreamClient({
+      channel: ORDER_BOOK_DEPTH_CHANNEL,
+      onStateChange: (state) => {
+        // Refresh stored samples once the socket is open so the gap between
+        // page load and the handshake is filled from SQLite.
+        if (state === 'open') {
+          setOrderBookDepthHistoryRevision((revision) => revision + 1)
+        }
+      },
+      onMessage: (message) => {
+        if (message.type !== 'event') return
+        const sample = parseOrderBookDepthSample(
+          (message as ServerEventMessage).payload,
+        )
+        if (!sample) return
+        mergeOrderBookDepthSamplesIntoBuffer([sample])
+      },
+    })
+    client.connect()
+    return () => client.disconnect()
+  }, [mergeOrderBookDepthSamplesIntoBuffer, orderBookDepthEnabled])
+
+  useEffect(() => {
+    if (!orderBookDepthEnabled || !chartReady || !historyReadyRef.current) return
+    const candleTimes = candlesRef.current.map((candle) => candle.time)
+    if (candleTimes.length === 0) return
+
+    const distance = orderBookDepthSettings.distance
+    const generation = loadGenerationRef.current
+    const controller = new AbortController()
+    const oldestTimeMs = Math.min(...candleTimes) * 1000
+
+    void (async () => {
+      try {
+        const history = await fetchOrderBookDepthHistory({
+          distance,
+          oldestTimeMs,
+          limit: ORDER_BOOK_DEPTH_HISTORY_MAX_LIMIT,
+          maxPages: ORDER_BOOK_DEPTH_HISTORY_MAX_PAGES,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        if (generation !== loadGenerationRef.current) return
+        mergeOrderBookDepthSamplesIntoBuffer(history.samples)
+      } catch {
+        // History is additive evidence, not a prerequisite: a failed read
+        // leaves the live-only buffer untouched.
+      }
+    })()
+
+    return () => controller.abort()
+  }, [
+    candleRangeRevision,
+    chartReady,
+    exchange,
+    interval,
+    mergeOrderBookDepthSamplesIntoBuffer,
+    orderBookDepthEnabled,
+    orderBookDepthHistoryRevision,
+    orderBookDepthSettings.distance,
+  ])
+
+  useEffect(() => {
+    const pane = orderBookDepthPaneRef.current
+    if (!pane) return
+    setOrderBookDepthPaneHistoryData(
+      pane,
+      orderBookDepthSamples.filter(
+        (sample) => sample.distance === orderBookDepthSettings.distance,
+      ),
+      interval,
+    )
+  }, [
+    chartReady,
+    interval,
+    orderBookDepthSamples,
+    orderBookDepthSettings.distance,
+    orderBookDepthSettings.negativeThreshold,
+    orderBookDepthSettings.positiveThreshold,
+  ])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -2802,6 +3040,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       chart?.remove()
       chartRef.current = null
       seriesRef.current = null
+      orderBookDepthPaneRef.current = null
       candlesRef.current = []
       historyReadyRef.current = false
     }
@@ -2850,6 +3089,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       clearAllRollingVwapChartInstanceData(bundle, rollingVwapInstancesRef.current)
       hideAllAnchoredVwapSeries(bundle)
       if (bundle.rsi) clearRsiPaneData(bundle.rsi)
+      if (bundle.orderBookDepth) clearOrderBookDepthPaneData(bundle.orderBookDepth)
     }
 
     const controller = new AbortController()
@@ -3291,10 +3531,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileRuntimeById,
     exchange,
   )
+  const orderBookDepthNotice = orderBookDepthEnabled
+    ? orderBookDepthCoverageNotice(
+        orderBookDepthSamples,
+        orderBookDepthSettings.distance,
+      )
+    : null
   const historyNotices = [
     ...indicatorHistoryNotices,
     ...frvpAvailabilityNotices,
     ...(accountFillsNotice === null ? [] : [accountFillsNotice]),
+    ...(orderBookDepthNotice === null ? [] : [orderBookDepthNotice]),
   ]
 
   return (
@@ -3429,6 +3676,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         seriesLineWidths={editingMarketIndicatorSeriesLineWidths}
         seriesLineStyles={editingMarketIndicatorSeriesLineStyles}
         rsiSettings={rsiSettings}
+        orderBookDepthSettings={
+          editingMarketIndicatorId === 'order-book-depth'
+            ? orderBookDepthSettings
+            : undefined
+        }
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           if (!open) {
@@ -3441,6 +3693,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }}
         onPresentationChange={handleMarketIndicatorPresentationChange}
         onRsiSettingsChange={handleRsiSettingsChange}
+        onOrderBookDepthSettingsChange={handleOrderBookDepthSettingsChange}
       />
     </div>
   )

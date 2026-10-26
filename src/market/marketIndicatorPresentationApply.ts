@@ -1,5 +1,6 @@
 import { LineStyle, type LineSeriesPartialOptions } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
+import type { OrderBookDepthChartPaneBundle } from './orderBookDepthChartPane.ts'
 import {
   MARKET_INDICATOR_IDS,
   marketIndicatorSupportsBandFill,
@@ -177,6 +178,17 @@ export function applyMarketIndicatorPresentationToBundle(
         )
       }
       return
+    case 'order-book-depth': {
+      const orderBookDepth = (bundle as ChartSeriesBundle & {
+        orderBookDepth?: OrderBookDepthChartPaneBundle | null
+      }).orderBookDepth
+      if (orderBookDepth) {
+        orderBookDepth.series.applyOptions(
+          presentationOptionsForSeries(orderBookDepth.series, presentation),
+        )
+      }
+      return
+    }
     case 'aggregated-liquidations':
       // The liquidation pane owns fixed long/short colors, not line styles.
       return

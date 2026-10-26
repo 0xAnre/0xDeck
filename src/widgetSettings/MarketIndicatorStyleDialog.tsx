@@ -8,7 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   MARKET_INDICATOR_DEFINITIONS,
   marketIndicatorSupportsBandFill,
@@ -18,6 +19,16 @@ import {
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
 } from '@/market/lineChartStroke'
+import {
+  ORDER_BOOK_DEPTH_DISTANCES,
+  type OrderBookDepthDistance,
+} from '@/market/orderBookDepth'
+import {
+  ORDER_BOOK_DEPTH_DISTANCE_LABELS,
+  DEFAULT_ORDER_BOOK_DEPTH_SETTINGS,
+  sanitizeOrderBookDepthSettings,
+  type OrderBookDepthSettings,
+} from '@/market/orderBookDepthSettings'
 import {
   RSI_LEVEL_MAX,
   RSI_LEVEL_MIN,
@@ -62,10 +73,12 @@ type MarketIndicatorStyleDialogProps = {
   seriesLineWidths: readonly LineChartStrokeWidth[]
   seriesLineStyles: readonly LineChartStrokeStyle[]
   rsiSettings?: RsiSettings
+  orderBookDepthSettings?: OrderBookDepthSettings
   returnFocusId: string
   onOpenChange: (open: boolean) => void
   onPresentationChange: (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => void
   onRsiSettingsChange?: (settings: RsiSettings) => void
+  onOrderBookDepthSettingsChange?: (settings: OrderBookDepthSettings) => void
 }
 
 const RSI_INPUT_CLASSNAME =
@@ -119,9 +132,121 @@ function RsiRangeFields({
   )
 }
 
+function OrderBookDepthFields({
+  settings,
+  onChange,
+  onSanitize,
+}: {
+  settings: OrderBookDepthSettings
+  onChange: (next: OrderBookDepthSettings) => void
+  onSanitize: () => void
+}) {
+  const numberField = (
+    id: string,
+    label: string,
+    key: 'positiveThreshold' | 'negativeThreshold',
+  ) => (
+    <Field key={id}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <input
+        id={id}
+        type="number"
+        min={-100}
+        max={100}
+        step={1}
+        className={RSI_INPUT_CLASSNAME}
+        value={settings[key]}
+        onChange={(event) => onChange({ ...settings, [key]: Number(event.target.value) })}
+        onBlur={onSanitize}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onSanitize()
+        }}
+      />
+    </Field>
+  )
+
+  return (
+    <FieldGroup>
+      <Field>
+        <FieldLabel id="order-book-depth-source-label">Source</FieldLabel>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          className="grid w-full grid-cols-1"
+          aria-labelledby="order-book-depth-source-label"
+          value={settings.source}
+          onValueChange={(value) => {
+            if (value !== 'binance') return
+            onChange({ ...settings, source: value })
+          }}
+        >
+          <ToggleGroupItem value="binance" className="w-full">
+            Binance
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <FieldDescription>
+          Binance USD-M BTCUSDT is the only order-book source in V1.
+        </FieldDescription>
+      </Field>
+
+      <Field>
+        <FieldLabel id="order-book-depth-distance-label">Price distance</FieldLabel>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          className="grid w-full grid-cols-4"
+          aria-labelledby="order-book-depth-distance-label"
+          value={String(settings.distance)}
+          onValueChange={(value) => {
+            const distance = Number(value)
+            if (
+              !value ||
+              !(ORDER_BOOK_DEPTH_DISTANCES as readonly number[]).includes(distance)
+            ) {
+              return
+            }
+            onChange({
+              ...settings,
+              distance: distance as OrderBookDepthDistance,
+            })
+          }}
+        >
+          {ORDER_BOOK_DEPTH_DISTANCES.map((distance) => (
+            <ToggleGroupItem
+              key={distance}
+              value={String(distance)}
+              className="w-full"
+            >
+              {ORDER_BOOK_DEPTH_DISTANCE_LABELS[distance]}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <FieldDescription>
+          Percent each side of the midpoint. Coverage below this distance is
+          never rendered as a measurement.
+        </FieldDescription>
+      </Field>
+
+      {numberField(
+        'order-book-depth-positive-threshold',
+        'Positive threshold',
+        'positiveThreshold',
+      )}
+      {numberField(
+        'order-book-depth-negative-threshold',
+        'Negative threshold',
+        'negativeThreshold',
+      )}
+    </FieldGroup>
+  )
+}
+
 /**
  * Draft-based indicator settings: color, opacity, width, `Line`/`Dot`, the
- * time-based VWAP band background and the RSI range all edit the local draft.
+ * time-based VWAP band background, the RSI range and the Order Book Depth
+ * numeric/source fields all edit the local draft.
  * `Save` commits only changed fields through the existing presentation/RSI
  * callbacks; `Cancel`, `X`, `Esc` and outside click discard the draft without
  * writing storage.
@@ -133,6 +258,7 @@ function MarketIndicatorStyleDialogBody({
   seriesLineWidths,
   seriesLineStyles,
   rsiSettings,
+  orderBookDepthSettings,
   onCancel,
   onSubmit,
 }: {
@@ -142,6 +268,7 @@ function MarketIndicatorStyleDialogBody({
   seriesLineWidths: readonly LineChartStrokeWidth[]
   seriesLineStyles: readonly LineChartStrokeStyle[]
   rsiSettings?: RsiSettings
+  orderBookDepthSettings?: OrderBookDepthSettings
   onCancel: () => void
   onSubmit: (patch: MarketIndicatorStyleDraftPatch) => void
 }) {
@@ -154,6 +281,7 @@ function MarketIndicatorStyleDialogBody({
       fillColor: sessionVwapBandFillColorInputValue(presentation.fillColor),
       fillOpacityPercent: sessionVwapBandFillOpacityInputValue(presentation.fillOpacity),
       rsiSettings,
+      orderBookDepthSettings,
     }),
   )
   const [draft, setDraft] = useState<MarketIndicatorStyleDraft>(initial)
@@ -180,6 +308,26 @@ function MarketIndicatorStyleDialogBody({
                 setDraft((current) => ({
                   ...current,
                   rsi: current.rsi === null ? null : sanitizeRsiSettings(current.rsi),
+                }))
+              }
+            />
+          </section>
+        ) : null}
+        {indicatorId === 'order-book-depth' && draft.orderBookDepth ? (
+          <section className="space-y-2">
+            <p className="text-xs font-medium text-foreground">Order book depth</p>
+            <OrderBookDepthFields
+              settings={draft.orderBookDepth}
+              onChange={(orderBookDepth) =>
+                setDraft((current) => ({ ...current, orderBookDepth }))
+              }
+              onSanitize={() =>
+                setDraft((current) => ({
+                  ...current,
+                  orderBookDepth:
+                    current.orderBookDepth === null
+                      ? null
+                      : sanitizeOrderBookDepthSettings(current.orderBookDepth),
                 }))
               }
             />
@@ -274,10 +422,12 @@ export function MarketIndicatorStyleDialog({
   seriesLineWidths,
   seriesLineStyles,
   rsiSettings,
+  orderBookDepthSettings,
   returnFocusId,
   onOpenChange,
   onPresentationChange,
   onRsiSettingsChange,
+  onOrderBookDepthSettingsChange,
 }: MarketIndicatorStyleDialogProps) {
   const label = indicatorId ? MARKET_INDICATOR_DEFINITIONS[indicatorId].label : 'Indicator'
 
@@ -288,6 +438,9 @@ export function MarketIndicatorStyleDialog({
     }
     if (patch.rsi && onRsiSettingsChange) {
       onRsiSettingsChange(patch.rsi)
+    }
+    if (patch.orderBookDepth && onOrderBookDepthSettingsChange) {
+      onOrderBookDepthSettingsChange(patch.orderBookDepth)
     }
     onOpenChange(false)
   }
@@ -320,6 +473,9 @@ export function MarketIndicatorStyleDialog({
             seriesLineWidths={seriesLineWidths}
             seriesLineStyles={seriesLineStyles}
             rsiSettings={rsiSettings}
+            orderBookDepthSettings={
+              orderBookDepthSettings ?? DEFAULT_ORDER_BOOK_DEPTH_SETTINGS
+            }
             onCancel={() => onOpenChange(false)}
             onSubmit={handleSave}
           />

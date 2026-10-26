@@ -61,6 +61,7 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/binance/usdm/btcusdt/klines/yearly-context` | Klines for yearly VWAP (`1d`, `1w`) |
 | GET | `/api/market/binance/usdm/btcusdt/klines/volume-profile` | Source klines for fixed-range volume profile (`start_time`, `end_time` as Unix seconds; auto-picks finest Binance interval up to ~5000 candles) |
 | GET | `/api/market/binance/usdm/btcusdt/liquidations/history` | Persisted normalized `forceOrder` liquidations, newest first (`before` optional epoch-ms cursor, `limit` 1–1000 default 500; returns `events`, `has_more`, `next_before`) |
+| GET | `/api/market/binance/usdm/btcusdt/orderbook/imbalance/history` | Persisted order-book imbalance samples for one distance (`distance`: `0.25`, `0.5`, `1`, `2.5` default `2.5`; `before` optional epoch-ms cursor; `limit` 1–1000 default 500; returns `samples`, `has_more`, `next_before`) |
 | GET | `/api/market/hyperliquid/btc/klines` | Latest Hyperliquid BTC perpetual klines (`interval`: `1m` … `1w`) |
 | GET | `/api/market/hyperliquid/btc/klines/history` | Older Hyperliquid klines (`interval`, `before`); returns `history_unavailable: true` beyond the 5000-candle window |
 | GET | `/api/market/hyperliquid/btc/klines/{daily,weekly,monthly,quarterly,yearly}-context` | Hyperliquid klines for the matching VWAP context window |
@@ -68,7 +69,7 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/hyperliquid/account/{address}/position` | Read-only `clearinghouseState`; normalizes `positions` and the BTC `btc_position` (side, size, average entry). Invalid address → `422` |
 | GET | `/api/market/hyperliquid/account/{address}/fills` | Most recent `userFills` (`count`, `truncated`, `complete`, `response_cap`); upstream cap is 2000 |
 | GET | `/api/market/hyperliquid/account/{address}/fills/by-time` | `userFillsByTime` for `start_time` / `end_time` (epoch **milliseconds**), paged forward through the window. `truncated: true` means the 2000-per-response cap or page budget stopped the window early |
-| WS | `/api/ws/{channel}` | WebSocket transport; Binance relays on `binance.usdm.btcusdt.kline.{interval}` and `binance.usdm.btcusdt.liquidations`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
+| WS | `/api/ws/{channel}` | WebSocket transport; Binance relays on `binance.usdm.btcusdt.kline.{interval}`, `binance.usdm.btcusdt.liquidations` and `binance.usdm.btcusdt.orderbook`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
 
 ### WebSocket (`/api/ws/{channel}`)
 
@@ -76,6 +77,7 @@ Channel names: letters, digits, `.`, `_`, `-` (1–96 chars). Generic channels a
 
 - **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`). The backend opens one shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
 - **Binance USD-M BTCUSDT liquidations:** subscribe to `binance.usdm.btcusdt.liquidations` (no interval in the channel; aggregation to a candle interval is a frontend concern). One process-lifetime upstream `btcusdt@forceOrder` subscription relays normalized `{ exchange: "binance", symbol: "BTCUSDT", side, price, quantity, notional, time, trade_time, id }` payloads (`app/market/binance_usdm_liquidations.py`). Each normalized event is persisted before it is published, so reconnecting or reloading a chart can load stored history. `SELL` orders map to `long` liquidations and `BUY` orders map to `short`; malformed, unknown-side and non-positive/non-finite events are dropped. There is no REST backfill before collection started, and Binance `forceOrder` snapshots are not a complete market-wide liquidation total.
+- **Binance USD-M BTCUSDT order-book imbalance:** subscribe to `binance.usdm.btcusdt.orderbook` (no interval in the channel; candle bucketing is a frontend concern). One process-lifetime collector (`app/market/binance_usdm_orderbook.py`) maintains a synchronized local book from `GET /fapi/v1/depth?symbol=BTCUSDT&limit=1000` plus the `btcusdt@depth@100ms` diff stream, applying Binance's `U`/`u`/`pu` rules and resyncing on gaps, reconnects and ~10s staleness. Every ~10s it relays one normalized sample per distance option: `{ source: "binance", exchange: "binance", symbol: "BTCUSDT", distance, time, mid, bid_notional, ask_notional, imbalance, bid_coverage_pct, ask_coverage_pct, complete }`. Each sample is persisted before it is published. `complete` is true only when both sides cover the requested distance; Binance snapshots cap at 1000 levels (~0.15–0.18% per side), so wider samples are honestly marked incomplete rather than fabricated.
 - **Hyperliquid BTC perpetual:** subscribe to `hyperliquid.btc.kline.1m` (same eight older intervals plus `1w`). The backend opens one shared upstream, sends a single `candle` subscription per channel, derives closed candles from the next interval open, and relays `{ exchange: "hyperliquid", symbol: "BTC", ... }` payloads (`app/market/hyperliquid_btc.py`). Duplicate client subscriptions reuse the same upstream.
 - **Hyperliquid read-only account fills:** subscribe to `hyperliquid.account.0x<40 hex>.userfills`. One shared upstream `userFills` subscription per channel relays normalized `{ user, is_snapshot, fills }` payloads (`app/market/hyperliquid_account.py`); reconnect replays the snapshot and clients dedupe by `tid` (fallback `hash`+`oid`+`time`+`coin`).
 
@@ -109,6 +111,16 @@ Liquidation collection starts when the backend process starts, even with no char
 - Writes use `INSERT OR IGNORE`, so replaying the same Binance snapshot never creates a second row.
 - `GET /api/market/binance/usdm/btcusdt/liquidations/history?before=<epoch_ms>&limit=<n>` reads newest first. `before` is an exclusive epoch-millisecond cursor; `limit` is 1–1000 (default 500). The response is `{ exchange: "binance", symbol: "BTCUSDT", events: [...], has_more: bool, next_before: int | null }`, where `events` are the same normalized objects the WebSocket relays.
 - Tests set `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`; the collector also accepts an injected `connect_ws` and store, so backend tests never open a real upstream socket.
+
+### Persistent order-book imbalance history (SQLite)
+
+Order-book collection also starts when the backend process starts, independent of chart clients, and stops at shutdown. There is no exchange backfill before the first run that collected samples.
+
+- Database file: `backend/.orderbook.sqlite3` (gitignored, WAL mode). Override with `OXDECK_ORDERBOOK_DB=/absolute/path.sqlite3`. It is fully separate from candles and `.liquidations.sqlite3`.
+- Schema (`orderbook_samples`): stable `id` primary key, `sample_time`, `distance`, `mid`, `bid_notional`, `ask_notional`, `imbalance`, `bid_coverage_pct`, `ask_coverage_pct`, `complete`, `exchange`, `symbol`, `source`, `created_at`; index on `(distance, sample_time DESC, id DESC)`.
+- Samples are inserted with `INSERT OR IGNORE`, and the oldest rows beyond the bounded retention limit are pruned periodically.
+- `GET /api/market/binance/usdm/btcusdt/orderbook/imbalance/history?distance=2.5&before=<epoch_ms>&limit=<n>` reads newest first for exactly one distance. `before` is an exclusive epoch-millisecond cursor; `limit` is 1–1000 (default 500); `distance` must be one of `0.25`, `0.5`, `1`, `2.5` (default `2.5`). The response is `{ exchange: "binance", symbol: "BTCUSDT", source: "binance", distance, samples: [...], has_more: bool, next_before: int | null }`.
+- Tests set `OXDECK_DISABLE_ORDERBOOK_COLLECTOR=1`; the collector also accepts injected `connect_ws`, `fetch_snapshot` and store so backend tests never open a real upstream socket.
 
 ### Query parameters
 

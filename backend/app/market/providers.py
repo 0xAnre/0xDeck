@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from . import binance_usdm_btc as binance
-from . import binance_usdm_liquidations
+from . import binance_usdm_liquidations, binance_usdm_orderbook
 from . import hyperliquid_account
 from . import hyperliquid_btc as hyperliquid
 from .common import (
@@ -212,4 +212,7 @@ def relay_for_channel(channel: str) -> object | None:
     # dedicated forceOrder relay without widening the provider protocol.
     if binance_usdm_liquidations.parse_liquidations_channel(channel) is not None:
         return binance_usdm_liquidations.binance_liquidations_relay
+    # Order-book imbalance samples are periodic derived data, not candle data.
+    if binance_usdm_orderbook.parse_orderbook_channel(channel) is not None:
+        return binance_usdm_orderbook.binance_orderbook_collector
     return None

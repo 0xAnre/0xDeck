@@ -67,7 +67,7 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 - Settings persist per applicable widget instance / chart object, keyed by the panel instance id, and MUST survive reloads:
   - Instance records: `src/market/rectangleInstances.ts`, `lineInstances.ts`, `fixedRangeVolumeProfileInstances.ts`, `rollingVwapInstances.ts`, `anchoredVwapInstances.ts`.
   - Storage modules + keys: `src/rectangleInstancesStorage.ts` (`0xdeck-widget-rectangle-instances`), `src/lineInstancesStorage.ts` (`0xdeck-widget-line-instances`), `src/fixedRangeVolumeProfileInstancesStorage.ts` (`0xdeck-widget-fixed-range-vp-instances`), `src/rollingVwapInstancesStorage.ts` (`0xdeck-widget-rolling-vwap-instances`), `src/anchoredVwapInstancesStorage.ts` (`0xdeck-widget-anchored-vwap-instances`).
-  - Indicator style/levels and indicator settings: `src/marketIndicatorPresentationStorage.ts` (`0xdeck-widget-market-indicator-presentation`), `src/marketRsiSettingsStorage.ts` (`0xdeck-widget-market-rsi-settings`), `src/liquidationsSettingsStorage.ts` (`0xdeck-widget-liquidations-settings`).
+  - Indicator style/levels and indicator settings: `src/marketIndicatorPresentationStorage.ts` (`0xdeck-widget-market-indicator-presentation`), `src/marketRsiSettingsStorage.ts` (`0xdeck-widget-market-rsi-settings`), `src/liquidationsSettingsStorage.ts` (`0xdeck-widget-liquidations-settings`), `src/orderBookDepthSettingsStorage.ts` (`0xdeck-widget-order-book-depth-settings`).
 - A setting change MUST be written through the existing instance update path (patch instance → persist) so header menu, dialog and on-chart state stay in sync.
 
 ---
@@ -83,7 +83,7 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Hidden / locked flags | `src/market/chartObjectState.ts` |
 | Cross-tool selection & pointer arbitration | `src/market/drawingSelection.ts`, `src/market/drawingPointerArbitration.ts` |
 | Settings target + hit test + pane double-click | `src/market/chartObjectSettingsTypes.ts`, `chartObjectSettingsHitTest.ts`, `chartObjectSettingsPanePointer.ts` |
-| Pane element registry (candle / RSI / liquidations) | `src/market/chartPaneRoles.ts`, `src/market/candlePane.ts` |
+| Pane element registry (candle / RSI / order book / liquidations) | `src/market/chartPaneRoles.ts`, `src/market/candlePane.ts`, `src/market/rsiChartPane.ts`, `src/market/orderBookDepthChartPane.ts` |
 | Hover cursor mapping | `src/market/drawingCursor.ts` (`resolveDrawingCursor`, `updateDrawingCursor`) |
 | Empty-space deselect on non-candle panes | `src/market/drawingPaneDeselect.ts` |
 | Keyboard ownership | `src/market/rectangleKeyboardScope.ts` |
@@ -91,4 +91,4 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Per-tool interactions | `rectangleInteraction.ts`, `lineInteraction.ts`, `fixedRangeVolumeProfileInteraction.ts`, `anchoredVwapDrawingInteraction.ts` |
 | Settings dialogs | `src/widgetSettings/LineStyleDialog.tsx`, `RectangleFillStyleDialog.tsx`, `MarketIndicatorStyleDialog.tsx`, `FixedRangeVolumeProfileSettingsDialog.tsx`, `src/market/RollingVwapSettingsDialog.tsx`, `src/market/AnchoredVwapSettingsDialog.tsx`, `src/market/AggregatedLiquidationsSettingsDialog.tsx`, `src/components/ui/dialog.tsx` |
 | Dialog width/spacing + non-blackout overlay | `src/widgetSettings/chartSettingsDialogLayout.ts` (`CHART_SETTINGS_DIALOG_CONTENT_CLASS`, `CHART_SETTINGS_DIALOG_OVERLAY_CLASS`, `CHART_SETTINGS_DIALOG_BODY_CLASS`) |
-| Dialog draft/diff/sanitize logic | `src/widgetSettings/lineStyleDraft.ts`, `rectangleFillStyleDraft.ts`, `marketIndicatorStyleDraft.ts`, `fixedRangeVolumeProfileSettingsDraft.ts`, `src/market/aggregatedLiquidationsSettingsDraft.ts` |
+| Dialog draft/diff/sanitize logic | `src/widgetSettings/lineStyleDraft.ts`, `rectangleFillStyleDraft.ts`, `marketIndicatorStyleDraft.ts`, `fixedRangeVolumeProfileSettingsDraft.ts`, `src/market/aggregatedLiquidationsSettingsDraft.ts`, `src/market/orderBookDepthSettingsDraft.ts` |

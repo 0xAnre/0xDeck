@@ -8,6 +8,7 @@ import {
   type MarketIndicatorStyleDraft,
 } from './marketIndicatorStyleDraft.ts'
 import { DEFAULT_RSI_OVERBOUGHT, DEFAULT_RSI_OVERSOLD, DEFAULT_RSI_PERIOD } from '../market/rsi.ts'
+import { DEFAULT_ORDER_BOOK_DEPTH_SETTINGS } from '../market/orderBookDepthSettings.ts'
 
 function baseDraft(
   overrides: Partial<MarketIndicatorStyleDraft> = {},
@@ -67,7 +68,7 @@ describe('marketIndicatorStyleDraftPatch', () => {
   it('produces no commit for an untouched draft', () => {
     const initial = baseDraft()
     const patch = marketIndicatorStyleDraftPatch(initial, { ...initial })
-    assert.deepEqual(patch, { presentation: {}, rsi: null })
+    assert.deepEqual(patch, { presentation: {}, rsi: null, orderBookDepth: null })
     assert.equal(isMarketIndicatorStyleDraftPatchEmpty(patch), true)
   })
 
@@ -77,7 +78,7 @@ describe('marketIndicatorStyleDraftPatch', () => {
       ...initial,
       opacityPercent: 45,
     })
-    assert.deepEqual(patch, { presentation: { opacity: 45 }, rsi: null })
+    assert.deepEqual(patch, { presentation: { opacity: 45 }, rsi: null, orderBookDepth: null })
   })
 
   it('commits color, width and Line/Dot independently', () => {
@@ -91,6 +92,7 @@ describe('marketIndicatorStyleDraftPatch', () => {
     assert.deepEqual(patch, {
       presentation: { color: '#123456', lineWidth: 4, lineStyle: 'dotted' },
       rsi: null,
+      orderBookDepth: null,
     })
   })
 
@@ -104,6 +106,7 @@ describe('marketIndicatorStyleDraftPatch', () => {
     assert.deepEqual(fillOnly, {
       presentation: { fillColor: '#123456', fillOpacity: 60 },
       rsi: null,
+      orderBookDepth: null,
     })
 
     const lineOnly = marketIndicatorStyleDraftPatch(initial, {
@@ -116,6 +119,7 @@ describe('marketIndicatorStyleDraftPatch', () => {
     assert.deepEqual(lineOnly, {
       presentation: { color: '#000000', opacity: 40, lineWidth: 3, lineStyle: 'dotted' },
       rsi: null,
+      orderBookDepth: null,
     })
     assert.equal(lineOnly.presentation.fillColor, undefined)
     assert.equal(lineOnly.presentation.fillOpacity, undefined)
@@ -165,8 +169,67 @@ describe('marketIndicatorStyleDraftPatch', () => {
     assert.deepEqual(marketIndicatorStyleDraftPatch(initial, initial), {
       presentation: {},
       rsi: null,
+      orderBookDepth: null,
     })
     assert.notDeepEqual(edited, initial)
+  })
+})
+
+describe('Order Book Depth settings in the shared indicator draft', () => {
+  function orderBookDraft() {
+    return marketIndicatorStyleDraftFromInputs({
+      color: '#CCCCCC',
+      opacityPercent: 100,
+      lineWidth: 1,
+      lineStyle: 'solid',
+      fillColor: '#A3A3A3',
+      fillOpacityPercent: 25,
+      rsiSettings: null,
+      orderBookDepthSettings: DEFAULT_ORDER_BOOK_DEPTH_SETTINGS,
+    })
+  }
+
+  it('keeps the settings out of the patch while unchanged', () => {
+    const initial = orderBookDraft()
+    const patch = marketIndicatorStyleDraftPatch(initial, { ...initial })
+    assert.equal(patch.orderBookDepth, null)
+    assert.equal(isMarketIndicatorStyleDraftPatchEmpty(patch), true)
+  })
+
+  it('commits only changed Order Book Depth fields with the presentation patch', () => {
+    const initial = orderBookDraft()
+    const patch = marketIndicatorStyleDraftPatch(initial, {
+      ...initial,
+      orderBookDepth: {
+        ...DEFAULT_ORDER_BOOK_DEPTH_SETTINGS,
+        distance: 0.25,
+        positiveThreshold: 60,
+      },
+    })
+    assert.deepEqual(patch.orderBookDepth, {
+      ...DEFAULT_ORDER_BOOK_DEPTH_SETTINGS,
+      distance: 0.25,
+      positiveThreshold: 60,
+    })
+    assert.deepEqual(patch.presentation, {})
+    assert.equal(patch.rsi, null)
+  })
+
+  it('sanitizes an edited Order Book Depth draft on commit', () => {
+    const initial = orderBookDraft()
+    const sanitized = sanitizeMarketIndicatorStyleDraft(initial, {
+      ...initial,
+      orderBookDepth: {
+        source: 'hyperliquid' as never,
+        distance: 9 as never,
+        positiveThreshold: 500,
+        negativeThreshold: -500,
+      },
+    })
+    assert.deepEqual(
+      sanitized.orderBookDepth,
+      DEFAULT_ORDER_BOOK_DEPTH_SETTINGS,
+    )
   })
 })
 

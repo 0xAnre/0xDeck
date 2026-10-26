@@ -17,7 +17,13 @@ from .market.common import (
     validate_interval,
     validate_volume_profile_time_range,
 )
-from .market import binance_usdm_liquidations, hyperliquid_account, liquidation_store
+from .market import (
+    binance_usdm_liquidations,
+    binance_usdm_orderbook,
+    hyperliquid_account,
+    liquidation_store,
+    order_book_store,
+)
 from .market.providers import (
     BINANCE_PROVIDER,
     HYPERLIQUID_PROVIDER,
@@ -36,10 +42,19 @@ async def lifespan(_app: FastAPI):
     ) == "1"
     if not collector_disabled:
         await binance_usdm_liquidations.binance_liquidations_relay.start_collection()
+
+    # Order-book collection is also process-lifetime and independent of chart
+    # clients. It has its own test switch and its own SQLite store.
+    orderbook_collector_disabled = os.environ.get(
+        "OXDECK_DISABLE_ORDERBOOK_COLLECTOR"
+    ) == "1"
+    if not orderbook_collector_disabled:
+        await binance_usdm_orderbook.binance_orderbook_collector.start_collection()
     try:
         yield
     finally:
         await binance_usdm_liquidations.binance_liquidations_relay.shutdown()
+        await binance_usdm_orderbook.binance_orderbook_collector.shutdown()
 
 
 app = FastAPI(title="0xDeck API", version="0.1.0", lifespan=lifespan)
@@ -210,6 +225,10 @@ LIQUIDATIONS_HISTORY_PATH = (
     "/api/market/binance/usdm/btcusdt/liquidations/history"
 )
 
+ORDERBOOK_HISTORY_PATH = (
+    "/api/market/binance/usdm/btcusdt/orderbook/imbalance/history"
+)
+
 
 def _validate_liquidation_history_limit(limit: int) -> int:
     if (
@@ -314,6 +333,77 @@ def get_binance_usdm_btcusdt_liquidations_history(
     limit: int = liquidation_store.DEFAULT_HISTORY_LIMIT,
 ) -> dict[str, object]:
     return _binance_liquidation_history(before, limit)
+
+
+def _validate_orderbook_history_distance(distance: float) -> float:
+    safe_distance = float(distance)
+    if safe_distance not in order_book_store.ORDERBOOK_DISTANCES:
+        allowed = ", ".join(str(value) for value in order_book_store.ORDERBOOK_DISTANCES)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Query parameter 'distance' must be one of {allowed}",
+        )
+    return safe_distance
+
+
+def _validate_orderbook_history_limit(limit: int) -> int:
+    if (
+        limit < order_book_store.MIN_HISTORY_LIMIT
+        or limit > order_book_store.MAX_HISTORY_LIMIT
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameter 'limit' must be between "
+                f"{order_book_store.MIN_HISTORY_LIMIT} and "
+                f"{order_book_store.MAX_HISTORY_LIMIT}"
+            ),
+        )
+    return limit
+
+
+def _validate_orderbook_history_before(before: int | None) -> int | None:
+    if before is None:
+        return None
+    if before <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'before' must be a positive epoch timestamp in milliseconds",
+        )
+    return before
+
+
+def _binance_orderbook_history(
+    distance: float,
+    before: int | None,
+    limit: int,
+) -> dict[str, object]:
+    safe_distance = _validate_orderbook_history_distance(distance)
+    safe_before = _validate_orderbook_history_before(before)
+    safe_limit = _validate_orderbook_history_limit(limit)
+    page = order_book_store.read_orderbook_history(
+        distance=safe_distance,
+        before=safe_before,
+        limit=safe_limit,
+    )
+    return {
+        "exchange": order_book_store.ORDERBOOK_EXCHANGE,
+        "symbol": order_book_store.ORDERBOOK_SYMBOL,
+        "source": order_book_store.ORDERBOOK_SOURCE,
+        "distance": safe_distance,
+        "samples": page.samples,
+        "has_more": page.has_more,
+        "next_before": page.next_before,
+    }
+
+
+@app.get(ORDERBOOK_HISTORY_PATH)
+def get_binance_usdm_btcusdt_orderbook_history(
+    distance: float = order_book_store.DEFAULT_ORDERBOOK_DISTANCE,
+    before: int | None = None,
+    limit: int = order_book_store.DEFAULT_HISTORY_LIMIT,
+) -> dict[str, object]:
+    return _binance_orderbook_history(distance, before, limit)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines")

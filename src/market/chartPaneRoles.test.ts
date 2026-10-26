@@ -97,14 +97,18 @@ describe('chartPaneRoles', () => {
   })
 
   it('lists the candle pane plus every registered role pane once', () => {
-    const harness = createHarness(3)
+    const harness = createHarness(4)
     const { chart, panes, elements, createPane } = harness
     const candlePane = createPane()
     const rsiPane = createPane()
+    const orderBookPane = createPane()
     const liquidationPane = createPane()
-    panes.push(liquidationPane, candlePane, rsiPane)
+    panes.push(liquidationPane, candlePane, rsiPane, orderBookPane)
     registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
     registerChartPaneRoleSeries(chart as never, 'rsi', { getPane: () => rsiPane } as never)
+    registerChartPaneRoleSeries(chart as never, 'order-book-depth', {
+      getPane: () => orderBookPane,
+    } as never)
     registerChartPaneRoleSeries(chart as never, 'aggregated-liquidations', {
       getPane: () => liquidationPane,
     } as never)
@@ -113,9 +117,11 @@ describe('chartPaneRoles', () => {
       { role: 'candle', element: elements[1] },
       { role: 'rsi', element: elements[2] },
       { role: 'aggregated-liquidations', element: elements[0] },
+      { role: 'order-book-depth', element: elements[3] },
     ])
     assert.equal(resolveChartPaneElementRole(chart as never, elements[1] as never), 'candle')
     assert.equal(resolveChartPaneElementRole(chart as never, elements[2] as never), 'rsi')
+    assert.equal(resolveChartPaneElementRole(chart as never, elements[3] as never), 'order-book-depth')
     assert.equal(resolveChartPaneElementRole(chart as never, elements[0] as never), 'aggregated-liquidations')
     assert.equal(resolveChartPaneElementRole(chart as never, createFakeElement() as never), null)
   })

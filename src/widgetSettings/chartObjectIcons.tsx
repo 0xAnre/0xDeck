@@ -43,6 +43,7 @@ export function marketIndicatorIcon(indicatorId: MarketIndicatorId): LucideIcon 
     case 'rsi':
       return ActivityIcon
     case 'aggregated-liquidations':
+    case 'order-book-depth':
       return ChartNoAxesColumnIncreasingIcon
     default: {
       const unreachable: never = indicatorId

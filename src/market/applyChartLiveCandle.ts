@@ -16,6 +16,7 @@ import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import { applyRollingVwapInstancesLive } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapChartInstanceMap } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
+import type { OrderBookDepthChartPaneBundle } from '@/market/orderBookDepthChartPane'
 import type { RsiChartPaneBundle } from '@/market/rsiChartPane'
 import { updateRsiPaneLiveData } from '@/market/rsiChartPane'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
@@ -52,6 +53,11 @@ export type ChartSeriesBundle = {
   anchoredVwaps: AnchoredVwapDrawingChartInstanceMap
   /** RSI pane, present only while the RSI indicator is enabled on this panel. */
   rsi: RsiChartPaneBundle | null
+  /**
+   * Order Book Depth pane, present only while that indicator is enabled. It is
+   * optional so existing test bundles and panel code keep working without it.
+   */
+  orderBookDepth?: OrderBookDepthChartPaneBundle | null
 }
 
 export type LiveVwapUpdateContext = {

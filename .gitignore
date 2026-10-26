@@ -30,5 +30,9 @@ backend/.canvas-state.json
 backend/.liquidations.sqlite3
 backend/.liquidations.sqlite3-wal
 backend/.liquidations.sqlite3-shm
+# Persistent order-book imbalance samples (separate SQLite + WAL sidecars).
+backend/.orderbook.sqlite3
+backend/.orderbook.sqlite3-wal
+backend/.orderbook.sqlite3-shm
 __pycache__/
 *.pyc

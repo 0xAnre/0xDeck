@@ -118,6 +118,12 @@ HYPERLIQUID_ACCOUNT_SUFFIXES = ("/position", "/fills", "/fills/by-time")
 # browser client builds.
 LIQUIDATIONS_HISTORY_PATH = "/market/binance/usdm/btcusdt/liquidations/history"
 
+# Persisted order-book imbalance history. Mirrored by
+# `src/market/orderBookDepthHistory.test.ts`.
+ORDERBOOK_HISTORY_PATH = (
+    "/market/binance/usdm/btcusdt/orderbook/imbalance/history"
+)
+
 CHART_INTERVALS = ("1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w")
 
 # Intervals the UI can request per VWAP context level. Mirrors
@@ -172,6 +178,7 @@ def expected_market_paths() -> set[str]:
         for suffix in HYPERLIQUID_ACCOUNT_SUFFIXES
     )
     paths.add(f"{API_PREFIX}{LIQUIDATIONS_HISTORY_PATH}")
+    paths.add(f"{API_PREFIX}{ORDERBOOK_HISTORY_PATH}")
     return paths
 
 
@@ -196,6 +203,12 @@ class MarketRouteContractTests(unittest.TestCase):
     def test_liquidation_history_route_is_registered(self) -> None:
         self.assertIn(
             f"{API_PREFIX}{LIQUIDATIONS_HISTORY_PATH}",
+            registered_market_paths(),
+        )
+
+    def test_orderbook_history_route_is_registered(self) -> None:
+        self.assertIn(
+            f"{API_PREFIX}{ORDERBOOK_HISTORY_PATH}",
             registered_market_paths(),
         )
 

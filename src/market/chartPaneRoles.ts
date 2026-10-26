@@ -11,7 +11,7 @@ import {
  * removed and reordered (Aggregated Liquidations `Top`/`Bottom`, RSI above a
  * bottom liquidations pane), so a fixed pane index is never safe.
  */
-export type ChartPaneRole = 'rsi' | 'aggregated-liquidations'
+export type ChartPaneRole = 'rsi' | 'aggregated-liquidations' | 'order-book-depth'
 
 export type ChartPaneElementRole = 'candle' | ChartPaneRole
 
@@ -100,7 +100,7 @@ export function resolveChartPaneElementRole(
   element: HTMLElement,
 ): ChartPaneElementRole | null {
   if (element === resolveCandlePaneElement(chart)) return 'candle'
-  for (const role of ['rsi', 'aggregated-liquidations'] as const) {
+  for (const role of ['rsi', 'aggregated-liquidations', 'order-book-depth'] as const) {
     if (element === resolveChartPaneRoleElement(chart, role)) return role
   }
   return null
@@ -121,6 +121,7 @@ export function resolveChartPaneElementTargets(chart: IChartApi): ChartPaneEleme
   push('candle', resolveCandlePaneElement(chart))
   push('rsi', resolveChartPaneRoleElement(chart, 'rsi'))
   push('aggregated-liquidations', resolveChartPaneRoleElement(chart, 'aggregated-liquidations'))
+  push('order-book-depth', resolveChartPaneRoleElement(chart, 'order-book-depth'))
   return targets
 }
 

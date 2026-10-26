@@ -6,8 +6,9 @@
  * The dialog receives already-resolved input values (color/opacity/width/style
  * are resolved from the presentation plus the live series by the panel helpers),
  * keeps them in a local draft and commits only changed fields on `Save`.
- * `Cancel` / `X` / `Esc` / outside click drop the draft; RSI sanitizing on
- * blur/Enter only rewrites the draft, never storage. Pure functions only.
+ * `Cancel` / `X` / `Esc` / outside click drop the draft; RSI and Order Book
+ * Depth sanitizing on blur/Enter only rewrites the draft, never storage. Pure
+ * functions only.
  */
 import {
   isLineChartHexColor,
@@ -17,6 +18,10 @@ import {
   type LineChartStrokeWidth,
 } from '../market/lineChartStroke.ts'
 import { isMarketStyleOpacityPercent } from '../market/marketStylePalette.ts'
+import {
+  sanitizeOrderBookDepthSettings,
+  type OrderBookDepthSettings,
+} from '../market/orderBookDepthSettings.ts'
 import { sanitizeRsiSettings, type RsiSettings } from '../market/rsi.ts'
 import type { MarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
 
@@ -30,12 +35,18 @@ export type MarketIndicatorStyleDraft = {
   fillColor: string
   fillOpacityPercent: number
   rsi: RsiSettings | null
+  /** Order Book Depth numeric/source settings; `null` for other indicators. */
+  orderBookDepth: OrderBookDepthSettings | null
 }
 
-/** Only the changed presentation keys, plus the RSI settings when they changed. */
+/**
+ * Only the changed presentation keys, plus the RSI or Order Book Depth settings
+ * when they changed.
+ */
 export type MarketIndicatorStyleDraftPatch = {
   presentation: MarketIndicatorPresentation
   rsi: RsiSettings | null
+  orderBookDepth: OrderBookDepthSettings | null
 }
 
 export function marketIndicatorStyleDraftFromInputs(inputs: {
@@ -46,6 +57,7 @@ export function marketIndicatorStyleDraftFromInputs(inputs: {
   fillColor: string
   fillOpacityPercent: number
   rsiSettings?: RsiSettings | null
+  orderBookDepthSettings?: OrderBookDepthSettings | null
 }): MarketIndicatorStyleDraft {
   return {
     color: inputs.color,
@@ -55,6 +67,9 @@ export function marketIndicatorStyleDraftFromInputs(inputs: {
     fillColor: inputs.fillColor,
     fillOpacityPercent: inputs.fillOpacityPercent,
     rsi: inputs.rsiSettings ? sanitizeRsiSettings(inputs.rsiSettings) : null,
+    orderBookDepth: inputs.orderBookDepthSettings
+      ? sanitizeOrderBookDepthSettings(inputs.orderBookDepthSettings)
+      : null,
   }
 }
 
@@ -77,6 +92,9 @@ export function sanitizeMarketIndicatorStyleDraft(
     rsi: draft.rsi === null
       ? null
       : sanitizeRsiSettings(draft.rsi),
+    orderBookDepth: draft.orderBookDepth === null
+      ? null
+      : sanitizeOrderBookDepthSettings(draft.orderBookDepth),
   }
 }
 
@@ -84,6 +102,19 @@ function rsiSettingsEqual(a: RsiSettings | null, b: RsiSettings | null): boolean
   if (a === null || b === null) return a === b
   return (
     a.period === b.period && a.overbought === b.overbought && a.oversold === b.oversold
+  )
+}
+
+function orderBookDepthSettingsEqual(
+  a: OrderBookDepthSettings | null,
+  b: OrderBookDepthSettings | null,
+): boolean {
+  if (a === null || b === null) return a === b
+  return (
+    a.source === b.source &&
+    a.distance === b.distance &&
+    a.positiveThreshold === b.positiveThreshold &&
+    a.negativeThreshold === b.negativeThreshold
   )
 }
 
@@ -109,14 +140,30 @@ export function marketIndicatorStyleDraftPatch(
 
   const rsiDraft = draft.rsi === null ? null : sanitizeRsiSettings(draft.rsi)
   const rsiInitial = initial.rsi === null ? null : sanitizeRsiSettings(initial.rsi)
+  const orderBookDepthDraft = draft.orderBookDepth === null
+    ? null
+    : sanitizeOrderBookDepthSettings(draft.orderBookDepth)
+  const orderBookDepthInitial = initial.orderBookDepth === null
+    ? null
+    : sanitizeOrderBookDepthSettings(initial.orderBookDepth)
   return {
     presentation,
     rsi: rsiSettingsEqual(rsiInitial, rsiDraft) ? null : rsiDraft,
+    orderBookDepth: orderBookDepthSettingsEqual(
+      orderBookDepthInitial,
+      orderBookDepthDraft,
+    )
+      ? null
+      : orderBookDepthDraft,
   }
 }
 
 export function isMarketIndicatorStyleDraftPatchEmpty(
   patch: MarketIndicatorStyleDraftPatch,
 ): boolean {
-  return Object.keys(patch.presentation).length === 0 && patch.rsi === null
+  return (
+    Object.keys(patch.presentation).length === 0 &&
+    patch.rsi === null &&
+    patch.orderBookDepth === null
+  )
 }
