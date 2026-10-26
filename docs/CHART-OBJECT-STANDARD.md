@@ -16,16 +16,21 @@ Rules for BTC Perp chart tools, indicators and their settings (`src/market/`, `s
 
 **One width control (MUST).** Stroke width comes from `LineChartStrokeSelectFields` (`src/widgetSettings/LineChartStrokeSelectFields.tsx`) over `LINE_CHART_STROKE_WIDTHS` in `src/market/lineChartStroke.ts` (1–4px, `DEFAULT_LINE_CHART_STROKE_WIDTH`). Do not introduce a competing width toggle or width range.
 
-**Defaults (MUST).** Starting styles come from `src/market/marketStylePalette.ts`: `MARKET_STYLE_PALETTE`, `MARKET_STYLE_OPACITY_PERCENT` (`full` / `secondary` / `fill`) and `marketStyleRoleDefault(role)`; multi-series lines use `MARKET_STYLE_MULTI_LINE_SHADES` / `MARKET_STYLE_DUAL_LINE_SHADES`, volatility bands use `MARKET_STYLE_ROLLING_BAND_SHADES`. Feature files MUST NOT declare new hex literals — import palette values. Semantic colors that carry meaning (candle up/down in `btcPerpetualCandleColors.ts`, buy/sell position markers in `positionMarkers.ts`, future liquidation markers) keep their meaning and are not neutralized.
+**Defaults (MUST).** Starting styles come from `src/market/marketStylePalette.ts`: `MARKET_STYLE_PALETTE`, `MARKET_STYLE_OPACITY_PERCENT` (`full` / `secondary` / `fill`) and `marketStyleRoleDefault(role)`; multi-series lines use `MARKET_STYLE_MULTI_LINE_SHADES` / `MARKET_STYLE_DUAL_LINE_SHADES`, volatility bands use `MARKET_STYLE_ROLLING_BAND_SHADES`. Feature files MUST NOT declare new hex literals — import palette values. Semantic colors that carry meaning are an explicit exception to the grayscale defaults: candle up/down (`btcPerpetualCandleColors.ts`), buy/sell position markers (`positionMarkers.ts`) and Aggregated Liquidations (`aggregatedLiquidationsColors.ts` — `LIQUIDATION_LONG_COLOR` = `#EF4444` for long liquidations, `LIQUIDATION_SHORT_COLOR` = `#22C55E` for short liquidations, identical in every theme). These MUST NOT be neutralized to grayscale and are not user-facing neutral starting styles.
 
 **Settings dialogs (MUST).**
 
 - Use the shadcn `Dialog` in `src/components/ui/dialog.tsx`; do not build a parallel modal/popover shell.
-- Preserve the shared structure: `DialogHeader` (`DialogTitle` + `DialogDescription` naming the object) → body of `FieldGroup`/`Field` sections → `DialogFooter` with `Save`/`Cancel` when the dialog is draft-based.
+- Preserve the shared structure: `DialogHeader` (`DialogTitle` + `DialogDescription` naming the object) → body of `FieldGroup`/`Field` sections → `DialogFooter` with `Save`/`Cancel`, required for every chart tool and indicator settings dialog.
 - Spacious and responsive: SHOULD share one width and spacing scale wider than the shadcn default `sm:max-w-sm`, with grouped sections and consistent gaps; the body MUST scroll inside `max-h-[calc(100dvh-2rem)]` instead of overflowing the viewport.
 - MUST NOT darken or black out the chart behind the dialog: no near-opaque full-viewport scrim, no blur that makes the drawing unreadable while adjusting it. The chart stays visible so the change can be judged.
-- Draft + Save: dialogs offering `Save`/`Cancel` MUST edit a local draft, commit once on `Save`, and discard on `Cancel`, the close button, `Esc` or outside click. No per-keystroke commits in such dialogs; local drafts may sanitize on blur/`Enter`.
 - Consistent labels and close behavior: same wording for Color/Opacity/Width/Line/Dot, same `Field`/`FieldLabel` association, and `X`, `Esc`, outside click all close. Return focus to the control that opened the dialog (`returnFocusId`).
+
+**Draft + Save is mandatory (MUST).** Every chart tool and indicator settings dialog is draft-based — there are no exceptions. All edits stay in a local draft; only `Save` commits, through the existing instance-update → persist path.
+
+- `Cancel`, the `X` close button, `Esc` and outside click MUST all discard the draft and leave the stored object unchanged.
+- Live or per-keystroke committing in a tool or indicator settings dialog is explicitly non-conforming.
+- A draft may sanitize values on blur/`Enter`, but sanitizing MUST NOT write to storage.
 
 ---
 
@@ -55,12 +60,12 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 
 ## Defaults & persistence
 
-- New tools/indicators start from the grayscale role defaults above and behave identically for the shared controls (same color popover, same 0–100% opacity, same 1–4px widths, same Line/Dot semantics).
+- New tools/indicators start from the grayscale role defaults above (semantic colors excepted, see Defaults) and behave identically for the shared controls (same color popover, same 0–100% opacity, same 1–4px widths, same Line/Dot semantics).
 - Shared controls MUST sanitize stored values on load (for example `sanitizeLineChartStrokeStyle`, `sanitizeMarketStyleOpacityPercent`, per-instance sanitizers) so legacy or hand-edited storage cannot render an invalid style.
 - Settings persist per applicable widget instance / chart object, keyed by the panel instance id, and MUST survive reloads:
   - Instance records: `src/market/rectangleInstances.ts`, `lineInstances.ts`, `fixedRangeVolumeProfileInstances.ts`, `rollingVwapInstances.ts`, `anchoredVwapInstances.ts`.
   - Storage modules + keys: `src/rectangleInstancesStorage.ts` (`0xdeck-widget-rectangle-instances`), `src/lineInstancesStorage.ts` (`0xdeck-widget-line-instances`), `src/fixedRangeVolumeProfileInstancesStorage.ts` (`0xdeck-widget-fixed-range-vp-instances`), `src/rollingVwapInstancesStorage.ts` (`0xdeck-widget-rolling-vwap-instances`), `src/anchoredVwapInstancesStorage.ts` (`0xdeck-widget-anchored-vwap-instances`).
-  - Indicator style/levels: `src/marketIndicatorPresentationStorage.ts` (`0xdeck-widget-market-indicator-presentation`), `src/marketRsiSettingsStorage.ts` (`0xdeck-widget-market-rsi-settings`).
+  - Indicator style/levels and indicator settings: `src/marketIndicatorPresentationStorage.ts` (`0xdeck-widget-market-indicator-presentation`), `src/marketRsiSettingsStorage.ts` (`0xdeck-widget-market-rsi-settings`), `src/liquidationsSettingsStorage.ts` (`0xdeck-widget-liquidations-settings`).
 - A setting change MUST be written through the existing instance update path (patch instance → persist) so header menu, dialog and on-chart state stay in sync.
 
 ---
@@ -79,4 +84,4 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Keyboard ownership | `src/market/rectangleKeyboardScope.ts` |
 | Navigation lock application | `src/market/chartDrawingInteractionMode.ts` |
 | Per-tool interactions | `rectangleInteraction.ts`, `lineInteraction.ts`, `fixedRangeVolumeProfileInteraction.ts`, `anchoredVwapDrawingInteraction.ts` |
-| Settings dialogs | `src/widgetSettings/LineStyleDialog.tsx`, `RectangleFillStyleDialog.tsx`, `MarketIndicatorStyleDialog.tsx`, `FixedRangeVolumeProfileSettingsDialog.tsx`, `src/market/RollingVwapSettingsDialog.tsx`, `src/market/AnchoredVwapSettingsDialog.tsx`, `src/components/ui/dialog.tsx` |
+| Settings dialogs | `src/widgetSettings/LineStyleDialog.tsx`, `RectangleFillStyleDialog.tsx`, `MarketIndicatorStyleDialog.tsx`, `FixedRangeVolumeProfileSettingsDialog.tsx`, `src/market/RollingVwapSettingsDialog.tsx`, `src/market/AnchoredVwapSettingsDialog.tsx`, `src/market/AggregatedLiquidationsSettingsDialog.tsx`, `src/components/ui/dialog.tsx` |
