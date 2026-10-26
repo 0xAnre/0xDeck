@@ -4,6 +4,7 @@ import {
   MAX_ORDER_BOOK_DEPTH_SAMPLES,
   bucketOrderBookDepthSamples,
   filterCompleteOrderBookDepthSamples,
+  filterOrderBookDepthPointsToCandles,
   mergeOrderBookDepthSamples,
   orderBookDepthCoverageNotice,
   parseOrderBookDepthSample,
@@ -191,6 +192,30 @@ describe('bucketOrderBookDepthSamples', () => {
         [parsed({ complete: false }), parsed({ id: 'other', complete: false })],
         '1m',
       ),
+      [],
+    )
+  })
+})
+
+describe('filterOrderBookDepthPointsToCandles', () => {
+  it('keeps only points whose bucket is a loaded candle open', () => {
+    const points = [
+      { time: 100, value: 10 },
+      { time: 200, value: -20 },
+      { time: 300, value: 30 },
+    ]
+    assert.deepEqual(
+      filterOrderBookDepthPointsToCandles(points, [200, 300]),
+      [
+        { time: 200, value: -20 },
+        { time: 300, value: 30 },
+      ],
+    )
+  })
+
+  it('returns no points when no candles are loaded', () => {
+    assert.deepEqual(
+      filterOrderBookDepthPointsToCandles([{ time: 100, value: 10 }], []),
       [],
     )
   })

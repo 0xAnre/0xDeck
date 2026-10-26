@@ -137,6 +137,9 @@ class OrderBookSynchronizationTests(unittest.TestCase):
         state.begin_resync()
         for event in (
             _diff(first=900, final=999, previous=899),
+            # The boundary event always exists in the stream: u == lastUpdateId
+            # is already reflected by the snapshot and must be discarded.
+            _diff(first=990, final=1_000, previous=989),
             _diff(first=1_001, final=1_001, previous=SNAPSHOT_ID),
         ):
             parsed = orderbook.normalize_orderbook_diff_event(event)
@@ -146,7 +149,7 @@ class OrderBookSynchronizationTests(unittest.TestCase):
         snapshot = orderbook.parse_orderbook_snapshot(_snapshot())
         assert snapshot is not None
         self.assertTrue(state.apply_snapshot(snapshot))
-        # The stale event is dropped, the first valid window event applies.
+        # The stale events are dropped, the first valid window event applies.
         self.assertEqual(state.last_event_u, 1_001)
         self.assertEqual(state.bids[79999.0], 2.5)
 
@@ -154,8 +157,7 @@ class OrderBookSynchronizationTests(unittest.TestCase):
         for event in (
             # Starts after the snapshot: updates 1001-ish were never seen.
             _diff(first=1_002, final=1_003, previous=SNAPSHOT_ID + 1),
-            # Ends before the snapshot+1 window even though it was not dropped.
-            _diff(first=990, final=1_000, previous=989),
+            _diff(first=1_003, final=1_004, previous=1_002),
         ):
             state = orderbook.OrderBookState()
             state.begin_resync()
@@ -190,6 +192,35 @@ class OrderBookSynchronizationTests(unittest.TestCase):
         assert event is not None
         state.on_diff(event)
         state.on_diff(event)
+        self.assertFalse(state.needs_resync)
+        self.assertEqual(state.last_event_u, 1_001)
+
+    def test_ignores_live_boundary_event_already_covered_by_the_snapshot(self) -> None:
+        state = _state_from_snapshot()
+        boundary = orderbook.normalize_orderbook_diff_event(
+            _diff(
+                first=990,
+                final=SNAPSHOT_ID,
+                previous=989,
+                bids=[["79997.0", "5.0"]],
+                asks=[["80003.0", "6.0"]],
+            )
+        )
+        assert boundary is not None
+        state.on_diff(boundary)
+
+        self.assertTrue(state.synced)
+        self.assertFalse(state.needs_resync)
+        self.assertIsNone(state.last_event_u)
+        self.assertNotIn(79997.0, state.bids)
+        self.assertNotIn(80003.0, state.asks)
+
+        next_event = orderbook.normalize_orderbook_diff_event(
+            _diff(first=1_001, final=1_001, previous=SNAPSHOT_ID)
+        )
+        assert next_event is not None
+        state.on_diff(next_event)
+        self.assertTrue(state.synced)
         self.assertFalse(state.needs_resync)
         self.assertEqual(state.last_event_u, 1_001)
 
@@ -326,6 +357,7 @@ def _connect_for_connections(
     *,
     close_connections: bool = False,
     close_first_n: int | None = None,
+    wait_for=None,
 ):
     connection_index = 0
 
@@ -343,6 +375,13 @@ def _connect_for_connections(
             index = 0
 
             async def recv(self_inner) -> str:
+                if wait_for is not None and self_inner.index == 0:
+                    for _ in range(400):
+                        if wait_for():
+                            break
+                        await asyncio.sleep(0.01)
+                    else:
+                        raise AssertionError("collector did not sync before frames")
                 if self_inner.index < len(frames):
                     frame = frames[self_inner.index]
                     self_inner.index += 1
@@ -504,6 +543,113 @@ class BinanceUsdmOrderBookCollectorTests(unittest.IsolatedAsyncioTestCase):
         try:
             await collector.start_collection()
             await self._wait_until(lambda: len(self.fetch_count) >= 2)
+        finally:
+            await collector.shutdown()
+
+    async def test_buffered_boundary_event_does_not_trigger_a_resync(self) -> None:
+        snapshot_started = asyncio.Event()
+        release_snapshot = asyncio.Event()
+
+        async def slow_fetch(_url: str) -> object:
+            self.fetch_count.append(1)
+            snapshot_started.set()
+            await release_snapshot.wait()
+            return _snapshot()
+
+        collector = orderbook.BinanceUsdmOrderBookCollector(
+            self.manager,
+            connect_ws=_connect_for_connections(
+                [
+                    [
+                        # Boundary event: u == lastUpdateId, already in the snapshot.
+                        _diff(
+                            first=990,
+                            final=SNAPSHOT_ID,
+                            previous=989,
+                            bids=[["79997.0", "5.0"]],
+                            asks=[["80003.0", "6.0"]],
+                        ),
+                        # Overlapping event: U <= lastUpdateId + 1 <= u.
+                        _diff(
+                            first=SNAPSHOT_ID,
+                            final=SNAPSHOT_ID + 2,
+                            previous=SNAPSHOT_ID,
+                        ),
+                    ]
+                ]
+            ),
+            fetch_snapshot=slow_fetch,
+            store=self.store,  # type: ignore[arg-type]
+            sample_interval_s=0.02,
+            stale_after_s=60,
+            base_reconnect_delay_s=0.02,
+            max_reconnect_delay_s=0.02,
+        )
+        try:
+            await collector.start_collection()
+            await self._wait_until(lambda: snapshot_started.is_set())
+            await asyncio.sleep(0.05)
+            self.assertFalse(collector.state.synced)
+            self.assertEqual(len(collector.state.buffer), 2)
+
+            release_snapshot.set()
+            await self._wait_until(lambda: collector.state.synced)
+            await self._wait_until(lambda: len(self.published) >= 4)
+            await asyncio.sleep(0.05)
+
+            self.assertEqual(len(self.fetch_count), 1)
+            self.assertFalse(collector.state.needs_resync)
+            self.assertEqual(collector.state.last_event_u, SNAPSHOT_ID + 2)
+            self.assertNotIn(79997.0, collector.state.bids)
+            self.assertNotIn(80003.0, collector.state.asks)
+        finally:
+            await collector.shutdown()
+
+    async def test_live_boundary_event_does_not_trigger_a_resync(self) -> None:
+        holder: dict[str, object] = {}
+        collector = orderbook.BinanceUsdmOrderBookCollector(
+            self.manager,
+            connect_ws=_connect_for_connections(
+                [
+                    [
+                        _diff(
+                            first=990,
+                            final=SNAPSHOT_ID,
+                            previous=989,
+                            bids=[["79997.0", "5.0"]],
+                            asks=[["80003.0", "6.0"]],
+                        ),
+                        _diff(
+                            first=SNAPSHOT_ID + 1,
+                            final=SNAPSHOT_ID + 1,
+                            previous=SNAPSHOT_ID,
+                        ),
+                    ]
+                ],
+                wait_for=lambda: bool(
+                    holder.get("collector")
+                    and holder["collector"].state.synced  # type: ignore[union-attr]
+                ),
+            ),
+            fetch_snapshot=_snapshot_fetcher(self.fetch_count, _snapshot()),
+            store=self.store,  # type: ignore[arg-type]
+            sample_interval_s=0.02,
+            stale_after_s=60,
+            base_reconnect_delay_s=0.02,
+            max_reconnect_delay_s=0.02,
+        )
+        holder["collector"] = collector
+        try:
+            await collector.start_collection()
+            await self._wait_until(lambda: len(self.published) >= 4)
+            await asyncio.sleep(0.05)
+
+            self.assertEqual(len(self.fetch_count), 1)
+            self.assertTrue(collector.state.synced)
+            self.assertFalse(collector.state.needs_resync)
+            self.assertEqual(collector.state.last_event_u, SNAPSHOT_ID + 1)
+            self.assertNotIn(79997.0, collector.state.bids)
+            self.assertNotIn(80003.0, collector.state.asks)
         finally:
             await collector.shutdown()
 

@@ -12,6 +12,7 @@ import { registerChartPaneRoleSeries, unregisterChartPaneRoleSeries } from './ch
 import { MARKET_STYLE_DEFAULTS, marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import {
   bucketOrderBookDepthSamples,
+  filterOrderBookDepthPointsToCandles,
   type OrderBookDepthSample,
   type OrderBookDepthThresholds,
 } from './orderBookDepth.ts'
@@ -160,8 +161,12 @@ export function setOrderBookDepthPaneHistoryData(
   bundle: OrderBookDepthChartPaneBundle,
   samples: readonly OrderBookDepthSample[],
   interval: CandleInterval,
+  candleTimes: readonly number[],
 ): void {
-  const points = bucketOrderBookDepthSamples(samples, interval)
+  const points = filterOrderBookDepthPointsToCandles(
+    bucketOrderBookDepthSamples(samples, interval),
+    candleTimes,
+  )
   bundle.series.setData(
     toOrderBookDepthLineData(points, orderBookDepthThresholds(bundle.settings)),
   )

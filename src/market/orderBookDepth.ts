@@ -210,6 +210,19 @@ export function bucketOrderBookDepthSamples(
 }
 
 /**
+ * Keep only points whose candle is loaded in the chart, so the pane never
+ * draws outside the visible candle history window.
+ */
+export function filterOrderBookDepthPointsToCandles(
+  points: readonly OrderBookDepthPoint[],
+  candleTimes: readonly number[],
+): OrderBookDepthPoint[] {
+  if (points.length === 0 || candleTimes.length === 0) return []
+  const candleTimeSet = new Set(candleTimes)
+  return points.filter((point) => candleTimeSet.has(point.time))
+}
+
+/**
  * Merge live and stored samples without double counting, then bound memory.
  * Identity is the backend sample `id`, so a sample received both over the live
  * socket and in a history page contributes once.

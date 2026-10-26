@@ -289,7 +289,9 @@ class OrderBookState:
         first_applied = False
         for diff in buffered:
             # Binance rule 2: events already covered by the snapshot are dropped.
-            if diff.final_update_id < snapshot.last_update_id:
+            # The boundary event with u == lastUpdateId always exists in the
+            # stream and is already reflected by the snapshot.
+            if diff.final_update_id <= snapshot.last_update_id:
                 continue
             if not first_applied:
                 # Binance rule 3: the first applied event must span the snapshot.
@@ -319,7 +321,9 @@ class OrderBookState:
         return True
 
     def _apply_live_diff(self, diff: OrderBookDiff) -> None:
-        if diff.final_update_id < (self.last_update_id or 0):
+        # The boundary event with u == lastUpdateId is already reflected by the
+        # snapshot and must be discarded instead of failing the window check.
+        if diff.final_update_id <= (self.last_update_id or 0):
             return
         if self.last_event_u is None:
             if not (

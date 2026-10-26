@@ -174,6 +174,7 @@ describe('setOrderBookDepthPaneHistoryData', () => {
         sample('incomplete', BASE_TIME_MS + 2 * MINUTE, 90, { complete: false }),
       ],
       '1m',
+      [BASE_TIME_MS / 1000],
     )
 
     assert.deepEqual(harness.setDataCalls[0], [
@@ -196,7 +197,8 @@ describe('setOrderBookDepthPaneHistoryData', () => {
       sample('down', BASE_TIME_MS + 65_000, -40),
     ]
 
-    setOrderBookDepthPaneHistoryData(bundle, samples, '1m')
+    const candleTimes = [BASE_TIME_MS / 1000, BASE_TIME_MS / 1000 + 60]
+    setOrderBookDepthPaneHistoryData(bundle, samples, '1m', candleTimes)
     assert.equal(
       harness.setDataCalls[0][0].color,
       ORDER_BOOK_DEPTH_POSITIVE_LINE_COLOR,
@@ -207,7 +209,7 @@ describe('setOrderBookDepthPaneHistoryData', () => {
     )
 
     applyOrderBookDepthPaneSettings(bundle, settings({ positiveThreshold: 60 }))
-    setOrderBookDepthPaneHistoryData(bundle, samples, '1m')
+    setOrderBookDepthPaneHistoryData(bundle, samples, '1m', candleTimes)
     assert.equal(harness.setDataCalls[1][0].color, undefined)
     assert.equal(
       harness.setDataCalls[1][1].color,
@@ -215,8 +217,31 @@ describe('setOrderBookDepthPaneHistoryData', () => {
     )
 
     applyOrderBookDepthPaneSettings(bundle, settings({ negativeThreshold: -50 }))
-    setOrderBookDepthPaneHistoryData(bundle, samples, '1m')
+    setOrderBookDepthPaneHistoryData(bundle, samples, '1m', candleTimes)
     assert.equal(harness.setDataCalls[2][1].color, undefined)
+  })
+
+  it('clips points to the loaded candle window', () => {
+    const harness = createHarness()
+    const bundle = createOrderBookDepthChartPane(
+      harness.chart as unknown as IChartApi,
+      settings(),
+    )
+
+    setOrderBookDepthPaneHistoryData(
+      bundle,
+      [
+        sample('loaded', BASE_TIME_MS + 5_000, 40),
+        sample('outside', BASE_TIME_MS + MINUTE + 5_000, -40),
+      ],
+      '1m',
+      [BASE_TIME_MS / 1000],
+    )
+
+    assert.deepEqual(
+      harness.setDataCalls[0].map((point) => point.time),
+      [BASE_TIME_MS / 1000],
+    )
   })
 
   it('clears the pane without removing other panes', () => {

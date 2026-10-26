@@ -1729,6 +1729,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           (sample) => sample.distance === pane.settings.distance,
         ),
         activeIntervalRef.current,
+        candlesRef.current.map((candle) => candle.time),
       )
     },
     [panelId],
@@ -1749,6 +1750,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           (sample) => sample.distance === sanitized.distance,
         ),
         activeIntervalRef.current,
+        candlesRef.current.map((candle) => candle.time),
       )
     },
     [panelId],
@@ -2652,8 +2654,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         (sample) => sample.distance === orderBookDepthSettings.distance,
       ),
       interval,
+      candlesRef.current.map((candle) => candle.time),
     )
   }, [
+    candleRangeRevision,
     chartReady,
     interval,
     orderBookDepthSamples,
