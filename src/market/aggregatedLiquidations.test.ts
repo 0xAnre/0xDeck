@@ -191,6 +191,26 @@ describe('filterAggregatedLiquidationBucketsToCandles', () => {
     )
   })
 
+  it('aligns 1w buckets to the Monday candle open so they survive filtering', () => {
+    const mondayOpenMs = Date.UTC(2026, 9, 12) // Monday 00:00 UTC weekly open.
+    const event = parsed({
+      id: 'weekly',
+      time: mondayOpenMs + 3 * 86_400_000 + 5 * 3_600_000, // Thursday 05:00 UTC.
+    })
+
+    assert.equal(liquidationBucketTime(event.time, '1w'), mondayOpenMs / 1000)
+    assert.equal(
+      liquidationBucketTime(mondayOpenMs - 1_000, '1w'),
+      (mondayOpenMs - 7 * 86_400_000) / 1000,
+    )
+
+    const buckets = bucketAggregatedLiquidationEvents([event], '1w')
+    assert.deepEqual(
+      filterAggregatedLiquidationBucketsToCandles(buckets, [mondayOpenMs / 1000]),
+      [{ time: mondayOpenMs / 1000, long: 40_000, short: 0 }],
+    )
+  })
+
   it('returns no bars when no candles are loaded', () => {
     assert.deepEqual(
       filterAggregatedLiquidationBucketsToCandles(
