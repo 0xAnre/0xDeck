@@ -67,13 +67,14 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/hyperliquid/account/{address}/position` | Read-only `clearinghouseState`; normalizes `positions` and the BTC `btc_position` (side, size, average entry). Invalid address → `422` |
 | GET | `/api/market/hyperliquid/account/{address}/fills` | Most recent `userFills` (`count`, `truncated`, `complete`, `response_cap`); upstream cap is 2000 |
 | GET | `/api/market/hyperliquid/account/{address}/fills/by-time` | `userFillsByTime` for `start_time` / `end_time` (epoch **milliseconds**), paged forward through the window. `truncated: true` means the 2000-per-response cap or page budget stopped the window early |
-| WS | `/api/ws/{channel}` | WebSocket transport; Binance relay on `binance.usdm.btcusdt.kline.{interval}`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
+| WS | `/api/ws/{channel}` | WebSocket transport; Binance relays on `binance.usdm.btcusdt.kline.{interval}` and `binance.usdm.btcusdt.liquidations`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
 
 ### WebSocket (`/api/ws/{channel}`)
 
 Channel names: letters, digits, `.`, `_`, `-` (1–96 chars). Generic channels accept `ping` / `pong` only.
 
 - **Binance BTC perpetual:** subscribe to `binance.usdm.btcusdt.kline.1m` (or `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `1d`, `1w`). The backend opens one shared upstream to Binance and relays normalized `event` payloads while at least one client is connected (`app/market/binance_usdm_btc.py`).
+- **Binance USD-M BTCUSDT liquidations:** subscribe to `binance.usdm.btcusdt.liquidations` (no interval in the channel; aggregation to a candle interval is a frontend concern). One shared upstream `btcusdt@forceOrder` subscription per channel relays normalized `{ exchange: "binance", symbol: "BTCUSDT", side, price, quantity, notional, time, trade_time, id }` payloads (`app/market/binance_usdm_liquidations.py`). `SELL` orders map to `long` liquidations and `BUY` orders map to `short`; malformed, unknown-side and non-positive/non-finite events are dropped. Live-only: no REST backfill, and Binance `forceOrder` snapshots are not a complete market-wide liquidation total.
 - **Hyperliquid BTC perpetual:** subscribe to `hyperliquid.btc.kline.1m` (same eight older intervals plus `1w`). The backend opens one shared upstream, sends a single `candle` subscription per channel, derives closed candles from the next interval open, and relays `{ exchange: "hyperliquid", symbol: "BTC", ... }` payloads (`app/market/hyperliquid_btc.py`). Duplicate client subscriptions reuse the same upstream.
 - **Hyperliquid read-only account fills:** subscribe to `hyperliquid.account.0x<40 hex>.userfills`. One shared upstream `userFills` subscription per channel relays normalized `{ user, is_snapshot, fills }` payloads (`app/market/hyperliquid_account.py`); reconnect replays the snapshot and clients dedupe by `tid` (fallback `hash`+`oid`+`time`+`coin`).
 

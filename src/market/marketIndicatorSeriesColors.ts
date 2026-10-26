@@ -103,6 +103,8 @@ export function readMarketIndicatorSeriesLineWidths(
       }
       return widths
     }
+    case 'aggregated-liquidations':
+      return []
     default: {
       const unreachable: never = indicatorId
       return unreachable
@@ -136,6 +138,8 @@ export function readMarketIndicatorSeriesLineStyles(
       }
       return styles
     }
+    case 'aggregated-liquidations':
+      return []
     default: {
       const unreachable: never = indicatorId
       return unreachable
@@ -169,6 +173,8 @@ export function readMarketIndicatorSeriesColors(
       }
       return colors
     }
+    case 'aggregated-liquidations':
+      return []
     default: {
       const unreachable: never = indicatorId
       return unreachable

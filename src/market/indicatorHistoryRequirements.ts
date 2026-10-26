@@ -197,6 +197,9 @@ export function resolveIndicatorHistoryRequirements(
       case 'rolling-vwap':
         // Instance-level requirements are resolved below.
         break
+      case 'aggregated-liquidations':
+        // Live-only pane; no historical warmup or context requirement.
+        break
       default: {
         const unreachable: never = indicatorId
         return unreachable

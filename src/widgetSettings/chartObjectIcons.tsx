@@ -41,6 +41,8 @@ export function marketIndicatorIcon(indicatorId: MarketIndicatorId): LucideIcon 
       return LineChartIcon
     case 'rolling-vwap':
       return ActivityIcon
+    case 'aggregated-liquidations':
+      return ChartNoAxesColumnIncreasingIcon
     default: {
       const unreachable: never = indicatorId
       return unreachable
