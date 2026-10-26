@@ -30,7 +30,18 @@ function relayEvent(overrides: EventOverrides = {}): Record<string, unknown> {
 }
 
 function parsed(overrides: EventOverrides = {}): AggregatedLiquidationEvent {
-  const event = parseAggregatedLiquidationEvent(relayEvent(overrides))
+  const raw = relayEvent(overrides)
+  // Most tests only override `time`; keep the order trade time aligned with it
+  // so the fixture represents one event rather than an implicit cross-candle
+  // event. Boundary tests pass `trade_time` explicitly.
+  if (
+    overrides.time !== undefined &&
+    overrides.trade_time === undefined &&
+    overrides.tradeTime === undefined
+  ) {
+    raw.trade_time = overrides.time
+  }
+  const event = parseAggregatedLiquidationEvent(raw)
   assert.ok(event)
   return event
 }
@@ -154,6 +165,29 @@ describe('bucketAggregatedLiquidationEvents', () => {
     assert.equal(fifteenMinute, Date.UTC(2026, 9, 14, 17, 45) / 1000)
   })
 
+  it('buckets by order trade time when event time crosses a candle boundary', () => {
+    // Binance publishes `E` slightly after the order trade time `T`. This event
+    // executes at 09:19:59.092 but its event time is 09:20:00.094, so event-time
+    // bucketing would move a 1m bar onto the not-yet-loaded 09:20 candle and a
+    // 5m bar from the 09:15 candle to 09:20.
+    const tradeTime = Date.UTC(2026, 9, 15, 9, 19, 59, 92)
+    const event = parsed({
+      id: 'boundary',
+      time: tradeTime + 1_002,
+      trade_time: tradeTime,
+    })
+
+    const oneMinute = bucketAggregatedLiquidationEvents([event], '1m')
+    const fiveMinute = bucketAggregatedLiquidationEvents([event], '5m')
+
+    assert.equal(oneMinute[0].time, Date.UTC(2026, 9, 15, 9, 19) / 1000)
+    assert.equal(fiveMinute[0].time, Date.UTC(2026, 9, 15, 9, 15) / 1000)
+    assert.notEqual(
+      oneMinute[0].time,
+      liquidationBucketTime(event.time, '1m'),
+    )
+  })
+
   it('rebuckets cleanly when the interval changes', () => {
     const events = [
       parsed({ id: 'a', time: BASE_TIME }),
@@ -193,12 +227,14 @@ describe('filterAggregatedLiquidationBucketsToCandles', () => {
 
   it('aligns 1w buckets to the Monday candle open so they survive filtering', () => {
     const mondayOpenMs = Date.UTC(2026, 9, 12) // Monday 00:00 UTC weekly open.
+    const weeklyTradeTime = mondayOpenMs + 3 * 86_400_000 + 5 * 3_600_000 // Thursday 05:00 UTC.
     const event = parsed({
       id: 'weekly',
-      time: mondayOpenMs + 3 * 86_400_000 + 5 * 3_600_000, // Thursday 05:00 UTC.
+      time: weeklyTradeTime,
+      trade_time: weeklyTradeTime,
     })
 
-    assert.equal(liquidationBucketTime(event.time, '1w'), mondayOpenMs / 1000)
+    assert.equal(liquidationBucketTime(event.tradeTime, '1w'), mondayOpenMs / 1000)
     assert.equal(
       liquidationBucketTime(mondayOpenMs - 1_000, '1w'),
       (mondayOpenMs - 7 * 86_400_000) / 1000,

@@ -36,7 +36,11 @@ export type AggregatedLiquidationEvent = {
   notional: number
   /** Binance event time `E` in epoch milliseconds. */
   time: number
-  /** Binance order trade time `T` in epoch milliseconds. */
+  /**
+   * Binance order trade time `T` in epoch milliseconds. This is the execution
+   * timestamp and the value used for candle bucketing, because `E` can be ~1s
+   * later and cross a candle boundary on 1m/5m charts.
+   */
   tradeTime: number
 }
 
@@ -174,23 +178,25 @@ export function appendAggregatedLiquidationEvents(
  */
 const MONDAY_EPOCH_OFFSET_MS = 4 * 86_400_000
 
-/** Exact candle-open bucket (unix seconds) for an event time. */
+/** Exact candle-open bucket (unix seconds) for an order trade time. */
 export function liquidationBucketTime(
-  eventTimeMs: number,
+  tradeTimeMs: number,
   interval: CandleInterval,
 ): number {
   const durationMs = candleIntervalDurationSeconds(interval) * 1000
   if (interval === '1w') {
-    const weeks = Math.floor((eventTimeMs - MONDAY_EPOCH_OFFSET_MS) / durationMs)
+    const weeks = Math.floor((tradeTimeMs - MONDAY_EPOCH_OFFSET_MS) / durationMs)
     return (MONDAY_EPOCH_OFFSET_MS + weeks * durationMs) / 1000
   }
-  return Math.floor(eventTimeMs / durationMs) * (durationMs / 1000)
+  return Math.floor(tradeTimeMs / durationMs) * (durationMs / 1000)
 }
 
 /**
  * Aggregate events into positive long/short USD buckets for one chart interval.
- * Re-running this after an interval change yields fresh bucket boundaries, so
- * stale buckets from the previous interval can never be displayed.
+ * Buckets use the order trade time so history and live events align with the
+ * candle that actually contains the liquidation. Re-running this after an
+ * interval change yields fresh bucket boundaries, so stale buckets from the
+ * previous interval can never be displayed.
  */
 export function bucketAggregatedLiquidationEvents(
   events: readonly AggregatedLiquidationEvent[],
@@ -199,7 +205,11 @@ export function bucketAggregatedLiquidationEvents(
   const buckets = new Map<number, { long: number; short: number }>()
   for (const event of events) {
     if (!Number.isFinite(event.notional) || event.notional <= 0) continue
-    const time = liquidationBucketTime(event.time, interval)
+    // Use the execution/trade timestamp, not Binance event time. Candles are
+    // built from trades; the event timestamp is published slightly later and
+    // can cross a 1m/5m bucket boundary, which used to make those bars land on
+    // a candle that was not loaded/visible yet.
+    const time = liquidationBucketTime(event.tradeTime, interval)
     let bucket = buckets.get(time)
     if (!bucket) {
       bucket = { long: 0, short: 0 }

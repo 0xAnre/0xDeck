@@ -353,7 +353,7 @@ import {
   type WidgetStreamConnectionState,
 } from '@/widgets/stream/client'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
 import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
@@ -2628,6 +2628,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           background: { type: ColorType.Solid, color: colors.background },
           textColor: colors.text,
           attributionLogo: false,
+          // Native pane separators: a faint theme-derived hairline instead of
+          // the library's high-contrast default. `enableResize` keeps the
+          // existing drag-to-resize pane behaviour.
+          panes: {
+            enableResize: true,
+            separatorColor: rgbaFromResolvedCssColor(colors.text, 0.12),
+            separatorHoverColor: rgbaFromResolvedCssColor(colors.text, 0.24),
+          },
         },
         grid: {
           vertLines: { visible: false },
