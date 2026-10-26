@@ -17,6 +17,7 @@ import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
 import { BTC_PERPETUAL_CANDLESTICK_COLORS } from '@/market/btcPerpetualCandleColors'
 import { btcPerpetualCrosshairOptions } from '@/market/btcPerpetualCrosshairOptions'
+import { btcPerpetualCurrentPriceLineOptions } from '@/market/btcPerpetualCurrentPriceLineOptions'
 import {
   countPrependedCandles,
   fetchBtcPerpKlinesForContextLevel,
@@ -2392,7 +2393,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         height,
       })
 
-      const candleSeries = chart.addSeries(CandlestickSeries, BTC_PERPETUAL_CANDLESTICK_COLORS)
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        ...BTC_PERPETUAL_CANDLESTICK_COLORS,
+        ...btcPerpetualCurrentPriceLineOptions(colors.text),
+      })
       // One marker primitive for the lifetime of this chart instance. Account
       // markers are always updated through `setMarkers`, never a second chart.
       accountMarkersRef.current = createSeriesMarkers(candleSeries, [])
