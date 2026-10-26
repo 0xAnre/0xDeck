@@ -3,10 +3,12 @@ import { describe, it } from 'node:test'
 import {
   bindCandlePaneElementListeners,
   notifyCandlePaneChange,
+  paneHoldsCandleSeries,
   registerCandleChartSeries,
   resolveCandlePane,
   resolveCandlePaneElement,
   resolveCandlePaneIndex,
+  resolveCandlePriceScale,
 } from './candlePane.ts'
 
 type FakeElementListeners = Map<string, Set<EventListener>>
@@ -83,6 +85,49 @@ describe('candlePane', () => {
 
     registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
     assert.equal(resolveCandlePaneIndex(chart as never), 1)
+  })
+
+  it('targets the candle pane price scale instead of pane 0', () => {
+    const panes: FakePane[] = []
+    const elements = [createFakeElement(), createFakeElement()]
+    const candlePane = createFakePane(panes, elements)
+    const liquidationPane = createFakePane(panes, elements)
+    // Top position: liquidation pane 0, candles pane 1.
+    panes.push(liquidationPane, candlePane)
+
+    const paneIndexRequests: number[] = []
+    const priceScale = { id: 'right' }
+    const chart = {
+      panes: () => panes,
+      priceScale: (id: string, paneIndex?: number) => {
+        assert.equal(id, 'right')
+        paneIndexRequests.push(paneIndex ?? 0)
+        return priceScale
+      },
+    }
+    registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
+
+    assert.equal(resolveCandlePriceScale(chart as never), priceScale)
+    assert.deepEqual(paneIndexRequests, [1])
+  })
+
+  it('detects the pane that holds the registered candle series', () => {
+    const panes: FakePane[] = []
+    const elements = [createFakeElement(), createFakeElement()]
+    const candlePane = createFakePane(panes, elements)
+    const liquidationPane = createFakePane(panes, elements)
+    panes.push(liquidationPane, candlePane)
+
+    const chart = { panes: () => panes }
+    registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
+
+    assert.equal(paneHoldsCandleSeries(chart as never, candlePane as never), true)
+    assert.equal(paneHoldsCandleSeries(chart as never, liquidationPane as never), false)
+    // Unknown charts keep their default path instead of guessing pane 0.
+    assert.equal(
+      paneHoldsCandleSeries({ panes: () => [candlePane] } as never, candlePane as never),
+      false,
+    )
   })
 
   it('moves bound listeners to the new candle pane element after a pane reorder', () => {

@@ -9,7 +9,7 @@ import {
 const memory = new Map<string, string>()
 
 const sampleViewport = {
-  version: 1 as const,
+  version: 2 as const,
   visibleLogicalRange: { from: 100, to: 200 },
   visibleTimeRange: { from: 1_700_000_000, to: 1_700_001_000 },
   autoScale: true,
@@ -96,7 +96,7 @@ describe('marketChartViewportStorage', () => {
       JSON.stringify({
         'panel-a': {
           '1m': {
-            version: 1,
+            version: 2,
             visibleLogicalRange: { from: 0, to: 1 },
             visibleTimeRange: { from: 5, to: 5 },
           },

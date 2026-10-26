@@ -21,7 +21,7 @@ import {
   buildAggregatedLiquidationBarModels,
   type AggregatedLiquidationBarModel,
 } from './aggregatedLiquidationsRenderGeometry.ts'
-import { notifyCandlePaneChange } from './candlePane.ts'
+import { notifyCandlePaneChange, paneHoldsCandleSeries } from './candlePane.ts'
 
 type OverlayContext = {
   buckets: readonly AggregatedLiquidationBucket[]
@@ -188,7 +188,10 @@ export function createAggregatedLiquidationsChartOverlay(
       lastValueVisible: false,
       priceFormat: { type: 'volume' },
     },
-    1,
+    // Always append a brand new pane. Hardcoding an index can land the series
+    // inside an existing pane (the candle pane while `Position: Top` is active),
+    // after which moving/resizing that pane would squeeze and hide the candles.
+    chart.panes().length,
   )
 
   const context: OverlayContext = { buckets: [] }
@@ -199,8 +202,13 @@ export function createAggregatedLiquidationsChartOverlay(
   let currentBuckets: readonly AggregatedLiquidationBucket[] | null = null
 
   const applyPosition = (next: AggregatedLiquidationsPosition) => {
-    const layout = resolveAggregatedLiquidationsPaneLayout(next, chart.panes().length)
     const pane = series.getPane()
+    // The candle pane owns the candles and must never be reordered or resized
+    // by this overlay; only a pane that holds the liquidation series alone is
+    // safe to move and shrink.
+    if (paneHoldsCandleSeries(chart, pane)) return
+
+    const layout = resolveAggregatedLiquidationsPaneLayout(next, chart.panes().length)
     if (pane.paneIndex() !== layout.targetPaneIndex) {
       pane.moveTo(layout.targetPaneIndex)
       notifyCandlePaneChange(chart)

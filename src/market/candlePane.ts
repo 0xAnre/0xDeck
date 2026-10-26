@@ -1,4 +1,11 @@
-import type { IChartApi, IPaneApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
+import type {
+  IChartApi,
+  IPaneApi,
+  IPriceScaleApi,
+  ISeriesApi,
+  SeriesType,
+  Time,
+} from 'lightweight-charts'
 
 const candleSeriesByChart = new WeakMap<IChartApi, ISeriesApi<SeriesType, Time>>()
 const paneChangeListenersByChart = new WeakMap<IChartApi, Set<() => void>>()
@@ -37,6 +44,27 @@ export function resolveCandlePaneIndex(chart: IChartApi): number {
   const candleSeries = candleSeriesByChart.get(chart)
   if (!candleSeries) return 0
   return candleSeries.getPane().paneIndex()
+}
+
+/**
+ * True when `pane` is the pane that renders the registered candle series.
+ * Pane reordering and resizing must never target that pane: it also owns the
+ * candle price scale and the candle-pane tool bindings. Charts without a
+ * registered candle series report `false` so callers keep their default path.
+ */
+export function paneHoldsCandleSeries(chart: IChartApi, pane: IPaneApi<Time>): boolean {
+  const candleSeries = candleSeriesByChart.get(chart)
+  return candleSeries !== undefined && candleSeries.getPane() === pane
+}
+
+/**
+ * Right price scale of the pane that owns the candles. `chart.priceScale(id)`
+ * defaults to pane 0, which is the liquidation pane while `Position: Top` is
+ * active, so viewport capture/restore has to target the candle pane by index
+ * instead of assuming pane 0 holds the candles.
+ */
+export function resolveCandlePriceScale(chart: IChartApi): IPriceScaleApi {
+  return chart.priceScale('right', resolveCandlePaneIndex(chart))
 }
 
 /** Notify listeners after panes are reordered (e.g. Top/Bottom liquidation position). */

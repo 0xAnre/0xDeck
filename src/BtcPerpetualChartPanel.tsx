@@ -302,6 +302,7 @@ import {
 } from '@/liquidationsSettingsStorage'
 import type { CandleInterval, MarketCandle, MarketExchange } from '@/market/types'
 import { marketKlineChannelForInterval } from '@/market/types'
+import { isMarketChartSelectionChange } from '@/market/marketChartSelection'
 import {
   marketHistoryLimitNotice,
   marketSymbolForExchange,
@@ -1528,6 +1529,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
+      // Re-selecting the active interval must not mark the chart as not-ready:
+      // the load effect is keyed on [exchange, interval] and would not run again.
+      if (
+        !isMarketChartSelectionChange(
+          { exchange: activeExchangeRef.current, interval: activeIntervalRef.current },
+          { interval: next },
+        )
+      ) {
+        return
+      }
+
       const cancelled = cancelFixedRangeVolumeProfileInteraction(
         fixedRangeVolumeProfileInteractionRef.current,
       )
@@ -1572,7 +1584,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const handleExchangeChange = useCallback(
     (next: MarketExchange) => {
-      if (next === activeExchangeRef.current) return
+      // Re-selecting the active provider must not mark the chart as not-ready.
+      if (
+        !isMarketChartSelectionChange(
+          { exchange: activeExchangeRef.current, interval: activeIntervalRef.current },
+          { exchange: next },
+        )
+      ) {
+        return
+      }
 
       // Invalidate and stop every old-provider request/stream before the new
       // provider state is rendered; stale responses are dropped by generation.

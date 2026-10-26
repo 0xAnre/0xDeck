@@ -1,4 +1,5 @@
 import type { IChartApi, LogicalRange, Time } from 'lightweight-charts'
+import { resolveCandlePriceScale } from './candlePane.ts'
 import { isValidUnixChartTimeSeconds } from './fixedRangeVolumeProfileInstances.ts'
 import {
   computeInitialVisibleLogicalRange,
@@ -13,8 +14,16 @@ export const MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS = {
 
 export const MARKET_CHART_DEFAULT_TIME_SCALE_RIGHT_OFFSET = 8
 
+/**
+ * v2 stores the price scale of the pane that owns the candles. v1 could capture
+ * the aggregated-liquidations pane while `Position: Top` was active (pane 0), so
+ * a v1 entry may hold a liquidation/volume price range; those entries are
+ * rejected and the chart falls back to the default presentation.
+ */
+export const MARKET_CHART_VIEWPORT_VERSION = 2
+
 export type PersistedMarketChartViewport = {
-  version: 1
+  version: typeof MARKET_CHART_VIEWPORT_VERSION
   visibleLogicalRange: { from: number; to: number }
   visibleTimeRange: { from: number; to: number }
   /** Logical `from` minus the candle index for `visibleTimeRange.from` at capture time. */
@@ -62,7 +71,7 @@ export function parsePersistedMarketChartViewport(
 ): PersistedMarketChartViewport | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
-  if (record.version !== 1) return null
+  if (record.version !== MARKET_CHART_VIEWPORT_VERSION) return null
 
   const visibleLogicalRange = parseVisibleLogicalRange(record.visibleLogicalRange)
   if (!visibleLogicalRange) return null
@@ -99,7 +108,7 @@ export function parsePersistedMarketChartViewport(
   }
 
   return {
-    version: 1,
+    version: MARKET_CHART_VIEWPORT_VERSION,
     visibleLogicalRange,
     visibleTimeRange,
     ...(logicalFromOffsetFromTimeAnchor !== undefined
@@ -129,7 +138,7 @@ export function captureMarketChartViewport(
   const truncated = parseVisibleTimeRange({ from, to })
   if (!truncated) return null
 
-  const priceScale = chart.priceScale('right')
+  const priceScale = resolveCandlePriceScale(chart)
   const options = priceScale.options()
   const autoScale = options.autoScale
   const scaleMargins = {
@@ -156,7 +165,7 @@ export function captureMarketChartViewport(
   }
 
   return {
-    version: 1,
+    version: MARKET_CHART_VIEWPORT_VERSION,
     visibleLogicalRange: parsedLogical,
     visibleTimeRange: truncated,
     ...(logicalFromOffsetFromTimeAnchor !== undefined
@@ -231,21 +240,22 @@ function applyViewportPresentationOptions(
   chart: IChartApi,
   parsed: PersistedMarketChartViewport,
 ): void {
-  chart.priceScale('right').applyOptions({
+  const priceScale = resolveCandlePriceScale(chart)
+  priceScale.applyOptions({
     scaleMargins: {
       top: parsed.scaleMargins.top,
       bottom: parsed.scaleMargins.bottom,
     },
   })
 
-  chart.priceScale('right').setAutoScale(parsed.autoScale)
+  priceScale.setAutoScale(parsed.autoScale)
   if (!parsed.autoScale && parsed.priceRange) {
-    chart.priceScale('right').setVisibleRange(parsed.priceRange)
+    priceScale.setVisibleRange(parsed.priceRange)
   }
 }
 
 export function applyDefaultMarketChartPresentation(chart: IChartApi, barCount: number): void {
-  chart.priceScale('right').applyOptions({
+  resolveCandlePriceScale(chart).applyOptions({
     autoScale: true,
     scaleMargins: {
       top: MARKET_CHART_DEFAULT_PRICE_SCALE_MARGINS.top,
