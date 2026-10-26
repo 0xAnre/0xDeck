@@ -14,7 +14,7 @@ import {
   startLineMoveDraft,
   updateLineCreatePreview,
 } from './lineInteraction.ts'
-import { createLineInstance } from './lineInstances.ts'
+import { createLineInstance, setLineInstanceLocked } from './lineInstances.ts'
 
 describe('lineInteraction', () => {
   it('creates, cancels, and deletes lines', () => {
@@ -79,5 +79,20 @@ describe('lineInteraction', () => {
     const result = commitLineCreate(flat, [])
     assert.equal(result.completedInstance, null)
     assert.equal(result.state.phase, 'armed')
+  })
+
+  it('keeps a locked line selected and refuses to delete it', () => {
+    const instance = createLineInstance({ timeA: 100, priceA: 10, timeB: 200, priceB: 20 })!
+    const locked = setLineInstanceLocked(instance, true)
+    const state = { ...INITIAL_LINE_INTERACTION_STATE, selectedId: locked.id }
+
+    const lockedRemove = removeSelectedLine(state, [locked])
+    assert.equal(lockedRemove.state, state)
+    assert.equal(lockedRemove.instances.length, 1)
+    assert.equal(lockedRemove.instances[0].id, locked.id)
+
+    const unlockedRemove = removeSelectedLine(state, [setLineInstanceLocked(instance, false)])
+    assert.equal(unlockedRemove.state.selectedId, null)
+    assert.equal(unlockedRemove.instances.length, 0)
   })
 })

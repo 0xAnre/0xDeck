@@ -1,6 +1,7 @@
 import type { LineEndpointKind } from './lineHitTest.ts'
 import {
   createLineInstance,
+  isLineInstanceLocked,
   normalizeLineEndpoints,
   type LineInstance,
   type NormalizedLineEndpoints,
@@ -339,6 +340,12 @@ export function removeSelectedLine(
   instances: readonly LineInstance[],
 ): { state: LineInteractionState; instances: LineInstance[] } {
   if (!state.selectedId) return { state, instances: [...instances] }
+  const selected = instances.find((item) => item.id === state.selectedId)
+  // Lock is a geometry/ownership guard: a locked line stays selected but
+  // cannot be deleted from the chart, matching FRVP and anchored VWAP.
+  if (selected && isLineInstanceLocked(selected)) {
+    return { state, instances: [...instances] }
+  }
   const nextInstances = instances.filter((item) => item.id !== state.selectedId)
   return {
     state: { ...state, selectedId: null },

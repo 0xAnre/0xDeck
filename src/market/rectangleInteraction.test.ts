@@ -181,4 +181,26 @@ describe('rectangleInteraction', () => {
     )
     assert.deepEqual(bounds, { fromTime: 100, toTime: 200, lowPrice: 10, highPrice: 25 })
   })
+
+  it('keeps a locked rectangle selected and refuses to delete it', () => {
+    const instance = createRectangleInstance({
+      fromTime: 100,
+      toTime: 200,
+      lowPrice: 10,
+      highPrice: 20,
+    })!
+    const locked = setRectangleInstanceLocked(instance, true)
+    const state = { ...INITIAL_RECTANGLE_INTERACTION_STATE, selectedId: locked.id }
+
+    const lockedRemove = removeSelectedRectangle(state, [locked])
+    assert.equal(lockedRemove.state, state)
+    assert.equal(lockedRemove.instances.length, 1)
+    assert.equal(lockedRemove.instances[0].id, locked.id)
+
+    const unlockedRemove = removeSelectedRectangle(state, [
+      setRectangleInstanceLocked(instance, false),
+    ])
+    assert.equal(unlockedRemove.state.selectedId, null)
+    assert.equal(unlockedRemove.instances.length, 0)
+  })
 })
