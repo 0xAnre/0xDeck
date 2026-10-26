@@ -10,7 +10,6 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts'
-import { readRectangleFillStyle } from './rectangleColors.ts'
 import {
   buildSessionVwapBandDrawModels,
   sessionVwapBandPriceRange,
@@ -21,6 +20,8 @@ import {
 export type SessionVwapBandSeriesPrimitiveContext = {
   points: readonly SessionVwapBandPoint[]
   visible: boolean
+  /** Resolved canvas fill style; independent from the VWAP line styling. */
+  fillStyle: string
 }
 
 function unixTime(time: Time | undefined): number | null {
@@ -100,7 +101,7 @@ class SessionVwapBandPaneView implements IPrimitivePaneView {
     this._models = buildSessionVwapBandDrawModels({
       points: context.points,
       barSpacing: timeScale.options().barSpacing,
-      fillStyle: readRectangleFillStyle(),
+      fillStyle: context.fillStyle,
       timeToCoordinate: (time) => timeScale.timeToCoordinate(time),
       priceToY: (price) => series.priceToCoordinate(price),
     })
@@ -119,6 +120,7 @@ export class SessionVwapBandSeriesPrimitive implements ISeriesPrimitive<Time> {
   private _getContext: () => SessionVwapBandSeriesPrimitiveContext = () => ({
     points: [],
     visible: false,
+    fillStyle: 'transparent',
   })
   private readonly _view: SessionVwapBandPaneView
 
@@ -179,6 +181,7 @@ export class SessionVwapBandSeriesPrimitive implements ISeriesPrimitive<Time> {
 export type SessionVwapBandSeriesAttachment = {
   updateBandData: (points: readonly SessionVwapBandPoint[]) => void
   setBandVisible: (visible: boolean) => void
+  setFillStyle: (fillStyle: string) => void
   update: () => void
   dispose: () => void
 }
@@ -198,6 +201,10 @@ export function attachSessionVwapBandSeriesPrimitive(
     },
     setBandVisible: (visible) => {
       context = { ...context, visible }
+      primitive.updateAllViews()
+    },
+    setFillStyle: (fillStyle) => {
+      context = { ...context, fillStyle }
       primitive.updateAllViews()
     },
     update: () => {

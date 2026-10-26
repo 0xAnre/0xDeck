@@ -1,6 +1,7 @@
 /**
  * Draft / diff logic for `MarketIndicatorStyleDialog` (indicator color, opacity,
- * width, Line/Dot and the RSI period/level range).
+ * width, Line/Dot, the optional time-based VWAP band background and the RSI
+ * period/level range).
  *
  * The dialog receives already-resolved input values (color/opacity/width/style
  * are resolved from the presentation plus the live series by the panel helpers),
@@ -25,6 +26,9 @@ export type MarketIndicatorStyleDraft = {
   opacityPercent: number
   lineWidth: LineChartStrokeWidth
   lineStyle: LineChartStrokeStyle
+  /** Background fill of the time-based VWAP band; ignored by other indicators. */
+  fillColor: string
+  fillOpacityPercent: number
   rsi: RsiSettings | null
 }
 
@@ -39,6 +43,8 @@ export function marketIndicatorStyleDraftFromInputs(inputs: {
   opacityPercent: number
   lineWidth: LineChartStrokeWidth
   lineStyle: LineChartStrokeStyle
+  fillColor: string
+  fillOpacityPercent: number
   rsiSettings?: RsiSettings | null
 }): MarketIndicatorStyleDraft {
   return {
@@ -46,6 +52,8 @@ export function marketIndicatorStyleDraftFromInputs(inputs: {
     opacityPercent: inputs.opacityPercent,
     lineWidth: inputs.lineWidth,
     lineStyle: inputs.lineStyle,
+    fillColor: inputs.fillColor,
+    fillOpacityPercent: inputs.fillOpacityPercent,
     rsi: inputs.rsiSettings ? sanitizeRsiSettings(inputs.rsiSettings) : null,
   }
 }
@@ -62,6 +70,10 @@ export function sanitizeMarketIndicatorStyleDraft(
       : initial.opacityPercent,
     lineWidth: isLineChartStrokeWidth(draft.lineWidth) ? draft.lineWidth : initial.lineWidth,
     lineStyle: sanitizeLineChartStrokeStyle(draft.lineStyle) ?? initial.lineStyle,
+    fillColor: isLineChartHexColor(draft.fillColor) ? draft.fillColor : initial.fillColor,
+    fillOpacityPercent: isMarketStyleOpacityPercent(draft.fillOpacityPercent)
+      ? draft.fillOpacityPercent
+      : initial.fillOpacityPercent,
     rsi: draft.rsi === null
       ? null
       : sanitizeRsiSettings(draft.rsi),
@@ -90,6 +102,10 @@ export function marketIndicatorStyleDraftPatch(
   }
   if (draft.lineWidth !== initial.lineWidth) presentation.lineWidth = draft.lineWidth
   if (draft.lineStyle !== initial.lineStyle) presentation.lineStyle = draft.lineStyle
+  if (draft.fillColor !== initial.fillColor) presentation.fillColor = draft.fillColor
+  if (draft.fillOpacityPercent !== initial.fillOpacityPercent) {
+    presentation.fillOpacity = draft.fillOpacityPercent
+  }
 
   const rsiDraft = draft.rsi === null ? null : sanitizeRsiSettings(draft.rsi)
   const rsiInitial = initial.rsi === null ? null : sanitizeRsiSettings(initial.rsi)
