@@ -6,6 +6,7 @@ import {
 } from './aggregatedLiquidationsChartSeries.ts'
 import { AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX } from './aggregatedLiquidationsPaneLayout.ts'
 import { registerCandleChartSeries } from './candlePane.ts'
+import { resolveChartPaneRolePane } from './chartPaneRoles.ts'
 
 type FakePane = {
   paneIndex: () => number
@@ -188,6 +189,27 @@ describe('AggregatedLiquidationsSeriesPrimitive', () => {
 })
 
 describe('createAggregatedLiquidationsChartOverlay', () => {
+  it('registers its pane role by series identity until dispose', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+    assert.equal(
+      resolveChartPaneRolePane(harness.chart as never, 'aggregated-liquidations'),
+      harness.liquidationPane,
+    )
+
+    overlay.setPosition('top')
+    assert.equal(
+      resolveChartPaneRolePane(harness.chart as never, 'aggregated-liquidations'),
+      harness.liquidationPane,
+    )
+
+    overlay.dispose()
+    assert.equal(
+      resolveChartPaneRolePane(harness.chart as never, 'aggregated-liquidations'),
+      null,
+    )
+  })
+
   it('moves the existing pane between Bottom and Top without recreating anything', () => {
     const harness = createHarness()
     const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')

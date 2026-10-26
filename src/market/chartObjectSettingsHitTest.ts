@@ -6,6 +6,7 @@ import {
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
+import type { ChartPaneElementRole } from './chartPaneRoles.ts'
 import { hitTestLineSeriesAtPane } from './chartObjectSeriesLineHit.ts'
 import {
   isIndicatorSupportedOnInterval,
@@ -47,6 +48,8 @@ const FRVP_HIT_TOLERANCE_PX = 4
 export type ChartObjectSettingsHitTestContext = {
   chart: IChartApi
   series: ISeriesApi<SeriesType, Time>
+  /** Pane the pointer event came from; drawings only live on the candle pane. */
+  paneRole?: ChartPaneElementRole
   paneX: number
   paneY: number
   interval: CandleInterval
@@ -254,10 +257,41 @@ function hitTestSingletonMarketIndicators(
   return null
 }
 
+/**
+ * Settings target owned by a whole pane instead of a hit-tested object: the RSI
+ * pane routes to the existing RSI indicator dialog, the Aggregated Liquidations
+ * pane to its panel-scoped settings. Double-clicking these panes opens the same
+ * dialog as the header gear. Candles keep the drawing/series hit test below.
+ */
+export function chartObjectSettingsTargetForPaneRole(
+  paneRole: ChartPaneElementRole | null,
+  activeIndicators: readonly MarketIndicatorId[],
+): ChartObjectSettingsTarget | null {
+  if (paneRole === 'rsi') {
+    return activeIndicators.includes('rsi')
+      ? { kind: 'market-indicator', indicatorId: 'rsi' }
+      : null
+  }
+  if (paneRole === 'aggregated-liquidations') {
+    return activeIndicators.includes('aggregated-liquidations')
+      ? { kind: 'aggregated-liquidations' }
+      : null
+  }
+  return null
+}
+
 export function hitTestChartObjectSettingsTarget(
   ctx: ChartObjectSettingsHitTestContext,
 ): ChartObjectSettingsTarget | null {
   if (chartObjectSettingsHitTestBlocked(ctx)) return null
+
+  const paneTarget = chartObjectSettingsTargetForPaneRole(
+    ctx.paneRole ?? null,
+    ctx.activeIndicators,
+  )
+  if (paneTarget) return paneTarget
+  // Non-candle panes host no drawings; their own pane target is the only setting.
+  if (ctx.paneRole !== undefined && ctx.paneRole !== 'candle') return null
 
   const paneHitArgs = {
     chart: ctx.chart,

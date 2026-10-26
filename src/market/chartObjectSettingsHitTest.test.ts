@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { hitTestChartObjectSettingsTarget } from './chartObjectSettingsHitTest.ts'
+import type { ChartPaneElementRole } from './chartPaneRoles.ts'
+import type { MarketIndicatorId } from './indicators.ts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import { INITIAL_LINE_INTERACTION_STATE } from './lineInteraction.ts'
 import { INITIAL_RECTANGLE_INTERACTION_STATE } from './rectangleInteraction.ts'
@@ -112,6 +114,8 @@ function buildContext(args: {
   lineInstances?: readonly LineInstance[]
   fixedRangeVolumeProfileInstances?: readonly FixedRangeVolumeProfileInstance[]
   fixedRangeVolumeProfileRuntime?: FixedRangeVolumeProfileRuntimeSnapshot
+  paneRole?: ChartPaneElementRole
+  activeIndicators?: readonly MarketIndicatorId[]
 }) {
   const bundle = {
     candle: args.series,
@@ -131,12 +135,13 @@ function buildContext(args: {
   return {
     chart: args.chart,
     series: args.series,
+    paneRole: args.paneRole,
     paneX: args.paneX,
     paneY: args.paneY,
     interval: '1h' as const,
     intervalDurationSeconds: 3600,
     lastBarUnixTime: 200,
-    activeIndicators: [],
+    activeIndicators: args.activeIndicators ?? [],
     loadedVwapLevel: null,
     loadedVwapInterval: null,
     bundle,
@@ -222,6 +227,85 @@ describe('hitTestChartObjectSettingsTarget', () => {
       }),
     )
     assert.deepEqual(target, { kind: 'line', instanceId: 'line-over' })
+  })
+
+  it('routes double-click on the RSI pane to the RSI indicator settings', () => {
+    const { chart, series } = createChartAndSeries()
+    assert.deepEqual(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series,
+          paneX: 5,
+          paneY: 5,
+          paneRole: 'rsi',
+          activeIndicators: ['rsi'],
+        }),
+      ),
+      { kind: 'market-indicator', indicatorId: 'rsi' },
+    )
+    // Inactive indicator: the pane has no settings target to open.
+    assert.equal(
+      hitTestChartObjectSettingsTarget(
+        buildContext({ chart, series, paneX: 5, paneY: 5, paneRole: 'rsi' }),
+      ),
+      null,
+    )
+  })
+
+  it('routes double-click on the liquidation pane to the liquidations settings', () => {
+    const { chart, series } = createChartAndSeries()
+    assert.deepEqual(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series,
+          paneX: 5,
+          paneY: 5,
+          paneRole: 'aggregated-liquidations',
+          activeIndicators: ['aggregated-liquidations'],
+        }),
+      ),
+      { kind: 'aggregated-liquidations' },
+    )
+  })
+
+  it('does not report drawing hits from a non-candle pane', () => {
+    const { chart, series } = createChartAndSeries()
+    const rectangle: RectangleInstance = {
+      id: 'rect-1',
+      fromTime: 100,
+      toTime: 200,
+      lowPrice: 20,
+      highPrice: 80,
+    }
+    assert.equal(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series,
+          paneX: 150,
+          paneY: 50,
+          paneRole: 'candle',
+          rectangleInstances: [rectangle],
+        }),
+      )?.kind,
+      'rectangle',
+    )
+    assert.equal(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series,
+          paneX: 150,
+          paneY: 50,
+          paneRole: 'rsi',
+          activeIndicators: ['rsi'],
+          rectangleInstances: [rectangle],
+        }),
+      )?.kind,
+      'market-indicator',
+    )
   })
 
   it('returns null for empty chart space and while drawing tools are active', () => {

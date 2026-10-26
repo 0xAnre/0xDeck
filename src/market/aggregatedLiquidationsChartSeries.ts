@@ -22,6 +22,10 @@ import {
   type AggregatedLiquidationBarModel,
 } from './aggregatedLiquidationsRenderGeometry.ts'
 import { notifyCandlePaneChange, paneHoldsCandleSeries } from './candlePane.ts'
+import {
+  registerChartPaneRoleSeries,
+  unregisterChartPaneRoleSeries,
+} from './chartPaneRoles.ts'
 
 type OverlayContext = {
   buckets: readonly AggregatedLiquidationBucket[]
@@ -201,6 +205,9 @@ export function createAggregatedLiquidationsChartOverlay(
   const context: OverlayContext = { buckets: [] }
   const primitive = new AggregatedLiquidationsSeriesPrimitive(() => context)
   series.attachPrimitive(primitive)
+  // Pane double-click / empty-space handling resolves this pane by series
+  // identity: `Position: Top/Bottom` moves the pane index around the candles.
+  registerChartPaneRoleSeries(chart, 'aggregated-liquidations', series)
 
   let currentPosition = position
   let currentBuckets: readonly AggregatedLiquidationBucket[] | null = null
@@ -248,6 +255,7 @@ export function createAggregatedLiquidationsChartOverlay(
     getPosition: () => currentPosition,
     update: () => primitive.requestRedraw(),
     dispose: () => {
+      unregisterChartPaneRoleSeries(chart, 'aggregated-liquidations', series)
       series.detachPrimitive(primitive)
       primitive.detached()
       chart.removeSeries(series)

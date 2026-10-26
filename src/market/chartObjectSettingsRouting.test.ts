@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { chartObjectSettingsTargetKey } from './chartObjectSettingsTypes.ts'
+import { chartObjectSettingsTargetForPaneRole } from './chartObjectSettingsHitTest.ts'
 import { pointerMovementWithinClickTolerance } from './chartObjectState.ts'
 import {
   createLineInstance,
@@ -19,6 +20,38 @@ describe('chart object settings routing', () => {
       chartObjectSettingsTargetKey({ kind: 'market-indicator', indicatorId: 'dual-ema' }),
       'market-indicator:dual-ema',
     )
+    assert.equal(
+      chartObjectSettingsTargetKey({ kind: 'market-indicator', indicatorId: 'rsi' }),
+      'market-indicator:rsi',
+    )
+    assert.equal(
+      chartObjectSettingsTargetKey({ kind: 'aggregated-liquidations' }),
+      'aggregated-liquidations',
+    )
+  })
+
+  it('routes the RSI pane to the RSI indicator dialog', () => {
+    assert.deepEqual(chartObjectSettingsTargetForPaneRole('rsi', ['rsi']), {
+      kind: 'market-indicator',
+      indicatorId: 'rsi',
+    })
+    assert.equal(chartObjectSettingsTargetForPaneRole('rsi', []), null)
+  })
+
+  it('routes the liquidation pane to its panel-scoped settings dialog', () => {
+    assert.deepEqual(
+      chartObjectSettingsTargetForPaneRole('aggregated-liquidations', ['aggregated-liquidations']),
+      { kind: 'aggregated-liquidations' },
+    )
+    assert.equal(chartObjectSettingsTargetForPaneRole('aggregated-liquidations', []), null)
+  })
+
+  it('keeps the candle pane on the drawing/series hit test path', () => {
+    assert.equal(
+      chartObjectSettingsTargetForPaneRole('candle', ['rsi', 'aggregated-liquidations']),
+      null,
+    )
+    assert.equal(chartObjectSettingsTargetForPaneRole(null, ['rsi']), null)
   })
 
   it('treats pointer movement within tolerance as a click', () => {
