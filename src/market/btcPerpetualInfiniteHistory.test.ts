@@ -69,6 +69,7 @@ function fakeBundle(): ChartSeriesBundle {
     },
     rollingVwaps: new Map(),
     anchoredVwaps: new Map(),
+    rsi: null,
   }
 }
 

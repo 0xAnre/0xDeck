@@ -103,6 +103,8 @@ export function readMarketIndicatorSeriesLineWidths(
       }
       return widths
     }
+    case 'rsi':
+      return bundle.rsi ? [readLineSeriesLineWidth(bundle.rsi.series)] : []
     case 'aggregated-liquidations':
       return []
     default: {
@@ -138,6 +140,8 @@ export function readMarketIndicatorSeriesLineStyles(
       }
       return styles
     }
+    case 'rsi':
+      return bundle.rsi ? [readLineSeriesLineStyle(bundle.rsi.series)] : []
     case 'aggregated-liquidations':
       return []
     default: {
@@ -173,6 +177,8 @@ export function readMarketIndicatorSeriesColors(
       }
       return colors
     }
+    case 'rsi':
+      return bundle.rsi ? [readLineSeriesColorHex(bundle.rsi.series)] : []
     case 'aggregated-liquidations':
       return []
     default: {

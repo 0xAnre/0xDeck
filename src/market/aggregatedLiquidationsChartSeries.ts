@@ -165,6 +165,10 @@ export class AggregatedLiquidationsSeriesPrimitive implements ISeriesPrimitive<T
 export type AggregatedLiquidationsChartOverlay = {
   setBuckets: (buckets: readonly AggregatedLiquidationBucket[]) => void
   setPosition: (position: AggregatedLiquidationsPosition) => void
+  /** Pane index the liquidation series currently occupies. */
+  getPaneIndex: () => number
+  /** Position the overlay is currently laid out for. */
+  getPosition: () => AggregatedLiquidationsPosition
   update: () => void
   dispose: () => void
 }
@@ -240,6 +244,8 @@ export function createAggregatedLiquidationsChartOverlay(
       applyPosition(next)
       primitive.requestRedraw()
     },
+    getPaneIndex: () => series.getPane().paneIndex(),
+    getPosition: () => currentPosition,
     update: () => primitive.requestRedraw(),
     dispose: () => {
       series.detachPrimitive(primitive)

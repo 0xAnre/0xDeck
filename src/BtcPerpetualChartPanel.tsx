@@ -269,6 +269,20 @@ import {
   syncWidgetMarketIndicatorPresentations,
 } from '@/market/marketIndicatorPresentationApply'
 import {
+  applyRsiPaneSettings,
+  clearRsiPaneData,
+  createRsiChartPane,
+  moveRsiPaneAbove,
+  removeRsiChartPane,
+  setRsiPaneHistoryData,
+} from '@/market/rsiChartPane'
+import { sanitizeRsiSettings, type RsiSettings } from '@/market/rsi'
+import {
+  loadWidgetRsiSettings,
+  saveWidgetRsiSettings,
+} from '@/marketRsiSettingsStorage'
+import {
+  isIndicatorSupportedOnInterval,
   requiredVwapContextLevel,
   type MarketIndicatorId,
   type VwapContextLevel,
@@ -426,6 +440,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     useState<ChartObjectSettingsTarget | null>(null)
   const [editingMarketIndicatorId, setEditingMarketIndicatorId] =
     useState<MarketIndicatorId | null>(null)
+  const [rsiSettings, setRsiSettings] = useState<RsiSettings>(() =>
+    loadWidgetRsiSettings(panelId),
+  )
   const [marketIndicatorPresentation, setMarketIndicatorPresentation] =
     useState<MarketIndicatorPresentation>({})
   const [editingMarketIndicatorSeriesColors, setEditingMarketIndicatorSeriesColors] = useState<
@@ -497,6 +514,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const activeIntervalRef = useRef<CandleInterval>(interval)
   const providerHistoryAvailableFromRef = useRef<number | null>(null)
   const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
+  const rsiSettingsRef = useRef<RsiSettings>(rsiSettings)
   const historyReadyRef = useRef(false)
   const infiniteHistoryRef = useRef(createInfiniteHistoryState())
   const indicatorHistoryAbortRef = useRef<AbortController | null>(null)
@@ -1527,6 +1545,56 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId],
   )
 
+  /**
+   * Create or remove the RSI pane to match the indicator selection. The pane is
+   * created through its own `IPaneApi` reference, so removing it never relies on
+   * a fixed pane index and leaves candles/other overlays untouched.
+   */
+  const syncRsiPane = useCallback(
+    (chart: IChartApi, bundle: ChartSeriesBundle) => {
+      const shouldShow =
+        activeIndicatorsRef.current.includes('rsi') &&
+        isIndicatorSupportedOnInterval('rsi', activeIntervalRef.current)
+      if (!shouldShow) {
+        if (bundle.rsi) {
+          removeRsiChartPane(chart, bundle.rsi)
+          bundle.rsi = null
+        }
+        return
+      }
+      if (bundle.rsi) return
+      bundle.rsi = createRsiChartPane(chart, rsiSettingsRef.current)
+      // A new pane is appended after every existing pane, which would leave the
+      // `Position: Bottom` liquidations pane above it. Move the RSI pane above
+      // that pane so `Bottom` keeps meaning the last pane.
+      const liquidationOverlay = liquidationOverlayRef.current
+      if (liquidationOverlay?.getPosition() === 'bottom') {
+        moveRsiPaneAbove(bundle.rsi, liquidationOverlay.getPaneIndex())
+      }
+      applyMarketIndicatorPresentationToBundle(
+        bundle,
+        'rsi',
+        loadWidgetMarketIndicatorPresentation(panelId, 'rsi'),
+      )
+      setRsiPaneHistoryData(bundle.rsi, candlesRef.current)
+    },
+    [panelId],
+  )
+
+  const handleRsiSettingsChange = useCallback(
+    (next: RsiSettings) => {
+      const sanitized = sanitizeRsiSettings(next)
+      rsiSettingsRef.current = sanitized
+      setRsiSettings(sanitized)
+      saveWidgetRsiSettings(panelId, sanitized)
+      const bundle = seriesRef.current
+      if (!bundle?.rsi) return
+      applyRsiPaneSettings(bundle.rsi, sanitized)
+      setRsiPaneHistoryData(bundle.rsi, candlesRef.current)
+    },
+    [panelId],
+  )
+
   const handleIntervalChange = useCallback(
     (next: CandleInterval) => {
       // Re-selecting the active interval must not mark the chart as not-ready:
@@ -2201,12 +2269,26 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [activeIndicators])
 
   useEffect(() => {
+    rsiSettingsRef.current = rsiSettings
+  }, [rsiSettings])
+
+  useEffect(() => {
+    const chart = chartRef.current
     const bundle = seriesRef.current
     if (!bundle) return
     applyEmaIndicatorSeriesVisibility(bundle, activeIndicators)
     syncAllVwapVisibility(bundle)
+    if (chart) syncRsiPane(chart, bundle)
     syncWidgetMarketIndicatorPresentations(panelId, bundle)
-  }, [activeIndicators, chartReady, interval, panelId, rollingVwapInstances, syncAllVwapVisibility])
+  }, [
+    activeIndicators,
+    chartReady,
+    interval,
+    panelId,
+    rollingVwapInstances,
+    syncAllVwapVisibility,
+    syncRsiPane,
+  ])
 
   useEffect(() => {
     if (!liquidationsEnabled) return
@@ -2562,6 +2644,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         anchoredVwaps,
         anchoredVwapInstancesRef.current,
       )
+      const rsi =
+        activeIndicatorsRef.current.includes('rsi') &&
+        isIndicatorSupportedOnInterval('rsi', activeIntervalRef.current)
+          ? createRsiChartPane(chart!, rsiSettingsRef.current)
+          : null
 
       chartRef.current = chart
       seriesRef.current = {
@@ -2576,6 +2663,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         yearlyVwap: yearlyVwapSeries,
         rollingVwaps,
         anchoredVwaps,
+        rsi,
       }
       syncWidgetMarketIndicatorPresentations(panelId, seriesRef.current)
       attachInfiniteHistoryListener(chart)
@@ -2670,6 +2758,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       clearYearlyVwapLineSeriesData(bundle.yearlyVwap)
       clearAllRollingVwapChartInstanceData(bundle, rollingVwapInstancesRef.current)
       hideAllAnchoredVwapSeries(bundle)
+      if (bundle.rsi) clearRsiPaneData(bundle.rsi)
     }
 
     const controller = new AbortController()
@@ -3243,6 +3332,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         seriesColors={editingMarketIndicatorSeriesColors}
         seriesLineWidths={editingMarketIndicatorSeriesLineWidths}
         seriesLineStyles={editingMarketIndicatorSeriesLineStyles}
+        rsiSettings={rsiSettings}
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           if (!open) {
@@ -3254,6 +3344,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           }
         }}
         onPresentationChange={handleMarketIndicatorPresentationChange}
+        onRsiSettingsChange={handleRsiSettingsChange}
       />
     </div>
   )

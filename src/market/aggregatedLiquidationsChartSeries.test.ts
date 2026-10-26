@@ -248,6 +248,20 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
     assert.equal(harness.panes[1], harness.candlePane)
   })
 
+  it('reports its current pane index and position so another pane can slot above it', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    assert.equal(overlay.getPosition(), 'bottom')
+    assert.equal(overlay.getPaneIndex(), 1)
+
+    overlay.setPosition('top')
+    assert.equal(overlay.getPosition(), 'top')
+    assert.equal(overlay.getPaneIndex(), 0)
+
+    overlay.dispose()
+  })
+
   it('never lands in the candle pane when the candle pane is not index 0', () => {
     // Some other pane already sits above the candles, so the candle pane is
     // index 1 and a hardcoded pane index 1 would join it, move it and shrink it.

@@ -131,6 +131,13 @@ export function applyMarketIndicatorPresentationToBundle(
         )
       }
       return
+    case 'rsi':
+      if (bundle.rsi) {
+        bundle.rsi.series.applyOptions(
+          presentationOptionsForSeries(bundle.rsi.series, presentation),
+        )
+      }
+      return
     case 'aggregated-liquidations':
       // The liquidation pane owns fixed long/short colors, not line styles.
       return
