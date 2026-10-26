@@ -3,18 +3,22 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
-  isRollingVwapLineWidth,
-  ROLLING_VWAP_LINE_WIDTHS,
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
 } from '@/market/rollingVwapSettings'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
+import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
+import {
+  CHART_SETTINGS_DIALOG_BODY_CLASS,
+  CHART_SETTINGS_DIALOG_CONTENT_CLASS,
+  CHART_SETTINGS_DIALOG_OVERLAY_CLASS,
+} from '@/widgetSettings/chartSettingsDialogLayout'
 
 const inputClassName =
   'h-8 w-full rounded-md border border-input bg-input/20 px-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30'
@@ -50,9 +54,10 @@ function RollingVwapSettingsDialogBody({
     <>
         <DialogHeader className="shrink-0">
           <DialogTitle>Rolling VWAP settings</DialogTitle>
+          <DialogDescription>Rolling VWAP overlay presentation</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 space-y-4 overflow-y-auto overscroll-y-contain text-xs">
+        <div className={`${CHART_SETTINGS_DIALOG_BODY_CLASS} text-xs`}>
           <section className="space-y-2">
             <p className="font-medium text-foreground">Time period</p>
             <label className="flex items-center gap-2">
@@ -154,37 +159,14 @@ function RollingVwapSettingsDialogBody({
           </section>
 
           <section className="space-y-2">
-            <p className="font-medium text-foreground" id="rolling-vwap-line-width-label">
-              Line width
-            </p>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              className="grid w-full grid-cols-4"
-              aria-labelledby="rolling-vwap-line-width-label"
-              value={String(draft.lineWidth)}
-              onValueChange={(value) => {
-                if (!value) return
-                const parsed = Number(value)
-                if (!isRollingVwapLineWidth(parsed)) return
-                setDraft((current) => ({
-                  ...current,
-                  lineWidth: parsed,
-                }))
-              }}
-            >
-              {ROLLING_VWAP_LINE_WIDTHS.map((width) => (
-                <ToggleGroupItem
-                  key={width}
-                  value={String(width)}
-                  aria-label={`Line width ${width}`}
-                  className="w-full"
-                >
-                  {width}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            <p className="font-medium text-foreground">Line</p>
+            <LineChartStrokeSelectFields
+              widthId="rolling-vwap-line-width"
+              lineWidth={draft.lineWidth}
+              onLineWidthChange={(lineWidth) =>
+                setDraft((current) => ({ ...current, lineWidth }))
+              }
+            />
           </section>
 
           <section className="space-y-2">
@@ -340,7 +322,8 @@ export function RollingVwapSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden"
+        className={CHART_SETTINGS_DIALOG_CONTENT_CLASS}
+        overlayClassName={CHART_SETTINGS_DIALOG_OVERLAY_CLASS}
         onClick={(event) => event.stopPropagation()}
       >
         {open ? (
