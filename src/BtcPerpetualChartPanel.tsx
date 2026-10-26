@@ -3362,6 +3362,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 ?.settings ?? createDefaultAnchoredVwapDrawingSettings())
             : createDefaultAnchoredVwapDrawingSettings()
         }
+        returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           setAnchoredVwapSettingsOpen(open)
           if (!open) {
@@ -3379,6 +3380,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 ?.settings ?? createDefaultRollingVwapSettings())
             : createDefaultRollingVwapSettings()
         }
+        returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           setRollingVwapSettingsOpen(open)
           if (!open) {

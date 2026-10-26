@@ -27,6 +27,7 @@ const inputClassName =
 type AnchoredVwapSettingsDialogProps = {
   open: boolean
   savedSettings: AnchoredVwapDrawingSettings
+  returnFocusId: string
   onOpenChange: (open: boolean) => void
   onSave: (settings: AnchoredVwapDrawingSettings) => void
 }
@@ -236,6 +237,7 @@ function AnchoredVwapSettingsDialogBody({
 export function AnchoredVwapSettingsDialog({
   open,
   savedSettings,
+  returnFocusId,
   onOpenChange,
   onSave,
 }: AnchoredVwapSettingsDialogProps) {
@@ -245,6 +247,10 @@ export function AnchoredVwapSettingsDialog({
         className={CHART_SETTINGS_DIALOG_CONTENT_CLASS}
         overlayClassName={CHART_SETTINGS_DIALOG_OVERLAY_CLASS}
         onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          document.getElementById(returnFocusId)?.focus()
+        }}
       >
         {open ? (
           <AnchoredVwapSettingsDialogBody

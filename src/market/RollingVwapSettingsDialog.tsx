@@ -26,6 +26,7 @@ const inputClassName =
 type RollingVwapSettingsDialogProps = {
   open: boolean
   savedSettings: RollingVwapSettings
+  returnFocusId: string
   onOpenChange: (open: boolean) => void
   onSave: (settings: RollingVwapSettings) => void
 }
@@ -316,6 +317,7 @@ function RollingVwapSettingsDialogBody({
 export function RollingVwapSettingsDialog({
   open,
   savedSettings,
+  returnFocusId,
   onOpenChange,
   onSave,
 }: RollingVwapSettingsDialogProps) {
@@ -325,6 +327,10 @@ export function RollingVwapSettingsDialog({
         className={CHART_SETTINGS_DIALOG_CONTENT_CLASS}
         overlayClassName={CHART_SETTINGS_DIALOG_OVERLAY_CLASS}
         onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          document.getElementById(returnFocusId)?.focus()
+        }}
       >
         {open ? (
           <RollingVwapSettingsDialogBody
