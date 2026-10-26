@@ -13,7 +13,13 @@ import {
   type RsiChartPaneBundle,
 } from './rsiChartPane.ts'
 import { computeWilderRsi, RSI_MID_LEVEL, type RsiSettings } from './rsi.ts'
+import {
+  RSI_OVERBOUGHT_LINE_COLOR,
+  RSI_OVERSOLD_LINE_COLOR,
+} from './rsiLineColors.ts'
 import type { MarketCandle } from './types.ts'
+
+type FakeLinePoint = { time: number; value: number; color?: string }
 
 type FakePriceLine = {
   options: PriceLineOptions
@@ -35,16 +41,40 @@ function makeCandle(index: number, close: number): MarketCandle {
   }
 }
 
+/** Candles from a close series (index i gets time i), one candle per minute. */
+function candlesFromCloses(closes: readonly number[]): MarketCandle[] {
+  return closes.map((close, index) => makeCandle(index, close))
+}
+
+/** RSI 100 on every point: strictly rising closes are always overbought. */
+function risingCandles(count = 20): MarketCandle[] {
+  return candlesFromCloses(Array.from({ length: count }, (_, index) => 100 + index))
+}
+
+/** RSI 0 on every point: strictly falling closes are always oversold. */
+function fallingCandles(count = 20): MarketCandle[] {
+  return candlesFromCloses(Array.from({ length: count }, (_, index) => 120 - index))
+}
+
+/** RSI oscillates around 50 (48.2–53.6 for period 14): strictly between 70/30. */
+function oscillatingCandles(count = 30): MarketCandle[] {
+  const closes: number[] = [100]
+  for (let index = 1; index < count; index += 1) {
+    closes.push(closes[index - 1] + (index % 2 === 1 ? 1 : -1))
+  }
+  return candlesFromCloses(closes)
+}
+
 function makeSeries() {
-  const setDataCalls: { time: number; value: number }[][] = []
-  const updateCalls: { time: number; value: number }[] = []
+  const setDataCalls: FakeLinePoint[][] = []
+  const updateCalls: FakeLinePoint[] = []
   const createdPriceLines: FakePriceLine[] = []
   const applyOptionsCalls: LineSeriesPartialOptions[] = []
   const series = {
-    setData: (data: { time: number; value: number }[]) => {
+    setData: (data: FakeLinePoint[]) => {
       setDataCalls.push(data)
     },
-    update: (point: { time: number; value: number }) => {
+    update: (point: FakeLinePoint) => {
       updateCalls.push(point)
     },
     applyOptions: (options: LineSeriesPartialOptions) => {
@@ -174,7 +204,11 @@ describe('applyRsiPaneSettings', () => {
 
 describe('RSI pane data', () => {
   function candles(): MarketCandle[] {
-    return Array.from({ length: 20 }, (_, index) => makeCandle(index, 100 + index))
+    return risingCandles(20)
+  }
+
+  function pointColors(points: readonly FakeLinePoint[]): (string | undefined)[] {
+    return points.map((point) => point.color)
   }
 
   it('sets Wilder RSI history computed from the candles', () => {
@@ -184,7 +218,71 @@ describe('RSI pane data', () => {
 
     const expected = computeWilderRsi(candles(), 14)
     assert.equal(harness.seriesBundle.setDataCalls.length, 1)
-    assert.deepEqual(harness.seriesBundle.setDataCalls[0], expected)
+    // Points also carry a threshold color now, so compare the RSI values only.
+    assert.deepEqual(
+      harness.seriesBundle.setDataCalls[0].map(({ time, value }) => ({ time, value })),
+      expected,
+    )
+  })
+
+  it('colors every history point from the thresholds, not just the last one', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+
+    setRsiPaneHistoryData(bundle, risingCandles(20))
+    const overboughtPoints = harness.seriesBundle.setDataCalls.at(-1) ?? []
+    assert.equal(overboughtPoints.length, computeWilderRsi(risingCandles(20), 14).length)
+    assert.deepEqual(pointColors(overboughtPoints), [
+      ...Array.from({ length: overboughtPoints.length }, () => RSI_OVERBOUGHT_LINE_COLOR),
+    ])
+
+    setRsiPaneHistoryData(bundle, fallingCandles(20))
+    const oversoldPoints = harness.seriesBundle.setDataCalls.at(-1) ?? []
+    assert.equal(oversoldPoints.length, computeWilderRsi(fallingCandles(20), 14).length)
+    assert.deepEqual(pointColors(oversoldPoints), [
+      ...Array.from({ length: oversoldPoints.length }, () => RSI_OVERSOLD_LINE_COLOR),
+    ])
+  })
+
+  it('keeps the series line color for history points between the thresholds', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    setRsiPaneHistoryData(bundle, oscillatingCandles(30))
+
+    const points = harness.seriesBundle.setDataCalls[0] ?? []
+    const values = computeWilderRsi(oscillatingCandles(30), 14)
+    assert.equal(points.length, values.length)
+    for (const [index, point] of points.entries()) {
+      assert.equal(point.value, values[index].value)
+      assert.ok(point.value > DEFAULTS.oversold && point.value < DEFAULTS.overbought)
+      assert.equal('color' in point, false)
+    }
+  })
+
+  it('recolors the already-loaded line when only the thresholds change', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    const history = oscillatingCandles(30)
+    setRsiPaneHistoryData(bundle, history)
+    assert.deepEqual(pointColors(harness.seriesBundle.setDataCalls[0] ?? []), [
+      ...Array.from({ length: computeWilderRsi(history, 14).length }, () => undefined),
+    ])
+
+    // Mirrors `handleRsiSettingsChange`: apply the settings, then recolor from
+    // the candles that are already loaded (no refetch).
+    applyRsiPaneSettings(bundle, { period: 14, overbought: 40, oversold: 20 })
+    setRsiPaneHistoryData(bundle, history)
+    const redPoints = harness.seriesBundle.setDataCalls.at(-1) ?? []
+    assert.deepEqual(pointColors(redPoints), [
+      ...Array.from({ length: redPoints.length }, () => RSI_OVERBOUGHT_LINE_COLOR),
+    ])
+
+    applyRsiPaneSettings(bundle, { period: 14, overbought: 90, oversold: 60 })
+    setRsiPaneHistoryData(bundle, history)
+    const greenPoints = harness.seriesBundle.setDataCalls.at(-1) ?? []
+    assert.deepEqual(pointColors(greenPoints), [
+      ...Array.from({ length: greenPoints.length }, () => RSI_OVERSOLD_LINE_COLOR),
+    ])
   })
 
   it('updates only the last RSI point on a live candle', () => {
@@ -195,7 +293,38 @@ describe('RSI pane data', () => {
 
     const expected = computeWilderRsi(live, 14)
     const last = expected[expected.length - 1]
-    assert.deepEqual(harness.seriesBundle.updateCalls, [last])
+    // The live point is overbought here, so it also carries the red override.
+    assert.deepEqual(harness.seriesBundle.updateCalls, [
+      { ...last, color: RSI_OVERBOUGHT_LINE_COLOR },
+    ])
+  })
+
+  it('carries the threshold color on live updates in both directions', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+
+    updateRsiPaneLiveData(bundle, fallingCandles(20))
+    assert.deepEqual(pointColors(harness.seriesBundle.updateCalls), [
+      RSI_OVERSOLD_LINE_COLOR,
+    ])
+
+    updateRsiPaneLiveData(bundle, risingCandles(20))
+    assert.deepEqual(pointColors(harness.seriesBundle.updateCalls), [
+      RSI_OVERSOLD_LINE_COLOR,
+      RSI_OVERBOUGHT_LINE_COLOR,
+    ])
+  })
+
+  it('omits the color on a live update between the thresholds', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    const live = oscillatingCandles(31)
+    updateRsiPaneLiveData(bundle, live)
+
+    const [update] = harness.seriesBundle.updateCalls
+    const values = computeWilderRsi(live, 14)
+    assert.deepEqual(update, values[values.length - 1])
+    assert.equal('color' in update, false)
   })
 
   it('skips live updates while there are not enough candles for the period', () => {

@@ -7,7 +7,6 @@ import {
   type IPriceLine,
   type ISeriesApi,
   type Time,
-  type UTCTimestamp,
 } from 'lightweight-charts'
 import { MARKET_STYLE_DEFAULTS, marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import {
@@ -16,6 +15,7 @@ import {
   sanitizeRsiSettings,
   type RsiSettings,
 } from './rsi.ts'
+import { toRsiLineData, toRsiLineDataPoint } from './rsiLineColors.ts'
 import type { MarketCandle } from './types.ts'
 
 /**
@@ -84,13 +84,6 @@ function createLevelPriceLines(
   }
 }
 
-function toLineData(points: readonly { time: number; value: number }[]) {
-  return points.map((point) => ({
-    time: point.time as UTCTimestamp,
-    value: point.value,
-  }))
-}
-
 export function createRsiChartPane(chart: IChartApi, settings: RsiSettings): RsiChartPaneBundle {
   const sanitized = sanitizeRsiSettings(settings)
   const pane = chart.addPane()
@@ -128,11 +121,21 @@ export function applyRsiPaneSettings(
   })
 }
 
+/**
+ * Replace the RSI history line, coloring every point from the current
+ * overbought/oversold settings. Re-sending the history is what makes a threshold
+ * change recolor the already-loaded line without refetching candles.
+ */
 export function setRsiPaneHistoryData(
   bundle: RsiChartPaneBundle,
   candles: readonly MarketCandle[],
 ): void {
-  bundle.series.setData(toLineData(computeWilderRsi(candles, bundle.settings.period)))
+  bundle.series.setData(
+    toRsiLineData(
+      computeWilderRsi(candles, bundle.settings.period),
+      bundle.settings,
+    ),
+  )
 }
 
 /** Live candles only move the last RSI value; the rest of the line is unchanged. */
@@ -143,7 +146,7 @@ export function updateRsiPaneLiveData(
   const points = computeWilderRsi(candles, bundle.settings.period)
   const last = points[points.length - 1]
   if (!last) return
-  bundle.series.update({ time: last.time as UTCTimestamp, value: last.value })
+  bundle.series.update(toRsiLineDataPoint(last, bundle.settings))
 }
 
 export function clearRsiPaneData(bundle: RsiChartPaneBundle): void {
