@@ -1,4 +1,5 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
+import { resolveCandlePaneElement } from './candlePane.ts'
 import { applyChartDrawingInteractionMode } from './chartDrawingInteractionMode.ts'
 import {
   anchoredVwapHitAtPanePoint,
@@ -223,7 +224,7 @@ export function attachLineChartTool(
       return
     }
     if (event.key === 'Delete' || event.key === 'Backspace') {
-      const chartRoot = chart.panes()[0]?.getHTMLElement() ?? null
+      const chartRoot = resolveCandlePaneElement(chart)
       if (isRectangleKeyboardFocusOnOutsideControl(event.target, chartRoot)) return
       if (!snapshot.interaction.selectedId) return
       if (

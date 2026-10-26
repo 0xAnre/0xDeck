@@ -1,4 +1,5 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
+import { bindCandlePaneElementListeners, resolveCandlePaneElement } from './candlePane.ts'
 import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
 import type { FixedRangeVolumeProfileHitTarget } from './fixedRangeVolumeProfileHitTest.ts'
 import { resolvePaneRelativePointerX } from './fixedRangeVolumeProfilePanePointer.ts'
@@ -61,11 +62,11 @@ export function attachAnchoredVwapDrawingPanePointer(
   chart: IChartApi,
   callbacks: AnchoredVwapDrawingPanePointerCallbacks,
 ): AnchoredVwapDrawingPanePointerController {
-  const pane = chart.panes()[0]
-  const paneElement = pane.getHTMLElement()
-  if (!paneElement) {
+  const initialPaneElement = resolveCandlePaneElement(chart)
+  if (!initialPaneElement) {
     return { dispose: () => {} }
   }
+  let paneElement = initialPaneElement
 
   let activePointerId: number | null = null
 
@@ -229,17 +230,22 @@ export function attachAnchoredVwapDrawingPanePointer(
     releasePointer(event)
   }
 
-  paneElement.addEventListener('pointerdown', onPointerDown)
-  paneElement.addEventListener('pointermove', onPointerMove)
-  paneElement.addEventListener('pointerup', onPointerUp)
-  paneElement.addEventListener('pointercancel', onPointerCancel)
+  const paneElementBinding = bindCandlePaneElementListeners(
+    chart,
+    [
+      { type: 'pointerdown', listener: onPointerDown as EventListener },
+      { type: 'pointermove', listener: onPointerMove as EventListener },
+      { type: 'pointerup', listener: onPointerUp as EventListener },
+      { type: 'pointercancel', listener: onPointerCancel as EventListener },
+    ],
+    (next) => {
+      paneElement = next
+    },
+  )
 
   return {
     dispose: () => {
-      paneElement.removeEventListener('pointerdown', onPointerDown)
-      paneElement.removeEventListener('pointermove', onPointerMove)
-      paneElement.removeEventListener('pointerup', onPointerUp)
-      paneElement.removeEventListener('pointercancel', onPointerCancel)
+      paneElementBinding.dispose()
     },
   }
 }

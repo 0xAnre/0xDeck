@@ -295,6 +295,7 @@ import {
   type AggregatedLiquidationsSettings,
 } from '@/market/aggregatedLiquidationsSettings'
 import { AggregatedLiquidationsSettingsDialog } from '@/market/AggregatedLiquidationsSettingsDialog'
+import { registerCandleChartSeries } from '@/market/candlePane'
 import {
   loadWidgetLiquidationsSettings,
   saveWidgetLiquidationsSettings,
@@ -2492,6 +2493,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         ...BTC_PERPETUAL_CANDLESTICK_COLORS,
         ...btcPerpetualCurrentPriceLineOptions(colors.text),
       })
+      registerCandleChartSeries(chart, candleSeries)
       // One marker primitive for the lifetime of this chart instance. Account
       // markers are always updated through `setMarkers`, never a second chart.
       accountMarkersRef.current = createSeriesMarkers(candleSeries, [])

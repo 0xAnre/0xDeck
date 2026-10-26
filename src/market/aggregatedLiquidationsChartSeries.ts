@@ -14,11 +14,14 @@ import { LIQUIDATION_LONG_COLOR, LIQUIDATION_SHORT_COLOR } from './aggregatedLiq
 import type { AggregatedLiquidationBucket } from './aggregatedLiquidations.ts'
 import type { AggregatedLiquidationsPosition } from './aggregatedLiquidationsSettings.ts'
 import {
+  AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX,
+  resolveAggregatedLiquidationsPaneLayout,
+} from './aggregatedLiquidationsPaneLayout.ts'
+import {
   buildAggregatedLiquidationBarModels,
   type AggregatedLiquidationBarModel,
 } from './aggregatedLiquidationsRenderGeometry.ts'
-
-export const AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX = 88
+import { notifyCandlePaneChange } from './candlePane.ts'
 
 type OverlayContext = {
   buckets: readonly AggregatedLiquidationBucket[]
@@ -105,7 +108,7 @@ class AggregatedLiquidationsPaneView implements IPrimitivePaneView {
   }
 }
 
-class AggregatedLiquidationsSeriesPrimitive implements ISeriesPrimitive<Time> {
+export class AggregatedLiquidationsSeriesPrimitive implements ISeriesPrimitive<Time> {
   private _chart: IChartApi | null = null
   private _series: ISeriesApi<SeriesType, Time> | null = null
   private _requestUpdate: (() => void) | null = null
@@ -125,8 +128,19 @@ class AggregatedLiquidationsSeriesPrimitive implements ISeriesPrimitive<Time> {
     return [this._view]
   }
 
+  /**
+   * Called by the chart when the viewport changes. Rebuild the view models
+   * only; the chart is already redrawing, so requesting another update here
+   * would loop forever.
+   */
   updateAllViews(): void {
     this._view.update()
+  }
+
+  /** Rebuild the view models after an external change and request one redraw. */
+  requestRedraw(): void {
+    if (!this._chart || !this._series) return
+    this.updateAllViews()
     this._requestUpdate?.()
   }
 
@@ -156,8 +170,9 @@ export type AggregatedLiquidationsChartOverlay = {
 }
 
 /**
- * Create the dedicated liquidation pane (pane index 1) and its two-half bar
- * renderer. Pane 0 always remains the candlestick pane for existing tools.
+ * Create the dedicated liquidation pane and its two-half bar renderer. The
+ * pane is moved below (Bottom, last pane) or above (Top, pane 0) the candles
+ * without recreating the chart or either series.
  */
 export function createAggregatedLiquidationsChartOverlay(
   chart: IChartApi,
@@ -176,29 +191,32 @@ export function createAggregatedLiquidationsChartOverlay(
     1,
   )
 
-  const pane = chart.panes()[1]
-  pane?.setHeight(AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX)
-
   const context: OverlayContext = { buckets: [] }
   const primitive = new AggregatedLiquidationsSeriesPrimitive(() => context)
   series.attachPrimitive(primitive)
 
-  const onVisibleRangeChange = () => {
-    primitive.updateAllViews()
-  }
-  chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange)
-  chart.timeScale().subscribeVisibleTimeRangeChange(onVisibleRangeChange)
+  let currentPosition = position
+  let currentBuckets: readonly AggregatedLiquidationBucket[] | null = null
 
   const applyPosition = (next: AggregatedLiquidationsPosition) => {
+    const layout = resolveAggregatedLiquidationsPaneLayout(next, chart.panes().length)
+    const pane = series.getPane()
+    if (pane.paneIndex() !== layout.targetPaneIndex) {
+      pane.moveTo(layout.targetPaneIndex)
+      notifyCandlePaneChange(chart)
+    }
     series.priceScale().applyOptions({
-      invertScale: next === 'top',
-      scaleMargins: { top: 0.08, bottom: 0 },
+      invertScale: layout.invertScale,
+      scaleMargins: layout.scaleMargins,
     })
+    series.getPane().setHeight(AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX)
   }
   applyPosition(position)
 
   return {
     setBuckets: (buckets) => {
+      if (buckets === currentBuckets) return
+      currentBuckets = buckets
       context.buckets = buckets
       series.setData(
         buckets.map((bucket) => ({
@@ -206,19 +224,20 @@ export function createAggregatedLiquidationsChartOverlay(
           value: Math.max(bucket.long, bucket.short),
         })),
       )
-      primitive.updateAllViews()
+      primitive.requestRedraw()
     },
     setPosition: (next) => {
+      if (next === currentPosition) return
+      currentPosition = next
       applyPosition(next)
-      primitive.updateAllViews()
+      primitive.requestRedraw()
     },
-    update: () => primitive.updateAllViews(),
+    update: () => primitive.requestRedraw(),
     dispose: () => {
-      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange)
-      chart.timeScale().unsubscribeVisibleTimeRangeChange(onVisibleRangeChange)
       series.detachPrimitive(primitive)
       primitive.detached()
       chart.removeSeries(series)
+      notifyCandlePaneChange(chart)
     },
   }
 }
