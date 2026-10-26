@@ -193,6 +193,8 @@ Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDe
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
 
+Backend persistence: normalized Binance USD-M liquidation history is stored in `backend/.liquidations.sqlite3` (gitignored, WAL mode; override with `OXDECK_LIQUIDATIONS_DB`). Collection runs continuously while the backend is started (not only while a chart is open) and serves `GET /api/market/binance/usdm/btcusdt/liquidations/history`; there is no backfill before collection starts. Tests disable the collector with `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`.
+
 ## Run & build
 
 ```bash

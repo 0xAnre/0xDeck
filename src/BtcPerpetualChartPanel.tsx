@@ -295,12 +295,17 @@ import { parseMarketCandlePayload } from '@/market/parseMarketCandle'
 import { candleIntervalDurationSeconds } from '@/market/candleIntervalDuration'
 import {
   AGGREGATED_LIQUIDATIONS_CHANNEL,
-  appendAggregatedLiquidationEvents,
   bucketAggregatedLiquidationEvents,
   filterAggregatedLiquidationBucketsToCandles,
   parseAggregatedLiquidationEvent,
   type AggregatedLiquidationEvent,
 } from '@/market/aggregatedLiquidations'
+import {
+  AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
+  AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
+  fetchAggregatedLiquidationsHistory,
+  mergeAggregatedLiquidationEvents,
+} from '@/market/aggregatedLiquidationsHistory'
 import {
   createAggregatedLiquidationsChartOverlay,
   type AggregatedLiquidationsChartOverlay,
@@ -496,6 +501,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [liquidationsSettingsOpen, setLiquidationsSettingsOpen] = useState(false)
   const [liquidationEvents, setLiquidationEvents] = useState<AggregatedLiquidationEvent[]>([])
+  const [liquidationHistoryRevision, setLiquidationHistoryRevision] = useState(0)
   const [hoveredAccountFills, setHoveredAccountFills] = useState<
     BucketedHyperliquidFill[]
   >([])
@@ -2290,25 +2296,80 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     syncRsiPane,
   ])
 
+  const mergeLiquidationEventsIntoBuffer = useCallback(
+    (incoming: AggregatedLiquidationEvent[]) => {
+      if (incoming.length === 0) return
+      setLiquidationEvents((current) =>
+        mergeAggregatedLiquidationEvents(current, incoming, {
+          candleTimes: candlesRef.current.map((candle) => candle.time),
+          interval: activeIntervalRef.current,
+        }),
+      )
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!liquidationsEnabled) return
 
     const client = new WidgetStreamClient({
       channel: AGGREGATED_LIQUIDATIONS_CHANNEL,
+      onStateChange: (state) => {
+        // Once the live socket is open, refresh the stored window so events
+        // collected between page load and the socket handshake are included.
+        if (state === 'open') {
+          setLiquidationHistoryRevision((revision) => revision + 1)
+        }
+      },
       onMessage: (message) => {
         if (message.type !== 'event') return
         const event = parseAggregatedLiquidationEvent(
           (message as ServerEventMessage).payload,
         )
         if (!event) return
-        setLiquidationEvents((current) =>
-          appendAggregatedLiquidationEvents(current, [event]),
-        )
+        mergeLiquidationEventsIntoBuffer([event])
       },
     })
     client.connect()
     return () => client.disconnect()
-  }, [liquidationsEnabled])
+  }, [liquidationsEnabled, mergeLiquidationEventsIntoBuffer])
+
+  useEffect(() => {
+    if (!liquidationsEnabled || !chartReady || !historyReadyRef.current) return
+    const candleTimes = candlesRef.current.map((candle) => candle.time)
+    if (candleTimes.length === 0) return
+
+    const generation = loadGenerationRef.current
+    const controller = new AbortController()
+    const oldestTimeMs = Math.min(...candleTimes) * 1000
+
+    void (async () => {
+      try {
+        const history = await fetchAggregatedLiquidationsHistory({
+          oldestTimeMs,
+          limit: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
+          maxPages: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        if (generation !== loadGenerationRef.current) return
+        mergeLiquidationEventsIntoBuffer(history.events)
+      } catch {
+        // History is additive evidence, not a prerequisite: a failed read
+        // leaves the existing live-only buffer untouched.
+      }
+    })()
+
+    return () => controller.abort()
+  }, [
+    candleRangeRevision,
+    chartReady,
+    interval,
+    exchange,
+    liquidationHistoryRevision,
+    liquidationsEnabled,
+    mergeLiquidationEventsIntoBuffer,
+  ])
 
   useEffect(() => {
     const chart = chartRef.current

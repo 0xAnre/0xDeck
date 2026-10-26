@@ -6,8 +6,10 @@
  * memory, and aggregates positive long/short USD notional into candle buckets
  * that line up with the chart interval.
  *
- * Live-only: there is no historical backfill. Binance `forceOrder` events are
- * not a complete market-wide liquidation total.
+ * Live events arrive over the relay channel; events collected while the
+ * backend runs are also loadable from SQLite history through
+ * `aggregatedLiquidationsHistory.ts`, which reuses this parser and merger.
+ * Binance `forceOrder` events are not a complete market-wide liquidation total.
  */
 import { candleIntervalDurationSeconds } from './candleIntervalDuration.ts'
 import type { CandleInterval } from './types.ts'

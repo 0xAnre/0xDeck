@@ -1,9 +1,14 @@
-"""Live Binance USD-M `BTCUSDT` perpetual liquidation-order relay.
+"""Binance USD-M `BTCUSDT` perpetual liquidation-order collector and relay.
 
 Binance publishes a `forceOrder` event when a position is liquidated. This
-module normalizes that event and relays it over the existing FastAPI
-`/api/ws/{channel}` infrastructure. It is a live-only feed: no REST backfill,
-no persistence, and the stream is not a complete market-wide liquidation total.
+module normalizes that event, stores it in SQLite for page-reload history, and
+relays it over the existing FastAPI `/api/ws/{channel}` infrastructure.
+
+One upstream subscription runs for the lifetime of the backend process, even
+with zero chart clients connected. Collection starts at application startup and
+stops at shutdown. There is no REST backfill: history begins when the backend
+first starts collecting, and the stream is not a complete market-wide
+liquidation total.
 
 Kept separate from `providers.py` on purpose. Liquidations are not candle
 concerns, so the `MarketDataProvider` candle protocol stays untouched; routes
@@ -14,13 +19,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import websockets
 
+from app.market.liquidation_store import (
+    LiquidationStore,
+    get_liquidation_store,
+)
 from app.ws import WebSocketChannelManager, ws_manager
+
+logger = logging.getLogger(__name__)
 
 BINANCE_USDM_FORCE_ORDER_WS_URL = (
     "wss://fstream.binance.com/market/ws/btcusdt@forceOrder"
@@ -185,7 +197,13 @@ class _UpstreamState:
 
 
 class BinanceUsdmLiquidationsRelay:
-    """One upstream `forceOrder` subscription while a channel has clients."""
+    """One process-lifetime upstream `forceOrder` subscription.
+
+    The subscription is independent of WebSocket clients: connecting or
+    disconnecting the last chart never starts or stops collection. Every valid
+    normalized event is persisted first and then published to the liquidation
+    channel, so a page reload can replay what was stored while the backend ran.
+    """
 
     def __init__(
         self,
@@ -193,33 +211,48 @@ class BinanceUsdmLiquidationsRelay:
         connect_ws: Callable[[str], Any] | None = None,
         base_reconnect_delay_s: float = BASE_RECONNECT_DELAY_S,
         max_reconnect_delay_s: float = MAX_RECONNECT_DELAY_S,
+        store: LiquidationStore | None = None,
     ) -> None:
         self._manager = manager
         self._connect_ws = connect_ws
         self._base_reconnect_delay_s = base_reconnect_delay_s
         self._max_reconnect_delay_s = max_reconnect_delay_s
+        self._store = store
         self._upstreams: dict[str, _UpstreamState] = {}
 
     def upstream_count(self, channel: str) -> int:
         return 1 if channel in self._upstreams else 0
 
-    async def on_client_connected(self, channel: str) -> None:
+    @property
+    def collecting(self) -> bool:
+        return bool(self._upstreams)
+
+    async def start_collection(self, channel: str = LIQUIDATIONS_CHANNEL) -> None:
+        """Start the persistent upstream subscription (idempotent)."""
         if parse_liquidations_channel(channel) is None:
-            return
-        if self._manager.connection_count(channel) != 1:
             return
         await self._start_upstream(channel)
 
+    async def on_client_connected(self, channel: str) -> None:
+        # Kept as a no-op hook for the generic relay protocol in `main.py`.
+        # Collection is process-lifetime state, so clients never start it.
+        return None
+
     async def on_client_disconnected(self, channel: str) -> None:
-        if parse_liquidations_channel(channel) is None:
-            return
-        if self._manager.connection_count(channel) != 0:
-            return
-        await self._stop_upstream(channel)
+        # Disconnecting the last chart must not stop collection.
+        return None
 
     async def shutdown(self) -> None:
         for channel in list(self._upstreams):
             await self._stop_upstream(channel)
+
+    def _persist(self, event: dict[str, object]) -> None:
+        store = self._store or get_liquidation_store()
+        try:
+            store.insert_event(event)
+        except Exception:  # pragma: no cover - defensive logging path
+            # A transient database problem must not take down the live feed.
+            logger.exception("Could not persist Binance liquidation event")
 
     def _clear_upstream_if_current(
         self,
@@ -270,9 +303,6 @@ class BinanceUsdmLiquidationsRelay:
             url = BINANCE_USDM_FORCE_ORDER_WS_URL
 
             while not stop_event.is_set():
-                if self._manager.connection_count(channel) == 0:
-                    return
-
                 try:
                     await self._consume_upstream(channel, url, stop_event)
                     attempt = 0
@@ -280,10 +310,7 @@ class BinanceUsdmLiquidationsRelay:
                     raise
                 except Exception:
                     attempt += 1
-                    if (
-                        stop_event.is_set()
-                        or self._manager.connection_count(channel) == 0
-                    ):
+                    if stop_event.is_set():
                         return
                     delay = min(
                         self._base_reconnect_delay_s * (2 ** (attempt - 1)),
@@ -306,9 +333,6 @@ class BinanceUsdmLiquidationsRelay:
         connect = self._connect_ws or websockets.connect
         async with connect(url) as upstream:
             while not stop_event.is_set():
-                if self._manager.connection_count(channel) == 0:
-                    return
-
                 raw = await upstream.recv()
                 if isinstance(raw, bytes):
                     raw = raw.decode()
@@ -317,6 +341,9 @@ class BinanceUsdmLiquidationsRelay:
                 if event is None:
                     continue
 
+                # Persist before publishing so a reload can never lose an event
+                # that a connected chart already rendered.
+                self._persist(event)
                 await self._manager.publish(channel, event)
 
 

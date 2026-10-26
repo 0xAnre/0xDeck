@@ -26,5 +26,9 @@ dist-ssr
 # Python backend
 backend/.venv
 backend/.canvas-state.json
+# Persistent liquidation history (SQLite + WAL sidecar files); never commit.
+backend/.liquidations.sqlite3
+backend/.liquidations.sqlite3-wal
+backend/.liquidations.sqlite3-shm
 __pycache__/
 *.pyc

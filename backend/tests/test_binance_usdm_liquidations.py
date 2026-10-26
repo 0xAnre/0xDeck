@@ -134,29 +134,56 @@ class LiquidationsChannelTests(unittest.TestCase):
         )
 
 
+class _RecordingStore:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    def insert_event(self, event: dict) -> bool:
+        self.events.append(event)
+        return True
+
+
+def _connect_for(frames: list[object], order: list[tuple[str, str]] | None = None):
+    @asynccontextmanager
+    async def fake_connect(_url: str):
+        class Upstream:
+            index = 0
+
+            async def recv(self_inner) -> str:
+                if self_inner.index < len(frames):
+                    frame = frames[self_inner.index]
+                    self_inner.index += 1
+                    await asyncio.sleep(0.005)
+                    return frame if isinstance(frame, str) else json.dumps(frame)
+                # Keep the upstream open without emitting more frames.
+                await asyncio.sleep(3600)
+                raise AssertionError("unreachable")
+
+        if order is not None:
+            order.append(("connect", ""))
+        yield Upstream()
+
+    return fake_connect
+
+
 class BinanceUsdmLiquidationsRelayTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.manager = WebSocketChannelManager()
         self.channel = liquidations.LIQUIDATIONS_CHANNEL
         self.published: list[tuple[str, dict]] = []
+        self.store = _RecordingStore()
+        self.frames: list[object] = []
 
         async def spy_publish(channel: str, payload: dict) -> None:
             self.published.append((channel, payload))
 
         self.manager.publish = spy_publish  # type: ignore[method-assign]
-
-        @asynccontextmanager
-        async def fake_connect(_url: str):
-            class Upstream:
-                async def recv(self_inner) -> str:
-                    await asyncio.sleep(0.02)
-                    return json.dumps(_force_order())
-
-            yield Upstream()
-
         self.relay = liquidations.BinanceUsdmLiquidationsRelay(
             self.manager,
-            connect_ws=fake_connect,
+            connect_ws=_connect_for(self.frames),
+            store=self.store,  # type: ignore[arg-type]
+            base_reconnect_delay_s=0.01,
+            max_reconnect_delay_s=0.01,
         )
 
     async def _connect_client(self) -> MagicMock:
@@ -166,36 +193,162 @@ class BinanceUsdmLiquidationsRelayTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.connect(self.channel, socket)
         return socket
 
+    async def _wait_until(self, predicate) -> None:
+        for _ in range(200):
+            if predicate():
+                return
+            await asyncio.sleep(0.01)
+        self.fail("condition was not reached before timeout")
+
     async def asyncTearDown(self) -> None:
         await self.relay.shutdown()
 
-    async def test_dedupes_upstream_per_channel_and_relays_normalized_events(self) -> None:
+    async def test_collection_starts_once_and_survives_client_lifecycle(self) -> None:
+        self.frames.append(_force_order())
+
+        await self.relay.start_collection()
+        await self.relay.start_collection()
+        self.assertEqual(self.relay.upstream_count(self.channel), 1)
+
         socket_a = await self._connect_client()
         await self.relay.on_client_connected(self.channel)
         socket_b = await self._connect_client()
         await self.relay.on_client_connected(self.channel)
-
         self.assertEqual(self.relay.upstream_count(self.channel), 1)
 
-        for _ in range(100):
-            if self.published:
-                break
-            await asyncio.sleep(0.01)
+        await self._wait_until(lambda: bool(self.published))
 
-        self.assertTrue(self.published)
         channel, payload = self.published[0]
         self.assertEqual(channel, self.channel)
         self.assertEqual(payload["side"], "long")
         self.assertEqual(payload["notional"], 40000.0)
         self.assertIn("id", payload)
+        self.assertEqual(len(self.store.events), 1)
+        self.assertEqual(self.store.events[0]["id"], payload["id"])
 
         self.manager.disconnect(self.channel, socket_a)
         await self.relay.on_client_disconnected(self.channel)
-        self.assertEqual(self.relay.upstream_count(self.channel), 1)
-
         self.manager.disconnect(self.channel, socket_b)
         await self.relay.on_client_disconnected(self.channel)
-        self.assertEqual(self.relay.upstream_count(self.channel), 0)
+
+        # Disconnecting the last chart must not stop collection.
+        self.assertEqual(self.manager.connection_count(self.channel), 0)
+        self.assertEqual(self.relay.upstream_count(self.channel), 1)
+        self.assertTrue(self.relay.collecting)
+
+    async def test_collects_and_stores_with_zero_ws_clients(self) -> None:
+        self.frames.extend(
+            [
+                _force_order(side="SELL"),
+                _force_order(side="BUY", event_time=EVENT_TIME_MS + 1_000),
+            ]
+        )
+        await self.relay.start_collection()
+
+        await self._wait_until(lambda: len(self.store.events) == 2)
+        self.assertEqual(self.manager.connection_count(self.channel), 0)
+        self.assertEqual(
+            [event["side"] for event in self.store.events],
+            ["long", "short"],
+        )
+        self.assertEqual(len(self.published), 2)
+
+    async def test_persists_before_publishing(self) -> None:
+        order: list[tuple[str, str]] = []
+        store = _RecordingStore()
+
+        def record_insert(event: dict) -> bool:
+            order.append(("store", str(event["id"])))
+            store.events.append(event)
+            return True
+
+        store.insert_event = record_insert  # type: ignore[method-assign]
+
+        async def record_publish(_channel: str, payload: dict) -> None:
+            order.append(("publish", str(payload["id"])))
+
+        self.manager.publish = record_publish  # type: ignore[method-assign]
+        relay = liquidations.BinanceUsdmLiquidationsRelay(
+            self.manager,
+            connect_ws=_connect_for([_force_order()]),
+            store=store,  # type: ignore[arg-type]
+        )
+        try:
+            await relay.start_collection()
+            await self._wait_until(lambda: len(order) >= 2)
+        finally:
+            await relay.shutdown()
+
+        self.assertEqual([kind for kind, _ in order[:2]], ["store", "publish"])
+        self.assertEqual(order[0][1], order[1][1])
+
+    async def test_invalid_frames_are_never_stored_or_published(self) -> None:
+        self.frames.extend(
+            [
+                "{not json",
+                json.dumps(_force_order(symbol="ETHUSDT")),
+                json.dumps(_force_order(price="0")),
+                _force_order(),
+            ]
+        )
+        await self.relay.start_collection()
+
+        await self._wait_until(lambda: len(self.store.events) == 1)
+        self.assertEqual(len(self.store.events), 1)
+        self.assertEqual(len(self.published), 1)
+        self.assertEqual(self.store.events[0]["symbol"], "BTCUSDT")
+
+
+class BinanceUsdmLiquidationsReconnectTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reconnects_with_backoff_and_keeps_storing(self) -> None:
+        manager = WebSocketChannelManager()
+        channel = liquidations.LIQUIDATIONS_CHANNEL
+        store = _RecordingStore()
+        attempts = {"count": 0}
+
+        @asynccontextmanager
+        async def flaky_connect(_url: str):
+            attempts["count"] += 1
+            attempt = attempts["count"]
+
+            class Upstream:
+                index = 0
+
+                async def recv(self_inner) -> str:
+                    if self_inner.index == 0:
+                        self_inner.index += 1
+                        return json.dumps(
+                            _force_order(
+                                event_time=EVENT_TIME_MS + attempt * 1_000,
+                            )
+                        )
+                    raise ConnectionError("upstream dropped")
+
+            yield Upstream()
+
+        async def ignore_publish(_channel: str, _payload: dict) -> None:
+            return None
+
+        manager.publish = ignore_publish  # type: ignore[method-assign]
+        relay = liquidations.BinanceUsdmLiquidationsRelay(
+            manager,
+            connect_ws=flaky_connect,
+            store=store,  # type: ignore[arg-type]
+            base_reconnect_delay_s=0.01,
+            max_reconnect_delay_s=0.01,
+        )
+        try:
+            await relay.start_collection()
+            for _ in range(300):
+                if attempts["count"] >= 2 and len(store.events) >= 2:
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            await relay.shutdown()
+
+        self.assertGreaterEqual(attempts["count"], 2)
+        self.assertGreaterEqual(len(store.events), 2)
+        self.assertEqual(relay.upstream_count(channel), 0)
 
 
 if __name__ == "__main__":
