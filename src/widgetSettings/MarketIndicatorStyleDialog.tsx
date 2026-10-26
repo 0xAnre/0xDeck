@@ -9,7 +9,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { MARKET_INDICATOR_DEFINITIONS, type MarketIndicatorId } from '@/market/indicators'
+import {
+  MARKET_INDICATOR_DEFINITIONS,
+  marketIndicatorSupportsBandFill,
+  type MarketIndicatorId,
+} from '@/market/indicators'
 import {
   type LineChartStrokeStyle,
   type LineChartStrokeWidth,
@@ -31,6 +35,10 @@ import {
   marketIndicatorUsesDistinctSeriesLineStyles,
   marketIndicatorUsesDistinctSeriesLineWidths,
 } from '@/market/marketIndicatorSeriesColors'
+import {
+  sessionVwapBandFillColorInputValue,
+  sessionVwapBandFillOpacityInputValue,
+} from '@/market/sessionVwapBandFillStyle'
 import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
@@ -112,10 +120,11 @@ function RsiRangeFields({
 }
 
 /**
- * Draft-based indicator settings: color, opacity, width, `Line`/`Dot` and the
- * RSI range all edit the local draft. `Save` commits only changed fields through
- * the existing presentation/RSI callbacks; `Cancel`, `X`, `Esc` and outside
- * click discard the draft without writing storage.
+ * Draft-based indicator settings: color, opacity, width, `Line`/`Dot`, the
+ * time-based VWAP band background and the RSI range all edit the local draft.
+ * `Save` commits only changed fields through the existing presentation/RSI
+ * callbacks; `Cancel`, `X`, `Esc` and outside click discard the draft without
+ * writing storage.
  */
 function MarketIndicatorStyleDialogBody({
   indicatorId,
@@ -142,6 +151,8 @@ function MarketIndicatorStyleDialogBody({
       opacityPercent: marketIndicatorOpacityInputValue(presentation.opacity),
       lineWidth: marketIndicatorLineWidthInputValue(presentation.lineWidth, seriesLineWidths),
       lineStyle: marketIndicatorLineStyleSelectValue(presentation.lineStyle, seriesLineStyles),
+      fillColor: sessionVwapBandFillColorInputValue(presentation.fillColor),
+      fillOpacityPercent: sessionVwapBandFillOpacityInputValue(presentation.fillOpacity),
       rsiSettings,
     }),
   )
@@ -220,6 +231,21 @@ function MarketIndicatorStyleDialogBody({
             onLineWidthChange={(lineWidth) => setDraft((current) => ({ ...current, lineWidth }))}
           />
         </FieldGroup>
+        {marketIndicatorSupportsBandFill(indicatorId) ? (
+          <section className="space-y-2">
+            <p className="text-xs font-medium text-foreground">Background</p>
+            <ColorOpacityField
+              id="indicator-background-color"
+              label="Color"
+              color={draft.fillColor}
+              opacityPercent={draft.fillOpacityPercent}
+              onColorChange={(fillColor) => setDraft((current) => ({ ...current, fillColor }))}
+              onOpacityChange={(fillOpacityPercent) =>
+                setDraft((current) => ({ ...current, fillOpacityPercent }))
+              }
+            />
+          </section>
+        ) : null}
       </div>
       <DialogFooter className="shrink-0">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>

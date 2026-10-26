@@ -9,6 +9,7 @@ import {
   type SessionVwapBandPoint,
 } from './sessionVwapBandRenderGeometry.ts'
 import type { VwapChartLineStyle } from './vwapChartLineStyles.ts'
+import { readRectangleFillStyle } from './rectangleColors.ts'
 
 export type SessionVwapLinePoint =
   | { time: UTCTimestamp; value: number }
@@ -89,6 +90,7 @@ export function createSessionVwapLineSeries<
   const band = attachSessionVwapBandSeriesPrimitive(vwapSeries, {
     points: bandPoints,
     visible: bandVisible,
+    fillStyle: readRectangleFillStyle(),
   })
 
   return {

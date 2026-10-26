@@ -6,7 +6,9 @@ import {
   indicatorContextLevel,
   isIndicatorSupportedOnInterval,
   isMarketIndicatorId,
+  MARKET_INDICATOR_BAND_FILL_IDS,
   MARKET_INDICATOR_DEFINITIONS,
+  marketIndicatorSupportsBandFill,
   MARKET_INDICATOR_IDS,
   requiredVwapContextLevel,
 } from './indicators.ts'
@@ -39,6 +41,24 @@ describe('market indicator ids', () => {
     assert.equal(isMarketIndicatorId('sma-100'), false)
     assert.equal(isMarketIndicatorId('sma-200'), false)
     assert.equal(isMarketIndicatorId('ema-200'), false)
+  })
+})
+
+describe('time-based VWAP band fill support', () => {
+  it('exposes background fill for exactly the five time-based VWAPs', () => {
+    assert.deepEqual([...MARKET_INDICATOR_BAND_FILL_IDS], [
+      'daily-vwap',
+      'weekly-vwap',
+      'monthly-vwap',
+      'quarterly-vwap',
+      'yearly-vwap',
+    ])
+    for (const id of MARKET_INDICATOR_BAND_FILL_IDS) {
+      assert.equal(marketIndicatorSupportsBandFill(id), true)
+    }
+    for (const id of ['triple-ema', 'dual-ema', 'rolling-vwap', 'rsi', 'aggregated-liquidations'] as const) {
+      assert.equal(marketIndicatorSupportsBandFill(id), false)
+    }
   })
 })
 

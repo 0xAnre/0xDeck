@@ -13,6 +13,10 @@ export type MarketIndicatorPresentation = {
   opacity?: number
   lineWidth?: LineChartStrokeWidth
   lineStyle?: LineChartStrokeStyle
+  /** Session VWAP band fill color; independent from the line color. */
+  fillColor?: string
+  /** Session VWAP band fill opacity percent (0 hides the fill). */
+  fillOpacity?: number
 }
 
 export const WIDGET_MARKET_INDICATOR_PRESENTATION_STORAGE_KEY =
@@ -34,6 +38,12 @@ function sanitizePresentation(value: unknown): MarketIndicatorPresentation | nul
   const lineStyle = sanitizeLineChartStrokeStyle(record.lineStyle)
   if (lineStyle !== undefined) {
     presentation.lineStyle = lineStyle
+  }
+  if (isLineChartHexColor(record.fillColor)) {
+    presentation.fillColor = record.fillColor
+  }
+  if (isMarketStyleOpacityPercent(record.fillOpacity)) {
+    presentation.fillOpacity = record.fillOpacity
   }
   return Object.keys(presentation).length > 0 ? presentation : {}
 }

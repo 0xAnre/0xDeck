@@ -1,11 +1,16 @@
 import { LineStyle, type LineSeriesPartialOptions } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
-import { MARKET_INDICATOR_IDS, type MarketIndicatorId } from './indicators.ts'
+import {
+  MARKET_INDICATOR_IDS,
+  marketIndicatorSupportsBandFill,
+  type MarketIndicatorId,
+} from './indicators.ts'
 import { readMarketIndicatorSeriesColors } from './marketIndicatorSeriesColors.ts'
 import type { LineChartStrokeStyle } from './lineChartStroke.ts'
 import type { MarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
 import { loadWidgetMarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
 import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
+import { resolveSessionVwapBandFillStyle } from './sessionVwapBandFillStyle.ts'
 
 function lineChartStrokeStyleToLineStyle(style: LineChartStrokeStyle): LineStyle {
   switch (style) {
@@ -47,13 +52,46 @@ export function resolveMarketIndicatorSeriesColor(
   return colors[0]
 }
 
-function hasPresentationOverrides(presentation: MarketIndicatorPresentation): boolean {
+function hasLinePresentationOverrides(presentation: MarketIndicatorPresentation): boolean {
   return (
     presentation.color !== undefined ||
     presentation.opacity !== undefined ||
     presentation.lineWidth !== undefined ||
     presentation.lineStyle !== undefined
   )
+}
+
+/**
+ * Background fill for the time-based VWAP band primitive. Fill fields are
+ * independent from line fields, so this also restores the palette default when
+ * a stored presentation carries no fill overrides.
+ */
+function applySessionVwapBandFillPresentation(
+  bundle: ChartSeriesBundle,
+  indicatorId: MarketIndicatorId,
+  presentation: MarketIndicatorPresentation,
+): void {
+  if (!marketIndicatorSupportsBandFill(indicatorId)) return
+  const fillStyle = resolveSessionVwapBandFillStyle(presentation)
+  switch (indicatorId) {
+    case 'daily-vwap':
+      bundle.dailyVwap.band.setFillStyle(fillStyle)
+      return
+    case 'weekly-vwap':
+      bundle.weeklyVwap.band.setFillStyle(fillStyle)
+      return
+    case 'monthly-vwap':
+      bundle.monthlyVwap.band.setFillStyle(fillStyle)
+      return
+    case 'quarterly-vwap':
+      bundle.quarterlyVwap.band.setFillStyle(fillStyle)
+      return
+    case 'yearly-vwap':
+      bundle.yearlyVwap.band.setFillStyle(fillStyle)
+      return
+    default:
+      return
+  }
 }
 
 /** Minimal line-series surface used to apply presentation options. */
@@ -100,7 +138,8 @@ export function applyMarketIndicatorPresentationToBundle(
   indicatorId: MarketIndicatorId,
   presentation: MarketIndicatorPresentation,
 ): void {
-  if (!hasPresentationOverrides(presentation)) return
+  applySessionVwapBandFillPresentation(bundle, indicatorId, presentation)
+  if (!hasLinePresentationOverrides(presentation)) return
 
   switch (indicatorId) {
     case 'triple-ema':

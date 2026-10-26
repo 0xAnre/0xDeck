@@ -108,3 +108,71 @@ describe('market indicator presentation opacity', () => {
     })
   })
 })
+
+describe('market indicator presentation band fill', () => {
+  it('round-trips independent fill color and opacity per panel and indicator', () => {
+    saveWidgetMarketIndicatorPresentation('panel-a', 'daily-vwap', {
+      color: '#112233',
+      opacity: 80,
+      fillColor: '#445566',
+      fillOpacity: 40,
+    })
+    saveWidgetMarketIndicatorPresentation('panel-b', 'daily-vwap', {
+      fillColor: '#778899',
+      fillOpacity: 0,
+    })
+
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-a', 'daily-vwap'), {
+      color: '#112233',
+      opacity: 80,
+      fillColor: '#445566',
+      fillOpacity: 40,
+    })
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-b', 'daily-vwap'), {
+      fillColor: '#778899',
+      fillOpacity: 0,
+    })
+  })
+
+  it('preserves fill fields when only line styling is changed', () => {
+    saveWidgetMarketIndicatorPresentation('panel-a', 'weekly-vwap', {
+      fillColor: '#445566',
+      fillOpacity: 40,
+    })
+    saveWidgetMarketIndicatorPresentation('panel-a', 'weekly-vwap', {
+      ...loadWidgetMarketIndicatorPresentation('panel-a', 'weekly-vwap'),
+      lineWidth: 3,
+    })
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-a', 'weekly-vwap'), {
+      fillColor: '#445566',
+      fillOpacity: 40,
+      lineWidth: 3,
+    })
+  })
+
+  it('loads legacy records without fill fields and leaves the fill default to the caller', () => {
+    memory.set(
+      WIDGET_MARKET_INDICATOR_PRESENTATION_STORAGE_KEY,
+      JSON.stringify({
+        'panel-a': {
+          'monthly-vwap': { color: '#445566', opacity: 60, lineWidth: 2 },
+        },
+      }),
+    )
+    const loaded = loadWidgetMarketIndicatorPresentation('panel-a', 'monthly-vwap')
+    assert.deepEqual(loaded, { color: '#445566', opacity: 60, lineWidth: 2 })
+    assert.equal(loaded.fillColor, undefined)
+    assert.equal(loaded.fillOpacity, undefined)
+  })
+
+  it('drops invalid fill values instead of persisting them', () => {
+    saveWidgetMarketIndicatorPresentation('panel-a', 'yearly-vwap', {
+      fillColor: 'rgba(1, 2, 3, 0.5)' as never,
+      fillOpacity: 250,
+      lineWidth: 2,
+    })
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-a', 'yearly-vwap'), {
+      lineWidth: 2,
+    })
+  })
+})

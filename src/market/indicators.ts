@@ -21,6 +21,21 @@ export function isMarketIndicatorId(value: string): value is MarketIndicatorId {
   return INDICATOR_ID_SET.has(value)
 }
 
+/** Time-based VWAP indicators that render a configurable band fill. */
+export const MARKET_INDICATOR_BAND_FILL_IDS = [
+  'daily-vwap',
+  'weekly-vwap',
+  'monthly-vwap',
+  'quarterly-vwap',
+  'yearly-vwap',
+] as const satisfies readonly MarketIndicatorId[]
+
+const BAND_FILL_ID_SET = new Set<string>(MARKET_INDICATOR_BAND_FILL_IDS)
+
+export function marketIndicatorSupportsBandFill(indicatorId: MarketIndicatorId): boolean {
+  return BAND_FILL_ID_SET.has(indicatorId)
+}
+
 export type VwapContextLevel = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export const VWAP_CONTEXT_LEVEL_ORDER: readonly VwapContextLevel[] = [

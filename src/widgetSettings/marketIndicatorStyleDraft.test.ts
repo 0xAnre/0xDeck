@@ -17,6 +17,8 @@ function baseDraft(
     opacityPercent: 100,
     lineWidth: 1,
     lineStyle: 'solid',
+    fillColor: '#A3A3A3',
+    fillOpacityPercent: 25,
     rsiSettings: null,
     ...overrides,
   })
@@ -28,6 +30,8 @@ function rsiDraft(overrides: Partial<MarketIndicatorStyleDraft> = {}) {
     opacityPercent: 100,
     lineWidth: 1,
     lineStyle: 'solid',
+    fillColor: '#A3A3A3',
+    fillOpacityPercent: 25,
     rsiSettings: {
       period: DEFAULT_RSI_PERIOD,
       overbought: DEFAULT_RSI_OVERBOUGHT,
@@ -51,6 +55,8 @@ describe('marketIndicatorStyleDraftFromInputs', () => {
       opacityPercent: 100,
       lineWidth: 2,
       lineStyle: 'dotted',
+      fillColor: '#A3A3A3',
+      fillOpacityPercent: 25,
       rsiSettings: { period: 0, overbought: 500, oversold: -20 },
     })
     assert.deepEqual(draft.rsi, { period: 2, overbought: 100, oversold: 0 })
@@ -88,6 +94,33 @@ describe('marketIndicatorStyleDraftPatch', () => {
     })
   })
 
+  it('commits background fill independently from line styling', () => {
+    const initial = baseDraft()
+    const fillOnly = marketIndicatorStyleDraftPatch(initial, {
+      ...initial,
+      fillColor: '#123456',
+      fillOpacityPercent: 60,
+    })
+    assert.deepEqual(fillOnly, {
+      presentation: { fillColor: '#123456', fillOpacity: 60 },
+      rsi: null,
+    })
+
+    const lineOnly = marketIndicatorStyleDraftPatch(initial, {
+      ...initial,
+      color: '#000000',
+      opacityPercent: 40,
+      lineWidth: 3,
+      lineStyle: 'dotted',
+    })
+    assert.deepEqual(lineOnly, {
+      presentation: { color: '#000000', opacity: 40, lineWidth: 3, lineStyle: 'dotted' },
+      rsi: null,
+    })
+    assert.equal(lineOnly.presentation.fillColor, undefined)
+    assert.equal(lineOnly.presentation.fillOpacity, undefined)
+  })
+
   it('keeps RSI unchanged when the typed values sanitize back to the stored range', () => {
     const initial = rsiDraft()
     const patch = marketIndicatorStyleDraftPatch(initial, { ...initial })
@@ -122,7 +155,13 @@ describe('marketIndicatorStyleDraftPatch', () => {
 
   it('discarding an edited draft produces no commit', () => {
     const initial = rsiDraft()
-    const edited = { ...initial, color: '#000000', rsi: { period: 30, overbought: 75, oversold: 25 } }
+    const edited = {
+      ...initial,
+      color: '#000000',
+      fillColor: '#000000',
+      fillOpacityPercent: 0,
+      rsi: { period: 30, overbought: 75, oversold: 25 },
+    }
     assert.deepEqual(marketIndicatorStyleDraftPatch(initial, initial), {
       presentation: {},
       rsi: null,
@@ -141,8 +180,29 @@ describe('sanitizeMarketIndicatorStyleDraft', () => {
         opacityPercent: 300,
         lineWidth: 9 as never,
         lineStyle: 'dashed' as never,
+        fillColor: '#12345',
+        fillOpacityPercent: -1,
       }),
       initial,
+    )
+  })
+
+  it('accepts boundary background opacities', () => {
+    const initial = baseDraft()
+    assert.deepEqual(
+      sanitizeMarketIndicatorStyleDraft(initial, {
+        ...initial,
+        fillColor: '#000000',
+        fillOpacityPercent: 0,
+      }),
+      { ...initial, fillColor: '#000000', fillOpacityPercent: 0 },
+    )
+    assert.deepEqual(
+      sanitizeMarketIndicatorStyleDraft(initial, {
+        ...initial,
+        fillOpacityPercent: 100,
+      }),
+      { ...initial, fillOpacityPercent: 100 },
     )
   })
 })

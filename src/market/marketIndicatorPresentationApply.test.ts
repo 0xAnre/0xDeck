@@ -19,6 +19,17 @@ function createMockLineSeries() {
   }
 }
 
+function createMockBand() {
+  const fillStyles: string[] = []
+  return {
+    fillStyles,
+    update: () => {},
+    setFillStyle: (fillStyle: string) => {
+      fillStyles.push(fillStyle)
+    },
+  }
+}
+
 function createMockBundle(): ChartSeriesBundle {
   const ema0 = createMockLineSeries()
   const ema1 = createMockLineSeries()
@@ -36,27 +47,27 @@ function createMockBundle(): ChartSeriesBundle {
     dailyVwap: {
       byKey: { vwap: dailyVwap },
       ordered: [dailyVwap],
-      band: { update: () => {} },
+      band: createMockBand(),
     } as ChartSeriesBundle['dailyVwap'],
     weeklyVwap: {
       byKey: { vwap: createMockLineSeries() },
       ordered: [],
-      band: { update: () => {} },
+      band: createMockBand(),
     } as ChartSeriesBundle['weeklyVwap'],
     monthlyVwap: {
       byKey: { vwap: createMockLineSeries() },
       ordered: [],
-      band: { update: () => {} },
+      band: createMockBand(),
     } as ChartSeriesBundle['monthlyVwap'],
     quarterlyVwap: {
       byKey: { vwap: createMockLineSeries() },
       ordered: [],
-      band: { update: () => {} },
+      band: createMockBand(),
     } as ChartSeriesBundle['quarterlyVwap'],
     yearlyVwap: {
       byKey: { vwap: createMockLineSeries() },
       ordered: [],
-      band: { update: () => {} },
+      band: createMockBand(),
     } as ChartSeriesBundle['yearlyVwap'],
     rollingVwaps: new Map([
       [
@@ -124,6 +135,36 @@ describe('applyMarketIndicatorPresentationToBundle', () => {
       assert.equal(mock.applied[0]?.color, '#445566')
       assert.equal(mock.applied[0]?.lineStyle, LineStyle.Dotted)
     }
+  })
+
+  it('applies the background fill independently from line styling', () => {
+    const bundle = createMockBundle()
+    applyMarketIndicatorPresentationToBundle(bundle, 'daily-vwap', {
+      fillColor: '#123456',
+      fillOpacity: 60,
+    })
+    assert.deepEqual(bundle.dailyVwap.band.fillStyles, ['rgba(18, 52, 86, 0.6)'])
+    const vwap = bundle.dailyVwap.byKey.vwap as ReturnType<typeof createMockLineSeries>
+    assert.deepEqual(vwap.applied, [])
+    assert.deepEqual(bundle.weeklyVwap.band.fillStyles, [])
+  })
+
+  it('restores the palette fill default for an empty presentation', () => {
+    const bundle = createMockBundle()
+    applyMarketIndicatorPresentationToBundle(bundle, 'weekly-vwap', {})
+    assert.deepEqual(bundle.weeklyVwap.band.fillStyles, ['rgba(163, 163, 163, 0.25)'])
+  })
+
+  it('keeps fill and line changes independent when both are present', () => {
+    const bundle = createMockBundle()
+    applyMarketIndicatorPresentationToBundle(bundle, 'daily-vwap', {
+      color: '#445566',
+      fillColor: '#123456',
+      fillOpacity: 0,
+    })
+    assert.deepEqual(bundle.dailyVwap.band.fillStyles, ['rgba(18, 52, 86, 0)'])
+    const vwap = bundle.dailyVwap.byKey.vwap as ReturnType<typeof createMockLineSeries>
+    assert.equal(vwap.applied[0]?.color, '#445566')
   })
 
   it('applies an opacity-only presentation to each series own color', () => {
