@@ -212,7 +212,6 @@ export function AggregatedLiquidationsSettingsDialog({
         </DialogHeader>
         {open ? (
           <AggregatedLiquidationsSettingsDialogBody
-            key="aggregated-liquidations-settings"
             settings={settings}
             onCancel={() => onOpenChange(false)}
             onSubmit={handleSave}
