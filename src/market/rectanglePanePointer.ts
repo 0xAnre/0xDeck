@@ -18,6 +18,10 @@ import {
   updateRectangleCreatePreview,
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
+import {
+  releaseDrawingCursor,
+  updateDrawingCursor,
+} from './drawingCursor.ts'
 import { isRectangleInstanceLocked, type RectangleInstance } from './rectangleInstances.ts'
 import { hitTestRectangles } from './rectangleHitTest.ts'
 import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.ts'
@@ -206,13 +210,61 @@ export function attachRectanglePanePointer(
     }
   }
 
-  const onPointerMove = (event: PointerEvent) => {
-    if (activePointerId !== event.pointerId) return
+  /** Feed this tool's winning hit target to the shared cursor mapping. */
+  const syncHoverCursor = (event: PointerEvent) => {
     const snapshot = callbacks.getSnapshot()
-    if (!isRectangleChartNavigationLocked(snapshot.interaction)) return
+    if (isRectangleChartNavigationLocked(snapshot.interaction) || callbacks.isAlternateToolActive()) {
+      releaseDrawingCursor(paneElement, 'rectangle')
+      return
+    }
     const paneX = resolvePaneRelativePointerX(event, paneElement)
     const paneY = resolvePaneY(event)
-    syncPointerPreview(paneX, paneY)
+    const hit = hitTestRectangles(
+      snapshot.instances,
+      snapshot.interaction.selectedId,
+      paneX,
+      paneY,
+      projectInstance,
+    )
+    if (!hit) {
+      releaseDrawingCursor(paneElement, 'rectangle')
+      return
+    }
+    if (
+      preferDrawingPointerTargetAmongPeers(
+        callbacks.getCompetingLineHit(paneX, paneY),
+        hit,
+        callbacks.getCompetingFrvpHit(paneX, paneY),
+        callbacks.getCompetingAnchoredVwapHit(paneX, paneY),
+      ) !== 'rectangle'
+    ) {
+      releaseDrawingCursor(paneElement, 'rectangle')
+      return
+    }
+    const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+    updateDrawingCursor(paneElement, 'rectangle', {
+      kind: hit.kind,
+      locked: instance ? isRectangleInstanceLocked(instance) : false,
+    })
+  }
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (activePointerId !== null) {
+      // A draft/drag owns the pointer: no hover cursor mid-gesture.
+      releaseDrawingCursor(paneElement, 'rectangle')
+      if (activePointerId !== event.pointerId) return
+      const snapshot = callbacks.getSnapshot()
+      if (!isRectangleChartNavigationLocked(snapshot.interaction)) return
+      const paneX = resolvePaneRelativePointerX(event, paneElement)
+      const paneY = resolvePaneY(event)
+      syncPointerPreview(paneX, paneY)
+      return
+    }
+    syncHoverCursor(event)
+  }
+
+  const onPointerLeave = () => {
+    releaseDrawingCursor(paneElement, 'rectangle')
   }
 
   const releasePointer = (event: PointerEvent) => {
@@ -221,6 +273,8 @@ export function attachRectanglePanePointer(
       paneElement.releasePointerCapture(event.pointerId)
     }
     activePointerId = null
+    // Never keep the resize/move cursor after the gesture ended.
+    releaseDrawingCursor(paneElement, 'rectangle')
   }
 
   const onPointerUp = (event: PointerEvent) => {
@@ -320,14 +374,17 @@ export function attachRectanglePanePointer(
       { type: 'pointermove', listener: onPointerMove as EventListener },
       { type: 'pointerup', listener: onPointerUp as EventListener },
       { type: 'pointercancel', listener: onPointerCancel as EventListener },
+      { type: 'pointerleave', listener: onPointerLeave as EventListener },
     ],
     (next) => {
+      if (paneElement !== next) releaseDrawingCursor(paneElement, 'rectangle')
       paneElement = next
     },
   )
 
   return {
     dispose: () => {
+      releaseDrawingCursor(paneElement, 'rectangle')
       paneElementBinding.dispose()
     },
   }

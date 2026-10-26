@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  clearDrawingSelections,
   clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseAnchoredVwapDrawingInteractionForPeerTool,
@@ -251,5 +252,78 @@ describe('drawingSelection', () => {
     assert.equal(releasedDragging.phase, 'inactive')
     assert.equal(releasedDragging.selectedId, null)
     assert.equal(releasedDragging.draft, null)
+  })
+})
+
+describe('clearDrawingSelections', () => {
+  it('deselects every drawing tool at once', () => {
+    const states = {
+      rectangle: { ...INITIAL_RECTANGLE_INTERACTION_STATE, selectedId: 'rect-1' },
+      line: { ...INITIAL_LINE_INTERACTION_STATE, selectedId: 'line-1' },
+      fixedRangeVolumeProfile: {
+        ...INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+        selectedId: 'frvp-1',
+      },
+      anchoredVwap: {
+        ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+        selectedId: 'avwap-1',
+      },
+    }
+
+    const cleared = clearDrawingSelections(states)
+    assert.ok(cleared)
+    assert.equal(cleared.rectangle.selectedId, null)
+    assert.equal(cleared.line.selectedId, null)
+    assert.equal(cleared.fixedRangeVolumeProfile.selectedId, null)
+    assert.equal(cleared.anchoredVwap.selectedId, null)
+    // The original states are untouched: instances are not selection state.
+    assert.equal(states.rectangle.selectedId, 'rect-1')
+    assert.equal(states.line.selectedId, 'line-1')
+  })
+
+  it('is a no-op when nothing is selected', () => {
+    const states = {
+      rectangle: INITIAL_RECTANGLE_INTERACTION_STATE,
+      line: INITIAL_LINE_INTERACTION_STATE,
+      fixedRangeVolumeProfile: INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      anchoredVwap: INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+    }
+    // `null` (unchanged) lets the caller skip a re-render.
+    assert.equal(clearDrawingSelections(states), null)
+  })
+
+  it('keeps an armed tool and an in-progress gesture untouched', () => {
+    const armedLine = armLineTool(INITIAL_LINE_INTERACTION_STATE)
+    const rectangleInstance = createRectangleInstance({
+      fromTime: 1_700_000_000,
+      toTime: 1_700_000_300,
+      lowPrice: 1,
+      highPrice: 2,
+    })!
+    const movingRectangle = startRectangleMoveDraft(
+      { ...INITIAL_RECTANGLE_INTERACTION_STATE, selectedId: rectangleInstance.id },
+      rectangleInstance,
+      1_700_000_100,
+      1.5,
+    )
+    const draggingAnchor = startAnchoredVwapAnchorDrag(
+      { ...INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE, selectedId: 'avwap-1' },
+      'avwap-1',
+      1_700_000_000,
+    )
+
+    const cleared = clearDrawingSelections({
+      rectangle: movingRectangle,
+      line: armedLine,
+      fixedRangeVolumeProfile: INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+      anchoredVwap: draggingAnchor,
+    })
+    assert.ok(cleared)
+    // The armed line tool stays armed, so its draft is not cancelled mid-gesture.
+    assert.equal(cleared.line.phase, 'armed')
+    // A move draft in progress is preserved by `applyRectangleSelection`.
+    assert.equal(cleared.rectangle.phase, 'moving')
+    assert.equal(cleared.rectangle.selectedId, rectangleInstance.id)
+    assert.equal(cleared.anchoredVwap.phase, 'dragging-anchor')
   })
 })

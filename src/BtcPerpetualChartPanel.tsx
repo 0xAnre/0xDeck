@@ -130,7 +130,6 @@ import {
   type AnchoredVwapDrawingChartToolController,
 } from '@/market/anchoredVwapDrawingChartTool'
 import {
-  applyAnchoredVwapDrawingSelection,
   armAnchoredVwapDrawingTool,
   cancelAnchoredVwapDrawingInteraction,
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
@@ -157,7 +156,6 @@ import {
   type FixedRangeVolumeProfileChartToolController,
 } from '@/market/fixedRangeVolumeProfileChartTool'
 import {
-  applyFixedRangeVolumeProfileSelection,
   armFixedRangeVolumeProfileTool,
   cancelFixedRangeVolumeProfileInteraction,
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
@@ -184,6 +182,7 @@ import {
   type RectangleChartToolController,
 } from '@/market/rectangleChartTool'
 import {
+  clearDrawingSelections,
   clearFixedRangeVolumeProfileSelectionForPeerClaim,
   clearLineAndRectangleSelectionForFrvpClaim,
   releaseAnchoredVwapDrawingInteractionForPeerTool,
@@ -263,6 +262,7 @@ import {
 } from '@/market/frvpHistogramStyles'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettingsPanePointer'
+import { attachDrawingPaneDeselect } from '@/market/drawingPaneDeselect'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   applyMarketIndicatorPresentationToBundle,
@@ -702,6 +702,58 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     anchoredVwapInteractionRef.current = anchoredVwapInteraction
   }, [anchoredVwapInteraction])
 
+  /**
+   * Deselect every drawing tool through the shared selection helpers. Used by
+   * the candle-pane pointer modules' empty-space click and by the RSI /
+   * liquidation pane click, so both paths clear the same selection state and
+   * skip a re-render when nothing was selected.
+   */
+  const clearDrawingSelection = useCallback(() => {
+    const cleared = clearDrawingSelections({
+      rectangle: rectangleInteractionRef.current,
+      line: lineInteractionRef.current,
+      fixedRangeVolumeProfile: fixedRangeVolumeProfileInteractionRef.current,
+      anchoredVwap: anchoredVwapInteractionRef.current,
+    })
+    if (!cleared) return
+    if (cleared.rectangle !== rectangleInteractionRef.current) {
+      rectangleInteractionRef.current = cleared.rectangle
+      setRectangleInteraction(cleared.rectangle)
+      rectangleSeriesAttachmentRef.current?.update()
+    }
+    if (cleared.line !== lineInteractionRef.current) {
+      lineInteractionRef.current = cleared.line
+      setLineInteraction(cleared.line)
+      lineSeriesAttachmentRef.current?.update()
+    }
+    if (cleared.fixedRangeVolumeProfile !== fixedRangeVolumeProfileInteractionRef.current) {
+      fixedRangeVolumeProfileInteractionRef.current = cleared.fixedRangeVolumeProfile
+      setFixedRangeVolumeProfileInteraction(cleared.fixedRangeVolumeProfile)
+      fixedRangeVolumeProfileToolControllerRef.current?.sync()
+      fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
+    }
+    if (cleared.anchoredVwap !== anchoredVwapInteractionRef.current) {
+      anchoredVwapInteractionRef.current = cleared.anchoredVwap
+      setAnchoredVwapInteraction(cleared.anchoredVwap)
+      anchoredVwapToolControllerRef.current?.sync()
+      anchoredVwapSeriesAttachmentRef.current?.update()
+    }
+  }, [])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const controller = attachDrawingPaneDeselect(chart, {
+      shouldHandle: () => isActiveRectangleKeyboardPanel(panelId),
+      onEmptyPanePointerDown: clearDrawingSelection,
+    })
+
+    return () => {
+      controller.dispose()
+    }
+  }, [chartReady, panelId, clearDrawingSelection])
+
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       const container = containerRef.current
@@ -715,42 +767,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (isActiveRectangleKeyboardPanel(panelId)) {
         claimRectangleKeyboardPanel(null)
       }
-      if (rectangleInteractionRef.current.selectedId !== null) {
-        const next = applyRectangleSelection(rectangleInteractionRef.current, null)
-        rectangleInteractionRef.current = next
-        setRectangleInteraction(next)
-        rectangleSeriesAttachmentRef.current?.update()
-      }
-      if (lineInteractionRef.current.selectedId !== null) {
-        const next = applyLineSelection(lineInteractionRef.current, null)
-        lineInteractionRef.current = next
-        setLineInteraction(next)
-        lineSeriesAttachmentRef.current?.update()
-      }
-      if (fixedRangeVolumeProfileInteractionRef.current.selectedId !== null) {
-        const next = applyFixedRangeVolumeProfileSelection(
-          fixedRangeVolumeProfileInteractionRef.current,
-          null,
-        )
-        if (next !== fixedRangeVolumeProfileInteractionRef.current) {
-          fixedRangeVolumeProfileInteractionRef.current = next
-          setFixedRangeVolumeProfileInteraction(next)
-          fixedRangeVolumeProfileToolControllerRef.current?.sync()
-          fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
-        }
-      }
-      if (anchoredVwapInteractionRef.current.selectedId !== null) {
-        const next = applyAnchoredVwapDrawingSelection(
-          anchoredVwapInteractionRef.current,
-          null,
-        )
-        if (next !== anchoredVwapInteractionRef.current) {
-          anchoredVwapInteractionRef.current = next
-          setAnchoredVwapInteraction(next)
-          anchoredVwapToolControllerRef.current?.sync()
-          anchoredVwapSeriesAttachmentRef.current?.update()
-        }
-      }
+      clearDrawingSelection()
     }
 
     const onFocusIn = (event: FocusEvent) => {
@@ -787,7 +804,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         claimRectangleKeyboardPanel(null)
       }
     }
-  }, [panelId])
+  }, [panelId, clearDrawingSelection])
 
   useEffect(() => {
     fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
@@ -1070,6 +1087,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const openChartObjectSettings = useCallback((target: ChartObjectSettingsTarget) => {
     setChartObjectSettingsTarget(target)
+    if (target.kind === 'aggregated-liquidations') {
+      setLiquidationsSettingsOpen(true)
+      return
+    }
     if (target.kind === 'rolling-vwap') {
       setEditingRollingVwapInstanceId(target.instanceId)
       setRollingVwapSettingsOpen(true)
@@ -1334,7 +1355,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const handleMarketIndicatorSettingsClick = useCallback(
     (indicatorId: MarketIndicatorId) => {
       if (indicatorId === 'aggregated-liquidations') {
-        setLiquidationsSettingsOpen(true)
+        openChartObjectSettings({ kind: 'aggregated-liquidations' })
         return
       }
       openChartObjectSettings({ kind: 'market-indicator', indicatorId })
@@ -2087,7 +2108,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (!chart || !chartReady) return
 
     const controller = attachChartObjectSettingsPanePointer(chart, {
-      getHitTestContext: (paneX, paneY) => {
+      getHitTestContext: (paneX, paneY, paneRole) => {
         const bundle = seriesRef.current
         const candleSeries = bundle?.candle
         if (!bundle || !candleSeries) return null
@@ -2095,6 +2116,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         return {
           chart,
           series: candleSeries,
+          paneRole,
           paneX,
           paneY,
           interval: activeIntervalRef.current,
@@ -3362,6 +3384,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 ?.settings ?? createDefaultAnchoredVwapDrawingSettings())
             : createDefaultAnchoredVwapDrawingSettings()
         }
+        returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           setAnchoredVwapSettingsOpen(open)
           if (!open) {
@@ -3379,6 +3402,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 ?.settings ?? createDefaultRollingVwapSettings())
             : createDefaultRollingVwapSettings()
         }
+        returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           setRollingVwapSettingsOpen(open)
           if (!open) {
@@ -3392,7 +3416,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         open={liquidationsSettingsOpen}
         settings={liquidationSettings}
         returnFocusId={`${panelId}-indicators`}
-        onOpenChange={setLiquidationsSettingsOpen}
+        onOpenChange={(open) => {
+          setLiquidationsSettingsOpen(open)
+          if (!open) setChartObjectSettingsTarget(null)
+        }}
         onSettingsChange={handleLiquidationSettingsChange}
       />
       <MarketIndicatorStyleDialog

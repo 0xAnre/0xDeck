@@ -14,6 +14,7 @@ import {
   startAnchoredVwapAnchorDrag,
   type AnchoredVwapDrawingInteractionState,
 } from './anchoredVwapDrawingInteraction.ts'
+import { releaseDrawingCursor, updateDrawingCursor } from './drawingCursor.ts'
 import { hitTestAnchoredVwapDrawings } from './anchoredVwapDrawingHitTest.ts'
 import { projectAnchoredVwapDrawingInstance } from './anchoredVwapDrawingRenderGeometry.ts'
 import {
@@ -179,9 +180,58 @@ export function attachAnchoredVwapDrawingPanePointer(
     }
   }
 
+  /** Feed this tool's winning hit target to the shared cursor mapping. */
+  const syncHoverCursor = (event: PointerEvent) => {
+    const snapshot = callbacks.getSnapshot()
+    if (
+      isAnchoredVwapDrawingNavigationLocked(snapshot.interaction) ||
+      isAnchoredVwapDrawingToolArmed(snapshot.interaction) ||
+      callbacks.isAlternateToolActive()
+    ) {
+      releaseDrawingCursor(paneElement, 'anchored-vwap')
+      return
+    }
+    const paneX = resolvePaneRelativePointerX(event, paneElement)
+    const paneY = resolvePaneY(event)
+    const avwapHit = hitTestAnchoredVwapDrawings(
+      snapshot.instances,
+      snapshot.interaction.selectedId,
+      paneX,
+      paneY,
+      projectInstance,
+    )
+    if (!avwapHit) {
+      releaseDrawingCursor(paneElement, 'anchored-vwap')
+      return
+    }
+    if (
+      preferDrawingPointerTargetAmongPeers(
+        callbacks.getCompetingLineHit(paneX, paneY),
+        callbacks.getCompetingRectangleHit(paneX, paneY),
+        callbacks.getCompetingFrvpHit(paneX, paneY),
+        avwapHit,
+      ) !== 'anchored-vwap'
+    ) {
+      releaseDrawingCursor(paneElement, 'anchored-vwap')
+      return
+    }
+    const instance = snapshot.instances.find((item) => item.id === avwapHit.instanceId)
+    updateDrawingCursor(paneElement, 'anchored-vwap', {
+      kind: avwapHit.kind,
+      movable: false,
+      locked: instance ? isAnchoredVwapInstanceLocked(instance) : false,
+      hidden: instance ? isAnchoredVwapInstanceHidden(instance) : false,
+    })
+  }
+
   const onPointerMove = (event: PointerEvent) => {
     const snapshot = callbacks.getSnapshot()
-    if (snapshot.interaction.phase !== 'dragging-anchor' || !snapshot.interaction.draft) return
+    if (snapshot.interaction.phase !== 'dragging-anchor' || !snapshot.interaction.draft) {
+      syncHoverCursor(event)
+      return
+    }
+    // A drag owns the pointer: no hover cursor mid-gesture.
+    releaseDrawingCursor(paneElement, 'anchored-vwap')
     if (activePointerId !== event.pointerId) return
     const series = callbacks.getSeries()
     if (!series) return
@@ -199,8 +249,14 @@ export function attachAnchoredVwapDrawingPanePointer(
     callbacks.onRequestRender()
   }
 
+  const onPointerLeave = () => {
+    releaseDrawingCursor(paneElement, 'anchored-vwap')
+  }
+
   const releasePointer = (event: PointerEvent) => {
     activePointerId = null
+    // Never keep the anchor cursor after the drag ended.
+    releaseDrawingCursor(paneElement, 'anchored-vwap')
     try {
       paneElement.releasePointerCapture(event.pointerId)
     } catch {
@@ -237,14 +293,17 @@ export function attachAnchoredVwapDrawingPanePointer(
       { type: 'pointermove', listener: onPointerMove as EventListener },
       { type: 'pointerup', listener: onPointerUp as EventListener },
       { type: 'pointercancel', listener: onPointerCancel as EventListener },
+      { type: 'pointerleave', listener: onPointerLeave as EventListener },
     ],
     (next) => {
+      if (paneElement !== next) releaseDrawingCursor(paneElement, 'anchored-vwap')
       paneElement = next
     },
   )
 
   return {
     dispose: () => {
+      releaseDrawingCursor(paneElement, 'anchored-vwap')
       paneElementBinding.dispose()
     },
   }

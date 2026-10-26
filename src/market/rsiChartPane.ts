@@ -9,6 +9,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import { MARKET_STYLE_DEFAULTS, marketStyleColorWithOpacity } from './marketStylePalette.ts'
+import { registerChartPaneRoleSeries, unregisterChartPaneRoleSeries } from './chartPaneRoles.ts'
 import {
   computeWilderRsi,
   RSI_MID_LEVEL,
@@ -96,6 +97,9 @@ export function createRsiChartPane(chart: IChartApi, settings: RsiSettings): Rsi
     crosshairMarkerVisible: false,
     autoscaleInfoProvider: RSI_AUTOSCALE_INFO_PROVIDER,
   })
+  // Pane double-click / empty-space handling resolves the RSI pane by series
+  // identity, because the pane index changes as other panes come and go.
+  registerChartPaneRoleSeries(chart, 'rsi', series)
   return {
     pane,
     series,
@@ -172,5 +176,6 @@ export function moveRsiPaneAbove(bundle: RsiChartPaneBundle, paneIndex: number):
  * pane, while the candle pane and every other overlay stay untouched.
  */
 export function removeRsiChartPane(chart: IChartApi, bundle: RsiChartPaneBundle): void {
+  unregisterChartPaneRoleSeries(chart, 'rsi', bundle.series)
   chart.removeSeries(bundle.series)
 }

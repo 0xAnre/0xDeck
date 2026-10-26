@@ -13,6 +13,7 @@ import {
   type RsiChartPaneBundle,
 } from './rsiChartPane.ts'
 import { computeWilderRsi, RSI_MID_LEVEL, type RsiSettings } from './rsi.ts'
+import { resolveChartPaneRolePane } from './chartPaneRoles.ts'
 import {
   RSI_OVERBOUGHT_LINE_COLOR,
   RSI_OVERSOLD_LINE_COLOR,
@@ -93,8 +94,19 @@ function makeSeries() {
       return priceLine
     },
     options: () => ({ color: '#D4D4D4' }),
+    getPane: () => getPane(),
   }
-  return { series, setDataCalls, updateCalls, createdPriceLines, applyOptionsCalls }
+  let getPane = () => ({}) as never
+  return {
+    series,
+    setDataCalls,
+    updateCalls,
+    createdPriceLines,
+    applyOptionsCalls,
+    setPane: (pane: unknown) => {
+      getPane = () => pane as never
+    },
+  }
 }
 
 function makeChart() {
@@ -118,6 +130,8 @@ function makeChart() {
       return seriesBundle.series
     },
   }
+
+  seriesBundle.setPane(pane)
 
   const chart = {
     addPane: () => {
@@ -178,6 +192,18 @@ describe('createRsiChartPane', () => {
       harness.seriesBundle.createdPriceLines.map((line) => line.options.price),
       [80, RSI_MID_LEVEL, 20],
     )
+  })
+})
+
+describe('RSI pane role registration', () => {
+  it('registers the pane by series identity and forgets it on removal', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    assert.equal(resolveChartPaneRolePane(harness.chart, 'rsi'), harness.pane)
+
+    removeRsiChartPane(harness.chart, bundle)
+    assert.equal(resolveChartPaneRolePane(harness.chart, 'rsi'), null)
+    assert.equal(harness.calls.at(-1), 'removeSeries:rsi')
   })
 })
 

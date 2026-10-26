@@ -3,21 +3,23 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
+import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
+import {
+  CHART_SETTINGS_DIALOG_BODY_CLASS,
+  CHART_SETTINGS_DIALOG_CONTENT_CLASS,
+  CHART_SETTINGS_DIALOG_OVERLAY_CLASS,
+} from '@/widgetSettings/chartSettingsDialogLayout'
 import {
   sanitizeAnchoredVwapDrawingSettings,
   type AnchoredVwapDrawingBandPairSettings,
   type AnchoredVwapDrawingSettings,
 } from '@/market/anchoredVwapDrawingSettings'
-import {
-  isRollingVwapLineWidth,
-  ROLLING_VWAP_LINE_WIDTHS,
-} from '@/market/rollingVwapSettings'
 
 const inputClassName =
   'h-8 w-full rounded-md border border-input bg-input/20 px-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30'
@@ -25,6 +27,7 @@ const inputClassName =
 type AnchoredVwapSettingsDialogProps = {
   open: boolean
   savedSettings: AnchoredVwapDrawingSettings
+  returnFocusId: string
   onOpenChange: (open: boolean) => void
   onSave: (settings: AnchoredVwapDrawingSettings) => void
 }
@@ -61,25 +64,11 @@ function BandPairSection({
           onChange={(event) => onChange({ ...draft, multiplier: Number(event.target.value) })}
         />
       </label>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        className="grid w-full grid-cols-4"
-        value={String(draft.lineWidth)}
-        onValueChange={(value) => {
-          if (!value) return
-          const parsed = Number(value)
-          if (!isRollingVwapLineWidth(parsed)) return
-          onChange({ ...draft, lineWidth: parsed })
-        }}
-      >
-        {ROLLING_VWAP_LINE_WIDTHS.map((width) => (
-          <ToggleGroupItem key={width} value={String(width)} className="w-full">
-            {width}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      <LineChartStrokeSelectFields
+        widthId={`${idPrefix}-width`}
+        lineWidth={draft.lineWidth}
+        onLineWidthChange={(lineWidth) => onChange({ ...draft, lineWidth })}
+      />
       <div className="space-y-2">
         <label className="flex items-center gap-2">
           <input
@@ -154,9 +143,10 @@ function AnchoredVwapSettingsDialogBody({
     <>
       <DialogHeader className="shrink-0">
         <DialogTitle>Anchored VWAP settings</DialogTitle>
+        <DialogDescription>Anchored VWAP line and band presentation</DialogDescription>
       </DialogHeader>
 
-      <div className="min-h-0 space-y-4 overflow-y-auto overscroll-y-contain text-xs">
+      <div className={`${CHART_SETTINGS_DIALOG_BODY_CLASS} text-xs`}>
         <section className="space-y-2">
           <p className="font-medium text-foreground">VWAP line</p>
           <label className="flex items-center gap-2">
@@ -172,28 +162,16 @@ function AnchoredVwapSettingsDialogBody({
             />
             <span>Visible</span>
           </label>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            className="grid w-full grid-cols-4"
-            value={String(draft.vwapLine.lineWidth)}
-            onValueChange={(value) => {
-              if (!value) return
-              const parsed = Number(value)
-              if (!isRollingVwapLineWidth(parsed)) return
+          <LineChartStrokeSelectFields
+            widthId="anchored-vwap-line-width"
+            lineWidth={draft.vwapLine.lineWidth}
+            onLineWidthChange={(lineWidth) =>
               setDraft((current) => ({
                 ...current,
-                vwapLine: { ...current.vwapLine, lineWidth: parsed },
+                vwapLine: { ...current.vwapLine, lineWidth },
               }))
-            }}
-          >
-            {ROLLING_VWAP_LINE_WIDTHS.map((width) => (
-              <ToggleGroupItem key={width} value={String(width)} className="w-full">
-                {width}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            }
+          />
           <ColorOpacityField
             id="anchored-vwap-line-color"
             label="Color"
@@ -259,14 +237,20 @@ function AnchoredVwapSettingsDialogBody({
 export function AnchoredVwapSettingsDialog({
   open,
   savedSettings,
+  returnFocusId,
   onOpenChange,
   onSave,
 }: AnchoredVwapSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden"
+        className={CHART_SETTINGS_DIALOG_CONTENT_CLASS}
+        overlayClassName={CHART_SETTINGS_DIALOG_OVERLAY_CLASS}
         onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          document.getElementById(returnFocusId)?.focus()
+        }}
       >
         {open ? (
           <AnchoredVwapSettingsDialogBody

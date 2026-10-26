@@ -18,6 +18,7 @@ Context for AI agents helping users customize this repository.
 2. [docs/README.md](docs/README.md) — documentation index and typical workflows
 3. Task-specific documentation:
    - **Widget work** → [docs/WIDGET-STANDARD.md](docs/WIDGET-STANDARD.md) + [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md)
+   - **Chart tool / indicator work** → [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDARD.md)
    - **Backend work** → [backend/README.md](backend/README.md)
 
 ## What this project is
@@ -86,6 +87,7 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 8. **Commits** — permitted for the assigned implementation role on its own task branch; see [the development workflow](.agents/WORKFLOW.md)
 9. **Read `.agents/skills/shadcn/SKILL.md`** when working with shadcn components
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
+11. **Chart tools & indicators** — follow [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDARD.md) for chart tools, indicators and their settings (shared color/opacity, width and interaction modules; no parallel pickers or pointer paths)
 
 ## shadcn-first workflow
 
@@ -228,6 +230,7 @@ python -m unittest discover -s tests
 - [docs/README.md](docs/README.md) — documentation index
 - [docs/WIDGET-STANDARD.md](docs/WIDGET-STANDARD.md) — normative widget rules
 - [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) — add/customize widgets
+- [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDARD.md) — normative chart tool / indicator rules
 - [docs/THEME-GUIDE.md](docs/THEME-GUIDE.md) — add/customize themes
 - [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) — roadmap
 - [backend/README.md](backend/README.md) — API reference

@@ -236,6 +236,7 @@ export function attachLineChartTool(
       }
       event.preventDefault()
       const result = removeSelectedLine(snapshot.interaction, snapshot.instances)
+      if (result.state === snapshot.interaction) return
       commitInteraction(result.state)
       callbacks.onInstancesChange([...result.instances])
     }

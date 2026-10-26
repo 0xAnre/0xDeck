@@ -10,9 +10,15 @@ import {
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
   isRollingVwapLineStyle,
+  isRollingVwapLineWidth,
+  ROLLING_VWAP_LINE_WIDTHS,
   rollingVwapCenterLineRgbaColor,
   sanitizeRollingVwapSettings,
 } from './rollingVwapSettings.ts'
+import {
+  LINE_CHART_STROKE_WIDTHS,
+  isLineChartStrokeWidth,
+} from './lineChartStroke.ts'
 import {
   MARKET_STYLE_DEFAULTS,
   MARKET_STYLE_OPACITY_PERCENT,
@@ -230,5 +236,23 @@ describe('rollingVwapCenterLineRgbaColor', () => {
 
   it('converts hex and opacity to rgba', () => {
     assert.equal(rollingVwapCenterLineRgbaColor('#ff0000', 50), 'rgba(255, 0, 0, 0.5)')
+  })
+})
+
+describe('rolling VWAP width control migration', () => {
+  it('shares the 1-4px scale used by LineChartStrokeSelectFields', () => {
+    assert.deepEqual([...ROLLING_VWAP_LINE_WIDTHS], [...LINE_CHART_STROKE_WIDTHS])
+  })
+
+  it('accepts and rejects exactly the shared stroke widths', () => {
+    for (const value of [0, 1, 2, 3, 4, 5, 1.5, '2', null, undefined, Number.NaN]) {
+      assert.equal(isRollingVwapLineWidth(value), isLineChartStrokeWidth(value))
+    }
+  })
+
+  it('round-trips every shared width through the stored-settings sanitizer', () => {
+    for (const lineWidth of LINE_CHART_STROKE_WIDTHS) {
+      assert.equal(sanitizeRollingVwapSettings({ lineWidth }).lineWidth, lineWidth)
+    }
   })
 })

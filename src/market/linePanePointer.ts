@@ -16,6 +16,7 @@ import {
   updateLineCreatePreview,
   type LineInteractionState,
 } from './lineInteraction.ts'
+import { releaseDrawingCursor, updateDrawingCursor } from './drawingCursor.ts'
 import { hitTestLines } from './lineHitTest.ts'
 import { isLineInstanceLocked, type LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
@@ -206,13 +207,61 @@ export function attachLinePanePointer(
     }
   }
 
-  const onPointerMove = (event: PointerEvent) => {
-    if (activePointerId !== event.pointerId) return
+  /** Feed this tool's winning hit target to the shared cursor mapping. */
+  const syncHoverCursor = (event: PointerEvent) => {
     const snapshot = callbacks.getSnapshot()
-    if (!isLineChartNavigationLocked(snapshot.interaction)) return
+    if (isLineChartNavigationLocked(snapshot.interaction) || callbacks.isAlternateToolActive()) {
+      releaseDrawingCursor(paneElement, 'line')
+      return
+    }
     const paneX = resolvePaneRelativePointerX(event, paneElement)
     const paneY = resolvePaneY(event)
-    syncPointerPreview(paneX, paneY)
+    const hit = hitTestLines(
+      snapshot.instances,
+      snapshot.interaction.selectedId,
+      paneX,
+      paneY,
+      projectInstance,
+    )
+    if (!hit) {
+      releaseDrawingCursor(paneElement, 'line')
+      return
+    }
+    if (
+      preferDrawingPointerTargetAmongPeers(
+        hit,
+        callbacks.getCompetingRectangleHit(paneX, paneY),
+        callbacks.getCompetingFrvpHit(paneX, paneY),
+        callbacks.getCompetingAnchoredVwapHit(paneX, paneY),
+      ) !== 'line'
+    ) {
+      releaseDrawingCursor(paneElement, 'line')
+      return
+    }
+    const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+    updateDrawingCursor(paneElement, 'line', {
+      kind: hit.kind,
+      locked: instance ? isLineInstanceLocked(instance) : false,
+    })
+  }
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (activePointerId !== null) {
+      // A draft/drag owns the pointer: no hover cursor mid-gesture.
+      releaseDrawingCursor(paneElement, 'line')
+      if (activePointerId !== event.pointerId) return
+      const snapshot = callbacks.getSnapshot()
+      if (!isLineChartNavigationLocked(snapshot.interaction)) return
+      const paneX = resolvePaneRelativePointerX(event, paneElement)
+      const paneY = resolvePaneY(event)
+      syncPointerPreview(paneX, paneY)
+      return
+    }
+    syncHoverCursor(event)
+  }
+
+  const onPointerLeave = () => {
+    releaseDrawingCursor(paneElement, 'line')
   }
 
   const releasePointer = (event: PointerEvent) => {
@@ -221,6 +270,8 @@ export function attachLinePanePointer(
       paneElement.releasePointerCapture(event.pointerId)
     }
     activePointerId = null
+    // Never keep the resize/move cursor after the gesture ended.
+    releaseDrawingCursor(paneElement, 'line')
   }
 
   const onPointerUp = (event: PointerEvent) => {
@@ -320,14 +371,17 @@ export function attachLinePanePointer(
       { type: 'pointermove', listener: onPointerMove as EventListener },
       { type: 'pointerup', listener: onPointerUp as EventListener },
       { type: 'pointercancel', listener: onPointerCancel as EventListener },
+      { type: 'pointerleave', listener: onPointerLeave as EventListener },
     ],
     (next) => {
+      if (paneElement !== next) releaseDrawingCursor(paneElement, 'line')
       paneElement = next
     },
   )
 
   return {
     dispose: () => {
+      releaseDrawingCursor(paneElement, 'line')
       paneElementBinding.dispose()
     },
   }

@@ -1,6 +1,7 @@
 import type { RectangleHandleKind } from './rectangleHitTest.ts'
 import {
   createRectangleInstance,
+  isRectangleInstanceLocked,
   isRectangleInstanceTransformable,
   normalizeRectangleBounds,
   type NormalizedRectangleBounds,
@@ -373,6 +374,12 @@ export function removeSelectedRectangle(
   instances: readonly RectangleInstance[],
 ): { state: RectangleInteractionState; instances: RectangleInstance[] } {
   if (!state.selectedId) return { state, instances: [...instances] }
+  const selected = instances.find((item) => item.id === state.selectedId)
+  // Lock is a geometry/ownership guard: a locked rectangle stays selected but
+  // cannot be deleted from the chart, matching FRVP and anchored VWAP.
+  if (selected && isRectangleInstanceLocked(selected)) {
+    return { state, instances: [...instances] }
+  }
   const nextInstances = instances.filter((item) => item.id !== state.selectedId)
   return {
     state: { ...state, selectedId: null },

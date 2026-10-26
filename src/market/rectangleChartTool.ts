@@ -238,6 +238,7 @@ export function attachRectangleChartTool(
       }
       event.preventDefault()
       const result = removeSelectedRectangle(snapshot.interaction, snapshot.instances)
+      if (result.state === snapshot.interaction) return
       commitInteraction(result.state)
       callbacks.onInstancesChange([...result.instances])
     }
