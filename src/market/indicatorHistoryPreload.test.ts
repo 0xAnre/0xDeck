@@ -53,6 +53,7 @@ function fakeBundle(): ChartSeriesBundle {
     yearlyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['yearlyVwap'],
     rollingVwaps: new Map(),
     anchoredVwaps: new Map(),
+    rsi: null,
   }
 }
 

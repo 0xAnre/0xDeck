@@ -158,7 +158,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline, and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
@@ -176,6 +176,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-market-exchanges` | Per-instance BTC Perp exchange (`binance` default / `hyperliquid`) |
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
+| `0xdeck-widget-market-rsi-settings` | Per-instance RSI period and overbought/oversold levels (BTC Perp) |
 | `0xdeck-widget-market-position-markers` | Per-instance Hyperliquid Position Markers toggle (default OFF) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |

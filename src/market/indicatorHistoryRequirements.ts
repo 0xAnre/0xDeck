@@ -197,6 +197,10 @@ export function resolveIndicatorHistoryRequirements(
       case 'rolling-vwap':
         // Instance-level requirements are resolved below.
         break
+      case 'rsi':
+        // RSI is computed from the candles already loaded for the chart; it
+        // never fetches its own history.
+        break
       default: {
         const unreachable: never = indicatorId
         return unreachable

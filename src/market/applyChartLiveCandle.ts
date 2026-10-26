@@ -16,6 +16,8 @@ import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import { applyRollingVwapInstancesLive } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapChartInstanceMap } from '@/market/rollingVwapChartInstances'
 import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
+import type { RsiChartPaneBundle } from '@/market/rsiChartPane'
+import { updateRsiPaneLiveData } from '@/market/rsiChartPane'
 import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
 import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
 import { updateDualEmaLive } from '@/market/chartDualEmaSeries'
@@ -48,6 +50,8 @@ export type ChartSeriesBundle = {
   yearlyVwap: YearlyVwapLineSeriesBundle
   rollingVwaps: RollingVwapChartInstanceMap
   anchoredVwaps: AnchoredVwapDrawingChartInstanceMap
+  /** RSI pane, present only while the RSI indicator is enabled on this panel. */
+  rsi: RsiChartPaneBundle | null
 }
 
 export type LiveVwapUpdateContext = {
@@ -97,6 +101,10 @@ export function applyChartLiveCandle(
   })
 
   updateDualEmaLive(bundle.ema100, bundle.ema200, candles)
+
+  if (bundle.rsi) {
+    updateRsiPaneLiveData(bundle.rsi, candles)
+  }
 
   if (!vwapContext) {
     applyDailyVwapLiveFromCandles(candles, bundle.dailyVwap)

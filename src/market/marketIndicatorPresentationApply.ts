@@ -131,6 +131,13 @@ export function applyMarketIndicatorPresentationToBundle(
         )
       }
       return
+    case 'rsi':
+      if (bundle.rsi) {
+        bundle.rsi.series.applyOptions(
+          presentationOptionsForSeries(bundle.rsi.series, presentation),
+        )
+      }
+      return
     default: {
       const unreachable: never = indicatorId
       return unreachable

@@ -61,6 +61,7 @@ function trackChartBundle() {
     yearlyVwap: { byKey: {}, ordered: [] } as ChartSeriesBundle['yearlyVwap'],
     rollingVwaps: new Map(),
     anchoredVwaps: new Map(),
+    rsi: null,
   }
 
   return { chart, bundle, counters }

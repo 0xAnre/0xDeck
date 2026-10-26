@@ -103,6 +103,8 @@ export function readMarketIndicatorSeriesLineWidths(
       }
       return widths
     }
+    case 'rsi':
+      return bundle.rsi ? [readLineSeriesLineWidth(bundle.rsi.series)] : []
     default: {
       const unreachable: never = indicatorId
       return unreachable
@@ -136,6 +138,8 @@ export function readMarketIndicatorSeriesLineStyles(
       }
       return styles
     }
+    case 'rsi':
+      return bundle.rsi ? [readLineSeriesLineStyle(bundle.rsi.series)] : []
     default: {
       const unreachable: never = indicatorId
       return unreachable
@@ -169,6 +173,8 @@ export function readMarketIndicatorSeriesColors(
       }
       return colors
     }
+    case 'rsi':
+      return bundle.rsi ? [readLineSeriesColorHex(bundle.rsi.series)] : []
     default: {
       const unreachable: never = indicatorId
       return unreachable
