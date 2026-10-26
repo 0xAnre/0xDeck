@@ -7,10 +7,10 @@ import {
 } from './btcPerpetualCurrentPriceLineOptions.ts'
 
 describe('btcPerpetualCurrentPriceLineOptions', () => {
-  it('keeps a visible 1px dotted price line', () => {
+  it('keeps a visible 1px dashed price line', () => {
     const options = btcPerpetualCurrentPriceLineOptions('rgb(212, 212, 216)')
     assert.equal(options.priceLineVisible, true)
-    assert.equal(options.priceLineStyle, LineStyle.Dotted)
+    assert.equal(options.priceLineStyle, LineStyle.Dashed)
     assert.equal(options.priceLineWidth, 1)
   })
 

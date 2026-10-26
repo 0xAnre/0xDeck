@@ -14,14 +14,19 @@ import { rgbaFromResolvedCssColor } from '../lib/resolveCssColor.ts'
  */
 export const BTC_PERPETUAL_CURRENT_PRICE_LINE_OPACITY = 0.5
 export const BTC_PERPETUAL_CURRENT_PRICE_LINE_WIDTH: LineWidth = 1
-export const BTC_PERPETUAL_CURRENT_PRICE_LINE_STYLE = LineStyle.Dotted
+/**
+ * The Lightweight Charts default for `priceLineStyle` is `LineStyle.Dashed`.
+ * Setting it explicitly preserves the line's pre-existing pattern so only the
+ * opacity is lowered.
+ */
+export const BTC_PERPETUAL_CURRENT_PRICE_LINE_STYLE = LineStyle.Dashed
 
 /**
  * Current-price line options for the BTC Perpetual candlestick series.
  *
  * The color is derived from the theme-resolved foreground so the widget does
- * not hardcode palette colors; the dotted pattern and 1px width keep the
- * library default look while the alpha halves its visual weight.
+ * not hardcode palette colors; the pre-existing dashed pattern and 1px width
+ * are kept unchanged while the alpha halves the line's visual weight.
  */
 export function btcPerpetualCurrentPriceLineOptions(
   resolvedThemeForeground: string,
