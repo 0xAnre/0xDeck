@@ -2519,9 +2519,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         anchoredVwaps,
         anchoredVwapInstancesRef.current,
       )
-      const rsi = activeIndicatorsRef.current.includes('rsi')
-        ? createRsiChartPane(chart!, rsiSettingsRef.current)
-        : null
+      const rsi =
+        activeIndicatorsRef.current.includes('rsi') &&
+        isIndicatorSupportedOnInterval('rsi', activeIntervalRef.current)
+          ? createRsiChartPane(chart!, rsiSettingsRef.current)
+          : null
 
       chartRef.current = chart
       seriesRef.current = {
