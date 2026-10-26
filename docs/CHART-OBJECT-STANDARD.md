@@ -41,10 +41,10 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Action | Required behavior |
 |--------|-------------------|
 | Single click | Selects the object (tool selection helpers in `src/market/drawingSelection.ts`, `apply*Selection` per tool) |
-| Double click | Opens that object's settings, resolved by `src/market/chartObjectSettingsHitTest.ts` and `src/market/chartObjectSettingsPanePointer.ts`; new objects MUST extend `ChartObjectSettingsTarget` (`src/market/chartObjectSettingsTypes.ts`) so the header gear and double-click open the same dialog |
+| Double click | Opens that object's settings, resolved by `src/market/chartObjectSettingsHitTest.ts` and `src/market/chartObjectSettingsPanePointer.ts`; new objects MUST extend `ChartObjectSettingsTarget` (`src/market/chartObjectSettingsTypes.ts`) so the header gear and double-click open the same dialog. The handler binds to every pane element that owns an object (candle pane, RSI pane, Aggregated Liquidations pane) and follows it when panes are added, removed or reordered (`src/market/chartPaneRoles.ts`) |
 | Drag body | Moves the object when the tool supports moving and the object is unlocked |
 | Drag handle | Resizes / adjusts endpoints, corners or anchors where the tool supports handles |
-| Empty chart space | Deselects |
+| Empty chart space | Deselects every tool through `clearDrawingSelections` (`src/market/drawingSelection.ts`); it applies to the RSI and Aggregated Liquidations panes as well (`src/market/drawingPaneDeselect.ts`) and never creates, moves or cancels an armed drawing |
 | `Esc` | Cancels the active create/resize/move operation and discards the draft; the current selection is kept |
 | `Delete` / `Backspace` | Deletes the selected object when it is unlocked; MUST be ignored while focus is in a form control (`isEditableKeyboardTarget`, `isRectangleKeyboardFocusOnOutsideControl`) |
 | Lock | Object stays visible; MUST NOT be moved, resized or deleted on the chart. Lock is a geometry/ownership guard, so style settings and the header object list stay reachable (`isChartObjectLocked` / `setChartObjectLocked`, and per-instance guards such as `isRectangleInstanceTransformable`, `isLineInstanceTransformable`, `isAnchoredVwapInstanceLocked`); deleting a locked object from the header object list is the deliberate recovery path, the on-chart `Delete`/`Backspace` shortcut is not |
@@ -54,7 +54,7 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 
 **Chart navigation (MUST).** Pan/zoom works normally whenever the pointer is not interacting with a drawing. Navigation locking comes from the interaction modules (`isRectangleChartNavigationLocked`, `isLineChartNavigationLocked`, `isFixedRangeVolumeProfileChartNavigationLocked`, `isAnchoredVwapDrawingNavigationLocked`) applied through `src/market/chartDrawingInteractionMode.ts`. Hit resolution across overlapping objects MUST go through `src/market/drawingPointerArbitration.ts` (`preferDrawingPointerTarget`, `preferDrawingPointerTargetAmongPeers`, `*HitAtPanePoint`) and peer selection release through `src/market/drawingSelection.ts`; do not attach competing pane pointer handlers for a new tool.
 
-**Feedback (MUST).** Selection outline and drag preview come from the shared per-tool render geometry and handle lists, so selection looks the same across tools. No tool currently changes the pointer cursor or paints a hover highlight; if that is added it MUST be one shared mechanism gated by the same active-panel check, not a tool-only visual language. New tools MUST render selection/handles through the same pattern instead of a tool-only visual language.
+**Feedback (MUST).** Selection outline and drag preview come from the shared per-tool render geometry and handle lists, so selection looks the same across tools. The hover cursor is likewise one shared mapping: `src/market/drawingCursor.ts` (`resolveDrawingCursor`, `updateDrawingCursor`) maps a hit target to a CSS cursor — `move` for a draggable body, `pointer` for a selectable/locked body, `nwse-resize`/`nesw-resize`/`ns-resize`/`ew-resize` for resize handles, `crosshair`/`grab` for line endpoints and VWAP anchors, `default` for empty pane space and hidden objects. Each tool only feeds the hit target it won through `preferDrawingPointerTargetAmongPeers`; the pane cursor returns to `default` on pointer leave, while a draft/drag is active and after pointer up/cancel. New tools MUST reuse this mapping and render selection/handles through the same pattern instead of a tool-only visual language.
 
 ---
 
@@ -81,6 +81,9 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Hidden / locked flags | `src/market/chartObjectState.ts` |
 | Cross-tool selection & pointer arbitration | `src/market/drawingSelection.ts`, `src/market/drawingPointerArbitration.ts` |
 | Settings target + hit test + pane double-click | `src/market/chartObjectSettingsTypes.ts`, `chartObjectSettingsHitTest.ts`, `chartObjectSettingsPanePointer.ts` |
+| Pane element registry (candle / RSI / liquidations) | `src/market/chartPaneRoles.ts`, `src/market/candlePane.ts` |
+| Hover cursor mapping | `src/market/drawingCursor.ts` (`resolveDrawingCursor`, `updateDrawingCursor`) |
+| Empty-space deselect on non-candle panes | `src/market/drawingPaneDeselect.ts` |
 | Keyboard ownership | `src/market/rectangleKeyboardScope.ts` |
 | Navigation lock application | `src/market/chartDrawingInteractionMode.ts` |
 | Per-tool interactions | `rectangleInteraction.ts`, `lineInteraction.ts`, `fixedRangeVolumeProfileInteraction.ts`, `anchoredVwapDrawingInteraction.ts` |
