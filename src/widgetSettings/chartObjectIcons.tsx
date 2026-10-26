@@ -40,6 +40,7 @@ export function marketIndicatorIcon(indicatorId: MarketIndicatorId): LucideIcon 
     case 'yearly-vwap':
       return LineChartIcon
     case 'rolling-vwap':
+    case 'rsi':
       return ActivityIcon
     default: {
       const unreachable: never = indicatorId

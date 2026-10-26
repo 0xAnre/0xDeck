@@ -16,6 +16,7 @@ import { computeYearlyVwap } from '@/market/yearlyVwap'
 import { setYearlyVwapLineSeriesData } from '@/market/yearlyVwapChartSeries'
 import { setDualEmaHistoryData } from '@/market/chartDualEmaSeries'
 import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
+import { setRsiPaneHistoryData } from '@/market/rsiChartPane'
 import type { MarketCandle } from '@/market/types'
 
 function toCandlestickPoint(candle: MarketCandle) {
@@ -53,4 +54,7 @@ export function applyChartHistorySeries(
   setYearlyVwapLineSeriesData(bundle.yearlyVwap, computeYearlyVwap(candles))
   applyRollingVwapInstancesHistory(bundle, candles, rollingVwapInstances)
   applyAnchoredVwapDrawingInstancesHistory(bundle, candles, anchoredVwapInstances)
+  if (bundle.rsi) {
+    setRsiPaneHistoryData(bundle.rsi, candles)
+  }
 }

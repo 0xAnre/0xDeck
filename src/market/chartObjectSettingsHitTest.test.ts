@@ -125,6 +125,7 @@ function buildContext(args: {
     yearlyVwap: null,
     rollingVwaps: new Map(),
     anchoredVwaps: new Map(),
+    rsi: null,
   } as ChartSeriesBundle
 
   return {
