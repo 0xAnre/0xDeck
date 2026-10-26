@@ -34,6 +34,7 @@ import {
   resolveFixedRangeVolumeProfileResizePointerTime,
 } from './fixedRangeVolumeProfileChartTime.ts'
 import { preferDrawingPointerTargetAmongPeers } from './drawingPointerArbitration.ts'
+import { releaseDrawingCursor, updateDrawingCursor } from './drawingCursor.ts'
 import type { LineHitTarget } from './lineHitTest.ts'
 import type { RectangleChartTimeContext } from './rectangleChartTime.ts'
 import type { AnchoredVwapDrawingHitTarget } from './anchoredVwapDrawingHitTest.ts'
@@ -290,15 +291,58 @@ export function attachFixedRangeVolumeProfilePanePointer(
     }
   }
 
+  /** Feed this tool's winning hit target to the shared cursor mapping. */
+  const syncHoverCursor = (event: PointerEvent) => {
+    const snapshot = callbacks.getSnapshot()
+    if (callbacks.isAlternateToolActive()) {
+      releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
+      return
+    }
+    const paneX = resolvePaneRelativePointerX(event, paneElement)
+    const paneY = resolvePaneY(event)
+    const models = buildHitTestModels(snapshot.interaction.selectedId)
+    const hit = hitTestFixedRangeVolumeProfiles(
+      snapshot.instances,
+      models,
+      snapshot.interaction.selectedId,
+      paneX,
+      paneY,
+    )
+    if (!hit) {
+      releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
+      return
+    }
+    if (
+      preferDrawingPointerTargetAmongPeers(
+        callbacks.getCompetingLineHit(paneX, paneY),
+        callbacks.getCompetingRectangleHit(paneX, paneY),
+        hit,
+        callbacks.getCompetingAnchoredVwapHit(paneX, paneY),
+      ) !== 'frvp'
+    ) {
+      releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
+      return
+    }
+    const instance = snapshot.instances.find((item) => item.id === hit.instanceId)
+    updateDrawingCursor(paneElement, 'fixed-range-volume-profile', {
+      kind: hit.kind,
+      movable: false,
+      locked: instance ? isFixedRangeVolumeProfileInstanceLocked(instance) : false,
+    })
+  }
+
   const onPointerMove = (event: PointerEvent) => {
     const snapshot = callbacks.getSnapshot()
     if (activePointerId === event.pointerId && snapshot.interaction.phase === 'resizing') {
+      // A resize draft owns the pointer: no hover cursor mid-gesture.
+      releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
       const paneX = resolvePaneRelativePointerX(event, paneElement)
       syncResizePreview(paneX)
       return
     }
 
     if (isFixedRangeVolumeProfileToolActive(snapshot.interaction)) {
+      releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
       const paneX = resolvePaneRelativePointerX(event, paneElement)
       const hoverTime = resolveSelectionTime(paneX)
       const next = applyFixedRangeVolumeProfileCrosshairTime(snapshot.interaction, hoverTime)
@@ -306,7 +350,14 @@ export function attachFixedRangeVolumeProfilePanePointer(
         callbacks.onInteractionChange(next)
         callbacks.onRequestRender()
       }
+      return
     }
+
+    syncHoverCursor(event)
+  }
+
+  const onPointerLeave = () => {
+    releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
   }
 
   const releasePointer = (event: PointerEvent) => {
@@ -315,6 +366,8 @@ export function attachFixedRangeVolumeProfilePanePointer(
       paneElement.releasePointerCapture(event.pointerId)
     }
     activePointerId = null
+    // Never keep the resize cursor after the gesture ended.
+    releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
   }
 
   const onPointerUp = (event: PointerEvent) => {
@@ -364,14 +417,19 @@ export function attachFixedRangeVolumeProfilePanePointer(
       { type: 'pointermove', listener: onPointerMove as EventListener },
       { type: 'pointerup', listener: onPointerUp as EventListener },
       { type: 'pointercancel', listener: onPointerCancel as EventListener },
+      { type: 'pointerleave', listener: onPointerLeave as EventListener },
     ],
     (next) => {
+      if (paneElement !== next) {
+        releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
+      }
       paneElement = next
     },
   )
 
   return {
     dispose: () => {
+      releaseDrawingCursor(paneElement, 'fixed-range-volume-profile')
       paneElementBinding.dispose()
     },
   }
