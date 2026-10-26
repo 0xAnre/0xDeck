@@ -47,14 +47,14 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Empty chart space | Deselects |
 | `Esc` | Cancels the active create/resize/move operation and discards the draft; the current selection is kept |
 | `Delete` / `Backspace` | Deletes the selected object when it is unlocked; MUST be ignored while focus is in a form control (`isEditableKeyboardTarget`, `isRectangleKeyboardFocusOnOutsideControl`) |
-| Lock | Object stays visible; MUST NOT be moved, resized or deleted. Lock is a geometry/ownership guard, so style settings may stay reachable (`isChartObjectLocked` / `setChartObjectLocked`, and per-instance guards such as `isRectangleInstanceTransformable`, `isLineInstanceTransformable`, `isAnchoredVwapInstanceLocked`) |
+| Lock | Object stays visible; MUST NOT be moved, resized or deleted on the chart. Lock is a geometry/ownership guard, so style settings and the header object list stay reachable (`isChartObjectLocked` / `setChartObjectLocked`, and per-instance guards such as `isRectangleInstanceTransformable`, `isLineInstanceTransformable`, `isAnchoredVwapInstanceLocked`); deleting a locked object from the header object list is the deliberate recovery path, the on-chart `Delete`/`Backspace` shortcut is not |
 | Hide | Object stops rendering but is kept in storage, and can be shown, unlocked, re-styled or deleted (`isChartObjectHidden` / `setChartObjectHidden`; FRVP and rolling VWAP use the instance `enabled` flag) |
 
 **Keyboard ownership (MUST).** Exactly one panel handles drawing shortcuts at a time — `src/market/rectangleKeyboardScope.ts` (`claimRectangleKeyboardPanel` / `isActiveRectangleKeyboardPanel`). New tools MUST gate their `keydown` handler on the same active-panel check rather than adding an unscoped global listener.
 
 **Chart navigation (MUST).** Pan/zoom works normally whenever the pointer is not interacting with a drawing. Navigation locking comes from the interaction modules (`isRectangleChartNavigationLocked`, `isLineChartNavigationLocked`, `isFixedRangeVolumeProfileChartNavigationLocked`, `isAnchoredVwapDrawingNavigationLocked`) applied through `src/market/chartDrawingInteractionMode.ts`. Hit resolution across overlapping objects MUST go through `src/market/drawingPointerArbitration.ts` (`preferDrawingPointerTarget`, `preferDrawingPointerTargetAmongPeers`, `*HitAtPanePoint`) and peer selection release through `src/market/drawingSelection.ts`; do not attach competing pane pointer handlers for a new tool.
 
-**Feedback (MUST).** Cursors, hover highlight, selection outline and drag preview come from the shared per-tool render geometry and handle lists, so selection looks the same across tools. New tools MUST render selection/handles through the same pattern instead of a tool-only visual language.
+**Feedback (MUST).** Selection outline and drag preview come from the shared per-tool render geometry and handle lists, so selection looks the same across tools. No tool currently changes the pointer cursor or paints a hover highlight; if that is added it MUST be one shared mechanism gated by the same active-panel check, not a tool-only visual language. New tools MUST render selection/handles through the same pattern instead of a tool-only visual language.
 
 ---
 
