@@ -1,19 +1,23 @@
 import {
   INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  applyFixedRangeVolumeProfileSelection,
   isFixedRangeVolumeProfileChartNavigationLocked,
   isFixedRangeVolumeProfileToolActive,
   type FixedRangeVolumeProfileInteractionState,
 } from './fixedRangeVolumeProfileInteraction.ts'
 import {
+  applyLineSelection,
   isLineChartNavigationLocked,
   type LineInteractionState,
 } from './lineInteraction.ts'
 import {
+  applyRectangleSelection,
   isRectangleChartNavigationLocked,
   type RectangleInteractionState,
 } from './rectangleInteraction.ts'
 import {
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+  applyAnchoredVwapDrawingSelection,
   isAnchoredVwapDrawingNavigationLocked,
   isAnchoredVwapDrawingToolArmed,
   type AnchoredVwapDrawingInteractionState,
@@ -155,4 +159,50 @@ export function withExclusiveFrvpSelection(
   const nextRectangle = clearRectangleSelectionForPeerClaim(rectangle)
   if (nextLine === line && nextRectangle === rectangle) return { frvp, line, rectangle }
   return { frvp, line: nextLine, rectangle: nextRectangle }
+}
+
+/** Selection state of every drawing tool at once. */
+export type DrawingSelectionStates = {
+  rectangle: RectangleInteractionState
+  line: LineInteractionState
+  fixedRangeVolumeProfile: FixedRangeVolumeProfileInteractionState
+  anchoredVwap: AnchoredVwapDrawingInteractionState
+}
+
+export function hasDrawingSelection(states: DrawingSelectionStates): boolean {
+  return (
+    states.rectangle.selectedId !== null ||
+    states.line.selectedId !== null ||
+    states.fixedRangeVolumeProfile.selectedId !== null ||
+    states.anchoredVwap.selectedId !== null
+  )
+}
+
+/**
+ * Deselect every drawing tool, used by an empty-space click outside the candle
+ * pane (RSI / liquidation panes) where no tool pointer module is listening.
+ *
+ * Returns `null` when nothing was selected so callers keep the same state
+ * objects and skip a re-render; armed and in-progress gestures are left alone
+ * by the per-tool `apply*Selection` helpers.
+ */
+export function clearDrawingSelections(
+  states: DrawingSelectionStates,
+): DrawingSelectionStates | null {
+  const rectangle = applyRectangleSelection(states.rectangle, null)
+  const line = applyLineSelection(states.line, null)
+  const fixedRangeVolumeProfile = applyFixedRangeVolumeProfileSelection(
+    states.fixedRangeVolumeProfile,
+    null,
+  )
+  const anchoredVwap = applyAnchoredVwapDrawingSelection(states.anchoredVwap, null)
+  if (
+    rectangle === states.rectangle &&
+    line === states.line &&
+    fixedRangeVolumeProfile === states.fixedRangeVolumeProfile &&
+    anchoredVwap === states.anchoredVwap
+  ) {
+    return null
+  }
+  return { rectangle, line, fixedRangeVolumeProfile, anchoredVwap }
 }
