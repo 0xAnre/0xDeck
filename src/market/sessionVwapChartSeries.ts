@@ -1,4 +1,5 @@
 import { LineSeries, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts'
+import { resolveCandlePaneIndex } from './candlePane.ts'
 import {
   attachSessionVwapBandSeriesPrimitive,
   type SessionVwapBandSeriesAttachment,
@@ -64,6 +65,9 @@ export function createSessionVwapLineSeries<
   const ordered: ISeriesApi<'Line'>[] = []
   const bandPoints: SessionVwapBandPoint[] = []
   const bandVisible = visible
+  // Series must join the candle pane, which is not pane 0 when the
+  // aggregated-liquidations pane sits above the candles.
+  const paneIndex = resolveCandlePaneIndex(chart)
 
   for (const spec of specs) {
     const series = chart.addSeries(LineSeries, {
@@ -71,7 +75,7 @@ export function createSessionVwapLineSeries<
       color: spec.color,
       lineWidth: spec.lineWidth,
       visible,
-    })
+    }, paneIndex)
     byKey[spec.key] = series
     ordered.push(series)
   }

@@ -6,6 +6,7 @@ import {
   registerCandleChartSeries,
   resolveCandlePane,
   resolveCandlePaneElement,
+  resolveCandlePaneIndex,
 } from './candlePane.ts'
 
 type FakeElementListeners = Map<string, Set<EventListener>>
@@ -67,6 +68,21 @@ describe('candlePane', () => {
     const pane = { getHTMLElement: () => null }
     assert.equal(resolveCandlePane({ panes: () => [pane] } as never), pane)
     assert.equal(resolveCandlePane({ panes: () => [] } as never), null)
+  })
+
+  it('resolves the candle pane index for new series creation', () => {
+    const panes: FakePane[] = []
+    const elements = [createFakeElement(), createFakeElement()]
+    const candlePane = createFakePane(panes, elements)
+    const liquidationPane = createFakePane(panes, elements)
+    // Top position: liquidation pane 0, candles pane 1.
+    panes.push(liquidationPane, candlePane)
+
+    const chart = { panes: () => panes }
+    assert.equal(resolveCandlePaneIndex(chart as never), 0)
+
+    registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
+    assert.equal(resolveCandlePaneIndex(chart as never), 1)
   })
 
   it('moves bound listeners to the new candle pane element after a pane reorder', () => {

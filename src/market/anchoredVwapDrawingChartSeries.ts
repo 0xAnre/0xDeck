@@ -26,6 +26,7 @@ import type { AnchoredVwapBandFillPoint } from './anchoredVwapBandFillRenderGeom
 import { rectangleFillRgbaFromHex } from './rectangleColors.ts'
 import type { RollingVwapLineStyle } from './rollingVwapSettings.ts'
 import type { MarketCandle } from './types.ts'
+import { resolveCandlePaneIndex } from './candlePane.ts'
 
 export const ANCHORED_VWAP_DRAWING_BAND_SERIES_KEYS = [
   'upper1',
@@ -135,6 +136,9 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
   settings: AnchoredVwapDrawingSettings,
   title: string,
 ): AnchoredVwapDrawingChartSeriesBundle {
+  // Overlays belong to the candle pane, which is not pane 0 when the
+  // aggregated-liquidations pane sits above the candles.
+  const paneIndex = resolveCandlePaneIndex(chart)
   const center = chart.addSeries(LineSeries, {
     color: anchoredVwapDrawingLineRgba(settings.vwapLine.lineColor, settings.vwapLine.lineOpacity),
     lineWidth: settings.vwapLine.lineWidth,
@@ -145,7 +149,7 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
     pointMarkersVisible: false,
     title,
     visible: false,
-  })
+  }, paneIndex)
 
   const bands = {} as Record<AnchoredVwapDrawingBandSeriesKey, ISeriesApi<'Line'>>
   const ordered: ISeriesApi<'Line'>[] = [center]
@@ -169,7 +173,7 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
         pointMarkersVisible: false,
         title: '',
         visible: false,
-      })
+      }, paneIndex)
       bands[key] = series
       ordered.push(series)
     }

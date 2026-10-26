@@ -28,6 +28,17 @@ export function resolveCandlePaneElement(chart: IChartApi): HTMLElement | null {
   return resolveCandlePane(chart)?.getHTMLElement() ?? null
 }
 
+/**
+ * Pane index that owns the candles, for `chart.addSeries(..., paneIndex)`.
+ * Without it Lightweight Charts defaults to pane 0, which is the liquidation
+ * pane while `Position: Top` is active. Unknown charts fall back to pane 0.
+ */
+export function resolveCandlePaneIndex(chart: IChartApi): number {
+  const candleSeries = candleSeriesByChart.get(chart)
+  if (!candleSeries) return 0
+  return candleSeries.getPane().paneIndex()
+}
+
 /** Notify listeners after panes are reordered (e.g. Top/Bottom liquidation position). */
 export function notifyCandlePaneChange(chart: IChartApi): void {
   const listeners = paneChangeListenersByChart.get(chart)
