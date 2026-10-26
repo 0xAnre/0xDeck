@@ -11,7 +11,7 @@ Rules for BTC Perp chart tools, indicators and their settings (`src/market/`, `s
 **One color control (MUST).** Every color input uses `ColorOpacityField` (`src/widgetSettings/ColorOpacityField.tsx`) with palette, HEX normalization, opacity normalization and preview geometry from `src/widgetSettings/colorPickerPalette.ts`. Never add a bespoke picker, a raw `<input type="color">`, or a private swatch grid.
 
 - Color and opacity are one control: pass `color` + `opacityPercent` together and emit 0–100 integer percentages; a color field without opacity is not the standard.
-- Stroke-capable fields add the `Line`/`Dot` row via `lineStyle` + `onLineStyleChange`; use `lineStyleMixed` for indeterminate multi-series state instead of picking a series value. Fill-only fields (rect fill, FRVP histogram, VWAP band fill, info-box background/text) MUST omit the style row.
+- The `Line`/`Dot` row (`lineStyle` + `onLineStyleChange`) is added only where the object's stroke style is user-selectable; use `lineStyleMixed` for indeterminate multi-series state instead of picking a series value. Fills, backgrounds and band/level strokes that have no persisted line-style value (rect fill, FRVP histogram, VWAP band fill, Rolling VWAP band strokes, info-box background/text) MUST omit the style row.
 - Fills and backgrounds MUST use this same Color + Opacity control wherever the tool supports them.
 
 **One width control (MUST).** Stroke width comes from `LineChartStrokeSelectFields` (`src/widgetSettings/LineChartStrokeSelectFields.tsx`) over `LINE_CHART_STROKE_WIDTHS` in `src/market/lineChartStroke.ts` (1–4px, `DEFAULT_LINE_CHART_STROKE_WIDTH`). Do not introduce a competing width toggle or width range.
@@ -21,10 +21,10 @@ Rules for BTC Perp chart tools, indicators and their settings (`src/market/`, `s
 **Settings dialogs (MUST).**
 
 - Use the shadcn `Dialog` in `src/components/ui/dialog.tsx`; do not build a parallel modal/popover shell.
-- Preserve the shared structure: `DialogHeader` (`DialogTitle` + `DialogDescription` naming the object) → body of `FieldGroup`/`Field` sections → `DialogFooter` with `Save`/`Cancel`, required for every chart tool and indicator settings dialog.
+- Preserve the shared structure, required for every chart tool and indicator settings dialog: `DialogHeader` (`DialogTitle` + `DialogDescription` naming the object) → grouped, labelled body sections → `DialogFooter` with required `Save`/`Cancel`. `FieldGroup`/`Field` + `FieldLabel` is the preferred labelling mechanism where the control is a form field; a labelled `<section>` group is the accepted body form where the controls are not form fields.
 - Spacious and responsive: SHOULD share one width and spacing scale wider than the shadcn default `sm:max-w-sm`, with grouped sections and consistent gaps; the body MUST scroll inside `max-h-[calc(100dvh-2rem)]` instead of overflowing the viewport.
-- MUST NOT darken or black out the chart behind the dialog: no near-opaque full-viewport scrim, no blur that makes the drawing unreadable while adjusting it. The chart stays visible so the change can be judged.
-- Consistent labels and close behavior: same wording for Color/Opacity/Width/Line/Dot, same `Field`/`FieldLabel` association, and `X`, `Esc`, outside click all close. Return focus to the control that opened the dialog (`returnFocusId`).
+- MUST NOT darken or black out the chart behind the dialog: no near-opaque full-viewport scrim, no blur that makes the drawing unreadable while adjusting it. The overlay stays transparent and unblurred so the chart remains readable while drafting; `Save` applies the change so it can be judged on the chart. This is not a live preview.
+- Consistent labels and close behavior: same wording for Color/Opacity/Width/Line/Dot, same `Field`/`FieldLabel` association, and `X`, `Esc`, outside click all close. `DialogDescription` identifies the concrete object/instance, not only the tool kind, where the dialog has one (for example `formatLineInstanceLabel`). Return focus to the control that opened the dialog (`returnFocusId`).
 
 **Draft + Save is mandatory (MUST).** Every chart tool and indicator settings dialog is draft-based — there are no exceptions. All edits stay in a local draft; only `Save` commits, through the existing instance-update → persist path.
 
