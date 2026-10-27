@@ -221,12 +221,12 @@ describe('createRsiChartPane', () => {
     assert.deepEqual(bundle.settings, DEFAULTS)
   })
 
-  it('bounds the RSI scale to 0-100 through the series autoscale provider', () => {
+  it('bounds the RSI scale to the visible 5-95 range through the series autoscale provider', () => {
     const harness = makeChart()
     createRsiChartPane(harness.chart, DEFAULTS)
     const provider = harness.createdSeriesOptions().autoscaleInfoProvider as AutoscaleInfoProvider
     assert.deepEqual(provider(() => null), {
-      priceRange: { minValue: 0, maxValue: 100 },
+      priceRange: { minValue: 5, maxValue: 95 },
     })
   })
 
@@ -419,15 +419,15 @@ describe('RSI pane data', () => {
 })
 
 describe('RSI pane default height', () => {
-  it('derives the stretch factor from the candle-pane baseline so the pane opens at 25 %', () => {
+  it('derives the stretch factor from the candle-pane baseline so the pane opens at 22 %', () => {
     const factor = computeRsiPaneStretchFactor(CANDLE_BASELINE)
     // The old constant 0.35 only produced 0.35 / (2 + 0.35) ≈ 14.9 %.
     assert.equal(factor, (CANDLE_BASELINE * RSI_PANE_HEIGHT_SHARE) / (1 - RSI_PANE_HEIGHT_SHARE))
     assertShare(factor / (CANDLE_BASELINE + factor), RSI_PANE_HEIGHT_SHARE)
-    assert.ok(Math.abs(RSI_PANE_HEIGHT_SHARE - 0.25) < 1e-9)
+    assert.ok(Math.abs(RSI_PANE_HEIGHT_SHARE - 0.22) < 1e-9)
   })
 
-  it('keeps the share at 25 % for any other-pane total (dragged candles, extra panes)', () => {
+  it('keeps the share at 22 % for any other-pane total (dragged candles, extra panes)', () => {
     for (const otherStretchTotal of [1, 1.4, 2, 3.5, 8]) {
       const factor = computeRsiPaneStretchFactor(otherStretchTotal)
       assertShare(factor / (otherStretchTotal + factor), RSI_PANE_HEIGHT_SHARE)
@@ -491,7 +491,7 @@ describe('RSI pane default height', () => {
   it('restores a user-dragged share when the pane is re-created after a toggle', () => {
     const harness = makeChart()
     const firstBundle = createRsiChartPane(harness.chart, DEFAULTS)
-    // Drag the RSI pane taller than the default 25 %.
+    // Drag the RSI pane taller than the default 22 %.
     const draggedRsiStretch = 1.5
     harness.dragPaneSeparator(
       CANDLE_BASELINE + DEFAULT_STRETCH_FACTOR - draggedRsiStretch,

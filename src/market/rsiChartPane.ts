@@ -27,28 +27,35 @@ import type { MarketCandle } from './types.ts'
  * indices — other panes (e.g. Aggregated Liquidations) may come and go.
  */
 
-/** RSI is bounded 0–100 regardless of the loaded values. */
-const RSI_PRICE_RANGE: AutoscaleInfo = { priceRange: { minValue: 0, maxValue: 100 } }
+/**
+ * Visible RSI range: a modest zoom into the middle of the 0–100 scale. The
+ * values, thresholds and level price lines keep their true prices (70/50/30);
+ * the range only decides how much pane height each unit gets. RSI readings
+ * outside 5–95 are outside the visible area by design — no clamping or padding.
+ */
+const RSI_PRICE_RANGE: AutoscaleInfo = { priceRange: { minValue: 5, maxValue: 95 } }
 
 /** `autoscaleInfoProvider` runs on every layout pass, so reuse one constant. */
 const RSI_AUTOSCALE_INFO_PROVIDER = () => RSI_PRICE_RANGE
 
 /**
- * Empty space above/below the fixed 0–100 range. The library default
- * (0.1 / 0.1) maps only 80 % of the pane height to the scale, which packs the
- * 70/50/30 reference lines tighter than needed; 0.05 / 0.05 uses 90 % of the
- * pane instead (spacing +12.5 %, ~5 px more per gap at the default pane
- * height) while still leaving the 0/100 axis labels and the last-value label
- * clipped-free at the pane edges.
+ * Empty space above/below the visible range. The library default (0.1 / 0.1)
+ * would map only 80 % of the pane height to the scale and pack the 70/50/30
+ * reference lines together; 0.02 / 0.02 maps 96 % of the pane onto the 5–95
+ * range. At the 22 % default share (~233 px pane at a 1061 px plot) that is
+ * ~49.8 px per 20-unit gap — more than the previous ~47.7 px — while the small
+ * non-zero margin keeps the last-value label and the scale edges clear of the
+ * pane boundary (a 0 / 0 margin would risk clipping them).
  */
-const RSI_PRICE_SCALE_MARGINS: PriceScaleMargins = { top: 0.05, bottom: 0.05 }
+const RSI_PRICE_SCALE_MARGINS: PriceScaleMargins = { top: 0.02, bottom: 0.02 }
 
 /**
  * Default share of the chart's plot height (all panes together) the RSI pane
- * opens with: ~270–280 px of a ~1100 px plot area, which keeps the fixed 0–100
- * scale labels and the 70/30 reference lines comfortable to read.
+ * opens with: ~233 px of a ~1061 px plot area. The default is relative, so it
+ * stays responsive to chart size; the vertical spacing between the 70/50/30
+ * lines comes from the visible range, not from this share.
  */
-export const RSI_PANE_HEIGHT_SHARE = 0.25
+export const RSI_PANE_HEIGHT_SHARE = 0.22
 
 /** Keeps a remembered (dragged) share inside a sane, non-degenerate range. */
 const MIN_PANE_HEIGHT_SHARE = 0.05
@@ -193,7 +200,7 @@ export function createRsiChartPane(
     crosshairMarkerVisible: false,
     autoscaleInfoProvider: RSI_AUTOSCALE_INFO_PROVIDER,
   })
-  // Native price-scale margins only: the fixed 0–100 range, the RSI values and
+  // Native price-scale margins only: the 5–95 visible range, the RSI values and
   // every level price stay exactly as configured — more of the pane height is
   // simply mapped onto that range.
   series.priceScale().applyOptions({ scaleMargins: RSI_PRICE_SCALE_MARGINS })
