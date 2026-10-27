@@ -27,6 +27,7 @@ Rules for BTC Perp chart tools, indicators and their settings (`src/market/`, `s
 - Spacious and responsive: SHOULD share one width and spacing scale wider than the shadcn default `sm:max-w-sm`, with grouped sections and consistent gaps; the body MUST scroll inside `max-h-[calc(100dvh-2rem)]` instead of overflowing the viewport.
 - MUST NOT darken or black out the chart behind the dialog: no near-opaque full-viewport scrim, no blur that makes the drawing unreadable while adjusting it. The overlay stays transparent and unblurred so the chart remains readable while drafting; `Save` applies the change so it can be judged on the chart. This is not a live preview.
 - Consistent labels and close behavior: same wording for Color/Opacity/Width/Line/Dot, same `Field`/`FieldLabel` association, and `X`, `Esc`, outside click all close. `DialogDescription` identifies the concrete object/instance, not only the tool kind, where the dialog has one (for example `formatLineInstanceLabel`). Return focus to the control that opened the dialog (`returnFocusId`).
+- Nested modal controls (`Select`, modal dropdown) close only themselves: an in-dialog press MUST NOT dismiss the dialog or click through to the control underneath. Shared `src/components/ui/dialog.tsx` `DialogContent` handles this once; do not add per-dialog outside-click handlers.
 
 **Draft + Save is mandatory (MUST).** Every chart tool and indicator settings dialog is draft-based — there are no exceptions. All edits stay in a local draft; only `Save` commits, through the existing instance-update → persist path.
 
