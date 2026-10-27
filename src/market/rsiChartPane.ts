@@ -6,6 +6,7 @@ import {
   type IPaneApi,
   type IPriceLine,
   type ISeriesApi,
+  type PriceScaleMargins,
   type Time,
 } from 'lightweight-charts'
 import { MARKET_STYLE_DEFAULTS, marketStyleColorWithOpacity } from './marketStylePalette.ts'
@@ -26,14 +27,95 @@ import type { MarketCandle } from './types.ts'
  * indices — other panes (e.g. Aggregated Liquidations) may come and go.
  */
 
-/** RSI is bounded 0–100 regardless of the loaded values. */
-const RSI_PRICE_RANGE: AutoscaleInfo = { priceRange: { minValue: 0, maxValue: 100 } }
+/**
+ * Visible RSI range: a modest zoom into the middle of the 0–100 scale. The
+ * values, thresholds and level price lines keep their true prices (70/50/30);
+ * the range only decides how much pane height each unit gets. RSI readings
+ * outside 5–95 are outside the visible area by design — no clamping or padding.
+ */
+const RSI_PRICE_RANGE: AutoscaleInfo = { priceRange: { minValue: 5, maxValue: 95 } }
 
 /** `autoscaleInfoProvider` runs on every layout pass, so reuse one constant. */
 const RSI_AUTOSCALE_INFO_PROVIDER = () => RSI_PRICE_RANGE
 
-/** Share of the chart height given to the RSI pane relative to the candle pane. */
-export const RSI_PANE_STRETCH_FACTOR = 0.35
+/**
+ * Empty space above/below the visible range. The library default (0.1 / 0.1)
+ * would map only 80 % of the pane height to the scale and pack the 70/50/30
+ * reference lines together; 0.02 / 0.02 maps 96 % of the pane onto the 5–95
+ * range. At the 22 % default share (~233 px pane at a 1061 px plot) that is
+ * ~49.8 px per 20-unit gap — more than the previous ~47.7 px — while the small
+ * non-zero margin keeps the last-value label and the scale edges clear of the
+ * pane boundary (a 0 / 0 margin would risk clipping them).
+ */
+const RSI_PRICE_SCALE_MARGINS: PriceScaleMargins = { top: 0.02, bottom: 0.02 }
+
+/**
+ * Default share of the chart's plot height (all panes together) the RSI pane
+ * opens with: ~233 px of a ~1061 px plot area. The default is relative, so it
+ * stays responsive to chart size; the vertical spacing between the 70/50/30
+ * lines comes from the visible range, not from this share.
+ */
+export const RSI_PANE_HEIGHT_SHARE = 0.22
+
+/** Keeps a remembered (dragged) share inside a sane, non-degenerate range. */
+const MIN_PANE_HEIGHT_SHARE = 0.05
+const MAX_PANE_HEIGHT_SHARE = 0.8
+
+/**
+ * Candle-pane stretch factor seeded by `createChart({ addDefaultPane })`:
+ * Lightweight Charts assigns the main pane `DEFAULT_STRETCH_FACTOR * 2`.
+ */
+const CANDLE_PANE_BASELINE_STRETCH_FACTOR = 2
+
+function sanitizePaneHeightShare(share: number): number {
+  if (!Number.isFinite(share)) return RSI_PANE_HEIGHT_SHARE
+  return Math.min(MAX_PANE_HEIGHT_SHARE, Math.max(MIN_PANE_HEIGHT_SHARE, share))
+}
+
+/** Sum of the stretch factors of every pane currently on the chart. */
+export function sumPaneStretchFactors(chart: IChartApi): number {
+  return chart
+    .panes()
+    .reduce((total, pane) => total + pane.getStretchFactor(), 0)
+}
+
+/**
+ * Stretch factor that gives the RSI pane `share` of the plot height.
+ *
+ * Lightweight Charts sizes panes by stretch factor
+ * (`paneHeight = stretchFactor / totalStretch * plotHeight`) and seeds the
+ * candle pane with 2, so a bare constant has no stable meaning: the previous
+ * `0.35` produced only `0.35 / (2 + 0.35) ≈ 14.9 %` instead of the ~26 % it
+ * looked like. Deriving the factor from the live stretch total of the *other*
+ * panes makes the requested share exact for any candle baseline — including a
+ * manually dragged one — and stays responsive to the chart size, because the
+ * share is relative.
+ */
+export function computeRsiPaneStretchFactor(
+  otherPaneStretchTotal: number,
+  share: number = RSI_PANE_HEIGHT_SHARE,
+): number {
+  const safeShare = sanitizePaneHeightShare(share)
+  const otherTotal =
+    Number.isFinite(otherPaneStretchTotal) && otherPaneStretchTotal > 0
+      ? otherPaneStretchTotal
+      : CANDLE_PANE_BASELINE_STRETCH_FACTOR
+  return (otherTotal * safeShare) / (1 - safeShare)
+}
+
+/**
+ * Share of the plot height the pane occupies right now, used to remember a user
+ * drag across an RSI remove/re-add cycle. `null` when the chart cannot report a
+ * usable total (e.g. a single-pane chart before layout).
+ */
+export function rsiPaneHeightShare(
+  chart: IChartApi,
+  pane: IPaneApi<Time>,
+): number | null {
+  const total = sumPaneStretchFactors(chart)
+  if (!(total > 0)) return null
+  return pane.getStretchFactor() / total
+}
 
 export type RsiLevelPriceLines = {
   overbought: IPriceLine
@@ -85,10 +167,31 @@ function createLevelPriceLines(
   }
 }
 
-export function createRsiChartPane(chart: IChartApi, settings: RsiSettings): RsiChartPaneBundle {
+/**
+ * Create the RSI pane.
+ *
+ * `rememberedShare` is the fraction of the plot height the pane should occupy.
+ * It is `null` for a fresh pane (the default share) and carries the share a user
+ * last had — after a manual pane drag — when the indicator is toggled off and on
+ * again. Sizing is applied exactly once here: later re-renders, settings changes,
+ * resizes and indicator toggles must never overwrite a user's manual pane drag.
+ */
+export function createRsiChartPane(
+  chart: IChartApi,
+  settings: RsiSettings,
+  rememberedShare: number | null = null,
+): RsiChartPaneBundle {
   const sanitized = sanitizeRsiSettings(settings)
+  // Measure the other panes before adding this one: `chart.addPane()` appends a
+  // pane with the library default factor, which must not count as "other".
+  const otherPanesStretch = sumPaneStretchFactors(chart)
   const pane = chart.addPane()
-  pane.setStretchFactor(RSI_PANE_STRETCH_FACTOR)
+  pane.setStretchFactor(
+    computeRsiPaneStretchFactor(
+      otherPanesStretch,
+      rememberedShare ?? RSI_PANE_HEIGHT_SHARE,
+    ),
+  )
   const series = pane.addSeries(LineSeries, {
     color: rsiLineColor(),
     lineWidth: 1,
@@ -97,6 +200,10 @@ export function createRsiChartPane(chart: IChartApi, settings: RsiSettings): Rsi
     crosshairMarkerVisible: false,
     autoscaleInfoProvider: RSI_AUTOSCALE_INFO_PROVIDER,
   })
+  // Native price-scale margins only: the 5–95 visible range, the RSI values and
+  // every level price stay exactly as configured — more of the pane height is
+  // simply mapped onto that range.
+  series.priceScale().applyOptions({ scaleMargins: RSI_PRICE_SCALE_MARGINS })
   // Pane double-click / empty-space handling resolves the RSI pane by series
   // identity, because the pane index changes as other panes come and go.
   registerChartPaneRoleSeries(chart, 'rsi', series)
