@@ -50,6 +50,34 @@ describe('parseOrderBookDepthSample', () => {
     assert.equal(sample.complete, false)
   })
 
+  it('keeps guaranteed and observed coverage distinguishable', () => {
+    const sample = parsed({
+      bid_coverage_pct: 0.15,
+      ask_coverage_pct: 0.15,
+      observed_bid_coverage_pct: 3.02,
+      observed_ask_coverage_pct: 2.97,
+    })
+    assert.equal(sample.bidCoveragePct, 0.15)
+    assert.equal(sample.askCoveragePct, 0.15)
+    assert.equal(sample.observedBidCoveragePct, 3.02)
+    assert.equal(sample.observedAskCoveragePct, 2.97)
+    assert.equal(sample.complete, false)
+
+    // Samples written before the split only carry guaranteed coverage.
+    const legacy = parsed()
+    assert.equal(legacy.observedBidCoveragePct, null)
+    assert.equal(legacy.observedAskCoveragePct, null)
+
+    const camelCase = parseOrderBookDepthSample({
+      ...rawSample(),
+      observedBidCoveragePct: 1.25,
+      observedAskCoveragePct: 1.5,
+    })
+    assert.ok(camelCase)
+    assert.equal(camelCase.observedBidCoveragePct, 1.25)
+    assert.equal(camelCase.observedAskCoveragePct, 1.5)
+  })
+
   it('accepts camelCase fields and derives a missing id', () => {
     const sample = parseOrderBookDepthSample({
       ...rawSample({ id: undefined, distance: 0.5 }),
@@ -251,7 +279,38 @@ describe('orderBookDepthCoverageNotice', () => {
       2.5,
     )
     assert.match(notice ?? '', /Insufficient order-book coverage/)
-    assert.match(notice ?? '', /2\.5%/)
+    assert.match(notice ?? '', /2\.5% requested/)
+  })
+
+  it('states the guaranteed coverage available versus the requested distance', () => {
+    const notice = orderBookDepthCoverageNotice(
+      [
+        parsed({
+          bid_coverage_pct: 0.15,
+          ask_coverage_pct: 0.15,
+          // Deep-looking extrema must never be presented as available depth.
+          observed_bid_coverage_pct: 3.02,
+          observed_ask_coverage_pct: 2.97,
+          complete: false,
+        }),
+      ],
+      2.5,
+    )
+    assert.equal(
+      notice,
+      'Insufficient order-book coverage: 0.15% available of 2.5% requested.',
+    )
+  })
+
+  it('reports the limiting side when coverage differs per side', () => {
+    const notice = orderBookDepthCoverageNotice(
+      [parsed({ distance: 1, bid_coverage_pct: 0.146, ask_coverage_pct: 0.168 })],
+      1,
+    )
+    assert.equal(
+      notice,
+      'Insufficient order-book coverage: 0.15% available of 1% requested.',
+    )
   })
 
   it('reports waiting when no sample exists yet', () => {

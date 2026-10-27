@@ -63,9 +63,19 @@ CREATE TABLE IF NOT EXISTS orderbook_samples (
     exchange TEXT NOT NULL,
     symbol TEXT NOT NULL,
     source TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    observed_bid_coverage_pct REAL,
+    observed_ask_coverage_pct REAL
 )
 """
+
+# Rows written before guaranteed/observed coverage was split do not have the
+# observed columns. A pre-existing local ``.orderbook.sqlite3`` must keep
+# working, so the columns are added in place (NULL = not recorded).
+OBSERVED_COVERAGE_COLUMNS: tuple[str, ...] = (
+    "observed_bid_coverage_pct",
+    "observed_ask_coverage_pct",
+)
 
 INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_orderbook_samples_distance_time_id
@@ -101,7 +111,17 @@ class OrderBookHistoryPage:
 
 
 def _row_to_sample(row: sqlite3.Row) -> dict[str, object]:
-    """Return the same normalized shape the WebSocket relay publishes."""
+    """Return the same normalized shape the WebSocket relay publishes.
+
+    ``bid_coverage_pct`` / ``ask_coverage_pct`` are guaranteed coverage (the
+    only source of ``complete``); the observed extrema are reported separately.
+    Rows written before the split only stored one coverage value, which was the
+    observed one, so it is reused as the observed fallback.
+    """
+    bid_coverage = float(row["bid_coverage_pct"])
+    ask_coverage = float(row["ask_coverage_pct"])
+    observed_bid = row["observed_bid_coverage_pct"]
+    observed_ask = row["observed_ask_coverage_pct"]
     return {
         "id": row["id"],
         "source": row["source"],
@@ -113,8 +133,14 @@ def _row_to_sample(row: sqlite3.Row) -> dict[str, object]:
         "bid_notional": row["bid_notional"],
         "ask_notional": row["ask_notional"],
         "imbalance": row["imbalance"],
-        "bid_coverage_pct": row["bid_coverage_pct"],
-        "ask_coverage_pct": row["ask_coverage_pct"],
+        "bid_coverage_pct": bid_coverage,
+        "ask_coverage_pct": ask_coverage,
+        "observed_bid_coverage_pct": (
+            bid_coverage if observed_bid is None else float(observed_bid)
+        ),
+        "observed_ask_coverage_pct": (
+            ask_coverage if observed_ask is None else float(observed_ask)
+        ),
         "complete": bool(row["complete"]),
     }
 
@@ -140,8 +166,27 @@ class OrderBookStore:
         with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             connection.execute(SCHEMA_SQL)
+            self._migrate_observed_coverage_columns(connection)
             connection.execute(INDEX_SQL)
             connection.commit()
+
+    def _migrate_observed_coverage_columns(
+        self,
+        connection: sqlite3.Connection,
+    ) -> None:
+        """Add the observed-coverage columns to an older local database."""
+        existing = {
+            str(row[1])
+            for row in connection.execute(
+                "PRAGMA table_info(orderbook_samples)"
+            ).fetchall()
+        }
+        for column in OBSERVED_COVERAGE_COLUMNS:
+            if column in existing:
+                continue
+            connection.execute(
+                f"ALTER TABLE orderbook_samples ADD COLUMN {column} REAL"
+            )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5.0)
@@ -171,6 +216,18 @@ class OrderBookStore:
                 str(sample["symbol"]),
                 str(sample["source"]),
                 int(time.time() * 1000),
+                float(
+                    sample.get(  # type: ignore[arg-type]
+                        "observed_bid_coverage_pct",
+                        sample["bid_coverage_pct"],
+                    )
+                ),
+                float(
+                    sample.get(  # type: ignore[arg-type]
+                        "observed_ask_coverage_pct",
+                        sample["ask_coverage_pct"],
+                    )
+                ),
             )
             for sample in samples
         ]
@@ -184,8 +241,9 @@ class OrderBookStore:
                 INSERT OR IGNORE INTO orderbook_samples (
                     id, sample_time, distance, mid, bid_notional, ask_notional,
                     imbalance, bid_coverage_pct, ask_coverage_pct, complete,
-                    exchange, symbol, source, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    exchange, symbol, source, created_at,
+                    observed_bid_coverage_pct, observed_ask_coverage_pct
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 rows,
             )
@@ -228,7 +286,8 @@ class OrderBookStore:
         sql = """
             SELECT id, sample_time, distance, mid, bid_notional, ask_notional,
                    imbalance, bid_coverage_pct, ask_coverage_pct, complete,
-                   exchange, symbol, source
+                   exchange, symbol, source,
+                   observed_bid_coverage_pct, observed_ask_coverage_pct
             FROM orderbook_samples
             WHERE distance = ?
         """

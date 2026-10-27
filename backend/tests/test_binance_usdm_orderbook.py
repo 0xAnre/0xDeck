@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import time
 import unittest
 from contextlib import asynccontextmanager
 
@@ -343,6 +345,169 @@ class OrderBookChannelTests(unittest.TestCase):
         )
 
 
+class OrderBookCoverageHonestyTests(unittest.TestCase):
+    """Guaranteed coverage must come from the snapshot, never from diffs.
+
+    At BTCUSDT a ``limit=1000`` snapshot covers only ~0.15% per side. A diff
+    that adds a level 3% away observes that level but leaves everything between
+    ~0.15% and ~3% unknown, so it must not make a 2.5% sample complete.
+    """
+
+    MID = 100.0
+
+    def _state(self, *, coverage_pct: float) -> orderbook.OrderBookState:
+        best_bid = self.MID - 0.01
+        best_ask = self.MID + 0.01
+        # Float rounding is irrelevant here: mid is exactly 100.0.
+        bid_floor = self.MID * (1.0 - coverage_pct / 100.0)
+        ask_ceiling = self.MID * (1.0 + coverage_pct / 100.0)
+        state = orderbook.OrderBookState()
+        state.begin_resync()
+        snapshot = orderbook.parse_orderbook_snapshot(
+            _snapshot(
+                bids=[[f"{best_bid:.4f}", "1.0"], [f"{bid_floor:.4f}", "2.0"]],
+                asks=[[f"{best_ask:.4f}", "1.0"], [f"{ask_ceiling:.4f}", "2.5"]],
+            )
+        )
+        assert snapshot is not None
+        assert state.apply_snapshot(snapshot) is True
+        return state
+
+    def _apply_diff(
+        self,
+        state: orderbook.OrderBookState,
+        *,
+        update_id: int,
+        bids: list[list[str]] | None,
+        asks: list[list[str]] | None,
+    ) -> None:
+        diff = orderbook.normalize_orderbook_diff_event(
+            _diff(
+                first=update_id,
+                final=update_id,
+                previous=update_id - 1,
+                bids=bids if bids is not None else [],
+                asks=asks if asks is not None else [],
+            )
+        )
+        assert diff is not None
+        state.on_diff(diff)
+        self.assertFalse(state.needs_resync)
+
+    def test_distant_diff_updates_do_not_fake_a_complete_wide_sample(self) -> None:
+        state = self._state(coverage_pct=0.15)
+        # Diffs observe levels ~3% away on each side.
+        self._apply_diff(
+            state,
+            update_id=SNAPSHOT_ID + 1,
+            bids=[[f"{self.MID * 0.97:.4f}", "5.0"]],
+            asks=[[f"{self.MID * 1.03:.4f}", "6.0"]],
+        )
+
+        sample = orderbook.compute_orderbook_sample(state, 2.5, 1_792_000_000_000)
+        assert sample is not None
+        self.assertFalse(sample["complete"])
+        self.assertAlmostEqual(float(sample["bid_coverage_pct"]), 0.15, places=6)
+        self.assertAlmostEqual(float(sample["ask_coverage_pct"]), 0.15, places=6)
+        # Observed depth is reported separately for diagnostics.
+        self.assertAlmostEqual(
+            float(sample["observed_bid_coverage_pct"]), 3.0, places=6
+        )
+        self.assertAlmostEqual(
+            float(sample["observed_ask_coverage_pct"]), 3.0, places=6
+        )
+
+    def test_snapshot_covering_the_requested_distance_is_complete(self) -> None:
+        state = self._state(coverage_pct=0.3)
+        sample = orderbook.compute_orderbook_sample(state, 0.25, 1)
+        assert sample is not None
+        self.assertTrue(sample["complete"])
+        self.assertAlmostEqual(float(sample["bid_coverage_pct"]), 0.3, places=6)
+        self.assertAlmostEqual(float(sample["ask_coverage_pct"]), 0.3, places=6)
+
+    def test_guaranteed_coverage_never_grows_with_distant_diffs(self) -> None:
+        state = self._state(coverage_pct=0.15)
+        for index in range(1, 21):
+            self._apply_diff(
+                state,
+                update_id=SNAPSHOT_ID + index,
+                bids=[[f"{self.MID * (1.0 - 0.0004 * index):.4f}", "1.0"]],
+                asks=[[f"{self.MID * (1.0 + 0.0004 * index):.4f}", "1.0"]],
+            )
+
+        sample = orderbook.compute_orderbook_sample(state, 2.5, 1)
+        assert sample is not None
+        self.assertFalse(sample["complete"])
+        self.assertAlmostEqual(float(sample["bid_coverage_pct"]), 0.15, places=6)
+        self.assertAlmostEqual(float(sample["ask_coverage_pct"]), 0.15, places=6)
+        # Observed coverage did grow (the 20th level is 0.8% away).
+        self.assertAlmostEqual(
+            float(sample["observed_bid_coverage_pct"]), 0.8, places=6
+        )
+        self.assertAlmostEqual(
+            float(sample["observed_ask_coverage_pct"]), 0.8, places=6
+        )
+
+    def test_deleting_the_deepest_snapshot_level_keeps_the_guarantee(self) -> None:
+        state = self._state(coverage_pct=0.15)
+        guaranteed_bid = state.guaranteed_bid_floor
+        guaranteed_ask = state.guaranteed_ask_ceiling
+        self._apply_diff(
+            state,
+            update_id=SNAPSHOT_ID + 1,
+            bids=[[f"{self.MID * 0.9985:.4f}", "0"]],
+            asks=[[f"{self.MID * 1.0015:.4f}", "0"]],
+        )
+
+        self.assertEqual(state.guaranteed_bid_floor, guaranteed_bid)
+        self.assertEqual(state.guaranteed_ask_ceiling, guaranteed_ask)
+        sample = orderbook.compute_orderbook_sample(state, 0.25, 1)
+        assert sample is not None
+        self.assertFalse(sample["complete"])
+        self.assertAlmostEqual(float(sample["bid_coverage_pct"]), 0.15, places=6)
+        self.assertAlmostEqual(float(sample["ask_coverage_pct"]), 0.15, places=6)
+        # The observed book shrank back to the best level only.
+        self.assertAlmostEqual(
+            float(sample["observed_bid_coverage_pct"]), 0.01, places=6
+        )
+        self.assertAlmostEqual(
+            float(sample["observed_ask_coverage_pct"]), 0.01, places=6
+        )
+
+    def test_resync_and_a_new_snapshot_reset_the_coverage(self) -> None:
+        state = self._state(coverage_pct=0.15)
+        self._apply_diff(
+            state,
+            update_id=SNAPSHOT_ID + 1,
+            bids=[[f"{self.MID * 0.97:.4f}", "5.0"]],
+            asks=[[f"{self.MID * 1.03:.4f}", "6.0"]],
+        )
+
+        state.begin_resync()
+        self.assertIsNone(state.guaranteed_bid_floor)
+        self.assertIsNone(state.guaranteed_ask_ceiling)
+        self.assertIsNone(orderbook.compute_orderbook_sample(state, 0.25, 1))
+
+        wider = orderbook.parse_orderbook_snapshot(
+            _snapshot(
+                bids=[["99.99", "1"], ["99.0", "2"]],
+                asks=[["100.01", "1"], ["101.0", "2"]],
+            )
+        )
+        assert wider is not None
+        assert state.apply_snapshot(wider) is True
+        self.assertEqual(state.guaranteed_bid_floor, 99.0)
+        self.assertEqual(state.guaranteed_ask_ceiling, 101.0)
+
+        tight = orderbook.compute_orderbook_sample(state, 0.5, 1)
+        wide = orderbook.compute_orderbook_sample(state, 2.5, 1)
+        assert tight is not None and wide is not None
+        self.assertTrue(tight["complete"])
+        self.assertFalse(wide["complete"])
+        self.assertAlmostEqual(float(wide["bid_coverage_pct"]), 1.0, places=6)
+        self.assertAlmostEqual(float(wide["ask_coverage_pct"]), 1.0, places=6)
+
+
 class _RecordingStore:
     def __init__(self) -> None:
         self.samples: list[dict] = []
@@ -404,6 +569,70 @@ def _snapshot_fetcher(counter: list[int], payload: dict[str, object]):
         return payload
 
     return fetch
+
+
+def _raising_snapshot_fetcher(timestamps: list[float]):
+    def fetch(_url: str) -> object:
+        timestamps.append(time.monotonic())
+        raise ConnectionError("snapshot endpoint unavailable")
+
+    return fetch
+
+
+@asynccontextmanager
+async def _gap_stream_connect(_url: str):
+    """Upstream whose diff windows never span the snapshot update id.
+
+    Every fetched snapshot therefore applies ``False`` (rule 3), reproducing
+    the repeated-unusable-snapshot case that used to resync with no backoff.
+    """
+
+    class Upstream:
+        index = 0
+
+        async def recv(self_inner) -> str:
+            await asyncio.sleep(0.002)
+            self_inner.index += 1
+            first = 2_000 + self_inner.index * 10
+            return json.dumps(
+                _diff(first=first, final=first + 1, previous=first - 1)
+            )
+
+    yield Upstream()
+
+
+def _connect_gap_stream():
+    return _gap_stream_connect
+
+
+def _connect_valid_stream_then_silence(
+    update_ids: list[int],
+):
+    """Upstream that emits a valid contiguous diff chain, then goes silent."""
+
+    @asynccontextmanager
+    async def fake_connect(_url: str):
+        class Upstream:
+            index = 0
+
+            async def recv(self_inner) -> str:
+                if self_inner.index < len(update_ids):
+                    update_id = update_ids[self_inner.index]
+                    self_inner.index += 1
+                    await asyncio.sleep(0.002)
+                    return json.dumps(
+                        _diff(
+                            first=update_id,
+                            final=update_id,
+                            previous=update_id - 1,
+                        )
+                    )
+                await asyncio.sleep(3600)
+                raise AssertionError("unreachable")
+
+        yield Upstream()
+
+    return fake_connect
 
 
 class BinanceUsdmOrderBookCollectorTests(unittest.IsolatedAsyncioTestCase):
@@ -652,6 +881,123 @@ class BinanceUsdmOrderBookCollectorTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(80003.0, collector.state.asks)
         finally:
             await collector.shutdown()
+
+    async def test_repeated_snapshot_fetch_failures_back_off(self) -> None:
+        timestamps: list[float] = []
+        collector = orderbook.BinanceUsdmOrderBookCollector(
+            self.manager,
+            connect_ws=_connect_for_connections([[]]),
+            fetch_snapshot=_raising_snapshot_fetcher(timestamps),
+            store=self.store,  # type: ignore[arg-type]
+            sample_interval_s=60,
+            stale_after_s=60,
+            base_reconnect_delay_s=0.02,
+            max_reconnect_delay_s=0.08,
+        )
+        try:
+            with self.assertLogs(
+                logging.getLogger(orderbook.__name__), level="WARNING"
+            ):
+                await collector.start_collection()
+                await asyncio.sleep(0.4)
+            self.assertTrue(collector.collecting)
+            self.assertEqual(collector.upstream_count(orderbook.ORDERBOOK_CHANNEL), 1)
+            self.assertFalse(collector.state.synced)
+        finally:
+            await collector.shutdown()
+
+        # Bounded fetch count: a constant 1s retry (or none at all) would
+        # hammer the REST endpoint dozens of times inside this window.
+        self.assertGreaterEqual(len(timestamps), 3)
+        self.assertLessEqual(len(timestamps), 14)
+        intervals = [
+            later - earlier for earlier, later in zip(timestamps, timestamps[1:])
+        ]
+        self.assertGreaterEqual(min(intervals), 0.015)
+        # Delays grow and stop at the configured cap.
+        self.assertGreater(intervals[-1], intervals[0])
+        self.assertGreaterEqual(intervals[-1], 0.05)
+        self.assertLessEqual(intervals[-1], 0.2)
+
+    async def test_repeated_unusable_snapshots_back_off(self) -> None:
+        timestamps: list[float] = []
+
+        def fetch(_url: str) -> object:
+            timestamps.append(time.monotonic())
+            return _snapshot()
+
+        collector = orderbook.BinanceUsdmOrderBookCollector(
+            self.manager,
+            connect_ws=_gap_stream_connect,
+            fetch_snapshot=fetch,
+            store=self.store,  # type: ignore[arg-type]
+            sample_interval_s=60,
+            stale_after_s=60,
+            base_reconnect_delay_s=0.02,
+            max_reconnect_delay_s=0.08,
+        )
+        try:
+            await collector.start_collection()
+            await asyncio.sleep(0.4)
+            self.assertFalse(collector.state.synced)
+            self.assertFalse(collector.state.needs_resync)
+        finally:
+            await collector.shutdown()
+
+        # A snapshot that fetches fine but cannot be applied (rule 3 window)
+        # used to resync immediately, measured at ~40 fetches per 2s.
+        self.assertGreaterEqual(len(timestamps), 3)
+        self.assertLessEqual(len(timestamps), 14)
+        intervals = [
+            later - earlier for earlier, later in zip(timestamps, timestamps[1:])
+        ]
+        self.assertGreaterEqual(intervals[-1], 0.05)
+        self.assertLessEqual(intervals[-1], 0.2)
+
+    async def test_applied_snapshot_resets_the_backoff(self) -> None:
+        timestamps: list[float] = []
+        attempts = {"count": 0}
+
+        def fetch(_url: str) -> object:
+            timestamps.append(time.monotonic())
+            attempts["count"] += 1
+            # Three failures back off, the fourth attempt applies, then the
+            # endpoint is unavailable again.
+            if attempts["count"] == 4:
+                return _snapshot()
+            raise ConnectionError("snapshot endpoint unavailable")
+
+        collector = orderbook.BinanceUsdmOrderBookCollector(
+            self.manager,
+            connect_ws=_connect_valid_stream_then_silence([1_001, 1_002, 1_003]),
+            fetch_snapshot=fetch,
+            store=self.store,  # type: ignore[arg-type]
+            sample_interval_s=0.03,
+            stale_after_s=60,
+            base_reconnect_delay_s=0.1,
+            max_reconnect_delay_s=0.4,
+        )
+        try:
+            with self.assertLogs(
+                logging.getLogger(orderbook.__name__), level="WARNING"
+            ):
+                await collector.start_collection()
+                await self._wait_until(lambda: collector.state.synced)
+                # Backoff state is cleared by the applied snapshot.
+                self.assertEqual(collector._snapshot_failures, 0)
+                self.assertIsNone(collector._snapshot_retry_at)
+
+                # A new failure after the reset starts from the base delay
+                # again instead of the accumulated 0.4s cap.
+                collector.state.mark_needs_resync()
+                await self._wait_until(lambda: len(timestamps) >= 5)
+                await self._wait_until(lambda: len(timestamps) >= 6)
+        finally:
+            await collector.shutdown()
+
+        retry_delay = timestamps[5] - timestamps[4]
+        self.assertGreaterEqual(retry_delay, 0.05)
+        self.assertLessEqual(retry_delay, 0.2)
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ def _sample(
         "imbalance": 5.263,
         "bid_coverage_pct": 0.153,
         "ask_coverage_pct": 0.180,
+        "observed_bid_coverage_pct": 0.153,
+        "observed_ask_coverage_pct": 0.180,
         "complete": complete,
     }
 
@@ -144,8 +146,77 @@ class OrderBookStoreTests(unittest.TestCase):
                 "symbol",
                 "source",
                 "created_at",
+                "observed_bid_coverage_pct",
+                "observed_ask_coverage_pct",
             },
         )
+
+    def test_legacy_database_without_observed_columns_is_migrated(self) -> None:
+        legacy_path = Path(self.temp_dir.name) / "legacy.sqlite3"
+        legacy_schema = """
+        CREATE TABLE orderbook_samples (
+            id TEXT PRIMARY KEY,
+            sample_time INTEGER NOT NULL,
+            distance REAL NOT NULL,
+            mid REAL NOT NULL,
+            bid_notional REAL NOT NULL,
+            ask_notional REAL NOT NULL,
+            imbalance REAL NOT NULL,
+            bid_coverage_pct REAL NOT NULL,
+            ask_coverage_pct REAL NOT NULL,
+            complete INTEGER NOT NULL,
+            exchange TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            source TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        )
+        """
+        with closing(sqlite3.connect(legacy_path)) as connection:
+            connection.execute(legacy_schema)
+            connection.execute(
+                """
+                INSERT INTO orderbook_samples (
+                    id, sample_time, distance, mid, bid_notional, ask_notional,
+                    imbalance, bid_coverage_pct, ask_coverage_pct, complete,
+                    exchange, symbol, source, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "binance|BTCUSDT|2.5|1792000000000",
+                    BASE_TIME_MS,
+                    2.5,
+                    80_000.0,
+                    1_000_000.0,
+                    900_000.0,
+                    5.263,
+                    0.153,
+                    0.180,
+                    0,
+                    "binance",
+                    "BTCUSDT",
+                    "binance",
+                    BASE_TIME_MS,
+                ),
+            )
+            connection.commit()
+
+        # Opening a pre-existing local database must not crash; the new columns
+        # are added in place and legacy rows fall back to the stored coverage.
+        migrated = OrderBookStore(legacy_path)
+        page = migrated.read_history(distance=2.5, limit=10)
+        self.assertEqual(len(page.samples), 1)
+        self.assertEqual(page.samples[0]["bid_coverage_pct"], 0.153)
+        self.assertEqual(page.samples[0]["observed_bid_coverage_pct"], 0.153)
+        self.assertEqual(page.samples[0]["observed_ask_coverage_pct"], 0.180)
+
+        migrated.insert_sample(
+            _sample(
+                sample_time=BASE_TIME_MS + 1_000,
+                complete=True,
+            )
+        )
+        newest = migrated.read_history(distance=2.5, limit=1).samples[0]
+        self.assertTrue(newest["complete"])
 
 
 if __name__ == "__main__":

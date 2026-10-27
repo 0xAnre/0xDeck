@@ -38,6 +38,8 @@ def _sample(
         "imbalance": 5.263,
         "bid_coverage_pct": 0.153,
         "ask_coverage_pct": 0.180,
+        "observed_bid_coverage_pct": 0.153,
+        "observed_ask_coverage_pct": 0.180,
         "complete": complete,
     }
 
@@ -100,6 +102,8 @@ class OrderBookHistoryRouteTests(unittest.TestCase):
                 "imbalance",
                 "bid_coverage_pct",
                 "ask_coverage_pct",
+                "observed_bid_coverage_pct",
+                "observed_ask_coverage_pct",
                 "complete",
             },
         )

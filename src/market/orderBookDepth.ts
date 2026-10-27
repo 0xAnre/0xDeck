@@ -40,6 +40,13 @@ export type OrderBookDepthSample = {
   imbalance: number
   bidCoveragePct: number
   askCoveragePct: number
+  /**
+   * Observed depth from the book's extrema. Diagnostics only: diff updates can
+   * observe a distant level without revealing the levels in between, so this
+   * never decides `complete`.
+   */
+  observedBidCoveragePct: number | null
+  observedAskCoveragePct: number | null
   complete: boolean
 }
 
@@ -126,6 +133,13 @@ export function parseOrderBookDepthSample(
   const askCoveragePct = readNonNegativeNumber(
     record.ask_coverage_pct ?? record.askCoveragePct,
   )
+  // Optional diagnostics: absent (or malformed) observed depth stays null.
+  const observedBidCoveragePct = readNonNegativeNumber(
+    record.observed_bid_coverage_pct ?? record.observedBidCoveragePct,
+  )
+  const observedAskCoveragePct = readNonNegativeNumber(
+    record.observed_ask_coverage_pct ?? record.observedAskCoveragePct,
+  )
   const complete = record.complete
 
   if (
@@ -160,6 +174,8 @@ export function parseOrderBookDepthSample(
     imbalance,
     bidCoveragePct,
     askCoveragePct,
+    observedBidCoveragePct,
+    observedAskCoveragePct,
     complete,
   }
 }
@@ -262,6 +278,10 @@ export function latestOrderBookDepthSample(
 /**
  * Explicit notice for missing/insufficient coverage. `null` means the latest
  * sample for the selected distance is complete and may be rendered.
+ *
+ * The reported depth is the guaranteed coverage the synchronized snapshot
+ * actually provides (the limiting side), never the observed extrema: a distant
+ * diff level must not be presented as available depth.
  */
 export function orderBookDepthCoverageNotice(
   samples: readonly OrderBookDepthSample[],
@@ -272,7 +292,8 @@ export function orderBookDepthCoverageNotice(
   if (!latest) {
     return `Insufficient order-book coverage for ${distance}% depth: waiting for a synchronized Binance book sample.`
   }
-  return `Insufficient order-book coverage for ${distance}% depth (bid ${latest.bidCoveragePct.toFixed(3)}%, ask ${latest.askCoveragePct.toFixed(3)}%).`
+  const available = Math.min(latest.bidCoveragePct, latest.askCoveragePct)
+  return `Insufficient order-book coverage: ${available.toFixed(2)}% available of ${distance}% requested.`
 }
 
 /** Validate a threshold pair; invalid or inverted pairs fall back to defaults. */

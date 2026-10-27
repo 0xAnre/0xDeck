@@ -12,11 +12,17 @@ The collector is deliberately separate from candle and liquidation concerns:
 * each sample is persisted before it is relayed on
   ``binance.usdm.btcusdt.orderbook``.
 
-Coverage is reported honestly. A Binance REST snapshot is capped at 1000 levels,
-which at BTCUSDT is only ~0.15–0.18% per side, so wider distance samples are
-persisted with ``complete = false`` until the maintained book actually covers
-the requested distance on both sides. Incomplete samples are never a claim about
-the requested distance.
+Coverage is reported honestly from a *guaranteed* depth, not from the observed
+book extrema. A Binance REST snapshot is capped at 1000 levels, which at BTCUSDT
+is only ~0.15–0.18% per side. Every price level between the best price and the
+deepest snapshot level is known, so those two bounds are tracked explicitly in
+``OrderBookState`` (``guaranteed_bid_floor`` / ``guaranteed_ask_ceiling``). Diff
+updates are applied to the observed book, but they can only *observe* levels, so
+they never move the guaranteed bounds: a distant 3% level arriving through a diff
+does not make the unknown levels between ~0.15% and ~3% known. ``complete`` is
+derived from the guaranteed bounds only, and the observed extrema are reported
+separately for diagnostics, so an incomplete sample is never presented as a
+measurement for the requested distance.
 """
 
 from __future__ import annotations
@@ -232,6 +238,11 @@ class OrderBookState:
         self.awaiting_snapshot = False
         self.needs_resync = False
         self.buffer: list[OrderBookDiff] = []
+        # Deepest price level the synchronized REST snapshot revealed. Every
+        # level between the best price and this bound is known; nothing deeper
+        # is guaranteed. Diff updates never move these bounds.
+        self.guaranteed_bid_floor: float | None = None
+        self.guaranteed_ask_ceiling: float | None = None
 
     @property
     def synced(self) -> bool:
@@ -249,6 +260,8 @@ class OrderBookState:
         self.awaiting_snapshot = True
         self.needs_resync = False
         self.buffer = []
+        self.guaranteed_bid_floor = None
+        self.guaranteed_ask_ceiling = None
 
     def best_bid(self) -> float | None:
         return max(self.bids) if self.bids else None
@@ -279,6 +292,10 @@ class OrderBookState:
         """
         self.bids = dict(snapshot.bids)
         self.asks = dict(snapshot.asks)
+        # The snapshot is the only trustworthy source of guaranteed coverage.
+        # Buffered diffs replayed below extend the observed book only.
+        self.guaranteed_bid_floor = min(snapshot.bids) if snapshot.bids else None
+        self.guaranteed_ask_ceiling = max(snapshot.asks) if snapshot.asks else None
         self.last_update_id = snapshot.last_update_id
         self.last_event_u = None
         self.awaiting_snapshot = False
@@ -352,7 +369,20 @@ class OrderBookState:
 
 
 def _coverage_pct(mid: float, deepest_price: float) -> float:
+    """Observed coverage: distance from mid to a book extreme, in percent."""
     return abs(mid - deepest_price) / mid * 100.0
+
+
+def _guaranteed_coverage_pct(mid: float, bound: float | None, side: str) -> float:
+    """Guaranteed coverage: distance from mid to a snapshot-derived bound.
+
+    Clamped at 0, so a crossed/stale bound never reports negative depth.
+    """
+    if bound is None:
+        return 0.0
+    if side == "bid":
+        return max(0.0, (mid - bound) / mid * 100.0)
+    return max(0.0, (bound - mid) / mid * 100.0)
 
 
 def compute_orderbook_sample(
@@ -388,11 +418,19 @@ def compute_orderbook_sample(
     imbalance = 0.0 if total <= 0 else 100.0 * (bid_notional - ask_notional) / total
     imbalance = max(-100.0, min(100.0, imbalance))
 
-    deepest_bid = min(state.bids)
-    deepest_ask = max(state.asks)
-    bid_coverage = _coverage_pct(mid, deepest_bid)
-    ask_coverage = _coverage_pct(mid, deepest_ask)
+    # Honest coverage comes from the synchronized snapshot bounds only; the
+    # observed extrema are diagnostics and can never make a sample complete.
+    bid_coverage = _guaranteed_coverage_pct(mid, state.guaranteed_bid_floor, "bid")
+    ask_coverage = _guaranteed_coverage_pct(
+        mid, state.guaranteed_ask_ceiling, "ask"
+    )
     complete = bid_coverage >= distance and ask_coverage >= distance
+    observed_bid_coverage = (
+        _coverage_pct(mid, min(state.bids)) if state.bids else 0.0
+    )
+    observed_ask_coverage = (
+        _coverage_pct(mid, max(state.asks)) if state.asks else 0.0
+    )
 
     return {
         "id": orderbook_sample_id(distance, sample_time),
@@ -407,6 +445,8 @@ def compute_orderbook_sample(
         "imbalance": imbalance,
         "bid_coverage_pct": bid_coverage,
         "ask_coverage_pct": ask_coverage,
+        "observed_bid_coverage_pct": observed_bid_coverage,
+        "observed_ask_coverage_pct": observed_ask_coverage,
         "complete": complete,
     }
 
@@ -448,7 +488,11 @@ class BinanceUsdmOrderBookCollector:
         self._upstreams: dict[str, _UpstreamState] = {}
         self._state = OrderBookState()
         self._snapshot_task: asyncio.Task[OrderBookSnapshot | None] | None = None
+        # Earliest loop time a new snapshot may start. Shared by repeated fetch
+        # failures and repeated unusable snapshots so no path can hammer the
+        # REST endpoint.
         self._snapshot_retry_at: float | None = None
+        self._snapshot_failures = 0
 
     @property
     def state(self) -> OrderBookState:
@@ -514,7 +558,7 @@ class BinanceUsdmOrderBookCollector:
         task = state.task
         self._upstreams.pop(channel, None)
         state.stop_event.set()
-        self._cancel_snapshot_task()
+        self._cancel_snapshot_task(clear_retry=True)
         if not task.done():
             task.cancel()
             try:
@@ -556,10 +600,12 @@ class BinanceUsdmOrderBookCollector:
             self._cancel_snapshot_task()
             self._clear_upstream_if_current(channel, task)
 
-    def _cancel_snapshot_task(self) -> None:
+    def _cancel_snapshot_task(self, *, clear_retry: bool = False) -> None:
         task = self._snapshot_task
         self._snapshot_task = None
-        self._snapshot_retry_at = None
+        if clear_retry:
+            self._snapshot_retry_at = None
+            self._snapshot_failures = 0
         if task is not None and not task.done():
             task.cancel()
 
@@ -579,7 +625,29 @@ class BinanceUsdmOrderBookCollector:
 
     def _start_snapshot(self) -> None:
         self._cancel_snapshot_task()
+        # Starting now satisfies (and clears) any pending backoff deadline.
+        self._snapshot_retry_at = None
         self._snapshot_task = asyncio.create_task(self._load_snapshot())
+
+    def _backoff_delay_s(self) -> float:
+        exponent = max(0, self._snapshot_failures - 1)
+        return min(
+            self._base_reconnect_delay_s * (2 ** exponent),
+            self._max_reconnect_delay_s,
+        )
+
+    def _schedule_snapshot_retry(self) -> None:
+        """Back off exponentially after a failed/unusable snapshot."""
+        self._snapshot_failures += 1
+        self._snapshot_retry_at = (
+            asyncio.get_running_loop().time() + self._backoff_delay_s()
+        )
+
+    def _snapshot_retry_due(self, now: float) -> bool:
+        if self._snapshot_task is not None:
+            return False
+        retry_at = self._snapshot_retry_at
+        return retry_at is not None and now >= retry_at
 
     def _apply_pending_snapshot(self) -> None:
         task = self._snapshot_task
@@ -594,17 +662,28 @@ class BinanceUsdmOrderBookCollector:
             snapshot = None
 
         if snapshot is None:
-            self._snapshot_retry_at = (
-                asyncio.get_running_loop().time() + self._base_reconnect_delay_s
-            )
+            self._schedule_snapshot_retry()
             return
 
-        self._snapshot_retry_at = None
         if not self._state.apply_snapshot(snapshot):
-            self._resync()
+            # The snapshot fetched fine but the buffered diffs revealed a gap.
+            # Drop the partial book, keep collecting, and back off instead of
+            # resyncing immediately (which measured ~40 fetches per 2s).
+            self._state.begin_resync()
+            self._schedule_snapshot_retry()
+            return
+
+        # A successfully applied snapshot resets the shared backoff.
+        self._snapshot_failures = 0
+        self._snapshot_retry_at = None
 
     def _resync(self) -> None:
         self._state.begin_resync()
+        now = asyncio.get_running_loop().time()
+        if self._snapshot_retry_at is not None and now < self._snapshot_retry_at:
+            # Backing off: keep consuming diffs and start the next snapshot at
+            # the shared deadline; never start one earlier from any path.
+            return
         self._start_snapshot()
 
     async def _emit_samples(self) -> None:
@@ -641,12 +720,7 @@ class BinanceUsdmOrderBookCollector:
                 if self._state.needs_resync:
                     self._resync()
                     last_event_at = now
-                elif (
-                    self._snapshot_retry_at is not None
-                    and now >= self._snapshot_retry_at
-                    and self._snapshot_task is None
-                ):
-                    self._snapshot_retry_at = None
+                elif self._snapshot_retry_due(now):
                     self._start_snapshot()
 
                 deadlines = [next_sample_at]
@@ -683,12 +757,7 @@ class BinanceUsdmOrderBookCollector:
                 if self._state.needs_resync:
                     self._resync()
                     last_event_at = now
-                elif (
-                    self._snapshot_retry_at is not None
-                    and now >= self._snapshot_retry_at
-                    and self._snapshot_task is None
-                ):
-                    self._snapshot_retry_at = None
+                elif self._snapshot_retry_due(now):
                     self._start_snapshot()
                 elif (
                     self._state.synced
