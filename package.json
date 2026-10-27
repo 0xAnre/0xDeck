@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "test:market": "node --experimental-strip-types --test src/market/*.test.ts",
     "test:navigation": "node --experimental-strip-types --test src/screenNavigationShortcuts.test.ts",
-    "test:ui": "node --experimental-strip-types --test src/widgetSettings/*.test.ts",
+    "test:ui": "node --experimental-strip-types --test src/widgetSettings/*.test.ts src/lib/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
