@@ -4,11 +4,14 @@ import type { AutoscaleInfoProvider, IChartApi, LineSeriesPartialOptions, PriceL
 import {
   applyRsiPaneSettings,
   clearRsiPaneData,
+  computeRsiPaneStretchFactor,
   createRsiChartPane,
   moveRsiPaneAbove,
   removeRsiChartPane,
-  RSI_PANE_STRETCH_FACTOR,
+  RSI_PANE_HEIGHT_SHARE,
+  rsiPaneHeightShare,
   setRsiPaneHistoryData,
+  sumPaneStretchFactors,
   updateRsiPaneLiveData,
   type RsiChartPaneBundle,
 } from './rsiChartPane.ts'
@@ -109,33 +112,49 @@ function makeSeries() {
   }
 }
 
-function makeChart() {
+/**
+ * Fake chart with pane-level stretch-factor state, mirroring how Lightweight
+ * Charts sizes panes (`height = factor / totalStretch * plotHeight`). Pane index
+ * 0 is the candle pane, seeded by `createChart({ addDefaultPane })` with
+ * `DEFAULT_STRETCH_FACTOR * 2` (= 2).
+ */
+function makeChart(initialPaneStretchFactors: readonly number[] = [2]) {
   const calls: string[] = []
   const seriesBundle = makeSeries()
   let createdSeriesOptions: LineSeriesPartialOptions = {}
-  let paneIndex = 1
 
-  const pane = {
+  type PaneState = { stretchFactor: number; index: number }
+  const paneStates: PaneState[] = initialPaneStretchFactors.map(
+    (stretchFactor, index) => ({ stretchFactor, index }),
+  )
+  // The RSI pane is appended by `chart.addPane()`, like the library does.
+  const rsiState: PaneState = { stretchFactor: 1, index: paneStates.length }
+
+  const paneApi = (state: PaneState) => ({
     setStretchFactor: (factor: number) => {
+      state.stretchFactor = factor
       calls.push(`stretchFactor:${factor}`)
     },
-    paneIndex: () => paneIndex,
+    getStretchFactor: () => state.stretchFactor,
+    paneIndex: () => state.index,
     moveTo: (target: number) => {
       calls.push(`moveTo:${target}`)
-      paneIndex = target
+      state.index = target
     },
     addSeries: (_definition: unknown, options: LineSeriesPartialOptions) => {
       calls.push('pane.addSeries')
       createdSeriesOptions = options
       return seriesBundle.series
     },
-  }
+  })
 
+  const pane = paneApi(rsiState)
   seriesBundle.setPane(pane)
 
   const chart = {
     addPane: () => {
       calls.push('chart.addPane')
+      paneStates.push(rsiState)
       return pane
     },
     removeSeries: (series: unknown) => {
@@ -144,22 +163,45 @@ function makeChart() {
     removePane: () => {
       calls.push('removePane')
     },
-    panes: () => [pane],
+    // The library returns a fresh `IPaneApi` per call, so tests must never rely
+    // on object identity here.
+    panes: () => paneStates.map((state) => paneApi(state)),
   }
 
   return {
     chart: chart as unknown as IChartApi,
     calls,
     pane,
+    paneStates,
     seriesBundle,
     setPaneIndex: (next: number) => {
-      paneIndex = next
+      rsiState.index = next
     },
+    /** Simulate a user dragging the candle/RSI separator: totals are preserved. */
+    dragPaneSeparator: (candleStretchFactor: number, rsiStretchFactor: number) => {
+      paneStates[0].stretchFactor = candleStretchFactor
+      rsiState.stretchFactor = rsiStretchFactor
+    },
+    stretchFactorCalls: () =>
+      calls.filter((call) => call.startsWith('stretchFactor:')),
     createdSeriesOptions: () => createdSeriesOptions,
   }
 }
 
 const DEFAULTS: RsiSettings = { period: 14, overbought: 70, oversold: 30 }
+
+/** Candle pane baseline seeded by `createChart({ addDefaultPane })`. */
+const CANDLE_BASELINE = 2
+
+/** Stretch factor the RSI pane opens with on a fresh chart. */
+const DEFAULT_STRETCH_FACTOR = computeRsiPaneStretchFactor(CANDLE_BASELINE)
+
+function assertShare(actual: number, expected: number, message?: string): void {
+  assert.ok(
+    Math.abs(actual - expected) < 1e-9,
+    message ?? `expected share ${expected}, got ${actual}`,
+  )
+}
 
 describe('createRsiChartPane', () => {
   it('creates its own native pane and adds the line series inside it', () => {
@@ -168,7 +210,7 @@ describe('createRsiChartPane', () => {
 
     assert.deepEqual(harness.calls, [
       'chart.addPane',
-      `stretchFactor:${RSI_PANE_STRETCH_FACTOR}`,
+      `stretchFactor:${DEFAULT_STRETCH_FACTOR}`,
       'pane.addSeries',
     ])
     assert.equal(bundle.pane, harness.pane)
@@ -367,9 +409,107 @@ describe('RSI pane data', () => {
     assert.deepEqual(harness.seriesBundle.setDataCalls, [[]])
     assert.deepEqual(harness.calls, [
       'chart.addPane',
-      `stretchFactor:${RSI_PANE_STRETCH_FACTOR}`,
+      `stretchFactor:${DEFAULT_STRETCH_FACTOR}`,
       'pane.addSeries',
     ])
+  })
+})
+
+describe('RSI pane default height', () => {
+  it('derives the stretch factor from the candle-pane baseline so the pane opens at 25 %', () => {
+    const factor = computeRsiPaneStretchFactor(CANDLE_BASELINE)
+    // The old constant 0.35 only produced 0.35 / (2 + 0.35) ≈ 14.9 %.
+    assert.equal(factor, (CANDLE_BASELINE * RSI_PANE_HEIGHT_SHARE) / (1 - RSI_PANE_HEIGHT_SHARE))
+    assertShare(factor / (CANDLE_BASELINE + factor), RSI_PANE_HEIGHT_SHARE)
+    assert.ok(Math.abs(RSI_PANE_HEIGHT_SHARE - 0.25) < 1e-9)
+  })
+
+  it('keeps the share at 25 % for any other-pane total (dragged candles, extra panes)', () => {
+    for (const otherStretchTotal of [1, 1.4, 2, 3.5, 8]) {
+      const factor = computeRsiPaneStretchFactor(otherStretchTotal)
+      assertShare(factor / (otherStretchTotal + factor), RSI_PANE_HEIGHT_SHARE)
+    }
+  })
+
+  it('falls back to the candle-pane baseline when the chart reports no other panes', () => {
+    const fallback = computeRsiPaneStretchFactor(CANDLE_BASELINE)
+    assert.equal(computeRsiPaneStretchFactor(0), fallback)
+    assert.equal(computeRsiPaneStretchFactor(-1), fallback)
+    assert.equal(computeRsiPaneStretchFactor(Number.NaN), fallback)
+    assert.equal(computeRsiPaneStretchFactor(Number.POSITIVE_INFINITY), fallback)
+  })
+
+  it('clamps a degenerate remembered share instead of collapsing the pane', () => {
+    const clampedMax = computeRsiPaneStretchFactor(CANDLE_BASELINE, 0.8)
+    assert.equal(computeRsiPaneStretchFactor(CANDLE_BASELINE, 0.99), clampedMax)
+    assert.ok(computeRsiPaneStretchFactor(CANDLE_BASELINE, 0) > 0)
+    assert.equal(
+      computeRsiPaneStretchFactor(CANDLE_BASELINE, Number.NaN),
+      computeRsiPaneStretchFactor(CANDLE_BASELINE),
+    )
+  })
+
+  it('sets the sizing factor once, on creation, using the live total of other panes', () => {
+    // Candle pane only: 2.
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    assert.equal(sumPaneStretchFactors(harness.chart), CANDLE_BASELINE + DEFAULT_STRETCH_FACTOR)
+    assertShare(rsiPaneHeightShare(harness.chart, bundle.pane) ?? 0, RSI_PANE_HEIGHT_SHARE)
+
+    // Candle pane plus a fixed-height liquidations pane that is already there.
+    const withLiquidations = makeChart([CANDLE_BASELINE, 0.7])
+    const liquidationsBundle = createRsiChartPane(withLiquidations.chart, DEFAULTS)
+    assertShare(
+      rsiPaneHeightShare(withLiquidations.chart, liquidationsBundle.pane) ?? 0,
+      RSI_PANE_HEIGHT_SHARE,
+    )
+  })
+
+  it('never re-applies the default factor on later RSI updates (manual drag wins)', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    // The user drags the candle/RSI separator: the pair keeps its stretch total.
+    const draggedRsiStretch = 1.5
+    harness.dragPaneSeparator(
+      CANDLE_BASELINE + DEFAULT_STRETCH_FACTOR - draggedRsiStretch,
+      draggedRsiStretch,
+    )
+
+    applyRsiPaneSettings(bundle, { period: 21, overbought: 80, oversold: 20 })
+    setRsiPaneHistoryData(bundle, risingCandles(20))
+    updateRsiPaneLiveData(bundle, risingCandles(20))
+    clearRsiPaneData(bundle)
+    moveRsiPaneAbove(bundle, 0)
+
+    assert.deepEqual(harness.stretchFactorCalls(), [`stretchFactor:${DEFAULT_STRETCH_FACTOR}`])
+    assert.equal(bundle.pane.getStretchFactor(), 1.5)
+  })
+
+  it('restores a user-dragged share when the pane is re-created after a toggle', () => {
+    const harness = makeChart()
+    const firstBundle = createRsiChartPane(harness.chart, DEFAULTS)
+    // Drag the RSI pane taller than the default 25 %.
+    const draggedRsiStretch = 1.5
+    harness.dragPaneSeparator(
+      CANDLE_BASELINE + DEFAULT_STRETCH_FACTOR - draggedRsiStretch,
+      draggedRsiStretch,
+    )
+    const draggedShare = rsiPaneHeightShare(harness.chart, firstBundle.pane)
+    assert.ok(draggedShare !== null && draggedShare > RSI_PANE_HEIGHT_SHARE)
+
+    // Indicator toggled off …
+    removeRsiChartPane(harness.chart, firstBundle)
+    harness.paneStates.pop()
+    // … and on again with the remembered share.
+    const secondBundle = createRsiChartPane(harness.chart, DEFAULTS, draggedShare)
+    assertShare(rsiPaneHeightShare(harness.chart, secondBundle.pane) ?? 0, draggedShare)
+    assert.ok(Math.abs(secondBundle.pane.getStretchFactor() - draggedRsiStretch) < 1e-9)
+  })
+
+  it('returns null instead of a bogus share when no stretch total is available', () => {
+    const harness = makeChart([])
+    assert.equal(sumPaneStretchFactors(harness.chart), 0)
+    assert.equal(rsiPaneHeightShare(harness.chart, harness.pane), null)
   })
 })
 

@@ -274,6 +274,7 @@ import {
   createRsiChartPane,
   moveRsiPaneAbove,
   removeRsiChartPane,
+  rsiPaneHeightShare,
   setRsiPaneHistoryData,
 } from '@/market/rsiChartPane'
 import { sanitizeRsiSettings, type RsiSettings } from '@/market/rsi'
@@ -521,6 +522,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const providerHistoryAvailableFromRef = useRef<number | null>(null)
   const activeIndicatorsRef = useRef<MarketIndicatorId[]>(activeIndicators)
   const rsiSettingsRef = useRef<RsiSettings>(rsiSettings)
+  /**
+   * Plot-height share of the RSI pane when it was last removed, so toggling the
+   * indicator off and on again restores the user's layout instead of snapping
+   * back to the default share.
+   */
+  const rsiPaneHeightShareRef = useRef<number | null>(null)
   const historyReadyRef = useRef(false)
   const infiniteHistoryRef = useRef(createInfiniteHistoryState())
   const indicatorHistoryAbortRef = useRef<AbortController | null>(null)
@@ -1584,13 +1591,22 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         isIndicatorSupportedOnInterval('rsi', activeIntervalRef.current)
       if (!shouldShow) {
         if (bundle.rsi) {
+          // Remember the current share (default or user-dragged) before the pane
+          // is destroyed: `createRsiChartPane` restores it on re-add.
+          rsiPaneHeightShareRef.current =
+            rsiPaneHeightShare(chart, bundle.rsi.pane) ??
+            rsiPaneHeightShareRef.current
           removeRsiChartPane(chart, bundle.rsi)
           bundle.rsi = null
         }
         return
       }
       if (bundle.rsi) return
-      bundle.rsi = createRsiChartPane(chart, rsiSettingsRef.current)
+      bundle.rsi = createRsiChartPane(
+        chart,
+        rsiSettingsRef.current,
+        rsiPaneHeightShareRef.current,
+      )
       // A new pane is appended after every existing pane, which would leave the
       // `Position: Bottom` liquidations pane above it. Move the RSI pane above
       // that pane so `Bottom` keeps meaning the last pane.
