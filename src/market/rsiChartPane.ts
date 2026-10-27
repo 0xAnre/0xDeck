@@ -6,6 +6,7 @@ import {
   type IPaneApi,
   type IPriceLine,
   type ISeriesApi,
+  type PriceScaleMargins,
   type Time,
 } from 'lightweight-charts'
 import { MARKET_STYLE_DEFAULTS, marketStyleColorWithOpacity } from './marketStylePalette.ts'
@@ -31,6 +32,16 @@ const RSI_PRICE_RANGE: AutoscaleInfo = { priceRange: { minValue: 0, maxValue: 10
 
 /** `autoscaleInfoProvider` runs on every layout pass, so reuse one constant. */
 const RSI_AUTOSCALE_INFO_PROVIDER = () => RSI_PRICE_RANGE
+
+/**
+ * Empty space above/below the fixed 0–100 range. The library default
+ * (0.1 / 0.1) maps only 80 % of the pane height to the scale, which packs the
+ * 70/50/30 reference lines tighter than needed; 0.05 / 0.05 uses 90 % of the
+ * pane instead (spacing +12.5 %, ~5 px more per gap at the default pane
+ * height) while still leaving the 0/100 axis labels and the last-value label
+ * clipped-free at the pane edges.
+ */
+const RSI_PRICE_SCALE_MARGINS: PriceScaleMargins = { top: 0.05, bottom: 0.05 }
 
 /**
  * Default share of the chart's plot height (all panes together) the RSI pane
@@ -182,6 +193,10 @@ export function createRsiChartPane(
     crosshairMarkerVisible: false,
     autoscaleInfoProvider: RSI_AUTOSCALE_INFO_PROVIDER,
   })
+  // Native price-scale margins only: the fixed 0–100 range, the RSI values and
+  // every level price stay exactly as configured — more of the pane height is
+  // simply mapped onto that range.
+  series.priceScale().applyOptions({ scaleMargins: RSI_PRICE_SCALE_MARGINS })
   // Pane double-click / empty-space handling resolves the RSI pane by series
   // identity, because the pane index changes as other panes come and go.
   registerChartPaneRoleSeries(chart, 'rsi', series)

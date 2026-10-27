@@ -97,6 +97,9 @@ function makeSeries() {
       return priceLine
     },
     options: () => ({ color: '#D4D4D4' }),
+    // Native price-scale options (scale margins) are applied to the pane scale;
+    // the fake only has to accept them, pane sizing is what these tests assert.
+    priceScale: () => ({ applyOptions: () => {} }),
     getPane: () => getPane(),
   }
   let getPane = () => ({}) as never
