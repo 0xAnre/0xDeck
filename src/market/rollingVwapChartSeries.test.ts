@@ -10,6 +10,7 @@ import { LineStyle, type IChartApi } from 'lightweight-charts'
 import {
   ROLLING_VWAP_BAND_SERIES_KEYS,
   ROLLING_VWAP_LINE_CHART_OPTIONS,
+  applyRollingVwapChartBandLineStyles,
   applyRollingVwapChartInstancePresentation,
   applyRollingVwapLiveFromCandles,
   createRollingVwapChartSeriesBundle,
@@ -190,6 +191,53 @@ describe('rollingVwap chart series defaults', () => {
     assert.equal(createdOptions[0].lineStyle, LineStyle.Dotted)
   })
 
+  it('creates every band series solid by default', () => {
+    const createdOptions: Record<string, unknown>[] = []
+    const chart = {
+      addSeries: (_type: unknown, options: Record<string, unknown>) => {
+        createdOptions.push(options)
+        return {
+          setData: () => {},
+          update: () => {},
+          applyOptions: () => {},
+        }
+      },
+    } as IChartApi
+    createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    for (const options of createdOptions.slice(1)) {
+      assert.equal(options.lineStyle, LineStyle.Solid)
+    }
+  })
+
+  it("applies each band's own line style at creation", () => {
+    const createdOptions: Record<string, unknown>[] = []
+    const chart = {
+      addSeries: (_type: unknown, options: Record<string, unknown>) => {
+        createdOptions.push(options)
+        return {
+          setData: () => {},
+          update: () => {},
+          applyOptions: () => {},
+        }
+      },
+    } as IChartApi
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineStyle = 'solid'
+    settings.bandLineStyles = { band1: 'dotted', band2: 'solid', band3: 'dotted' }
+    createRollingVwapChartSeriesBundle(chart, settings, {
+      lineWidth: settings.lineWidth,
+      lineStyle: settings.lineStyle,
+    })
+    // Order: center, upper1, lower1, upper2, lower2, upper3, lower3
+    assert.equal(createdOptions[0].lineStyle, LineStyle.Solid)
+    assert.equal(createdOptions[1].lineStyle, LineStyle.Dotted)
+    assert.equal(createdOptions[2].lineStyle, LineStyle.Dotted)
+    assert.equal(createdOptions[3].lineStyle, LineStyle.Solid)
+    assert.equal(createdOptions[4].lineStyle, LineStyle.Solid)
+    assert.equal(createdOptions[5].lineStyle, LineStyle.Dotted)
+    assert.equal(createdOptions[6].lineStyle, LineStyle.Dotted)
+  })
+
   it('applies instance lineWidth to all seven series at creation', () => {
     const createdOptions: Record<string, unknown>[] = []
     const chart = {
@@ -246,6 +294,97 @@ describe('applyRollingVwapChartInstancePresentation', () => {
       (opts) => opts.color === 'rgba(0, 255, 0, 0.25)' && opts.lineStyle === LineStyle.Dotted,
     )
     assert.ok(styleApply)
+  })
+})
+
+describe('applyRollingVwapChartInstancePresentation band line styles', () => {
+  function trackLineStyles() {
+    const optionsBySeries = new Map<object, Record<string, unknown>>()
+    const makeLine = () => {
+      const series = {
+        setData: () => {},
+        update: () => {},
+        applyOptions: (opts: Record<string, unknown>) => {
+          optionsBySeries.set(series, { ...(optionsBySeries.get(series) ?? {}), ...opts })
+        },
+      }
+      return series
+    }
+    const center = makeLine()
+    const bands = {} as RollingVwapChartSeriesBundle['bands']
+    const ordered = [center]
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      const series = makeLine()
+      bands[key] = series
+      ordered.push(series)
+    }
+    const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
+    return { bundle, center, bands, optionsBySeries }
+  }
+
+  it("applies each band's own style and leaves the other bands alone", () => {
+    const { bundle, center, bands, optionsBySeries } = trackLineStyles()
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineStyle = 'solid'
+    settings.bandLineStyles = { band1: 'dotted', band2: 'solid', band3: 'dotted' }
+    applyRollingVwapChartInstancePresentation(
+      bundle,
+      createRollingVwapInstance({ id: 'rvwap-bands', settings, randomId: () => 'rvwap-bands' }),
+      '1m',
+    )
+
+    assert.equal(optionsBySeries.get(center)?.lineStyle, LineStyle.Solid)
+    for (const key of ['upper1', 'lower1', 'upper3', 'lower3'] as const) {
+      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Dotted, key)
+    }
+    for (const key of ['upper2', 'lower2'] as const) {
+      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Solid, key)
+    }
+  })
+
+  it('applies a dotted style to every band independently of the center line', () => {
+    const { bundle, center, bands, optionsBySeries } = trackLineStyles()
+    const settings = createDefaultRollingVwapSettings()
+    settings.lineStyle = 'solid'
+    settings.bandLineStyles = { band1: 'dotted', band2: 'dotted', band3: 'dotted' }
+    applyRollingVwapChartInstancePresentation(
+      bundle,
+      createRollingVwapInstance({ id: 'rvwap-all', settings, randomId: () => 'rvwap-all' }),
+      '1m',
+    )
+
+    assert.equal(optionsBySeries.get(center)?.lineStyle, LineStyle.Solid)
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Dotted, key)
+    }
+  })
+
+  it('keeps every band solid by default', () => {
+    const { bundle, bands, optionsBySeries } = trackLineStyles()
+    applyRollingVwapChartInstancePresentation(
+      bundle,
+      createRollingVwapInstance({
+        id: 'rvwap-default',
+        settings: createDefaultRollingVwapSettings(),
+        randomId: () => 'rvwap-default',
+      }),
+      '1m',
+    )
+
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Solid, key)
+    }
+  })
+
+  it('only patches band line styles, not colors or widths', () => {
+    const { bundle, bands, optionsBySeries } = trackLineStyles()
+    const settings = createDefaultRollingVwapSettings()
+    settings.bandLineStyles = { band1: 'dotted', band2: 'dotted', band3: 'dotted' }
+    applyRollingVwapChartBandLineStyles(bundle, settings)
+
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      assert.deepEqual(optionsBySeries.get(bands[key]), { lineStyle: LineStyle.Dotted }, key)
+    }
   })
 })
 

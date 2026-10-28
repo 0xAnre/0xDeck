@@ -62,6 +62,13 @@ export type RollingVwapBandOpacities = {
   band3: number
 }
 
+/** Independent stroke style per deviation band (shared `Line` / `Dot` row). */
+export type RollingVwapBandLineStyles = {
+  band1: RollingVwapLineStyle
+  band2: RollingVwapLineStyle
+  band3: RollingVwapLineStyle
+}
+
 export type RollingVwapInfoBoxSettings = {
   visible: boolean
   size: RollingVwapInfoBoxSize
@@ -89,6 +96,10 @@ export const ROLLING_VWAP_LINE_STYLES = LINE_CHART_STROKE_STYLES
 export type RollingVwapLineStyle = LineChartStrokeStyle
 
 export const DEFAULT_ROLLING_VWAP_LINE_STYLE: RollingVwapLineStyle = 'solid'
+
+/** Shared default style for every deviation band until the user picks another. */
+export const DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE: RollingVwapLineStyle =
+  DEFAULT_ROLLING_VWAP_LINE_STYLE
 
 const ROLLING_VWAP_LINE_WIDTH_SET = new Set<number>(ROLLING_VWAP_LINE_WIDTHS)
 
@@ -119,6 +130,7 @@ export type RollingVwapSettings = {
   multipliers: RollingVwapStdevMultipliers
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
+  bandLineStyles: RollingVwapBandLineStyles
   infoBox: RollingVwapInfoBoxSettings
   lineWidth: RollingVwapLineWidth
   lineColor: string
@@ -136,6 +148,12 @@ const DEFAULT_BAND_OPACITIES: RollingVwapBandOpacities = {
   band1: MARKET_STYLE_OPACITY_PERCENT.secondary,
   band2: MARKET_STYLE_OPACITY_PERCENT.secondary,
   band3: MARKET_STYLE_OPACITY_PERCENT.secondary,
+}
+
+const DEFAULT_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
+  band1: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
+  band2: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
+  band3: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
 }
 
 const DEFAULT_INFO_BOX: RollingVwapInfoBoxSettings = {
@@ -174,6 +192,18 @@ function sanitizeBandOpacities(
     band1: isMarketStyleOpacityPercent(record.band1) ? record.band1 : defaults.band1,
     band2: isMarketStyleOpacityPercent(record.band2) ? record.band2 : defaults.band2,
     band3: isMarketStyleOpacityPercent(record.band3) ? record.band3 : defaults.band3,
+  }
+}
+
+function sanitizeBandLineStyles(
+  value: unknown,
+  defaults: RollingVwapBandLineStyles,
+): RollingVwapBandLineStyles {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    band1: sanitizeLineChartStrokeStyle(record.band1) ?? defaults.band1,
+    band2: sanitizeLineChartStrokeStyle(record.band2) ?? defaults.band2,
+    band3: sanitizeLineChartStrokeStyle(record.band3) ?? defaults.band3,
   }
 }
 
@@ -219,6 +249,7 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
     multipliers: { ...DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS },
     bandColors: { ...DEFAULT_BAND_COLORS },
     bandOpacities: { ...DEFAULT_BAND_OPACITIES },
+    bandLineStyles: { ...DEFAULT_BAND_LINE_STYLES },
     infoBox: { ...DEFAULT_INFO_BOX },
     lineWidth: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
     lineColor: DEFAULT_ROLLING_VWAP_LINE_COLOR,
@@ -230,6 +261,9 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
 export const DEFAULT_ROLLING_VWAP_BAND_COLORS: RollingVwapBandColors = { ...DEFAULT_BAND_COLORS }
 export const DEFAULT_ROLLING_VWAP_BAND_OPACITIES: RollingVwapBandOpacities = {
   ...DEFAULT_BAND_OPACITIES,
+}
+export const DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
+  ...DEFAULT_BAND_LINE_STYLES,
 }
 export const DEFAULT_ROLLING_VWAP_INFO_BOX: RollingVwapInfoBoxSettings = { ...DEFAULT_INFO_BOX }
 
@@ -256,6 +290,7 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     multipliers: sanitizeRollingVwapStdevMultipliers(record.multipliers, defaults.multipliers),
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     bandOpacities: sanitizeBandOpacities(record.bandOpacities, defaults.bandOpacities),
+    bandLineStyles: sanitizeBandLineStyles(record.bandLineStyles, defaults.bandLineStyles),
     infoBox: sanitizeInfoBox(record.infoBox, defaults.infoBox),
     lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
     lineColor: isRollingVwapHexColor(record.lineColor) ? record.lineColor : defaults.lineColor,

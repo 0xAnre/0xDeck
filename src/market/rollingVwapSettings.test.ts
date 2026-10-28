@@ -3,6 +3,8 @@ import { describe, it } from 'node:test'
 import {
   createDefaultRollingVwapSettings,
   DEFAULT_ROLLING_VWAP_BAND_COLORS,
+  DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
+  DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES,
   DEFAULT_ROLLING_VWAP_BAND_OPACITIES,
   DEFAULT_ROLLING_VWAP_INFO_BOX,
   DEFAULT_ROLLING_VWAP_LINE_COLOR,
@@ -38,6 +40,14 @@ describe('createDefaultRollingVwapSettings', () => {
     assert.equal(settings.minBars, DEFAULT_ROLLING_VWAP_MIN_BARS)
     assert.deepEqual(settings.multipliers, DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS)
     assert.deepEqual(settings.bandColors, DEFAULT_ROLLING_VWAP_BAND_COLORS)
+    assert.deepEqual(settings.bandOpacities, DEFAULT_ROLLING_VWAP_BAND_OPACITIES)
+    assert.deepEqual(settings.bandLineStyles, DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES)
+    assert.deepEqual(settings.bandLineStyles, {
+      band1: 'solid',
+      band2: 'solid',
+      band3: 'solid',
+    })
+    assert.equal(DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE, 'solid')
     assert.deepEqual(settings.infoBox, DEFAULT_ROLLING_VWAP_INFO_BOX)
     assert.equal(settings.lineWidth, DEFAULT_ROLLING_VWAP_LINE_WIDTH)
     assert.equal(settings.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
@@ -131,6 +141,54 @@ describe('sanitizeRollingVwapSettings', () => {
     assert.equal(result.infoBox.backgroundColorOpacity, 40)
     assert.equal(result.infoBox.textColorOpacity, 90)
     assert.equal(result.lineOpacity, 60)
+  })
+
+  it('keeps each band line style independent', () => {
+    const result = sanitizeRollingVwapSettings({
+      bandLineStyles: { band1: 'dotted', band2: 'solid', band3: 'dotted' },
+      lineStyle: 'solid',
+    })
+    assert.deepEqual(result.bandLineStyles, {
+      band1: 'dotted',
+      band2: 'solid',
+      band3: 'dotted',
+    })
+    assert.equal(result.lineStyle, 'solid')
+  })
+
+  it('defaults every band line style to solid when the field is absent', () => {
+    const result = sanitizeRollingVwapSettings({
+      bandColors: DEFAULT_ROLLING_VWAP_BAND_COLORS,
+      bandOpacities: { band1: 10, band2: 20, band3: 30 },
+    })
+    assert.deepEqual(result.bandLineStyles, DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES)
+  })
+
+  it('migrates retired dashed band styles to solid and invalids to solid', () => {
+    const result = sanitizeRollingVwapSettings({
+      bandLineStyles: { band1: 'dashed', band2: 'zigzag', band3: 42 },
+    })
+    assert.deepEqual(result.bandLineStyles, {
+      band1: 'solid',
+      band2: 'solid',
+      band3: 'solid',
+    })
+  })
+
+  it('sanitizes partially stored band line styles field by field', () => {
+    const result = sanitizeRollingVwapSettings({ bandLineStyles: { band2: 'dotted' } })
+    assert.deepEqual(result.bandLineStyles, {
+      band1: 'solid',
+      band2: 'dotted',
+      band3: 'solid',
+    })
+  })
+
+  it('does not return a shared mutable band line style singleton', () => {
+    const first = sanitizeRollingVwapSettings(undefined)
+    first.bandLineStyles.band1 = 'dotted'
+    assert.equal(sanitizeRollingVwapSettings(undefined).bandLineStyles.band1, 'solid')
+    assert.equal(DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES.band1, 'solid')
   })
 
   it('loads legacy payloads without new opacity fields using palette defaults', () => {
