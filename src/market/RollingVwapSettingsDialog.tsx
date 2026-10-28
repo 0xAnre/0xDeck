@@ -227,9 +227,7 @@ function RollingVwapSettingsDialogBody({
                     label="Color"
                     color={draft.bandColors[bandKey]}
                     opacityPercent={draft.bandOpacities[bandKey]}
-                    // Deviation bands are stroke lines, but this overlay stores a single
-                    // center-line `lineStyle` and always renders band lines solid, so a
-                    // style row here would edit the center line only and mislead.
+                    lineStyle={draft.bandLineStyles[bandKey]}
                     onColorChange={(color) =>
                       setDraft((current) => ({
                         ...current,
@@ -240,6 +238,12 @@ function RollingVwapSettingsDialogBody({
                       setDraft((current) => ({
                         ...current,
                         bandOpacities: { ...current.bandOpacities, [bandKey]: opacity },
+                      }))
+                    }
+                    onLineStyleChange={(lineStyle) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bandLineStyles: { ...current.bandLineStyles, [bandKey]: lineStyle },
                       }))
                     }
                   />

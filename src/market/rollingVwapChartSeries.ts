@@ -14,12 +14,14 @@ import { rollingVwapInstancePeriodLabel, type RollingVwapInstance } from './roll
 import type { RollingVwapPoint } from './rollingVwap.ts'
 import {
   computeRollingVwapPointsForSettings,
+  DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_COLOR,
   DEFAULT_ROLLING_VWAP_LINE_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
   rollingVwapCenterLineRgbaColor,
   type RollingVwapBandColors,
+  type RollingVwapBandLineStyles,
   type RollingVwapBandOpacities,
   type RollingVwapLineStyle,
   type RollingVwapLineWidth,
@@ -74,9 +76,13 @@ export const ROLLING_VWAP_CENTER_LINE_OPTIONS = rollingVwapCenterLineOptions()
 
 export const ROLLING_VWAP_LINE_CHART_OPTIONS = ROLLING_VWAP_CENTER_LINE_OPTIONS
 
-function rollingVwapBandLineOptions(lineWidth: RollingVwapLineWidth = DEFAULT_ROLLING_VWAP_LINE_WIDTH) {
+function rollingVwapBandLineOptions(
+  lineWidth: RollingVwapLineWidth = DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  lineStyle: RollingVwapLineStyle = DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
+) {
   return {
     lineWidth,
+    lineStyle: rollingVwapLineStyleToChart(lineStyle),
     priceLineVisible: false,
     lastValueVisible: false,
     title: '',
@@ -117,10 +123,11 @@ const BAND_COLOR_KEYS: Record<RollingVwapBandSeriesKey, keyof RollingVwapBandCol
   lower3: 'band3',
 }
 
-/** Band colors plus their independent opacities. */
+/** Band colors, their independent opacities and their independent line styles. */
 export type RollingVwapBandStyle = {
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
+  bandLineStyles: RollingVwapBandLineStyles
 }
 
 /** Band color with its own opacity folded into the CSS color string. */
@@ -208,7 +215,7 @@ export function createRollingVwapChartSeriesBundle(
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
     const colorKey = BAND_COLOR_KEYS[key]
     const series = chart.addSeries(LineSeries, {
-      ...rollingVwapBandLineOptions(lineWidth),
+      ...rollingVwapBandLineOptions(lineWidth, bandStyle.bandLineStyles[colorKey]),
       color: rollingVwapBandSeriesColor(bandStyle, colorKey),
       visible: false,
     }, paneIndex)
@@ -238,12 +245,26 @@ export function applyRollingVwapChartBandColors(
   }
 }
 
+/** Applies each deviation band pair's own `solid` / `dotted` stroke style. */
+export function applyRollingVwapChartBandLineStyles(
+  bundle: RollingVwapChartSeriesBundle,
+  bandStyle: RollingVwapBandStyle,
+): void {
+  for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+    const colorKey = BAND_COLOR_KEYS[key]
+    bundle.bands[key].applyOptions({
+      lineStyle: rollingVwapLineStyleToChart(bandStyle.bandLineStyles[colorKey]),
+    })
+  }
+}
+
 export function applyRollingVwapChartInstancePresentation(
   bundle: RollingVwapChartSeriesBundle,
   instance: RollingVwapInstance,
   interval: CandleInterval,
 ): void {
   applyRollingVwapChartBandColors(bundle, instance.settings)
+  applyRollingVwapChartBandLineStyles(bundle, instance.settings)
   applyRollingVwapChartLineWidth(bundle, instance.settings.lineWidth)
   applyRollingVwapCenterLinePresentation(bundle.center, instance.settings)
   bundle.center.applyOptions({
