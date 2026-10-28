@@ -1,6 +1,5 @@
 import {
   LineSeries,
-  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type UTCTimestamp,
@@ -27,6 +26,7 @@ import {
   type RollingVwapLineWidth,
   type RollingVwapSettings,
 } from './rollingVwapSettings.ts'
+import { lineChartStrokeStyleToChartLineStyle } from './lineChartStroke.ts'
 import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 import { resolveCandlePaneIndex } from './candlePane.ts'
@@ -41,19 +41,6 @@ export type RollingVwapCenterLinePresentation = {
   lineStyle?: RollingVwapLineStyle
 }
 
-function rollingVwapLineStyleToChart(style: RollingVwapLineStyle): LineStyle {
-  switch (style) {
-    case 'solid':
-      return LineStyle.Solid
-    case 'dotted':
-      return LineStyle.Dotted
-    default: {
-      const unreachable: never = style
-      return unreachable
-    }
-  }
-}
-
 export function rollingVwapCenterLineOptions(
   presentation: RollingVwapCenterLinePresentation = {},
 ) {
@@ -64,7 +51,7 @@ export function rollingVwapCenterLineOptions(
   return {
     color: rollingVwapCenterLineRgbaColor(lineColor, lineOpacity),
     lineWidth,
-    lineStyle: rollingVwapLineStyleToChart(lineStyle),
+    lineStyle: lineChartStrokeStyleToChartLineStyle(lineStyle),
     priceLineVisible: false,
     lastValueVisible: true,
     crosshairMarkerVisible: false,
@@ -82,7 +69,7 @@ function rollingVwapBandLineOptions(
 ) {
   return {
     lineWidth,
-    lineStyle: rollingVwapLineStyleToChart(lineStyle),
+    lineStyle: lineChartStrokeStyleToChartLineStyle(lineStyle),
     priceLineVisible: false,
     lastValueVisible: false,
     title: '',
@@ -179,7 +166,7 @@ export function applyRollingVwapCenterLinePresentation(
 ): void {
   center.applyOptions({
     color: rollingVwapCenterLineRgbaColor(settings.lineColor, settings.lineOpacity),
-    lineStyle: rollingVwapLineStyleToChart(settings.lineStyle),
+    lineStyle: lineChartStrokeStyleToChartLineStyle(settings.lineStyle),
   })
 }
 
@@ -253,7 +240,7 @@ export function applyRollingVwapChartBandLineStyles(
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
     const colorKey = BAND_COLOR_KEYS[key]
     bundle.bands[key].applyOptions({
-      lineStyle: rollingVwapLineStyleToChart(bandStyle.bandLineStyles[colorKey]),
+      lineStyle: lineChartStrokeStyleToChartLineStyle(bandStyle.bandLineStyles[colorKey]),
     })
   }
 }

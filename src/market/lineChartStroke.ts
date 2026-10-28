@@ -1,3 +1,5 @@
+import { LineStyle } from 'lightweight-charts'
+
 export const LINE_CHART_STROKE_WIDTHS = [1, 2, 3, 4] as const
 
 export type LineChartStrokeWidth = (typeof LINE_CHART_STROKE_WIDTHS)[number]
@@ -14,6 +16,20 @@ export const DEFAULT_LINE_CHART_STROKE_STYLE: LineChartStrokeStyle = 'solid'
 export const LINE_CHART_STROKE_STYLE_LABELS: Record<LineChartStrokeStyle, string> = {
   solid: 'Line',
   dotted: 'Dot',
+}
+
+/** The only `solid | dotted` → Lightweight Charts `LineStyle` mapping in `src/`. */
+export function lineChartStrokeStyleToChartLineStyle(style: LineChartStrokeStyle): LineStyle {
+  switch (style) {
+    case 'solid':
+      return LineStyle.Solid
+    case 'dotted':
+      return LineStyle.Dotted
+    default: {
+      const unreachable: never = style
+      return unreachable
+    }
+  }
 }
 
 /** Legacy persisted style value that is no longer selectable. */

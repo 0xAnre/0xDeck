@@ -1,4 +1,4 @@
-import { LineStyle, type LineSeriesPartialOptions } from 'lightweight-charts'
+import type { LineSeriesPartialOptions } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import {
   MARKET_INDICATOR_IDS,
@@ -6,24 +6,11 @@ import {
   type MarketIndicatorId,
 } from './indicators.ts'
 import { readMarketIndicatorSeriesColors } from './marketIndicatorSeriesColors.ts'
-import type { LineChartStrokeStyle } from './lineChartStroke.ts'
+import { lineChartStrokeStyleToChartLineStyle } from './lineChartStroke.ts'
 import type { MarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
 import { loadWidgetMarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
 import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import { resolveSessionVwapBandFillStyle } from './sessionVwapBandFillStyle.ts'
-
-function lineChartStrokeStyleToLineStyle(style: LineChartStrokeStyle): LineStyle {
-  switch (style) {
-    case 'solid':
-      return LineStyle.Solid
-    case 'dotted':
-      return LineStyle.Dotted
-    default: {
-      const unreachable: never = style
-      return unreachable
-    }
-  }
-}
 
 export function marketIndicatorPresentationLineOptions(
   presentation: MarketIndicatorPresentation,
@@ -39,7 +26,7 @@ export function marketIndicatorPresentationLineOptions(
     options.lineWidth = presentation.lineWidth
   }
   if (presentation.lineStyle !== undefined) {
-    options.lineStyle = lineChartStrokeStyleToLineStyle(presentation.lineStyle)
+    options.lineStyle = lineChartStrokeStyleToChartLineStyle(presentation.lineStyle)
   }
   return options
 }

@@ -5,13 +5,12 @@ import {
 import {
   isRollingVwapHexColor,
   isRollingVwapLineOpacity,
-  isRollingVwapLineWidth,
-  type RollingVwapLineStyle,
-  type RollingVwapLineWidth,
 } from './rollingVwapSettings.ts'
 import {
+  isLineChartStrokeWidth,
   sanitizeLineChartStrokeStyle,
   type LineChartStrokeStyle,
+  type LineChartStrokeWidth,
 } from './lineChartStroke.ts'
 import {
   MARKET_STYLE_DEFAULTS,
@@ -37,8 +36,8 @@ export type AnchoredVwapDrawingLineSettings = {
   visible: boolean
   lineColor: string
   lineOpacity: number
-  lineWidth: RollingVwapLineWidth
-  lineStyle: RollingVwapLineStyle
+  lineWidth: LineChartStrokeWidth
+  lineStyle: LineChartStrokeStyle
 }
 
 export type AnchoredVwapDrawingBandPairSettings = {
@@ -52,8 +51,8 @@ export type AnchoredVwapDrawingBandPairSettings = {
   lowerOpacity: number
   fillColor: string
   fillOpacity: number
-  lineWidth: RollingVwapLineWidth
-  lineStyle: RollingVwapLineStyle
+  lineWidth: LineChartStrokeWidth
+  lineStyle: LineChartStrokeStyle
 }
 
 export type AnchoredVwapDrawingSettings = {
@@ -144,7 +143,7 @@ function sanitizeLineSettings(
     lineOpacity: isRollingVwapLineOpacity(record.lineOpacity)
       ? record.lineOpacity
       : defaults.lineOpacity,
-    lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
+    lineWidth: isLineChartStrokeWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
     lineStyle: sanitizeLineStyle(record.lineStyle, defaults.lineStyle),
   }
 }
@@ -199,7 +198,7 @@ function sanitizeBandPair(
     fillOpacity: isAnchoredVwapFillOpacity(record.fillOpacity)
       ? record.fillOpacity
       : defaults.fillOpacity,
-    lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
+    lineWidth: isLineChartStrokeWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
     lineStyle: sanitizeLineStyle(record.lineStyle, defaults.lineStyle),
   }
 }
