@@ -1,12 +1,44 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { afterEach, beforeEach, describe, it } from 'node:test'
 import { LineStyle } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
-import { createEmptyRollingVwapChartInstanceMap } from './rollingVwapChartInstances.ts'
 import {
   applyMarketIndicatorPresentationToBundle,
   marketIndicatorPresentationLineOptions,
+  syncWidgetMarketIndicatorPresentations,
 } from './marketIndicatorPresentationApply.ts'
+import { saveWidgetMarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
+
+const memory = new Map<string, string>()
+
+beforeEach(() => {
+  memory.clear()
+  globalThis.localStorage = {
+    get length() {
+      return memory.size
+    },
+    clear() {
+      memory.clear()
+    },
+    getItem(key: string) {
+      return memory.get(key) ?? null
+    },
+    setItem(key: string, value: string) {
+      memory.set(key, value)
+    },
+    removeItem(key: string) {
+      memory.delete(key)
+    },
+    key(index: number) {
+      return [...memory.keys()][index] ?? null
+    },
+  } as Storage
+})
+
+afterEach(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (globalThis as any).localStorage
+})
 
 function createMockLineSeries() {
   const applied: Record<string, unknown>[] = []
@@ -184,13 +216,42 @@ describe('applyMarketIndicatorPresentationToBundle', () => {
     )
   })
 
-  it('applies rolling-vwap presentation to each instance center line', () => {
+  it('is a documented no-op for rolling-vwap, whose instances own presentation', () => {
     const bundle = createMockBundle()
-    applyMarketIndicatorPresentationToBundle(bundle, 'rolling-vwap', { lineWidth: 4 })
+    applyMarketIndicatorPresentationToBundle(bundle, 'rolling-vwap', {
+      color: '#112233',
+      opacity: 40,
+      lineWidth: 4,
+      lineStyle: 'dotted',
+    })
     const center = bundle.rollingVwaps.get('rv-1')?.center as ReturnType<
       typeof createMockLineSeries
     >
-    assert.equal(center.applied[0]?.lineWidth, 4)
-    assert.equal(createEmptyRollingVwapChartInstanceMap().size, 0)
+    assert.deepEqual(center.applied, [])
+  })
+
+  it('cannot override per-instance rolling-vwap settings during a global sync', () => {
+    const bundle = createMockBundle()
+    const center = bundle.rollingVwaps.get('rv-1')?.center as ReturnType<
+      typeof createMockLineSeries
+    >
+    // Mirrors the per-instance presentation effect in the chart panel.
+    center.applyOptions({
+      color: 'rgba(0, 255, 0, 0.55)',
+      lineWidth: 2,
+      lineStyle: LineStyle.Dotted,
+    })
+    const instanceApplied = [...center.applied]
+
+    saveWidgetMarketIndicatorPresentation('panel-a', 'rolling-vwap', {
+      color: '#112233',
+      lineWidth: 4,
+      lineStyle: 'solid',
+    })
+    syncWidgetMarketIndicatorPresentations('panel-a', bundle)
+
+    // An unrelated-indicator sync (the panel effect depends on activeIndicators)
+    // leaves the instance center line exactly as the instance settings applied it.
+    assert.deepEqual(center.applied, instanceApplied)
   })
 })
