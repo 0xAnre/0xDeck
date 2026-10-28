@@ -33,11 +33,6 @@ import {
  * Colors come from the shared BTC Perp palette: center line `light` @ 100%,
  * band lines `medium` @ 70%.
  */
-export const ANCHORED_VWAP_DRAWING_CALCULATION_MODES = ['standard-deviation', 'percentage'] as const
-
-export type AnchoredVwapDrawingCalculationMode =
-  (typeof ANCHORED_VWAP_DRAWING_CALCULATION_MODES)[number]
-
 export type AnchoredVwapDrawingLineSettings = {
   visible: boolean
   lineColor: string
@@ -62,7 +57,6 @@ export type AnchoredVwapDrawingBandPairSettings = {
 }
 
 export type AnchoredVwapDrawingSettings = {
-  calculationMode: AnchoredVwapDrawingCalculationMode
   source: 'hlc3'
   vwapLine: AnchoredVwapDrawingLineSettings
   band1: AnchoredVwapDrawingBandPairSettings
@@ -212,7 +206,6 @@ function sanitizeBandPair(
 
 export function createDefaultAnchoredVwapDrawingSettings(): AnchoredVwapDrawingSettings {
   return {
-    calculationMode: 'standard-deviation',
     source: 'hlc3',
     vwapLine: { ...DEFAULT_VWAP_LINE },
     band1: { ...DEFAULT_BAND1 },
@@ -224,10 +217,7 @@ export function createDefaultAnchoredVwapDrawingSettings(): AnchoredVwapDrawingS
 export function sanitizeAnchoredVwapDrawingSettings(value: unknown): AnchoredVwapDrawingSettings {
   const defaults = createDefaultAnchoredVwapDrawingSettings()
   const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
-  const calculationMode =
-    record.calculationMode === 'percentage' ? 'percentage' : 'standard-deviation'
   return {
-    calculationMode,
     source: 'hlc3',
     vwapLine: sanitizeLineSettings(record.vwapLine, defaults.vwapLine),
     band1: sanitizeBandPair(record.band1, defaults.band1),

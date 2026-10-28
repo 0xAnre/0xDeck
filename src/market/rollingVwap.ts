@@ -219,7 +219,7 @@ export function resolveRollingVwapWindowMs(
 }
 
 /**
- * Pine `tfString()` for info-box labels (Stage 2+ UI).
+ * Pine `tfString()` label for the Rolling VWAP window (instance period label).
  */
 export function formatRollingVwapTimePeriodLabel(timeInMs: number): string {
   const s = Math.trunc(timeInMs / 1000)

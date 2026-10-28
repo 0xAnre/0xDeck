@@ -251,59 +251,6 @@ function RollingVwapSettingsDialogBody({
               )
             })}
           </section>
-
-          <section className="space-y-2">
-            <p className="font-medium text-foreground">Info box</p>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={draft.infoBox.visible}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    infoBox: { ...current.infoBox, visible: event.target.checked },
-                  }))
-                }
-              />
-              <span>Visible</span>
-            </label>
-            <ColorOpacityField
-              id="rolling-vwap-info-box-background"
-              label="Background color"
-              color={draft.infoBox.backgroundColor}
-              opacityPercent={draft.infoBox.backgroundColorOpacity}
-              onColorChange={(backgroundColor) =>
-                setDraft((current) => ({
-                  ...current,
-                  infoBox: { ...current.infoBox, backgroundColor },
-                }))
-              }
-              onOpacityChange={(backgroundColorOpacity) =>
-                setDraft((current) => ({
-                  ...current,
-                  infoBox: { ...current.infoBox, backgroundColorOpacity },
-                }))
-              }
-            />
-            <ColorOpacityField
-              id="rolling-vwap-info-box-text"
-              label="Text color"
-              color={draft.infoBox.textColor}
-              opacityPercent={draft.infoBox.textColorOpacity}
-              onColorChange={(textColor) =>
-                setDraft((current) => ({
-                  ...current,
-                  infoBox: { ...current.infoBox, textColor },
-                }))
-              }
-              onOpacityChange={(textColorOpacity) =>
-                setDraft((current) => ({
-                  ...current,
-                  infoBox: { ...current.infoBox, textColorOpacity },
-                }))
-              }
-            />
-          </section>
         </div>
 
       <DialogFooter className="shrink-0">
