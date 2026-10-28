@@ -51,7 +51,9 @@ panels.ts                  → instance ids (chart-abc123), layout helpers; cata
 ParquetDataContext.tsx     → dataset catalog + useWidgetParquetData hook
 backend/app/               → FastAPI + DuckDB Parquet queries
 backend/app/market/        → exchange-aware BTC perp providers (Binance USD-M + Hyperliquid), shared VWAP context, volume-profile source
-layoutStorage.ts           → localStorage workspace (activePanels + lg layout)
+layoutStorage.ts           → localStorage workspaces: per-workspace activePanels + lg layout, legacy payload migration
+lib/workspaceModel.ts      → pure multi-workspace model (list ops, persisted envelope, legacy migration)
+WorkspaceSwitcher.tsx      → header workspace icon switcher (+ new empty workspace)
 datasetStorage.ts          → per-widget dataset + workspace column defaults
 timeRangeStorage.ts        → per-widget time range
 WidgetSettingsContext.tsx  → per-widget settings registry
@@ -59,6 +61,8 @@ PanelHeaderControls.tsx    → header dropdowns (dataset, columns, range, metric
 ```
 
 Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on last interaction. Only **lg** layout is persisted.
+
+**Workspaces:** several independent workspaces share the app shell; one is active at a time and is switched with the icon buttons in the header (`WorkspaceSwitcher.tsx`, immediately right of the logo; `+` appends and activates an empty one). Each workspace owns its panel instances, layout, chart configuration/indicators/drawing tools and widget settings; stacking order is per workspace. There is no workspace limit. The existing single-workspace payload migrates to **Workspace 1** on first load. Widget state is workspace-private because every `0xdeck-widget-*` key is keyed by the unique panel instance id.
 
 **Widget instances:** `WIDGET_REGISTRY` defines templates; each open panel gets a unique id (`chart-a1b2c3`). Widgets menu **adds** instances; panel **X** closes. Each instance has its own dataset, time range, and KPI config in localStorage. **Reusable widget** = one registry entry, add many instances, port bodies from other projects ([WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md)).
 
@@ -147,7 +151,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 |------|-----|
 | `react-grid-layout` + `App.css` | Drag/resize grid — no shadcn equivalent |
 | `layoutStorage.ts`, `themeStorage.ts`, `datasetStorage.ts` | Persistence logic |
-| `ThemeSelect`, `WidgetSelect` | Thin app wrappers composing shadcn |
+| `ThemeSelect`, `WidgetSelect`, `WorkspaceSwitcher` | Thin app wrappers composing shadcn |
 | `PanelHeaderControls`, `useParquetWidgetSettings`, `useMarketWidgetSettings` | Header dropdowns (Parquet + exchange/interval/indicators/tools) |
 | `BtcPerpetualChartPanel`, `src/market/*` | Lightweight Charts candlestick + indicators + FRVP tool |
 | `formatTime.ts`, `formatCellValue.ts` | Epoch timestamp + cell display helpers |
@@ -182,13 +186,13 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 
 | Key | Content |
 |-----|---------|
-| `0xdeck-workspace` | `{ activePanels, layout, gridVersion }` — instance ids |
-| `0xdeck-theme` | Theme id string |
-| `0xdeck-notes` | Notes workspace (files, contents, active tab) |
+| `0xdeck-workspace` | **Workspace-scoped.** `{ version, activeWorkspaceId, workspaces: [{ id, activePanels, layout, gridVersion }] }` — one lg layout per workspace, instance ids. A legacy `{ activePanels, layout, gridVersion }` payload (or its `layouts.lg` variant) is migrated in place to Workspace 1 |
+| `0xdeck-theme` | Theme id string — **global**, shared by all workspaces |
+| `0xdeck-notes` | Notes workspace (files, contents, active tab) — **shared** across workspaces |
 | `0xdeck-widget-datasets` | Per-widget dataset name |
 | `0xdeck-widget-time-ranges` | Per-widget time range (`15m` … `all`) |
 | `0xdeck-widget-kpi-config` | Per-widget `{ metricColumn, aggregation }` |
-| `0xdeck-data-config` | Workspace default dataset + columns (from Data Table) |
+| `0xdeck-data-config` | Workspace default dataset + columns (from Data Table) — **global**, shared by all workspaces |
 | `0xdeck-widget-market-exchanges` | Per-instance BTC Perp exchange (`binance` default / `hyperliquid`) |
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
@@ -203,9 +207,11 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-anchored-vwap-instances` | Anchored VWAP drawing instances (BTC Perp) |
 | `0xdeck-widget-market-chart-viewports` | Per-instance BTC Perp chart viewport by candle interval |
 
+All `0xdeck-widget-*` keys are **workspace-private in practice**: they are keyed by the panel instance id, and every workspace creates its own instance ids (chart configs, indicators, drawing instances, RSI, liquidations and viewports therefore never leak across workspaces).
+
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
 
-**Workspace screens:** `m` then `1`–`9` scrolls the outer workspace to screen positions 1–9 (`screenNavigationShortcuts.ts`). A wrapper inside `.workspace-scroller` reserves a virtual 9-viewport extent so empty screens stay reachable without moving any widget. The header **Screen Lock** button (`App.tsx`, in-memory) pins the workspace to the active screen: manual scrolling snaps back to the active screen's exact top, `m` + digit still jumps, and viewport resize re-aligns. Lock math is pure in `screenNavigationShortcuts.ts`. Outer `.workspace-scroller` and panel `.panel-body` use hidden scrollbars (`App.css`); both regions remain scrollable.
+**Workspace screens:** `m` then `1`–`9` scrolls the outer workspace to screen positions 1–9 (`screenNavigationShortcuts.ts`) in the active workspace. A wrapper inside `.workspace-scroller` reserves a virtual 9-viewport extent so empty screens stay reachable without moving any widget. The header **Screen Lock** button (`App.tsx`, in-memory) pins the workspace to the active screen: manual scrolling snaps back to the active screen's exact top, `m` + digit still jumps, and viewport resize re-aligns. Lock math is pure in `screenNavigationShortcuts.ts`. Outer `.workspace-scroller` and panel `.panel-body` use hidden scrollbars (`App.css`); both regions remain scrollable.
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
 

@@ -8,6 +8,18 @@ import {
   isPanelInstanceId,
   resolvePanelInstance,
 } from './panels'
+import {
+  MIGRATED_WORKSPACE_ID,
+  WORKSPACE_STORAGE_VERSION,
+  activateWorkspace as activateWorkspaceInCollection,
+  addWorkspace as addWorkspaceToCollection,
+  createWorkspaceId,
+  parseWorkspaceCollection,
+  serializeWorkspaceCollection,
+  updateWorkspace as updateWorkspaceInCollection,
+  type WorkspaceCollection,
+  type WorkspaceSnapshot,
+} from './lib/workspaceModel'
 
 export const WORKSPACE_STORAGE_KEY = '0xdeck-workspace'
 const LEGACY_LG_COLS = 12
@@ -20,12 +32,20 @@ export type WorkspaceState = {
   layouts: ResponsiveLayouts
 }
 
-/** Persisted shape — only lg layout is stored; md/sm are derived on load. */
-type StoredWorkspace = {
-  activePanels: string[]
-  layout: Layout
-  gridVersion?: number
+/** One workspace in memory: its stable id plus the derived responsive layout state. */
+export type WorkspaceEntry = {
+  id: string
+  state: WorkspaceState
 }
+
+/**
+ * All workspaces plus the last active one. `workspaces` always holds at least one entry
+ * (`loadWorkspaces` and every mutation below keep that invariant).
+ */
+export type WorkspaceStore = WorkspaceCollection<WorkspaceEntry>
+
+/** Persisted per-workspace shape — only lg layout is stored; md/sm are derived on load. */
+type StoredWorkspace = WorkspaceSnapshot
 
 const CURRENT_GRID_VERSION = 3
 
@@ -33,6 +53,10 @@ function emptyLayouts(): ResponsiveLayouts {
   return Object.fromEntries(
     BREAKPOINT_KEYS.map((bp) => [bp, []]),
   ) as ResponsiveLayouts
+}
+
+function emptyWorkspaceState(): WorkspaceState {
+  return { activePanels: [], layouts: emptyLayouts() }
 }
 
 function migrateFromLegacyCols(layout: Layout): Layout {
@@ -143,7 +167,7 @@ function patchWorkspace(activePanels: string[], lgLayout: Layout): WorkspaceStat
   const panels = activePanels.filter((id) => isPanelInstanceId(id))
 
   if (panels.length === 0) {
-    return { activePanels: [], layouts: emptyLayouts() }
+    return emptyWorkspaceState()
   }
 
   const lg = lgLayoutForPanels(panels, lgLayout)
@@ -166,57 +190,98 @@ function buildDefaultWorkspace(): WorkspaceState {
   return patchWorkspace(activePanels, catalogLayout)
 }
 
-function loadStoredWorkspace(
-  activePanels: string[],
-  layout: Layout,
-  gridVersion?: number,
-): WorkspaceState {
-  const migrated = prepareStoredLayout(layout, gridVersion)
-  const state = patchWorkspace(activePanels, migrated)
-  if (needsLegacyColMigration(layout, gridVersion) || gridVersion === undefined) {
-    saveWorkspace(state)
+function buildDefaultStore(): WorkspaceStore {
+  return {
+    version: WORKSPACE_STORAGE_VERSION,
+    activeWorkspaceId: MIGRATED_WORKSPACE_ID,
+    workspaces: [{ id: MIGRATED_WORKSPACE_ID, state: buildDefaultWorkspace() }],
   }
-  return state
 }
 
-function parseStoredWorkspace(raw: string): WorkspaceState | null {
-  const data = JSON.parse(raw) as Partial<
-    StoredWorkspace & WorkspaceState & { layout?: LayoutItem[] }
-  >
-
-  if (!Array.isArray(data.activePanels)) return null
-
-  if (Array.isArray(data.layout)) {
-    return loadStoredWorkspace(data.activePanels, data.layout, data.gridVersion)
-  }
-  if (data.layouts?.lg) {
-    return loadStoredWorkspace(data.activePanels, data.layouts.lg, data.gridVersion)
-  }
-
-  return null
+type RestoredWorkspace = {
+  entry: WorkspaceEntry
+  /** The stored payload still needs the grid-version / envelope migration written back. */
+  needsPersist: boolean
 }
 
-export function loadWorkspace(): WorkspaceState {
+function restoreWorkspace(stored: StoredWorkspace): RestoredWorkspace {
+  // The model keeps grid payloads opaque; `prepareStoredLayout` owns the grid migration.
+  const layout = stored.layout as readonly LayoutItem[] as Layout
+  const migratedLayout = prepareStoredLayout(layout, stored.gridVersion)
+
+  return {
+    entry: { id: stored.id, state: patchWorkspace(stored.activePanels, migratedLayout) },
+    needsPersist:
+      stored.gridVersion === undefined ||
+      needsLegacyColMigration(layout, stored.gridVersion),
+  }
+}
+
+function toStoredCollection(store: WorkspaceStore): WorkspaceCollection<StoredWorkspace> {
+  return {
+    version: WORKSPACE_STORAGE_VERSION,
+    activeWorkspaceId: store.activeWorkspaceId,
+    workspaces: store.workspaces.map((entry) => ({
+      id: entry.id,
+      activePanels: entry.state.activePanels,
+      // The catalog constraints are re-attached on load, so the stored item stays as-is.
+      layout: [...(entry.state.layouts.lg ?? [])],
+      gridVersion: CURRENT_GRID_VERSION,
+    })),
+  }
+}
+
+/**
+ * Loads every workspace, migrating the legacy single-workspace payload (both the older
+ * `layout` variant and the newer `layouts.lg` one) into Workspace 1 in place.
+ */
+export function loadWorkspaces(): WorkspaceStore {
   try {
-    const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY)
-    if (raw) {
-      const state = parseStoredWorkspace(raw)
-      if (state) return state
-    }
-  } catch {
-    // fall through
-  }
+    const parsed = parseWorkspaceCollection(localStorage.getItem(WORKSPACE_STORAGE_KEY))
+    if (!parsed) return buildDefaultStore()
 
-  return buildDefaultWorkspace()
+    const restored = parsed.collection.workspaces.map(restoreWorkspace)
+    const store: WorkspaceStore = {
+      version: WORKSPACE_STORAGE_VERSION,
+      activeWorkspaceId: parsed.collection.activeWorkspaceId,
+      workspaces: restored.map((item) => item.entry),
+    }
+
+    if (parsed.migrated || restored.some((item) => item.needsPersist)) {
+      saveWorkspaces(store)
+    }
+    return store
+  } catch {
+    return buildDefaultStore()
+  }
 }
 
-export function saveWorkspace(state: WorkspaceState) {
-  const payload: StoredWorkspace = {
-    activePanels: state.activePanels,
-    layout: state.layouts.lg ?? [],
-    gridVersion: CURRENT_GRID_VERSION,
-  }
-  localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(payload))
+export function saveWorkspaces(store: WorkspaceStore) {
+  localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspaceCollection(toStoredCollection(store)))
+}
+
+/** Activates an existing workspace without touching any workspace's stored state. */
+export function selectWorkspace(store: WorkspaceStore, workspaceId: string): WorkspaceStore {
+  return activateWorkspaceInCollection(store, workspaceId)
+}
+
+/** Creates a new empty workspace and activates it immediately. */
+export function createWorkspace(store: WorkspaceStore, workspaceId?: string): WorkspaceStore {
+  const id =
+    workspaceId ?? createWorkspaceId(store.workspaces.map((entry) => entry.id))
+  return addWorkspaceToCollection(store, { id, state: emptyWorkspaceState() })
+}
+
+/** Applies a state change to exactly one workspace; other workspaces keep their identity. */
+export function updateWorkspaceState(
+  store: WorkspaceStore,
+  workspaceId: string,
+  update: (state: WorkspaceState) => WorkspaceState,
+): WorkspaceStore {
+  return updateWorkspaceInCollection(store, workspaceId, (entry) => {
+    const next = update(entry.state)
+    return next === entry.state ? entry : { id: entry.id, state: next }
+  })
 }
 
 export function lgLayoutEqual(a: Layout = [], b: Layout = []): boolean {

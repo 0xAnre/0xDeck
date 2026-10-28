@@ -23,12 +23,16 @@ import { PanelHeaderControls } from './PanelHeaderControls'
 import { BREAKPOINTS, COLS, ROW_HEIGHT, breakpointFromWidth } from './breakpoints'
 import {
   appendPanel,
+  createWorkspace,
   lgLayoutEqual,
-  loadWorkspace,
+  loadWorkspaces,
   removePanel,
-  saveWorkspace,
-  type WorkspaceState,
+  saveWorkspaces,
+  selectWorkspace,
+  updateWorkspaceState,
+  type WorkspaceStore,
 } from './layoutStorage'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { panelDisplayTitle, resolvePanelInstance } from './panels'
 import {
   getWidgetDefinitionForInstance,
@@ -61,6 +65,8 @@ const SCREEN_LOCK_LABELS = {
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
 const OVERLAP_COMPACTOR = getCompactor(null, true)
+/** Stable empty fallback so `focusOrder` keeps its identity for a workspace without stacking state. */
+const EMPTY_PANEL_IDS: string[] = []
 
 function reconcileStackOrder(previous: string[], activePanels: string[]): string[] {
   const kept = previous.filter((id) => activePanels.includes(id))
@@ -70,20 +76,40 @@ function reconcileStackOrder(previous: string[], activePanels: string[]): string
 
 function App() {
   const { width, containerRef, mounted } = useContainerWidth()
-  const [workspace, setWorkspace] = useState<WorkspaceState>(loadWorkspace)
+  const [workspaces, setWorkspaces] = useState<WorkspaceStore>(loadWorkspaces)
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [screenLock, setScreenLock] = useState(false)
   const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(0)
   const activeScreenIndexRef = useRef(0)
   const pendingScreenNavigationRef = useRef<WorkspaceScreenNavigationIntent | null>(null)
   const lockedScrollTopRef = useRef(0)
-  const [focusOrder, setFocusOrder] = useState<string[]>(
-    () => loadWorkspace().activePanels,
-  )
+
+  const activeWorkspaceId = workspaces.activeWorkspaceId
+  // `loadWorkspaces` and every store mutation keep at least one workspace.
+  const workspace = (
+    workspaces.workspaces.find((entry) => entry.id === activeWorkspaceId) ??
+    workspaces.workspaces[0]
+  ).state
+
+  // Stacking order is per workspace, so z-index never leaks from one workspace into another.
+  const [focusOrderByWorkspace, setFocusOrderByWorkspace] = useState<
+    Record<string, string[]>
+  >({})
+  const focusOrder = focusOrderByWorkspace[activeWorkspaceId] ?? EMPTY_PANEL_IDS
   const stackOrder = useMemo(
     () => reconcileStackOrder(focusOrder, workspace.activePanels),
     [focusOrder, workspace.activePanels],
   )
+
+  // Grid callbacks are guarded with the workspace they belong to: a layout change or a
+  // drag/resize stop that started in the previously active workspace must never be persisted
+  // into the newly activated one.
+  const activeWorkspaceIdRef = useRef(activeWorkspaceId)
+  const interactionWorkspaceIdRef = useRef(activeWorkspaceId)
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = activeWorkspaceId
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     applyTheme(theme)
@@ -175,24 +201,30 @@ function App() {
 
   const handleLayoutChange = useCallback(
     (_layout: Layout, layouts: ResponsiveLayouts) => {
-      setWorkspace((prev) => {
-        const nextLg = layouts.lg ?? []
-        if (lgLayoutEqual(prev.layouts.lg, nextLg)) return prev
-        return { ...prev, layouts }
+      setWorkspaces((prev) => {
+        // Late event from the workspace the grid rendered for; never write it elsewhere.
+        if (prev.activeWorkspaceId !== activeWorkspaceId) return prev
+        return updateWorkspaceState(prev, activeWorkspaceId, (state) => {
+          const nextLg = layouts.lg ?? []
+          if (lgLayoutEqual(state.layouts.lg, nextLg)) return state
+          return { ...state, layouts }
+        })
       })
     },
-    [],
+    [activeWorkspaceId],
   )
 
   const persistLayoutInteraction = useCallback(
-    (layout: Layout) => {
-      setWorkspace((prev) => {
+    (layout: Layout, workspaceId: string) => {
+      setWorkspaces((prev) => {
+        if (prev.activeWorkspaceId !== workspaceId) return prev
         const bp = breakpointFromWidth(width)
-        const next: WorkspaceState = {
-          ...prev,
-          layouts: { ...prev.layouts, [bp]: layout },
-        }
-        saveWorkspace(next)
+        const next = updateWorkspaceState(prev, workspaceId, (state) => ({
+          ...state,
+          layouts: { ...state.layouts, [bp]: layout },
+        }))
+        if (next === prev) return prev
+        saveWorkspaces(next)
         return next
       })
     },
@@ -201,16 +233,22 @@ function App() {
 
   const bringToFront = useCallback(
     (panelId: string) => {
-      setFocusOrder((prev) => {
-        const synced = reconcileStackOrder(prev, workspace.activePanels)
-        return [...synced.filter((id) => id !== panelId), panelId]
+      setFocusOrderByWorkspace((prev) => {
+        const current = prev[activeWorkspaceId] ?? EMPTY_PANEL_IDS
+        const synced = reconcileStackOrder(current, workspace.activePanels)
+        return {
+          ...prev,
+          [activeWorkspaceId]: [...synced.filter((id) => id !== panelId), panelId],
+        }
       })
     },
-    [workspace.activePanels],
+    [activeWorkspaceId, workspace.activePanels],
   )
 
   const handleDragStart = useCallback(
     (_layout: Layout, _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {
+      // Capture the workspace at interaction start; only its stop handler may write.
+      interactionWorkspaceIdRef.current = activeWorkspaceIdRef.current
       if (newItem?.i) bringToFront(newItem.i)
     },
     [bringToFront],
@@ -219,13 +257,14 @@ function App() {
   const handleDragStop = useCallback(
     (layout: Layout, _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {
       if (newItem?.i) bringToFront(newItem.i)
-      persistLayoutInteraction(layout)
+      persistLayoutInteraction(layout, interactionWorkspaceIdRef.current)
     },
     [bringToFront, persistLayoutInteraction],
   )
 
   const handleResizeStart = useCallback(
     (_layout: Layout, _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {
+      interactionWorkspaceIdRef.current = activeWorkspaceIdRef.current
       if (newItem?.i) bringToFront(newItem.i)
     },
     [bringToFront],
@@ -234,7 +273,7 @@ function App() {
   const handleResizeStop = useCallback(
     (layout: Layout, _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {
       if (newItem?.i) bringToFront(newItem.i)
-      persistLayoutInteraction(layout)
+      persistLayoutInteraction(layout, interactionWorkspaceIdRef.current)
     },
     [bringToFront, persistLayoutInteraction],
   )
@@ -248,19 +287,44 @@ function App() {
   )
 
   const handleAddPanel = useCallback((templateId: string) => {
-    setWorkspace((prev) => {
-      const next = appendPanel(prev, templateId)
-      if (!next) return prev
-      saveWorkspace(next)
+    setWorkspaces((prev) => {
+      const next = updateWorkspaceState(
+        prev,
+        prev.activeWorkspaceId,
+        (state) => appendPanel(state, templateId) ?? state,
+      )
+      if (next === prev) return prev
+      saveWorkspaces(next)
       return next
     })
   }, [])
 
   const handleRemovePanel = useCallback((panelId: string) => {
-    setWorkspace((prev) => {
-      const next = removePanel(prev, panelId)
-      if (!next) return prev
-      saveWorkspace(next)
+    setWorkspaces((prev) => {
+      const next = updateWorkspaceState(
+        prev,
+        prev.activeWorkspaceId,
+        (state) => removePanel(state, panelId) ?? state,
+      )
+      if (next === prev) return prev
+      saveWorkspaces(next)
+      return next
+    })
+  }, [])
+
+  const handleSelectWorkspace = useCallback((workspaceId: string) => {
+    setWorkspaces((prev) => {
+      const next = selectWorkspace(prev, workspaceId)
+      if (next === prev) return prev
+      saveWorkspaces(next)
+      return next
+    })
+  }, [])
+
+  const handleCreateWorkspace = useCallback(() => {
+    setWorkspaces((prev) => {
+      const next = createWorkspace(prev)
+      saveWorkspaces(next)
       return next
     })
   }, [])
@@ -323,6 +387,12 @@ function App() {
           <h1 className="m-0 text-[0.95rem] font-semibold tracking-wide text-muted-foreground">
             0xDeck
           </h1>
+          <WorkspaceSwitcher
+            workspaceIds={workspaces.workspaces.map((entry) => entry.id)}
+            activeWorkspaceId={activeWorkspaceId}
+            onSelect={handleSelectWorkspace}
+            onCreate={handleCreateWorkspace}
+          />
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -356,6 +426,8 @@ function App() {
         >
           {mounted && width > 0 && visiblePanels.length > 0 && (
             <ResponsiveGridLayout
+              // Remounting per workspace discards in-flight drag/resize state of the previous one.
+              key={activeWorkspaceId}
               layouts={workspace.layouts}
               width={width}
               breakpoints={BREAKPOINTS}
