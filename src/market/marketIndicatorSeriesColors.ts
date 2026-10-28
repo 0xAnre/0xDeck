@@ -10,6 +10,12 @@ import {
 } from './lineChartStroke.ts'
 import { resolveCssColor } from '../lib/resolveCssColor.ts'
 import { MARKET_STYLE_DEFAULTS, isMarketStyleOpacityPercent } from './marketStylePalette.ts'
+import type { MarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
+import {
+  VWAP_CHART_SERIES_KEYS,
+  type VwapChartSeriesKey,
+} from './vwapChartLineStyles.ts'
+import type { SessionVwapLineSeriesBundle } from './sessionVwapChartSeries.ts'
 
 const COLOR_INPUT_FALLBACK_HEX = MARKET_STYLE_DEFAULTS.primaryLine.color
 
@@ -186,6 +192,101 @@ export function readMarketIndicatorSeriesColors(
       return unreachable
     }
   }
+}
+
+/** Resolved per-line control values for the time-based VWAP settings dialog. */
+export type SessionVwapSeriesStyleInput = {
+  color: string
+  opacityPercent: number
+  lineWidth: LineChartStrokeWidth
+  lineStyle: LineChartStrokeStyle
+}
+
+export type SessionVwapSeriesStyleInputs = Record<
+  VwapChartSeriesKey,
+  SessionVwapSeriesStyleInput
+>
+
+function sessionVwapLineBundle(
+  bundle: ChartSeriesBundle,
+  indicatorId: MarketIndicatorId,
+): SessionVwapLineSeriesBundle<VwapChartSeriesKey> | null {
+  switch (indicatorId) {
+    case 'daily-vwap':
+      return bundle.dailyVwap
+    case 'weekly-vwap':
+      return bundle.weeklyVwap
+    case 'monthly-vwap':
+      return bundle.monthlyVwap
+    case 'quarterly-vwap':
+      return bundle.quarterlyVwap
+    case 'yearly-vwap':
+      return bundle.yearlyVwap
+    default:
+      return null
+  }
+}
+
+/** Flat presentation fields used until a per-series value is stored. */
+function fallbackSeriesStyle(presentation: MarketIndicatorPresentation) {
+  return {
+    color: presentation.color
+      ? cssColorToHexForColorInput(presentation.color)
+      : undefined,
+    opacityPercent: isMarketStyleOpacityPercent(presentation.opacity)
+      ? presentation.opacity
+      : undefined,
+    lineWidth: presentation.lineWidth,
+    lineStyle: presentation.lineStyle,
+  }
+}
+
+/**
+ * Per-line dialog inputs for the time-based VWAP center, upper and lower band
+ * lines. Each field resolves per-series → flat presentation → live series, so
+ * the dialog opens on exactly what the chart renders, including old settings
+ * that only stored the flat record.
+ */
+/** Fallback dialog inputs when the live chart bundle is unavailable. */
+export function sessionVwapSeriesStyleInputsFromFlat(
+  style: SessionVwapSeriesStyleInput,
+): SessionVwapSeriesStyleInputs {
+  const inputs = {} as SessionVwapSeriesStyleInputs
+  for (const key of VWAP_CHART_SERIES_KEYS) {
+    inputs[key] = { ...style }
+  }
+  return inputs
+}
+
+export function readSessionVwapSeriesStyleInputs(
+  bundle: ChartSeriesBundle,
+  indicatorId: MarketIndicatorId,
+  presentation: MarketIndicatorPresentation,
+): SessionVwapSeriesStyleInputs | null {
+  const lineBundle = sessionVwapLineBundle(bundle, indicatorId)
+  if (!lineBundle) return null
+  const fallback = fallbackSeriesStyle(presentation)
+  const inputs = {} as SessionVwapSeriesStyleInputs
+  for (const key of VWAP_CHART_SERIES_KEYS) {
+    const series = lineBundle.byKey[key]
+    if (!series) return null
+    const stored = presentation.series?.[key]
+    inputs[key] = {
+      color:
+        stored?.color !== undefined
+          ? cssColorToHexForColorInput(stored.color)
+          : fallback.color ?? readLineSeriesColorHex(series),
+      opacityPercent:
+        stored?.opacity ??
+        fallback.opacityPercent ??
+        MARKET_STYLE_DEFAULTS.primaryLine.opacityPercent,
+      lineWidth:
+        stored?.lineWidth ?? fallback.lineWidth ?? readLineSeriesLineWidth(series),
+      lineStyle:
+        stored?.lineStyle ?? fallback.lineStyle ?? readLineSeriesLineStyle(series),
+    }
+  }
+  return inputs
 }
 
 export function marketIndicatorColorInputValue(

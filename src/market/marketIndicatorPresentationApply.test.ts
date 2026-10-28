@@ -62,13 +62,23 @@ function createMockBand() {
   }
 }
 
+function createMockSessionVwapBundle(): ChartSeriesBundle['dailyVwap'] {
+  const previousLower1 = createMockLineSeries()
+  const previousUpper1 = createMockLineSeries()
+  const vwap = createMockLineSeries()
+  return {
+    byKey: { previousLower1, previousUpper1, vwap },
+    ordered: [previousLower1, previousUpper1, vwap],
+    band: createMockBand(),
+  } as ChartSeriesBundle['dailyVwap']
+}
+
 function createMockBundle(): ChartSeriesBundle {
   const ema0 = createMockLineSeries()
   const ema1 = createMockLineSeries()
   const ema2 = createMockLineSeries()
   const ema100 = createMockLineSeries()
   const ema200 = createMockLineSeries()
-  const dailyVwap = createMockLineSeries()
   const rollingCenter = createMockLineSeries()
 
   return {
@@ -76,31 +86,11 @@ function createMockBundle(): ChartSeriesBundle {
     emas: [ema0, ema1, ema2] as ChartSeriesBundle['emas'],
     ema100: ema100 as ChartSeriesBundle['ema100'],
     ema200: ema200 as ChartSeriesBundle['ema200'],
-    dailyVwap: {
-      byKey: { vwap: dailyVwap },
-      ordered: [dailyVwap],
-      band: createMockBand(),
-    } as ChartSeriesBundle['dailyVwap'],
-    weeklyVwap: {
-      byKey: { vwap: createMockLineSeries() },
-      ordered: [],
-      band: createMockBand(),
-    } as ChartSeriesBundle['weeklyVwap'],
-    monthlyVwap: {
-      byKey: { vwap: createMockLineSeries() },
-      ordered: [],
-      band: createMockBand(),
-    } as ChartSeriesBundle['monthlyVwap'],
-    quarterlyVwap: {
-      byKey: { vwap: createMockLineSeries() },
-      ordered: [],
-      band: createMockBand(),
-    } as ChartSeriesBundle['quarterlyVwap'],
-    yearlyVwap: {
-      byKey: { vwap: createMockLineSeries() },
-      ordered: [],
-      band: createMockBand(),
-    } as ChartSeriesBundle['yearlyVwap'],
+    dailyVwap: createMockSessionVwapBundle(),
+    weeklyVwap: createMockSessionVwapBundle(),
+    monthlyVwap: createMockSessionVwapBundle(),
+    quarterlyVwap: createMockSessionVwapBundle(),
+    yearlyVwap: createMockSessionVwapBundle(),
     rollingVwaps: new Map([
       [
         'rv-1',
@@ -150,23 +140,56 @@ describe('applyMarketIndicatorPresentationToBundle', () => {
     }
   })
 
-  it('applies daily-vwap presentation to every rendered line in the bundle', () => {
+  it('applies a flat presentation to every rendered session VWAP line', () => {
     const bundle = createMockBundle()
-    const previousUpper = createMockLineSeries()
-    const previousLower = createMockLineSeries()
-    bundle.dailyVwap.ordered.push(
-      previousUpper as ChartSeriesBundle['dailyVwap']['ordered'][number],
-      previousLower as ChartSeriesBundle['dailyVwap']['ordered'][number],
-    )
     applyMarketIndicatorPresentationToBundle(bundle, 'daily-vwap', {
       color: '#445566',
       lineStyle: 'dotted',
     })
-    for (const series of bundle.dailyVwap.ordered) {
-      const mock = series as ReturnType<typeof createMockLineSeries>
-      assert.equal(mock.applied[0]?.color, '#445566')
-      assert.equal(mock.applied[0]?.lineStyle, LineStyle.Dotted)
+    for (const key of ['previousLower1', 'previousUpper1', 'vwap'] as const) {
+      const mock = bundle.dailyVwap.byKey[key] as ReturnType<typeof createMockLineSeries>
+      assert.equal(mock.applied[0]?.color, '#445566', key)
+      assert.equal(mock.applied[0]?.lineStyle, LineStyle.Dotted, key)
     }
+  })
+
+  it('applies independent per-series styles and keeps the flat record as fallback', () => {
+    const bundle = createMockBundle()
+    applyMarketIndicatorPresentationToBundle(bundle, 'weekly-vwap', {
+      color: '#445566',
+      opacity: 80,
+      lineWidth: 2,
+      lineStyle: 'solid',
+      series: {
+        vwap: { color: '#112233', lineWidth: 4 },
+        previousUpper1: { opacity: 30, lineStyle: 'dotted' },
+        previousLower1: { color: '#abcdef', lineWidth: 3 },
+      },
+    })
+    const vwap = bundle.weeklyVwap.byKey.vwap as ReturnType<typeof createMockLineSeries>
+    const upper = bundle.weeklyVwap.byKey.previousUpper1 as ReturnType<typeof createMockLineSeries>
+    const lower = bundle.weeklyVwap.byKey.previousLower1 as ReturnType<typeof createMockLineSeries>
+    assert.equal(vwap.applied[0]?.color, 'rgba(17, 34, 51, 0.8)')
+    assert.equal(vwap.applied[0]?.lineWidth, 4)
+    assert.equal(vwap.applied[0]?.lineStyle, LineStyle.Solid)
+    assert.equal(upper.applied[0]?.color, 'rgba(68, 85, 102, 0.3)')
+    assert.equal(upper.applied[0]?.lineWidth, 2)
+    assert.equal(upper.applied[0]?.lineStyle, LineStyle.Dotted)
+    assert.equal(lower.applied[0]?.color, 'rgba(171, 205, 239, 0.8)')
+    assert.equal(lower.applied[0]?.lineWidth, 3)
+    assert.equal(lower.applied[0]?.lineStyle, LineStyle.Solid)
+  })
+
+  it('sanitizes a per-series-only presentation without touching the fill', () => {
+    const bundle = createMockBundle()
+    applyMarketIndicatorPresentationToBundle(bundle, 'monthly-vwap', {
+      series: { previousLower1: { color: '#010203' } },
+    })
+    const lower = bundle.monthlyVwap.byKey.previousLower1 as ReturnType<typeof createMockLineSeries>
+    const vwap = bundle.monthlyVwap.byKey.vwap as ReturnType<typeof createMockLineSeries>
+    assert.equal(lower.applied[0]?.color, '#010203')
+    assert.deepEqual(vwap.applied, [])
+    assert.deepEqual(bundle.monthlyVwap.band.fillStyles, ['rgba(163, 163, 163, 0.25)'])
   })
 
   it('applies the background fill independently from line styling', () => {

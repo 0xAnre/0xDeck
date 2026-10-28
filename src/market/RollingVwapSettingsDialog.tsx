@@ -269,6 +269,16 @@ function RollingVwapSettingsDialogBody({
                       }))
                     }
                   />
+                  <LineChartStrokeSelectFields
+                    widthId={`rolling-vwap-${bandKey}-width`}
+                    lineWidth={draft.bandLineWidths[bandKey]}
+                    onLineWidthChange={(lineWidth) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bandLineWidths: { ...current.bandLineWidths, [bandKey]: lineWidth },
+                      }))
+                    }
+                  />
                 </div>
               )
             })}

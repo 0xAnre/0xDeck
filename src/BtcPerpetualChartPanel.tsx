@@ -113,6 +113,8 @@ import {
   readMarketIndicatorSeriesColors,
   readMarketIndicatorSeriesLineStyles,
   readMarketIndicatorSeriesLineWidths,
+  readSessionVwapSeriesStyleInputs,
+  type SessionVwapSeriesStyleInputs,
 } from '@/market/marketIndicatorSeriesColors'
 import { MarketIndicatorStyleDialog } from '@/widgetSettings/MarketIndicatorStyleDialog'
 import { createDefaultRollingVwapSettings } from '@/market/rollingVwapSettings'
@@ -460,6 +462,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     useState<readonly LineChartStrokeWidth[]>([])
   const [editingMarketIndicatorSeriesLineStyles, setEditingMarketIndicatorSeriesLineStyles] =
     useState<readonly LineChartStrokeStyle[]>([])
+  const [editingSessionVwapSeriesInputs, setEditingSessionVwapSeriesInputs] =
+    useState<SessionVwapSeriesStyleInputs | null>(null)
   const [fixedRangeVolumeProfileInstances, setFixedRangeVolumeProfileInstances] = useState<
     FixedRangeVolumeProfileInstance[]
   >(() =>
@@ -1111,10 +1115,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       return
     }
     if (target.kind === 'market-indicator') {
+      const presentation = loadWidgetMarketIndicatorPresentation(panelId, target.indicatorId)
       setEditingMarketIndicatorId(target.indicatorId)
-      setMarketIndicatorPresentation(
-        loadWidgetMarketIndicatorPresentation(panelId, target.indicatorId),
-      )
+      setMarketIndicatorPresentation(presentation)
       const bundle = seriesRef.current
       setEditingMarketIndicatorSeriesColors(
         bundle ? readMarketIndicatorSeriesColors(bundle, target.indicatorId) : [],
@@ -1124,6 +1127,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       )
       setEditingMarketIndicatorSeriesLineStyles(
         bundle ? readMarketIndicatorSeriesLineStyles(bundle, target.indicatorId) : [],
+      )
+      setEditingSessionVwapSeriesInputs(
+        bundle
+          ? readSessionVwapSeriesStyleInputs(bundle, target.indicatorId, presentation)
+          : null,
       )
     }
   }, [panelId])
@@ -3460,6 +3468,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         seriesLineWidths={editingMarketIndicatorSeriesLineWidths}
         seriesLineStyles={editingMarketIndicatorSeriesLineStyles}
         rsiSettings={rsiSettings}
+        sessionVwapSeriesInputs={editingSessionVwapSeriesInputs}
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
           if (!open) {
@@ -3467,6 +3476,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
             setEditingMarketIndicatorSeriesColors([])
             setEditingMarketIndicatorSeriesLineWidths([])
             setEditingMarketIndicatorSeriesLineStyles([])
+            setEditingSessionVwapSeriesInputs(null)
             setChartObjectSettingsTarget(null)
           }
         }}

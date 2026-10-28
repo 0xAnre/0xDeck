@@ -18,7 +18,25 @@ import {
 } from '../market/lineChartStroke.ts'
 import { isMarketStyleOpacityPercent } from '../market/marketStylePalette.ts'
 import { sanitizeRsiSettings, type RsiSettings } from '../market/rsi.ts'
-import type { MarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
+import type {
+  MarketIndicatorPresentation,
+  MarketIndicatorSeriesStyle,
+  MarketIndicatorSeriesStyles,
+} from '../marketIndicatorPresentationStorage.ts'
+import type { VwapChartSeriesKey } from '../market/vwapChartLineStyles.ts'
+import { VWAP_CHART_SERIES_KEYS } from '../market/vwapChartLineStyles.ts'
+import type { SessionVwapSeriesStyleInputs } from '../market/marketIndicatorSeriesColors.ts'
+
+export type MarketIndicatorSeriesStyleDraft = {
+  color: string
+  opacityPercent: number
+  lineWidth: LineChartStrokeWidth
+  lineStyle: LineChartStrokeStyle
+}
+
+export type MarketIndicatorSeriesStyleDrafts = Partial<
+  Record<VwapChartSeriesKey, MarketIndicatorSeriesStyleDraft>
+>
 
 /** Resolved values the dialog shows; `rsi` is `null` for non-RSI indicators. */
 export type MarketIndicatorStyleDraft = {
@@ -29,6 +47,8 @@ export type MarketIndicatorStyleDraft = {
   /** Background fill of the time-based VWAP band; ignored by other indicators. */
   fillColor: string
   fillOpacityPercent: number
+  /** Independent line styles for the time-based VWAP center and band lines. */
+  series: MarketIndicatorSeriesStyleDrafts
   rsi: RsiSettings | null
 }
 
@@ -45,8 +65,21 @@ export function marketIndicatorStyleDraftFromInputs(inputs: {
   lineStyle: LineChartStrokeStyle
   fillColor: string
   fillOpacityPercent: number
+  series?: SessionVwapSeriesStyleInputs | null
   rsiSettings?: RsiSettings | null
 }): MarketIndicatorStyleDraft {
+  const series: MarketIndicatorSeriesStyleDrafts = {}
+  if (inputs.series) {
+    for (const key of VWAP_CHART_SERIES_KEYS) {
+      const style = inputs.series[key]
+      series[key] = {
+        color: style.color,
+        opacityPercent: style.opacityPercent,
+        lineWidth: style.lineWidth,
+        lineStyle: style.lineStyle,
+      }
+    }
+  }
   return {
     color: inputs.color,
     opacityPercent: inputs.opacityPercent,
@@ -54,6 +87,7 @@ export function marketIndicatorStyleDraftFromInputs(inputs: {
     lineStyle: inputs.lineStyle,
     fillColor: inputs.fillColor,
     fillOpacityPercent: inputs.fillOpacityPercent,
+    series,
     rsi: inputs.rsiSettings ? sanitizeRsiSettings(inputs.rsiSettings) : null,
   }
 }
@@ -74,10 +108,63 @@ export function sanitizeMarketIndicatorStyleDraft(
     fillOpacityPercent: isMarketStyleOpacityPercent(draft.fillOpacityPercent)
       ? draft.fillOpacityPercent
       : initial.fillOpacityPercent,
+    series: sanitizeSeriesDrafts(initial, draft),
     rsi: draft.rsi === null
       ? null
       : sanitizeRsiSettings(draft.rsi),
   }
+}
+
+function sanitizeSeriesStyleDraft(
+  initial: MarketIndicatorSeriesStyleDraft,
+  draft: MarketIndicatorSeriesStyleDraft,
+): MarketIndicatorSeriesStyleDraft {
+  return {
+    color: isLineChartHexColor(draft.color) ? draft.color : initial.color,
+    opacityPercent: isMarketStyleOpacityPercent(draft.opacityPercent)
+      ? draft.opacityPercent
+      : initial.opacityPercent,
+    lineWidth: isLineChartStrokeWidth(draft.lineWidth) ? draft.lineWidth : initial.lineWidth,
+    lineStyle: sanitizeLineChartStrokeStyle(draft.lineStyle) ?? initial.lineStyle,
+  }
+}
+
+function sanitizeSeriesDrafts(
+  initial: MarketIndicatorStyleDraft,
+  draft: MarketIndicatorStyleDraft,
+): MarketIndicatorSeriesStyleDrafts {
+  const series: MarketIndicatorSeriesStyleDrafts = {}
+  for (const key of VWAP_CHART_SERIES_KEYS) {
+    const initialStyle = initial.series[key]
+    if (!initialStyle) continue
+    series[key] = sanitizeSeriesStyleDraft(initialStyle, draft.series[key] ?? initialStyle)
+  }
+  return series
+}
+
+/**
+ * Only the per-series fields the user actually changed. Unchanged fields stay
+ * absent so the flat presentation record keeps acting as their fallback.
+ */
+function seriesStylesPatch(
+  initial: MarketIndicatorStyleDraft,
+  draft: MarketIndicatorStyleDraft,
+): MarketIndicatorSeriesStyles | undefined {
+  const series: MarketIndicatorSeriesStyles = {}
+  for (const key of VWAP_CHART_SERIES_KEYS) {
+    const initialStyle = initial.series[key]
+    const draftStyle = draft.series[key]
+    if (!initialStyle || !draftStyle) continue
+    const changed: MarketIndicatorSeriesStyle = {}
+    if (draftStyle.color !== initialStyle.color) changed.color = draftStyle.color
+    if (draftStyle.opacityPercent !== initialStyle.opacityPercent) {
+      changed.opacity = draftStyle.opacityPercent
+    }
+    if (draftStyle.lineWidth !== initialStyle.lineWidth) changed.lineWidth = draftStyle.lineWidth
+    if (draftStyle.lineStyle !== initialStyle.lineStyle) changed.lineStyle = draftStyle.lineStyle
+    if (Object.keys(changed).length > 0) series[key] = changed
+  }
+  return Object.keys(series).length > 0 ? series : undefined
 }
 
 function rsiSettingsEqual(a: RsiSettings | null, b: RsiSettings | null): boolean {
@@ -109,6 +196,8 @@ export function marketIndicatorStyleDraftPatch(
   if (draft.fillOpacityPercent !== initial.fillOpacityPercent) {
     presentation.fillOpacity = draft.fillOpacityPercent
   }
+  const series = seriesStylesPatch(initial, draft)
+  if (series) presentation.series = series
 
   const rsiDraft = draft.rsi === null ? null : sanitizeRsiSettings(draft.rsi)
   const rsiInitial = initial.rsi === null ? null : sanitizeRsiSettings(initial.rsi)

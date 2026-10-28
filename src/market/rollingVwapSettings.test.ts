@@ -5,6 +5,7 @@ import {
   DEFAULT_ROLLING_VWAP_BAND_COLORS,
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES,
+  DEFAULT_ROLLING_VWAP_BAND_LINE_WIDTHS,
   DEFAULT_ROLLING_VWAP_BAND_OPACITIES,
   DEFAULT_ROLLING_VWAP_FILL_COLOR,
   DEFAULT_ROLLING_VWAP_FILL_OPACITY,
@@ -47,6 +48,12 @@ describe('createDefaultRollingVwapSettings', () => {
       band1: 'solid',
       band2: 'solid',
       band3: 'solid',
+    })
+    assert.deepEqual(settings.bandLineWidths, DEFAULT_ROLLING_VWAP_BAND_LINE_WIDTHS)
+    assert.deepEqual(settings.bandLineWidths, {
+      band1: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+      band2: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+      band3: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
     })
     assert.equal(DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE, 'solid')
     assert.equal(settings.fillColor, DEFAULT_ROLLING_VWAP_FILL_COLOR)
@@ -324,6 +331,51 @@ describe('sanitizeRollingVwapSettings', () => {
       const result = sanitizeRollingVwapSettings({ lineWidth })
       assert.equal(result.lineWidth, 1)
     }
+  })
+
+  it('loads legacy instances without per-band widths at their center-line width', () => {
+    const result = sanitizeRollingVwapSettings({ lineWidth: 3 })
+    assert.deepEqual(result.bandLineWidths, { band1: 3, band2: 3, band3: 3 })
+  })
+
+  it('defaults missing per-band widths to 1 when the center width is missing too', () => {
+    const result = sanitizeRollingVwapSettings({ minBars: 12 })
+    assert.deepEqual(result.bandLineWidths, {
+      band1: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+      band2: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+      band3: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+    })
+  })
+
+  it('persists independent per-band widths without touching colors or styles', () => {
+    const result = sanitizeRollingVwapSettings({
+      lineWidth: 2,
+      bandLineWidths: { band1: 1, band2: 3, band3: 4 },
+      bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
+      bandOpacities: { band1: 0, band2: 40, band3: 100 },
+      bandLineStyles: { band1: 'dotted', band2: 'solid', band3: 'dotted' },
+    })
+    assert.deepEqual(result.bandLineWidths, { band1: 1, band2: 3, band3: 4 })
+    assert.equal(result.lineWidth, 2)
+    assert.deepEqual(result.bandColors, {
+      band1: '#111111',
+      band2: '#222222',
+      band3: '#333333',
+    })
+    assert.deepEqual(result.bandOpacities, { band1: 0, band2: 40, band3: 100 })
+    assert.deepEqual(result.bandLineStyles, {
+      band1: 'dotted',
+      band2: 'solid',
+      band3: 'dotted',
+    })
+  })
+
+  it('sanitizes each invalid per-band width back to the center width', () => {
+    const result = sanitizeRollingVwapSettings({
+      lineWidth: 4,
+      bandLineWidths: { band1: 0, band2: 5, band3: '2' },
+    })
+    assert.deepEqual(result.bandLineWidths, { band1: 4, band2: 4, band3: 4 })
   })
 
   it('defaults center-line presentation when fields are missing', () => {

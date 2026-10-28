@@ -192,6 +192,83 @@ describe('marketIndicatorStyleDraftPatch', () => {
   })
 })
 
+describe('marketIndicatorStyleDraft per-series line styles', () => {
+  const seriesInputs = {
+    vwap: { color: '#111111', opacityPercent: 100, lineWidth: 1 as const, lineStyle: 'solid' as const },
+    previousUpper1: { color: '#222222', opacityPercent: 70, lineWidth: 2 as const, lineStyle: 'solid' as const },
+    previousLower1: { color: '#333333', opacityPercent: 70, lineWidth: 2 as const, lineStyle: 'dotted' as const },
+  }
+
+  function seriesDraft() {
+    return marketIndicatorStyleDraftFromInputs({
+      color: '#CCCCCC',
+      opacityPercent: 100,
+      lineWidth: 1,
+      lineStyle: 'solid',
+      fillColor: '#A3A3A3',
+      fillOpacityPercent: 25,
+      series: seriesInputs,
+      rsiSettings: null,
+    })
+  }
+
+  it('keeps the resolved per-series inputs in the draft', () => {
+    const draft = seriesDraft()
+    assert.deepEqual(draft.series, seriesInputs)
+  })
+
+  it('commits only the changed per-series field and not the flat record', () => {
+    const initial = seriesDraft()
+    const patch = marketIndicatorStyleDraftPatch(initial, {
+      ...initial,
+      series: {
+        ...initial.series,
+        previousUpper1: { ...initial.series.previousUpper1!, lineWidth: 4 },
+        previousLower1: { ...initial.series.previousLower1!, opacityPercent: 0 },
+      },
+    })
+    assert.deepEqual(patch, {
+      presentation: {
+        series: {
+          previousUpper1: { lineWidth: 4 },
+          previousLower1: { opacity: 0 },
+        },
+      },
+      rsi: null,
+    })
+  })
+
+  it('treats an untouched per-series draft as no commit', () => {
+    const initial = seriesDraft()
+    const patch = marketIndicatorStyleDraftPatch(initial, { ...initial })
+    assert.deepEqual(patch, { presentation: {}, rsi: null })
+    assert.equal(isMarketIndicatorStyleDraftPatchEmpty(patch), true)
+  })
+
+  it('sanitizes invalid per-series fields back to the opened values', () => {
+    const initial = seriesDraft()
+    const sanitized = sanitizeMarketIndicatorStyleDraft(initial, {
+      ...initial,
+      series: {
+        vwap: {
+          color: 'red',
+          opacityPercent: 250,
+          lineWidth: 9 as never,
+          lineStyle: 'dashed' as never,
+        },
+      },
+    })
+    assert.deepEqual(sanitized.series, {
+      ...initial.series,
+      vwap: { ...initial.series.vwap!, lineStyle: 'solid' },
+    })
+    assert.deepEqual(
+      sanitizeMarketIndicatorStyleDraft(initial, { ...initial, series: {} }).series,
+      initial.series,
+    )
+  })
+})
+
 describe('sanitizeMarketIndicatorStyleDraft', () => {
   it('falls back to opened values for invalid presentation fields', () => {
     const initial = baseDraft()

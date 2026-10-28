@@ -35,12 +35,17 @@ import {
   marketIndicatorUsesDistinctSeriesColors,
   marketIndicatorUsesDistinctSeriesLineStyles,
   marketIndicatorUsesDistinctSeriesLineWidths,
+  sessionVwapSeriesStyleInputsFromFlat,
+  type SessionVwapSeriesStyleInputs,
 } from '@/market/marketIndicatorSeriesColors'
 import {
   sessionVwapBandFillColorInputValue,
   sessionVwapBandFillOpacityInputValue,
 } from '@/market/sessionVwapBandFillStyle'
-import type { MarketIndicatorPresentation } from '@/marketIndicatorPresentationStorage'
+import {
+  mergeMarketIndicatorSeriesStyles,
+  type MarketIndicatorPresentation,
+} from '@/marketIndicatorPresentationStorage'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
@@ -52,6 +57,7 @@ import {
   marketIndicatorStyleDraftFromInputs,
   marketIndicatorStyleDraftPatch,
   sanitizeMarketIndicatorStyleDraft,
+  type MarketIndicatorSeriesStyleDraft,
   type MarketIndicatorStyleDraft,
   type MarketIndicatorStyleDraftPatch,
 } from '@/widgetSettings/marketIndicatorStyleDraft'
@@ -63,6 +69,8 @@ type MarketIndicatorStyleDialogProps = {
   seriesLineWidths: readonly LineChartStrokeWidth[]
   seriesLineStyles: readonly LineChartStrokeStyle[]
   rsiSettings?: RsiSettings
+  /** Resolved per-line values for the time-based VWAP center/upper/lower lines. */
+  sessionVwapSeriesInputs?: SessionVwapSeriesStyleInputs | null
   returnFocusId: string
   onOpenChange: (open: boolean) => void
   onPresentationChange: (indicatorId: MarketIndicatorId, presentation: MarketIndicatorPresentation) => void
@@ -127,6 +135,46 @@ function RsiRangeFields({
   )
 }
 
+const SESSION_VWAP_SERIES_FIELDS = [
+  { key: 'vwap', label: 'Center line' },
+  { key: 'previousUpper1', label: 'Upper band' },
+  { key: 'previousLower1', label: 'Lower band' },
+] as const
+
+/** One independent Color/Opacity/Width/Line-Dot block for a session VWAP line. */
+function SessionVwapSeriesStyleFields({
+  label,
+  idPrefix,
+  style,
+  onChange,
+}: {
+  label: string
+  idPrefix: string
+  style: MarketIndicatorSeriesStyleDraft
+  onChange: (style: MarketIndicatorSeriesStyleDraft) => void
+}) {
+  return (
+    <section className="space-y-2">
+      <p className="text-xs font-medium text-foreground">{label}</p>
+      <ColorOpacityField
+        id={`${idPrefix}-color`}
+        label="Color"
+        color={style.color}
+        opacityPercent={style.opacityPercent}
+        lineStyle={style.lineStyle}
+        onColorChange={(color) => onChange({ ...style, color })}
+        onOpacityChange={(opacityPercent) => onChange({ ...style, opacityPercent })}
+        onLineStyleChange={(lineStyle) => onChange({ ...style, lineStyle })}
+      />
+      <LineChartStrokeSelectFields
+        widthId={`${idPrefix}-width`}
+        lineWidth={style.lineWidth}
+        onLineWidthChange={(lineWidth) => onChange({ ...style, lineWidth })}
+      />
+    </section>
+  )
+}
+
 /**
  * Draft-based indicator settings: color, opacity, width, `Line`/`Dot`, the
  * time-based VWAP band background and the RSI range all edit the local draft.
@@ -141,6 +189,7 @@ function MarketIndicatorStyleDialogBody({
   seriesLineWidths,
   seriesLineStyles,
   rsiSettings,
+  sessionVwapSeriesInputs,
   onCancel,
   onSubmit,
 }: {
@@ -150,20 +199,35 @@ function MarketIndicatorStyleDialogBody({
   seriesLineWidths: readonly LineChartStrokeWidth[]
   seriesLineStyles: readonly LineChartStrokeStyle[]
   rsiSettings?: RsiSettings
+  sessionVwapSeriesInputs?: SessionVwapSeriesStyleInputs | null
   onCancel: () => void
   onSubmit: (patch: MarketIndicatorStyleDraftPatch) => void
 }) {
-  const [initial] = useState<MarketIndicatorStyleDraft>(() =>
-    marketIndicatorStyleDraftFromInputs({
-      color: marketIndicatorColorInputValue(presentation.color, seriesColors),
-      opacityPercent: marketIndicatorOpacityInputValue(presentation.opacity),
-      lineWidth: marketIndicatorLineWidthInputValue(presentation.lineWidth, seriesLineWidths),
-      lineStyle: marketIndicatorLineStyleSelectValue(presentation.lineStyle, seriesLineStyles),
+  const [initial] = useState<MarketIndicatorStyleDraft>(() => {
+    const color = marketIndicatorColorInputValue(presentation.color, seriesColors)
+    const opacityPercent = marketIndicatorOpacityInputValue(presentation.opacity)
+    const lineWidth = marketIndicatorLineWidthInputValue(
+      presentation.lineWidth,
+      seriesLineWidths,
+    )
+    const lineStyle = marketIndicatorLineStyleSelectValue(
+      presentation.lineStyle,
+      seriesLineStyles,
+    )
+    return marketIndicatorStyleDraftFromInputs({
+      color,
+      opacityPercent,
+      lineWidth,
+      lineStyle,
       fillColor: sessionVwapBandFillColorInputValue(presentation.fillColor),
       fillOpacityPercent: sessionVwapBandFillOpacityInputValue(presentation.fillOpacity),
+      series: marketIndicatorSupportsBandFill(indicatorId)
+        ? sessionVwapSeriesInputs ??
+          sessionVwapSeriesStyleInputsFromFlat({ color, opacityPercent, lineWidth, lineStyle })
+        : null,
       rsiSettings,
-    }),
-  )
+    })
+  })
   const [draft, setDraft] = useState<MarketIndicatorStyleDraft>(initial)
 
   const usesDistinctSeriesColors =
@@ -193,6 +257,28 @@ function MarketIndicatorStyleDialogBody({
             />
           </section>
         ) : null}
+        {marketIndicatorSupportsBandFill(indicatorId) ? (
+          <div className="space-y-3">
+            {SESSION_VWAP_SERIES_FIELDS.map(({ key, label }) => {
+              const style = draft.series[key]
+              if (!style) return null
+              return (
+                <SessionVwapSeriesStyleFields
+                  key={key}
+                  label={label}
+                  idPrefix={`indicator-${key}`}
+                  style={style}
+                  onChange={(next) =>
+                    setDraft((current) => ({
+                      ...current,
+                      series: { ...current.series, [key]: next },
+                    }))
+                  }
+                />
+              )
+            })}
+          </div>
+        ) : (
         <FieldGroup>
           {usesDistinctSeriesColors ? (
             <Field>
@@ -239,6 +325,7 @@ function MarketIndicatorStyleDialogBody({
             onLineWidthChange={(lineWidth) => setDraft((current) => ({ ...current, lineWidth }))}
           />
         </FieldGroup>
+        )}
         {marketIndicatorSupportsBandFill(indicatorId) ? (
           <section className="space-y-2">
             <p className="text-xs font-medium text-foreground">Background</p>
@@ -282,6 +369,7 @@ export function MarketIndicatorStyleDialog({
   seriesLineWidths,
   seriesLineStyles,
   rsiSettings,
+  sessionVwapSeriesInputs,
   returnFocusId,
   onOpenChange,
   onPresentationChange,
@@ -292,7 +380,17 @@ export function MarketIndicatorStyleDialog({
   const handleSave = (patch: MarketIndicatorStyleDraftPatch) => {
     if (!indicatorId) return
     if (Object.keys(patch.presentation).length > 0) {
-      onPresentationChange(indicatorId, { ...presentation, ...patch.presentation })
+      const next: MarketIndicatorPresentation = { ...presentation, ...patch.presentation }
+      const series = mergeMarketIndicatorSeriesStyles(
+        presentation.series,
+        patch.presentation.series,
+      )
+      if (series) {
+        next.series = series
+      } else {
+        delete next.series
+      }
+      onPresentationChange(indicatorId, next)
     }
     if (patch.rsi && onRsiSettingsChange) {
       onRsiSettingsChange(patch.rsi)
@@ -328,6 +426,7 @@ export function MarketIndicatorStyleDialog({
             seriesLineWidths={seriesLineWidths}
             seriesLineStyles={seriesLineStyles}
             rsiSettings={rsiSettings}
+            sessionVwapSeriesInputs={sessionVwapSeriesInputs}
             onCancel={() => onOpenChange(false)}
             onSubmit={handleSave}
           />

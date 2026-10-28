@@ -49,6 +49,13 @@ export type RollingVwapBandLineStyles = {
   band3: RollingVwapLineStyle
 }
 
+/** Independent stroke width per deviation band (1–4 px). */
+export type RollingVwapBandLineWidths = {
+  band1: RollingVwapLineWidth
+  band2: RollingVwapLineWidth
+  band3: RollingVwapLineWidth
+}
+
 export const ROLLING_VWAP_LINE_WIDTHS = LINE_CHART_STROKE_WIDTHS
 
 export type RollingVwapLineWidth = LineChartStrokeWidth
@@ -108,6 +115,8 @@ export type RollingVwapSettings = {
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
   bandLineStyles: RollingVwapBandLineStyles
+  /** Independent width per deviation band; the center line keeps `lineWidth`. */
+  bandLineWidths: RollingVwapBandLineWidths
   /** Shared band-pair fill color (one color for bands 1–3). */
   fillColor: string
   /** Shared band-pair fill opacity (0–100, one value for bands 1–3). */
@@ -134,6 +143,12 @@ const DEFAULT_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
   band1: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   band2: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   band3: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
+}
+
+const DEFAULT_BAND_LINE_WIDTHS: RollingVwapBandLineWidths = {
+  band1: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  band2: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  band3: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
 }
 
 /** Kept for existing call sites; delegates to the shared palette hex guard. */
@@ -172,6 +187,18 @@ function sanitizeBandLineStyles(
   }
 }
 
+function sanitizeBandLineWidths(
+  value: unknown,
+  defaults: RollingVwapBandLineWidths,
+): RollingVwapBandLineWidths {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    band1: isRollingVwapLineWidth(record.band1) ? record.band1 : defaults.band1,
+    band2: isRollingVwapLineWidth(record.band2) ? record.band2 : defaults.band2,
+    band3: isRollingVwapLineWidth(record.band3) ? record.band3 : defaults.band3,
+  }
+}
+
 /** Fresh defaults (Pine Rolling VWAP inputs). Not a shared mutable singleton. */
 export function createDefaultRollingVwapSettings(): RollingVwapSettings {
   return {
@@ -181,6 +208,7 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
     bandColors: { ...DEFAULT_BAND_COLORS },
     bandOpacities: { ...DEFAULT_BAND_OPACITIES },
     bandLineStyles: { ...DEFAULT_BAND_LINE_STYLES },
+    bandLineWidths: { ...DEFAULT_BAND_LINE_WIDTHS },
     fillColor: DEFAULT_ROLLING_VWAP_FILL_COLOR,
     fillOpacity: DEFAULT_ROLLING_VWAP_FILL_OPACITY,
     lineWidth: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
@@ -196,6 +224,9 @@ export const DEFAULT_ROLLING_VWAP_BAND_OPACITIES: RollingVwapBandOpacities = {
 }
 export const DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
   ...DEFAULT_BAND_LINE_STYLES,
+}
+export const DEFAULT_ROLLING_VWAP_BAND_LINE_WIDTHS: RollingVwapBandLineWidths = {
+  ...DEFAULT_BAND_LINE_WIDTHS,
 }
 
 /**
@@ -234,6 +265,16 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     return defaults
   }
   const record = value as Record<string, unknown>
+  const lineWidth = isRollingVwapLineWidth(record.lineWidth)
+    ? record.lineWidth
+    : defaults.lineWidth
+  // No migration: an instance stored before per-band widths existed inherits
+  // its own center-line width instead of resetting every band to the default.
+  const bandLineWidthDefaults: RollingVwapBandLineWidths = {
+    band1: lineWidth,
+    band2: lineWidth,
+    band3: lineWidth,
+  }
   return {
     fixedTimePeriod: sanitizeRollingVwapFixedTimePeriod(record.fixedTimePeriod, defaults.fixedTimePeriod),
     minBars: isRollingVwapMinBars(record.minBars) ? record.minBars : defaults.minBars,
@@ -241,13 +282,14 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     bandOpacities: sanitizeBandOpacities(record.bandOpacities, defaults.bandOpacities),
     bandLineStyles: sanitizeBandLineStyles(record.bandLineStyles, defaults.bandLineStyles),
+    bandLineWidths: sanitizeBandLineWidths(record.bandLineWidths, bandLineWidthDefaults),
     fillColor: isMarketStyleHexColor(record.fillColor)
       ? record.fillColor
       : defaults.fillColor,
     fillOpacity: isMarketStyleOpacityPercent(record.fillOpacity)
       ? record.fillOpacity
       : defaults.fillOpacity,
-    lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
+    lineWidth,
     lineColor: isRollingVwapHexColor(record.lineColor) ? record.lineColor : defaults.lineColor,
     lineOpacity: isRollingVwapLineOpacity(record.lineOpacity)
       ? record.lineOpacity
