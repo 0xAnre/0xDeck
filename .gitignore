@@ -32,3 +32,8 @@ backend/.liquidations.sqlite3-wal
 backend/.liquidations.sqlite3-shm
 __pycache__/
 *.pyc
+
+# Playwright (local `npm run test:e2e`)
+test-results
+playwright-report
+playwright/.cache
