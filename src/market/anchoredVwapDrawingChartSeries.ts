@@ -1,6 +1,5 @@
 import {
   LineSeries,
-  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type UTCTimestamp,
@@ -24,7 +23,7 @@ import {
 } from './anchoredVwapBandFillSeriesPrimitive.ts'
 import type { AnchoredVwapBandFillPoint } from './anchoredVwapBandFillRenderGeometry.ts'
 import { rectangleFillRgbaFromHex } from './rectangleColors.ts'
-import type { RollingVwapLineStyle } from './rollingVwapSettings.ts'
+import { lineChartStrokeStyleToChartLineStyle } from './lineChartStroke.ts'
 import type { MarketCandle } from './types.ts'
 import { resolveCandlePaneIndex } from './candlePane.ts'
 
@@ -68,19 +67,6 @@ export type AnchoredVwapDrawingChartSeriesBundle = {
   ordered: ISeriesApi<'Line'>[]
   bandFill: AnchoredVwapBandFillSeriesAttachment
   bandFillPairs: AnchoredVwapDrawingBandFillPairState[]
-}
-
-function lineStyleToChart(style: RollingVwapLineStyle): LineStyle {
-  switch (style) {
-    case 'solid':
-      return LineStyle.Solid
-    case 'dotted':
-      return LineStyle.Dotted
-    default: {
-      const unreachable: never = style
-      return unreachable
-    }
-  }
 }
 
 function toLinePoint(time: number, value: number | null): AnchoredVwapDrawingLinePoint {
@@ -142,7 +128,7 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
   const center = chart.addSeries(LineSeries, {
     color: anchoredVwapDrawingLineRgba(settings.vwapLine.lineColor, settings.vwapLine.lineOpacity),
     lineWidth: settings.vwapLine.lineWidth,
-    lineStyle: lineStyleToChart(settings.vwapLine.lineStyle),
+    lineStyle: lineChartStrokeStyleToChartLineStyle(settings.vwapLine.lineStyle),
     priceLineVisible: false,
     lastValueVisible: true,
     crosshairMarkerVisible: false,
@@ -166,7 +152,7 @@ export function createAnchoredVwapDrawingChartSeriesBundle(
           side === 'upper' ? pair.upperOpacity : pair.lowerOpacity,
         ),
         lineWidth: pair.lineWidth,
-        lineStyle: lineStyleToChart(pair.lineStyle),
+        lineStyle: lineChartStrokeStyleToChartLineStyle(pair.lineStyle),
         priceLineVisible: false,
         lastValueVisible: false,
         crosshairMarkerVisible: false,
@@ -215,7 +201,7 @@ export function applyAnchoredVwapDrawingChartPresentation(
   bundle.center.applyOptions({
     color: anchoredVwapDrawingLineRgba(settings.vwapLine.lineColor, settings.vwapLine.lineOpacity),
     lineWidth: settings.vwapLine.lineWidth,
-    lineStyle: lineStyleToChart(settings.vwapLine.lineStyle),
+    lineStyle: lineChartStrokeStyleToChartLineStyle(settings.vwapLine.lineStyle),
     title,
     lastValueVisible: true,
     priceLineVisible: false,
@@ -229,14 +215,14 @@ export function applyAnchoredVwapDrawingChartPresentation(
     bundle.bands[upperKey].applyOptions({
       color: anchoredVwapDrawingLineRgba(pair.upperColor, pair.upperOpacity),
       lineWidth: pair.lineWidth,
-      lineStyle: lineStyleToChart(pair.lineStyle),
+      lineStyle: lineChartStrokeStyleToChartLineStyle(pair.lineStyle),
       lastValueVisible: false,
       title: '',
     })
     bundle.bands[lowerKey].applyOptions({
       color: anchoredVwapDrawingLineRgba(pair.lowerColor, pair.lowerOpacity),
       lineWidth: pair.lineWidth,
-      lineStyle: lineStyleToChart(pair.lineStyle),
+      lineStyle: lineChartStrokeStyleToChartLineStyle(pair.lineStyle),
       lastValueVisible: false,
       title: '',
     })

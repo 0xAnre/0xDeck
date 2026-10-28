@@ -13,9 +13,11 @@ import {
 import type { CandleInterval, MarketCandle } from './types.ts'
 import {
   LINE_CHART_STROKE_STYLES,
+  LINE_CHART_STROKE_WIDTHS,
   isLineChartStrokeStyle,
   sanitizeLineChartStrokeStyle,
   type LineChartStrokeStyle,
+  type LineChartStrokeWidth,
 } from './lineChartStroke.ts'
 import {
   MARKET_STYLE_DEFAULTS,
@@ -47,9 +49,9 @@ export type RollingVwapBandLineStyles = {
   band3: RollingVwapLineStyle
 }
 
-export const ROLLING_VWAP_LINE_WIDTHS = [1, 2, 3, 4] as const
+export const ROLLING_VWAP_LINE_WIDTHS = LINE_CHART_STROKE_WIDTHS
 
-export type RollingVwapLineWidth = (typeof ROLLING_VWAP_LINE_WIDTHS)[number]
+export type RollingVwapLineWidth = LineChartStrokeWidth
 
 export const DEFAULT_ROLLING_VWAP_LINE_WIDTH: RollingVwapLineWidth = 1
 
