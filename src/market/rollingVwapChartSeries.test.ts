@@ -252,7 +252,7 @@ describe('rollingVwap chart series defaults', () => {
     assert.equal(createdOptions[6].lineStyle, LineStyle.Dotted)
   })
 
-  it('applies instance lineWidth to all seven series at creation', () => {
+  it('applies the center width and each band pair its own width at creation', () => {
     const createdOptions: Record<string, unknown>[] = []
     const chart = {
       addSeries: (_type: unknown, options: Record<string, unknown>) => {
@@ -268,11 +268,15 @@ describe('rollingVwap chart series defaults', () => {
     } as IChartApi
     const settings = createDefaultRollingVwapSettings()
     settings.lineWidth = 3
+    settings.bandLineWidths = { band1: 1, band2: 2, band3: 3 }
     createRollingVwapChartSeriesBundle(chart, settings, { lineWidth: settings.lineWidth })
     assert.equal(createdOptions.length, 7)
-    for (const options of createdOptions) {
-      assert.equal(options.lineWidth, 3)
-    }
+    assert.equal(createdOptions[0].lineWidth, 3)
+    // Order: upper1, lower1, upper2, lower2, upper3, lower3.
+    assert.deepEqual(
+      createdOptions.slice(1).map((options) => options.lineWidth),
+      [1, 1, 2, 2, 3, 3],
+    )
   })
 })
 
@@ -405,7 +409,7 @@ describe('applyRollingVwapChartInstancePresentation band line styles', () => {
 })
 
 describe('applyRollingVwapChartInstancePresentation line width', () => {
-  it('updates all seven series when settings are saved', () => {
+  it('updates the center width and each band pair width when settings are saved', () => {
     const lineWidths: number[] = []
     const makeLine = () => ({
       setData: () => {},
@@ -426,14 +430,15 @@ describe('applyRollingVwapChartInstancePresentation line width', () => {
 
     const settings = createDefaultRollingVwapSettings()
     settings.lineWidth = 4
+    settings.bandLineWidths = { band1: 1, band2: 2, band3: 3 }
     const instance = createRollingVwapInstance({
       id: 'rvwap-a',
       settings,
       randomId: () => 'rvwap-a',
     })
     applyRollingVwapChartInstancePresentation(bundle, instance, '1m')
-    assert.equal(lineWidths.length, 7)
-    assert.ok(lineWidths.every((width) => width === 4))
+    // Six band widths first, then the independent center width.
+    assert.deepEqual(lineWidths, [1, 1, 2, 2, 3, 3, 4])
   })
 
   it('keeps line widths independent between instances', () => {
@@ -475,8 +480,10 @@ describe('applyRollingVwapChartInstancePresentation line width', () => {
 
     const settingsA = createDefaultRollingVwapSettings()
     settingsA.lineWidth = 2
+    settingsA.bandLineWidths = { band1: 1, band2: 2, band3: 3 }
     const settingsB = createDefaultRollingVwapSettings()
     settingsB.lineWidth = 3
+    settingsB.bandLineWidths = { band1: 4, band2: 4, band3: 4 }
 
     applyRollingVwapChartInstancePresentation(
       bundleA,
@@ -489,13 +496,10 @@ describe('applyRollingVwapChartInstancePresentation line width', () => {
       '1m',
     )
 
-    for (const width of widthsBySeries.values()) {
-      assert.ok(width === 2 || width === 3)
-    }
     const widthsA = [...bundleA.ordered].map((series) => widthsBySeries.get(series))
     const widthsB = [...bundleB.ordered].map((series) => widthsBySeries.get(series))
-    assert.deepEqual(widthsA, [2, 2, 2, 2, 2, 2, 2])
-    assert.deepEqual(widthsB, [3, 3, 3, 3, 3, 3, 3])
+    assert.deepEqual(widthsA, [2, 1, 1, 2, 2, 3, 3])
+    assert.deepEqual(widthsB, [3, 4, 4, 4, 4, 4, 4])
   })
 })
 

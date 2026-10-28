@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import {
   loadWidgetMarketIndicatorPresentation,
+  mergeMarketIndicatorSeriesStyles,
+  sanitizeMarketIndicatorPresentation,
   saveWidgetMarketIndicatorPresentation,
   WIDGET_MARKET_INDICATOR_PRESENTATION_STORAGE_KEY,
 } from '../marketIndicatorPresentationStorage.ts'
@@ -174,5 +176,108 @@ describe('market indicator presentation band fill', () => {
     assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-a', 'yearly-vwap'), {
       lineWidth: 2,
     })
+  })
+})
+
+
+describe('market indicator presentation per-series line styles', () => {
+  it('round-trips independent center/upper/lower styles field by field', () => {
+    saveWidgetMarketIndicatorPresentation('panel-a', 'daily-vwap', {
+      color: '#111111',
+      opacity: 80,
+      lineWidth: 2,
+      lineStyle: 'solid',
+      series: {
+        vwap: { color: '#222222', opacity: 100, lineWidth: 4, lineStyle: 'dotted' },
+        previousUpper1: { opacity: 0 },
+        previousLower1: { color: '#333333', lineWidth: 3 },
+      },
+      fillColor: '#444444',
+      fillOpacity: 10,
+    })
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-a', 'daily-vwap'), {
+      color: '#111111',
+      opacity: 80,
+      lineWidth: 2,
+      lineStyle: 'solid',
+      series: {
+        vwap: { color: '#222222', opacity: 100, lineWidth: 4, lineStyle: 'dotted' },
+        previousUpper1: { opacity: 0 },
+        previousLower1: { color: '#333333', lineWidth: 3 },
+      },
+      fillColor: '#444444',
+      fillOpacity: 10,
+    })
+  })
+
+  it('loads legacy flat records unchanged and leaves series unset', () => {
+    memory.set(
+      WIDGET_MARKET_INDICATOR_PRESENTATION_STORAGE_KEY,
+      JSON.stringify({
+        'panel-a': {
+          'weekly-vwap': { color: '#445566', opacity: 60, lineWidth: 2, lineStyle: 'dotted' },
+        },
+      }),
+    )
+    const loaded = loadWidgetMarketIndicatorPresentation('panel-a', 'weekly-vwap')
+    assert.deepEqual(loaded, {
+      color: '#445566',
+      opacity: 60,
+      lineWidth: 2,
+      lineStyle: 'dotted',
+    })
+    assert.equal(loaded.series, undefined)
+  })
+
+  it('drops invalid per-series fields while keeping the valid ones', () => {
+    memory.set(
+      WIDGET_MARKET_INDICATOR_PRESENTATION_STORAGE_KEY,
+      JSON.stringify({
+        'panel-a': {
+          'yearly-vwap': {
+            series: {
+              vwap: { color: 'red', opacity: 250, lineWidth: 9, lineStyle: 'dashed' },
+              previousUpper1: { color: '#aabbcc', opacity: 0 },
+              previousLower1: { color: '#12345' },
+              unknown: { color: '#ffffff' },
+            },
+          },
+        },
+      }),
+    )
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation('panel-a', 'yearly-vwap'), {
+      series: {
+        vwap: { lineStyle: 'solid' },
+        previousUpper1: { color: '#aabbcc', opacity: 0 },
+      },
+    })
+  })
+
+  it('sanitizes empty and malformed series records away', () => {
+    assert.deepEqual(sanitizeMarketIndicatorPresentation({ series: {} }), {})
+    assert.deepEqual(sanitizeMarketIndicatorPresentation({ series: null }), {})
+    assert.deepEqual(sanitizeMarketIndicatorPresentation({ series: { vwap: {} } }), {})
+    assert.deepEqual(sanitizeMarketIndicatorPresentation('bad'), null)
+  })
+
+  it('merges changed per-series fields without dropping the others', () => {
+    assert.deepEqual(
+      mergeMarketIndicatorSeriesStyles(
+        {
+          vwap: { color: '#111111', lineWidth: 2 },
+          previousUpper1: { opacity: 40 },
+        },
+        {
+          vwap: { lineWidth: 4 },
+          previousLower1: { lineStyle: 'dotted' },
+        },
+      ),
+      {
+        vwap: { color: '#111111', lineWidth: 4 },
+        previousUpper1: { opacity: 40 },
+        previousLower1: { lineStyle: 'dotted' },
+      },
+    )
+    assert.equal(mergeMarketIndicatorSeriesStyles(undefined, undefined), undefined)
   })
 })

@@ -22,6 +22,7 @@ import {
   rollingVwapCenterLineRgbaColor,
   type RollingVwapBandColors,
   type RollingVwapBandLineStyles,
+  type RollingVwapBandLineWidths,
   type RollingVwapBandOpacities,
   type RollingVwapLineStyle,
   type RollingVwapLineWidth,
@@ -132,6 +133,7 @@ export type RollingVwapBandStyle = {
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
   bandLineStyles: RollingVwapBandLineStyles
+  bandLineWidths: RollingVwapBandLineWidths
   fillColor: string
   fillOpacity: number
 }
@@ -216,13 +218,22 @@ export function rollingVwapPointsToLineData(
   return points.map((point) => rollingVwapPointToLinePoint(point, key))
 }
 
+/** Center-line width only; each band pair applies its own width separately. */
 export function applyRollingVwapChartLineWidth(
   bundle: RollingVwapChartSeriesBundle,
   lineWidth: RollingVwapLineWidth,
 ): void {
   bundle.center.applyOptions({ lineWidth })
+}
+
+/** Applies each deviation band pair's own independent 1–4 px width. */
+export function applyRollingVwapChartBandLineWidths(
+  bundle: RollingVwapChartSeriesBundle,
+  bandStyle: Pick<RollingVwapBandStyle, 'bandLineWidths'>,
+): void {
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-    bundle.bands[key].applyOptions({ lineWidth })
+    const colorKey = BAND_COLOR_KEYS[key]
+    bundle.bands[key].applyOptions({ lineWidth: bandStyle.bandLineWidths[colorKey] })
   }
 }
 
@@ -268,7 +279,10 @@ export function createRollingVwapChartSeriesBundle(
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
     const colorKey = BAND_COLOR_KEYS[key]
     const series = chart.addSeries(LineSeries, {
-      ...rollingVwapBandLineOptions(lineWidth, bandStyle.bandLineStyles[colorKey]),
+      ...rollingVwapBandLineOptions(
+        bandStyle.bandLineWidths[colorKey],
+        bandStyle.bandLineStyles[colorKey],
+      ),
       color: rollingVwapBandSeriesColor(bandStyle, colorKey),
       visible: false,
     }, paneIndex)
@@ -332,6 +346,7 @@ export function applyRollingVwapChartInstancePresentation(
   interval: CandleInterval,
 ): void {
   applyRollingVwapChartBandColors(bundle, instance.settings)
+  applyRollingVwapChartBandLineWidths(bundle, instance.settings)
   applyRollingVwapChartBandLineStyles(bundle, instance.settings)
   applyRollingVwapChartBandFillStyle(bundle, instance.settings)
   applyRollingVwapChartLineWidth(bundle, instance.settings.lineWidth)

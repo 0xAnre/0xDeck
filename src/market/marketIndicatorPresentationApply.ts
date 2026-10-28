@@ -11,6 +11,9 @@ import type { MarketIndicatorPresentation } from '../marketIndicatorPresentation
 import { loadWidgetMarketIndicatorPresentation } from '../marketIndicatorPresentationStorage.ts'
 import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import { resolveSessionVwapBandFillStyle } from './sessionVwapBandFillStyle.ts'
+import { VWAP_CHART_SERIES_KEYS } from './vwapChartLineStyles.ts'
+import type { SessionVwapLineSeriesBundle } from './sessionVwapChartSeries.ts'
+import type { VwapChartSeriesKey } from './vwapChartLineStyles.ts'
 
 export function marketIndicatorPresentationLineOptions(
   presentation: MarketIndicatorPresentation,
@@ -120,12 +123,68 @@ function applyPresentationToOrderedLineSeries(
   }
 }
 
+/**
+ * Time-based VWAP only: applies one style per rendered line (center VWAP,
+ * previous-session upper/lower band). A stored per-series field wins; otherwise
+ * the flat record remains the fallback for that field, so pre-#192 settings
+ * still style all three lines exactly as before.
+ */
+function applySessionVwapSeriesPresentation(
+  lineBundle: SessionVwapLineSeriesBundle<VwapChartSeriesKey>,
+  presentation: MarketIndicatorPresentation,
+): void {
+  const hasSeriesOverrides =
+    presentation.series !== undefined && Object.keys(presentation.series).length > 0
+  if (!hasLinePresentationOverrides(presentation) && !hasSeriesOverrides) return
+  for (const key of VWAP_CHART_SERIES_KEYS) {
+    const series = lineBundle.byKey[key]
+    if (!series) continue
+    const seriesStyle = presentation.series?.[key]
+    const resolved: MarketIndicatorPresentation = {
+      color: seriesStyle?.color ?? presentation.color,
+      opacity: seriesStyle?.opacity ?? presentation.opacity,
+      lineWidth: seriesStyle?.lineWidth ?? presentation.lineWidth,
+      lineStyle: seriesStyle?.lineStyle ?? presentation.lineStyle,
+    }
+    if (
+      resolved.color === undefined &&
+      resolved.opacity === undefined &&
+      resolved.lineWidth === undefined &&
+      resolved.lineStyle === undefined
+    ) {
+      continue
+    }
+    series.applyOptions(presentationOptionsForSeries(series, resolved))
+  }
+}
+
 export function applyMarketIndicatorPresentationToBundle(
   bundle: ChartSeriesBundle,
   indicatorId: MarketIndicatorId,
   presentation: MarketIndicatorPresentation,
 ): void {
   applySessionVwapBandFillPresentation(bundle, indicatorId, presentation)
+
+  switch (indicatorId) {
+    case 'daily-vwap':
+      applySessionVwapSeriesPresentation(bundle.dailyVwap, presentation)
+      return
+    case 'weekly-vwap':
+      applySessionVwapSeriesPresentation(bundle.weeklyVwap, presentation)
+      return
+    case 'monthly-vwap':
+      applySessionVwapSeriesPresentation(bundle.monthlyVwap, presentation)
+      return
+    case 'quarterly-vwap':
+      applySessionVwapSeriesPresentation(bundle.quarterlyVwap, presentation)
+      return
+    case 'yearly-vwap':
+      applySessionVwapSeriesPresentation(bundle.yearlyVwap, presentation)
+      return
+    default:
+      break
+  }
+
   if (!hasLinePresentationOverrides(presentation)) return
 
   switch (indicatorId) {
@@ -134,21 +193,6 @@ export function applyMarketIndicatorPresentationToBundle(
       return
     case 'dual-ema':
       applyPresentationToOrderedLineSeries([bundle.ema100, bundle.ema200], presentation)
-      return
-    case 'daily-vwap':
-      applyPresentationToOrderedLineSeries(bundle.dailyVwap.ordered, presentation)
-      return
-    case 'weekly-vwap':
-      applyPresentationToOrderedLineSeries(bundle.weeklyVwap.ordered, presentation)
-      return
-    case 'monthly-vwap':
-      applyPresentationToOrderedLineSeries(bundle.monthlyVwap.ordered, presentation)
-      return
-    case 'quarterly-vwap':
-      applyPresentationToOrderedLineSeries(bundle.quarterlyVwap.ordered, presentation)
-      return
-    case 'yearly-vwap':
-      applyPresentationToOrderedLineSeries(bundle.yearlyVwap.ordered, presentation)
       return
     case 'rolling-vwap':
       // Rolling VWAP presentation is owned by per-instance settings

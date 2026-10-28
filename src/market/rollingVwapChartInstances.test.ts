@@ -95,9 +95,9 @@ describe('applyRollingVwapInstanceSettingsToChart', () => {
     }
     const instance = createRollingVwapInstance({ id: 'a', randomId: () => 'a' })
     instance.settings.lineWidth = 2
+    instance.settings.bandLineWidths = { band1: 2, band2: 3, band3: 4 }
     applyRollingVwapInstanceSettingsToChart(chartBundle, instance, '1m')
-    assert.ok(lineWidths.includes(2))
-    assert.equal(lineWidths.filter((width) => width === 2).length, 7)
+    assert.deepEqual(lineWidths, [2, 2, 3, 3, 4, 4, 2])
   })
 })
 
