@@ -100,6 +100,7 @@ import {
 import { bootstrapRollingVwapPanelState } from '@/market/rollingVwapPanelBootstrap'
 import {
   findRollingVwapInstance,
+  rollingVwapInstanceDisplayLabel,
   updateRollingVwapInstance,
   type RollingVwapInstance,
 } from '@/market/rollingVwapInstances'
@@ -139,6 +140,7 @@ import { attachAnchoredVwapDrawingSeriesPrimitive } from '@/market/anchoredVwapD
 import { AnchoredVwapSettingsDialog } from '@/market/AnchoredVwapSettingsDialog'
 import { createDefaultAnchoredVwapDrawingSettings } from '@/market/anchoredVwapDrawingSettings'
 import {
+  formatAnchoredVwapInstanceLabel,
   sanitizeAnchoredVwapInstances,
   setAnchoredVwapInstanceHidden,
   setAnchoredVwapInstanceLocked,
@@ -3313,6 +3315,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     ...(accountFillsNotice === null ? [] : [accountFillsNotice]),
   ]
 
+  // Both VWAP dialogs are per-instance, so their descriptions name the instance
+  // being edited (same pattern as the line / rectangle / FRVP dialogs).
+  const editingRollingVwapInstance = editingRollingVwapInstanceId
+    ? findRollingVwapInstance(rollingVwapInstances, editingRollingVwapInstanceId)
+    : undefined
+  const editingAnchoredVwapInstance = editingAnchoredVwapInstanceId
+    ? anchoredVwapInstances.find((item) => item.id === editingAnchoredVwapInstanceId)
+    : undefined
+
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-1">
       {!chartReady && (
@@ -3394,11 +3405,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
       <AnchoredVwapSettingsDialog
         open={anchoredVwapSettingsOpen}
+        instanceLabel={
+          editingAnchoredVwapInstance
+            ? formatAnchoredVwapInstanceLabel(editingAnchoredVwapInstance)
+            : undefined
+        }
         savedSettings={
-          editingAnchoredVwapInstanceId
-            ? (anchoredVwapInstances.find((item) => item.id === editingAnchoredVwapInstanceId)
-                ?.settings ?? createDefaultAnchoredVwapDrawingSettings())
-            : createDefaultAnchoredVwapDrawingSettings()
+          editingAnchoredVwapInstance?.settings ?? createDefaultAnchoredVwapDrawingSettings()
         }
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {
@@ -3412,11 +3425,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       />
       <RollingVwapSettingsDialog
         open={rollingVwapSettingsOpen}
+        instanceLabel={
+          editingRollingVwapInstance
+            ? rollingVwapInstanceDisplayLabel(editingRollingVwapInstance)
+            : undefined
+        }
         savedSettings={
-          editingRollingVwapInstanceId
-            ? (findRollingVwapInstance(rollingVwapInstances, editingRollingVwapInstanceId)
-                ?.settings ?? createDefaultRollingVwapSettings())
-            : createDefaultRollingVwapSettings()
+          editingRollingVwapInstance?.settings ?? createDefaultRollingVwapSettings()
         }
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={(open) => {

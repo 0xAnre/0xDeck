@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import {
@@ -227,21 +227,21 @@ function FixedRangeVolumeProfileSettingsDialogBody({
               }}
             />
           </Field>
-          <Field>
-            <label className="flex items-center gap-2">
-              <input
-                id="frvp-extend-right"
-                type="checkbox"
-                checked={draft.extendRight}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, extendRight: event.target.checked }))
-                }
-              />
-              <span className="text-sm font-medium">Extend right</span>
-            </label>
-            <FieldDescription>
-              Keep the drawing coordinates but calculate the profile up to the latest candle.
-            </FieldDescription>
+          <Field orientation="horizontal">
+            <input
+              id="frvp-extend-right"
+              type="checkbox"
+              checked={draft.extendRight}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, extendRight: event.target.checked }))
+              }
+            />
+            <FieldContent>
+              <FieldLabel htmlFor="frvp-extend-right">Extend right</FieldLabel>
+              <FieldDescription>
+                Keep the drawing coordinates but calculate the profile up to the latest candle.
+              </FieldDescription>
+            </FieldContent>
           </Field>
           <FieldGroup className="gap-3 border-t border-border pt-3">
             <p className="text-sm font-medium">Histogram</p>

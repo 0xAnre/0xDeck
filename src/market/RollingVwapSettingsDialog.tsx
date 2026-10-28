@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import {
   sanitizeRollingVwapSettings,
   type RollingVwapSettings,
@@ -20,11 +22,9 @@ import {
   CHART_SETTINGS_DIALOG_OVERLAY_CLASS,
 } from '@/widgetSettings/chartSettingsDialogLayout'
 
-const inputClassName =
-  'h-8 w-full rounded-md border border-input bg-input/20 px-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30'
-
 type RollingVwapSettingsDialogProps = {
   open: boolean
+  instanceLabel?: string
   savedSettings: RollingVwapSettings
   returnFocusId: string
   onOpenChange: (open: boolean) => void
@@ -32,10 +32,12 @@ type RollingVwapSettingsDialogProps = {
 }
 
 function RollingVwapSettingsDialogBody({
+  instanceLabel,
   savedSettings,
   onClose,
   onSave,
 }: {
+  instanceLabel?: string
   savedSettings: RollingVwapSettings
   onClose: () => void
   onSave: (settings: RollingVwapSettings) => void
@@ -55,14 +57,17 @@ function RollingVwapSettingsDialogBody({
     <>
         <DialogHeader className="shrink-0">
           <DialogTitle>Rolling VWAP settings</DialogTitle>
-          <DialogDescription>Rolling VWAP overlay presentation</DialogDescription>
+          <DialogDescription>
+            {instanceLabel ?? 'Rolling VWAP overlay presentation'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className={`${CHART_SETTINGS_DIALOG_BODY_CLASS} text-xs`}>
           <section className="space-y-2">
             <p className="font-medium text-foreground">Time period</p>
-            <label className="flex items-center gap-2">
+            <Field orientation="horizontal">
               <input
+                id="rolling-vwap-fixed-time-period"
                 type="checkbox"
                 checked={draft.fixedTimePeriod.useFixedTimePeriod}
                 onChange={(event) =>
@@ -75,15 +80,17 @@ function RollingVwapSettingsDialogBody({
                   }))
                 }
               />
-              <span>Use a fixed time period</span>
-            </label>
+              <FieldLabel htmlFor="rolling-vwap-fixed-time-period">
+                Use a fixed time period
+              </FieldLabel>
+            </Field>
             <div className="grid grid-cols-3 gap-2">
-              <label className="space-y-1">
-                <span className="text-muted-foreground">Days</span>
-                <input
+              <Field>
+                <FieldLabel htmlFor="rolling-vwap-fixed-days">Days</FieldLabel>
+                <Input
+                  id="rolling-vwap-fixed-days"
                   type="number"
                   min={0}
-                  className={inputClassName}
                   disabled={fixedDisabled}
                   value={draft.fixedTimePeriod.days}
                   onChange={(event) =>
@@ -96,14 +103,14 @@ function RollingVwapSettingsDialogBody({
                     }))
                   }
                 />
-              </label>
-              <label className="space-y-1">
-                <span className="text-muted-foreground">Hours</span>
-                <input
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="rolling-vwap-fixed-hours">Hours</FieldLabel>
+                <Input
+                  id="rolling-vwap-fixed-hours"
                   type="number"
                   min={0}
                   max={23}
-                  className={inputClassName}
                   disabled={fixedDisabled}
                   value={draft.fixedTimePeriod.hours}
                   onChange={(event) =>
@@ -116,14 +123,14 @@ function RollingVwapSettingsDialogBody({
                     }))
                   }
                 />
-              </label>
-              <label className="space-y-1">
-                <span className="text-muted-foreground">Minutes</span>
-                <input
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="rolling-vwap-fixed-minutes">Minutes</FieldLabel>
+                <Input
+                  id="rolling-vwap-fixed-minutes"
                   type="number"
                   min={0}
                   max={59}
-                  className={inputClassName}
                   disabled={fixedDisabled}
                   value={draft.fixedTimePeriod.minutes}
                   onChange={(event) =>
@@ -136,18 +143,18 @@ function RollingVwapSettingsDialogBody({
                     }))
                   }
                 />
-              </label>
+              </Field>
             </div>
           </section>
 
           <section className="space-y-2">
             <p className="font-medium text-foreground">Minimum window size</p>
-            <label className="space-y-1">
-              <span className="text-muted-foreground">Bars</span>
-              <input
+            <Field>
+              <FieldLabel htmlFor="rolling-vwap-min-bars">Bars</FieldLabel>
+              <Input
+                id="rolling-vwap-min-bars"
                 type="number"
                 min={1}
-                className={inputClassName}
                 value={draft.minBars}
                 onChange={(event) =>
                   setDraft((current) => ({
@@ -156,7 +163,7 @@ function RollingVwapSettingsDialogBody({
                   }))
                 }
               />
-            </label>
+            </Field>
           </section>
 
           <section className="space-y-2">
@@ -202,13 +209,15 @@ function RollingVwapSettingsDialogBody({
                 <div key={bandKey} className="space-y-1">
                   <div className="grid grid-cols-[4rem_1fr] items-end gap-2">
                     <span className="text-muted-foreground">{label}</span>
-                    <label className="space-y-1">
-                      <span className="text-muted-foreground">Multiplier</span>
-                      <input
+                    <Field>
+                      <FieldLabel htmlFor={`rolling-vwap-${bandKey}-multiplier`}>
+                        Multiplier
+                      </FieldLabel>
+                      <Input
+                        id={`rolling-vwap-${bandKey}-multiplier`}
                         type="number"
                         min={0}
                         step={0.5}
-                        className={inputClassName}
                         value={draft.multipliers[multKey]}
                         onChange={(event) =>
                           setDraft((current) => ({
@@ -220,7 +229,7 @@ function RollingVwapSettingsDialogBody({
                           }))
                         }
                       />
-                    </label>
+                    </Field>
                   </div>
                   <ColorOpacityField
                     id={`rolling-vwap-${bandKey}-color`}
@@ -267,6 +276,7 @@ function RollingVwapSettingsDialogBody({
 
 export function RollingVwapSettingsDialog({
   open,
+  instanceLabel,
   savedSettings,
   returnFocusId,
   onOpenChange,
@@ -285,6 +295,7 @@ export function RollingVwapSettingsDialog({
       >
         {open ? (
           <RollingVwapSettingsDialogBody
+            instanceLabel={instanceLabel}
             savedSettings={savedSettings}
             onClose={() => onOpenChange(false)}
             onSave={onSave}
