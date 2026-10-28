@@ -99,6 +99,8 @@ export type DrawingCursorToolId =
   | 'line'
   | 'fixed-range-volume-profile'
   | 'anchored-vwap'
+  /** Overlay indicators (EMA groups, VWAPs, RSI, liquidations) share this slot. */
+  | 'overlay-indicator'
 
 const cursorRequestsByElement = new WeakMap<
   HTMLElement,

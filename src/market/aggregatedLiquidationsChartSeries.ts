@@ -11,6 +11,10 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts'
 import { LIQUIDATION_LONG_COLOR, LIQUIDATION_SHORT_COLOR } from './aggregatedLiquidationsColors.ts'
+import {
+  MARKET_STYLE_PALETTE,
+  marketStyleColorWithOpacity,
+} from './marketStylePalette.ts'
 import type { AggregatedLiquidationBucket } from './aggregatedLiquidations.ts'
 import type { AggregatedLiquidationsPosition } from './aggregatedLiquidationsSettings.ts'
 import {
@@ -29,18 +33,27 @@ import {
 
 type OverlayContext = {
   buckets: readonly AggregatedLiquidationBucket[]
+  /** Transient overlay-indicator selection (gap G3); never persisted. */
+  selected: boolean
 }
+
+/** Pane-scoped selection rim for the Aggregated Liquidations overlay. */
+export const AGGREGATED_LIQUIDATIONS_SELECTION_RIM_COLOR = marketStyleColorWithOpacity(
+  MARKET_STYLE_PALETTE.medium,
+  70,
+)
+export const AGGREGATED_LIQUIDATIONS_SELECTION_RIM_WIDTH_PX = 1
 
 class AggregatedLiquidationsRenderer implements IPrimitivePaneRenderer {
   private readonly _models: readonly AggregatedLiquidationBarModel[]
+  private readonly _selected: boolean
 
-  constructor(models: readonly AggregatedLiquidationBarModel[]) {
+  constructor(models: readonly AggregatedLiquidationBarModel[], selected: boolean) {
     this._models = models
+    this._selected = selected
   }
 
   draw(target: CanvasRenderingTarget2D): void {
-    if (this._models.length === 0) return
-
     target.useBitmapCoordinateSpace((scope) => {
       const { context, horizontalPixelRatio, verticalPixelRatio, bitmapSize } = scope
       context.save()
@@ -62,6 +75,20 @@ class AggregatedLiquidationsRenderer implements IPrimitivePaneRenderer {
           context.fillStyle = color
           context.fillRect(x, y, width, height)
         }
+      }
+
+      if (this._selected) {
+        // The pane itself is the object, so its selection feedback is a rim
+        // instead of a line halo (the bars have no line path).
+        const inset = AGGREGATED_LIQUIDATIONS_SELECTION_RIM_WIDTH_PX
+        context.strokeStyle = AGGREGATED_LIQUIDATIONS_SELECTION_RIM_COLOR
+        context.lineWidth = inset * horizontalPixelRatio
+        context.strokeRect(
+          inset * horizontalPixelRatio,
+          inset * verticalPixelRatio,
+          bitmapSize.width - 2 * inset * horizontalPixelRatio,
+          bitmapSize.height - 2 * inset * verticalPixelRatio,
+        )
       }
 
       context.restore()
@@ -107,8 +134,9 @@ class AggregatedLiquidationsPaneView implements IPrimitivePaneView {
   }
 
   renderer(): IPrimitivePaneRenderer | null {
-    if (this._models.length === 0) return null
-    return new AggregatedLiquidationsRenderer(this._models)
+    const selected = this._getContext().selected
+    if (this._models.length === 0 && !selected) return null
+    return new AggregatedLiquidationsRenderer(this._models, selected)
   }
 }
 
@@ -116,7 +144,7 @@ export class AggregatedLiquidationsSeriesPrimitive implements ISeriesPrimitive<T
   private _chart: IChartApi | null = null
   private _series: ISeriesApi<SeriesType, Time> | null = null
   private _requestUpdate: (() => void) | null = null
-  private _getContext: () => OverlayContext = () => ({ buckets: [] })
+  private _getContext: () => OverlayContext = () => ({ buckets: [], selected: false })
   private readonly _view: AggregatedLiquidationsPaneView
 
   constructor(getContext: () => OverlayContext) {
@@ -169,6 +197,8 @@ export class AggregatedLiquidationsSeriesPrimitive implements ISeriesPrimitive<T
 export type AggregatedLiquidationsChartOverlay = {
   setBuckets: (buckets: readonly AggregatedLiquidationBucket[]) => void
   setPosition: (position: AggregatedLiquidationsPosition) => void
+  /** Transient overlay-indicator selection feedback (never persisted). */
+  setSelected: (selected: boolean) => void
   /** Pane index the liquidation series currently occupies. */
   getPaneIndex: () => number
   /** Position the overlay is currently laid out for. */
@@ -202,7 +232,7 @@ export function createAggregatedLiquidationsChartOverlay(
     chart.panes().length,
   )
 
-  const context: OverlayContext = { buckets: [] }
+  const context: OverlayContext = { buckets: [], selected: false }
   const primitive = new AggregatedLiquidationsSeriesPrimitive(() => context)
   series.attachPrimitive(primitive)
   // Pane double-click / empty-space handling resolves this pane by series
@@ -249,6 +279,11 @@ export function createAggregatedLiquidationsChartOverlay(
       if (next === currentPosition) return
       currentPosition = next
       applyPosition(next)
+      primitive.requestRedraw()
+    },
+    setSelected: (selected) => {
+      if (context.selected === selected) return
+      context.selected = selected
       primitive.requestRedraw()
     },
     getPaneIndex: () => series.getPane().paneIndex(),

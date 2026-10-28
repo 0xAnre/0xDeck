@@ -18,6 +18,12 @@ type FakeElement = {
   getBoundingClientRect: () => DOMRect
   hasDblClickListener: () => boolean
   fireDblClick: (event: MouseEvent) => void
+  fire: (type: string, event: Event) => void
+  hasListener: (type: string) => boolean
+  style: { cursor: string }
+  setPointerCapture: (pointerId: number) => void
+  hasPointerCapture: (pointerId: number) => boolean
+  releasePointerCapture: (pointerId: number) => void
 }
 
 function createFakeElement(top = 0): FakeElement {
@@ -52,6 +58,16 @@ function createFakeElement(top = 0): FakeElement {
         listener(event)
       }
     },
+    fire: (type, event) => {
+      for (const listener of listeners.get(type) ?? []) {
+        listener(event)
+      }
+    },
+    hasListener: (type) => (listeners.get(type)?.size ?? 0) > 0,
+    style: { cursor: '' },
+    setPointerCapture: () => {},
+    hasPointerCapture: () => false,
+    releasePointerCapture: () => {},
   }
 }
 
@@ -236,5 +252,140 @@ describe('attachChartObjectSettingsPanePointer', () => {
     assert.equal(elements[1].hasDblClickListener(), true)
     elements[1].fireDblClick(dblClickEvent(140))
     assert.deepEqual(activations, [{ kind: 'market-indicator', indicatorId: 'rsi' }])
+  })
+})
+
+function pointerEvent(type: string, clientY: number, button = 0, clientX?: number): PointerEvent {
+  return {
+    type,
+    button,
+    clientX: clientX ?? 10,
+    clientY,
+    pointerId: 1,
+  } as PointerEvent
+}
+
+describe('attachChartObjectSettingsPanePointer — overlay indicator selection', () => {
+  function setup() {
+    const { chart, panes, elements, createPane } = createChartHarness()
+    const candlePane = createPane()
+    const rsiPane = createPane()
+    panes.push(candlePane, rsiPane)
+    registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
+    registerChartPaneRoleSeries(chart as never, 'rsi', {
+      getPane: () => rsiPane,
+    } as never)
+
+    const selections: ChartObjectSettingsTarget[] = []
+    let deselects = 0
+    const activations: ChartObjectSettingsTarget[] = []
+    const controller = attachChartObjectSettingsPanePointer(chart as never, {
+      getHitTestContext: (paneX, paneY, paneRole) => buildContext(chart, [], paneRole, paneY),
+      onActivate: (target) => {
+        activations.push(target)
+      },
+      onSelectOverlay: (target) => {
+        selections.push(target)
+      },
+      onDeselectOverlay: () => {
+        deselects += 1
+      },
+    })
+
+    return {
+      elements,
+      controller,
+      selections,
+      activations,
+      deselectCount: () => deselects,
+    }
+  }
+
+  it('selects the overlay indicator on a single click without opening settings', () => {
+    const { elements, controller, selections, activations } = setup()
+
+    elements[1].fire('pointerdown', pointerEvent('pointerdown', 120))
+    elements[1].fire('pointerup', pointerEvent('pointerup', 121))
+
+    assert.deepEqual(selections, [{ kind: 'market-indicator', indicatorId: 'rsi' }])
+    assert.deepEqual(activations, [])
+    controller.dispose()
+  })
+
+  it('does not select when the press turns into a drag', () => {
+    const { elements, controller, selections } = setup()
+
+    elements[1].fire('pointerdown', pointerEvent('pointerdown', 120))
+    elements[1].fire('pointerup', pointerEvent('pointerup', 160))
+
+    assert.deepEqual(selections, [])
+    controller.dispose()
+  })
+
+  it('releases the previous selection when the press hits nothing selectable', () => {
+    const { chart, panes, elements, createPane } = createChartHarness()
+    const candlePane = createPane()
+    panes.push(candlePane)
+    registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
+
+    let deselects = 0
+    const controller = attachChartObjectSettingsPanePointer(chart as never, {
+      getHitTestContext: () => null,
+      onActivate: () => {},
+      onSelectOverlay: () => {},
+      onDeselectOverlay: () => {
+        deselects += 1
+      },
+    })
+
+    elements[0].fire('pointerdown', pointerEvent('pointerdown', 40))
+    assert.equal(deselects, 1)
+    controller.dispose()
+  })
+
+  it('keeps the selection while a press lands on the selected overlay', () => {
+    const { chart, panes, elements, createPane } = createChartHarness()
+    const candlePane = createPane()
+    const rsiPane = createPane()
+    panes.push(candlePane, rsiPane)
+    registerCandleChartSeries(chart as never, { getPane: () => candlePane } as never)
+    registerChartPaneRoleSeries(chart as never, 'rsi', {
+      getPane: () => rsiPane,
+    } as never)
+
+    let deselects = 0
+    const controller = attachChartObjectSettingsPanePointer(chart as never, {
+      getHitTestContext: (paneX, paneY, paneRole) => buildContext(chart, [], paneRole, paneY),
+      onActivate: () => {},
+      onSelectOverlay: () => {},
+      onDeselectOverlay: () => {
+        deselects += 1
+      },
+    })
+
+    elements[1].fire('pointerdown', pointerEvent('pointerdown', 120))
+    assert.equal(deselects, 0)
+    controller.dispose()
+  })
+
+  it('shows the shared pointer cursor over a selectable overlay indicator', () => {
+    const { elements, controller } = setup()
+    const rsiElement = elements[1]
+
+    rsiElement.fire('pointermove', pointerEvent('pointermove', 120))
+    assert.equal(rsiElement.style.cursor, 'pointer')
+
+    rsiElement.fire('pointerleave', pointerEvent('pointerleave', 120))
+    assert.equal(rsiElement.style.cursor, 'default')
+    controller.dispose()
+  })
+
+  it('removes the single-click listeners on dispose', () => {
+    const { elements, controller } = setup()
+    controller.dispose()
+    assert.equal(elements[1].hasListener('pointerdown'), false)
+    assert.equal(elements[1].hasListener('pointerup'), false)
+    assert.equal(elements[1].hasListener('pointermove'), false)
+    assert.equal(elements[1].hasDblClickListener(), false)
   })
 })

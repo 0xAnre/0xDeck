@@ -267,6 +267,15 @@ import {
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettingsPanePointer'
 import { attachDrawingPaneDeselect } from '@/market/drawingPaneDeselect'
+import {
+  applyOverlayIndicatorSelection,
+  isOverlayIndicatorSelectionRendered,
+  overlayIndicatorSelectionHostSeries,
+  overlayIndicatorSelectionLineSeries,
+  type OverlayIndicatorSelectionTarget,
+} from '@/market/overlayIndicatorSelection'
+import { attachOverlayIndicatorSelectionHalo } from '@/market/overlayIndicatorSelectionHalo'
+import { isEditableKeyboardTarget } from '@/screenNavigationShortcuts'
 import { EMA_PERIODS } from '@/market/ema'
 import {
   applyMarketIndicatorPresentationToBundle,
@@ -448,6 +457,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [chartObjectSettingsTarget, setChartObjectSettingsTarget] =
     useState<ChartObjectSettingsTarget | null>(null)
+  /**
+   * Transient single-click selection of an overlay indicator (gap G3). It is
+   * never persisted and never written back into the object's stored style; the
+   * settings dialogs below stay the only writers of indicator settings.
+   */
+  const [overlayIndicatorSelection, setOverlayIndicatorSelection] =
+    useState<OverlayIndicatorSelectionTarget | null>(null)
   const [editingMarketIndicatorId, setEditingMarketIndicatorId] =
     useState<MarketIndicatorId | null>(null)
   const [rsiSettings, setRsiSettings] = useState<RsiSettings>(() =>
@@ -519,6 +535,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ChartSeriesBundle | null>(null)
+  const overlayIndicatorSelectionRef = useRef<OverlayIndicatorSelectionTarget | null>(null)
+  const chartObjectSettingsTargetRef = useRef<ChartObjectSettingsTarget | null>(null)
   const candlesRef = useRef<MarketCandle[]>([])
   const loadGenerationRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -754,6 +772,87 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [])
 
   useEffect(() => {
+    overlayIndicatorSelectionRef.current = overlayIndicatorSelection
+  }, [overlayIndicatorSelection])
+
+  useEffect(() => {
+    chartObjectSettingsTargetRef.current = chartObjectSettingsTarget
+  }, [chartObjectSettingsTarget])
+
+  /** Release the transient overlay-indicator selection (same message as drawings). */
+  const clearOverlayIndicatorSelection = useCallback(() => {
+    setOverlayIndicatorSelection((current) => applyOverlayIndicatorSelection(current, null))
+  }, [])
+
+  /**
+   * `Esc` deselects the overlay indicator — but only when no settings dialog or
+   * popover is open: Radix dismissal handles those first (capture-phase
+   * `preventDefault`), and an open settings dialog is reported through
+   * `chartObjectSettingsTarget`. Keyboard ownership stays gated on the shared
+   * active-panel scope, so exactly one panel reacts.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (event.defaultPrevented) return
+      if (chartObjectSettingsTargetRef.current !== null) return
+      if (!isActiveRectangleKeyboardPanel(panelId)) return
+      if (isEditableKeyboardTarget(event.target)) return
+      if (overlayIndicatorSelectionRef.current === null) return
+      event.preventDefault()
+      setOverlayIndicatorSelection(null)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [panelId])
+
+  /**
+   * A selection may not outlive its object: hiding (indicator toggle off, an
+   * interval that does not support it, rolling VWAP `enabled: false`) or
+   * removing the object clears it.
+   */
+  useEffect(() => {
+    const loaded = loadedVwapContextRef.current
+    setOverlayIndicatorSelection((current) =>
+      isOverlayIndicatorSelectionRendered(current, {
+        activeIndicators,
+        interval,
+        loadedVwapLevel: loaded?.interval === interval ? loaded.level : null,
+        loadedVwapInterval: loaded?.interval ?? null,
+        rollingVwapInstances,
+      })
+        ? current
+        : null,
+    )
+  }, [activeIndicators, interval, rollingVwapInstances])
+
+  /**
+   * Temporary selection feedback: the selected overlay lines are stroked wider
+   * by a chart primitive. Nothing is written to the series options or storage,
+   * so the persisted color/opacity/width/style can never be overwritten.
+   */
+  useEffect(() => {
+    if (!chartReady || overlayIndicatorSelection === null) return
+    const host = overlayIndicatorSelectionHostSeries(seriesRef.current, overlayIndicatorSelection)
+    if (!host) return
+
+    const attachment = attachOverlayIndicatorSelectionHalo(host, () =>
+      overlayIndicatorSelectionLineSeries(
+        seriesRef.current,
+        overlayIndicatorSelection,
+        rollingVwapInstancesRef.current,
+      ),
+    )
+
+    return () => {
+      attachment.dispose()
+    }
+  }, [chartReady, overlayIndicatorSelection])
+
+  useEffect(() => {
     const chart = chartRef.current
     if (!chart || !chartReady) return
 
@@ -781,6 +880,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         claimRectangleKeyboardPanel(null)
       }
       clearDrawingSelection()
+      clearOverlayIndicatorSelection()
     }
 
     const onFocusIn = (event: FocusEvent) => {
@@ -817,7 +917,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         claimRectangleKeyboardPanel(null)
       }
     }
-  }, [panelId, clearDrawingSelection])
+  }, [panelId, clearDrawingSelection, clearOverlayIndicatorSelection])
 
   useEffect(() => {
     fixedRangeVolumeProfileRuntimeRef.current = fixedRangeVolumeProfileRuntimeById
@@ -2168,12 +2268,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       onActivate: (target) => {
         openChartObjectSettings(target)
       },
+      onSelectOverlay: (target) => {
+        setOverlayIndicatorSelection((current) =>
+          applyOverlayIndicatorSelection(current, target),
+        )
+      },
+      onDeselectOverlay: clearOverlayIndicatorSelection,
     })
 
     return () => {
       controller.dispose()
     }
-  }, [chartReady, openChartObjectSettings])
+  }, [chartReady, openChartObjectSettings, clearOverlayIndicatorSelection])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -2441,6 +2547,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     liquidationSettingsRef.current = liquidationSettings
     liquidationOverlayRef.current?.setPosition(liquidationSettings.position)
   }, [liquidationSettings])
+
+  useEffect(() => {
+    liquidationOverlayRef.current?.setSelected(
+      overlayIndicatorSelection?.kind === 'aggregated-liquidations',
+    )
+  }, [overlayIndicatorSelection, chartReady, liquidationsEnabled])
 
   useEffect(() => {
     const buckets = filterAggregatedLiquidationBucketsToCandles(
