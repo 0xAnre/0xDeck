@@ -20,34 +20,12 @@ import {
 import {
   MARKET_STYLE_DEFAULTS,
   MARKET_STYLE_OPACITY_PERCENT,
-  MARKET_STYLE_PALETTE,
   MARKET_STYLE_ROLLING_BAND_SHADES,
   isMarketStyleHexColor,
   isMarketStyleOpacityPercent,
   marketStyleShade,
   marketStyleColorWithOpacity,
 } from './marketStylePalette.ts'
-
-export const ROLLING_VWAP_INFO_BOX_SIZES = [
-  'tiny',
-  'small',
-  'normal',
-  'large',
-  'huge',
-  'auto',
-] as const
-
-export type RollingVwapInfoBoxSize = (typeof ROLLING_VWAP_INFO_BOX_SIZES)[number]
-
-export const ROLLING_VWAP_INFO_BOX_VERTICAL_POSITIONS = ['top', 'middle', 'bottom'] as const
-
-export type RollingVwapInfoBoxVerticalPosition =
-  (typeof ROLLING_VWAP_INFO_BOX_VERTICAL_POSITIONS)[number]
-
-export const ROLLING_VWAP_INFO_BOX_HORIZONTAL_POSITIONS = ['left', 'center', 'right'] as const
-
-export type RollingVwapInfoBoxHorizontalPosition =
-  (typeof ROLLING_VWAP_INFO_BOX_HORIZONTAL_POSITIONS)[number]
 
 export type RollingVwapBandColors = {
   band1: string
@@ -67,17 +45,6 @@ export type RollingVwapBandLineStyles = {
   band1: RollingVwapLineStyle
   band2: RollingVwapLineStyle
   band3: RollingVwapLineStyle
-}
-
-export type RollingVwapInfoBoxSettings = {
-  visible: boolean
-  size: RollingVwapInfoBoxSize
-  verticalPosition: RollingVwapInfoBoxVerticalPosition
-  horizontalPosition: RollingVwapInfoBoxHorizontalPosition
-  backgroundColor: string
-  backgroundColorOpacity: number
-  textColor: string
-  textColorOpacity: number
 }
 
 export const ROLLING_VWAP_LINE_WIDTHS = [1, 2, 3, 4] as const
@@ -131,7 +98,6 @@ export type RollingVwapSettings = {
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
   bandLineStyles: RollingVwapBandLineStyles
-  infoBox: RollingVwapInfoBoxSettings
   lineWidth: RollingVwapLineWidth
   lineColor: string
   lineOpacity: number
@@ -155,21 +121,6 @@ const DEFAULT_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
   band2: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   band3: DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
 }
-
-const DEFAULT_INFO_BOX: RollingVwapInfoBoxSettings = {
-  visible: true,
-  size: 'small',
-  verticalPosition: 'bottom',
-  horizontalPosition: 'right',
-  backgroundColor: MARKET_STYLE_PALETTE.dark,
-  backgroundColorOpacity: MARKET_STYLE_OPACITY_PERCENT.full,
-  textColor: MARKET_STYLE_DEFAULTS.primaryLine.color,
-  textColorOpacity: MARKET_STYLE_OPACITY_PERCENT.full,
-}
-
-const INFO_BOX_SIZE_SET = new Set<string>(ROLLING_VWAP_INFO_BOX_SIZES)
-const INFO_BOX_VERTICAL_SET = new Set<string>(ROLLING_VWAP_INFO_BOX_VERTICAL_POSITIONS)
-const INFO_BOX_HORIZONTAL_SET = new Set<string>(ROLLING_VWAP_INFO_BOX_HORIZONTAL_POSITIONS)
 
 /** Kept for existing call sites; delegates to the shared palette hex guard. */
 export const isRollingVwapHexColor = isMarketStyleHexColor
@@ -207,40 +158,6 @@ function sanitizeBandLineStyles(
   }
 }
 
-function sanitizeInfoBox(value: unknown, defaults: RollingVwapInfoBoxSettings): RollingVwapInfoBoxSettings {
-  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
-  const size =
-    typeof record.size === 'string' && INFO_BOX_SIZE_SET.has(record.size)
-      ? (record.size as RollingVwapInfoBoxSize)
-      : defaults.size
-  const verticalPosition =
-    typeof record.verticalPosition === 'string' && INFO_BOX_VERTICAL_SET.has(record.verticalPosition)
-      ? (record.verticalPosition as RollingVwapInfoBoxVerticalPosition)
-      : defaults.verticalPosition
-  const horizontalPosition =
-    typeof record.horizontalPosition === 'string' &&
-    INFO_BOX_HORIZONTAL_SET.has(record.horizontalPosition)
-      ? (record.horizontalPosition as RollingVwapInfoBoxHorizontalPosition)
-      : defaults.horizontalPosition
-
-  return {
-    visible: typeof record.visible === 'boolean' ? record.visible : defaults.visible,
-    size,
-    verticalPosition,
-    horizontalPosition,
-    backgroundColor: isRollingVwapHexColor(record.backgroundColor)
-      ? record.backgroundColor
-      : defaults.backgroundColor,
-    backgroundColorOpacity: isMarketStyleOpacityPercent(record.backgroundColorOpacity)
-      ? record.backgroundColorOpacity
-      : defaults.backgroundColorOpacity,
-    textColor: isRollingVwapHexColor(record.textColor) ? record.textColor : defaults.textColor,
-    textColorOpacity: isMarketStyleOpacityPercent(record.textColorOpacity)
-      ? record.textColorOpacity
-      : defaults.textColorOpacity,
-  }
-}
-
 /** Fresh defaults (Pine Rolling VWAP inputs). Not a shared mutable singleton. */
 export function createDefaultRollingVwapSettings(): RollingVwapSettings {
   return {
@@ -250,7 +167,6 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
     bandColors: { ...DEFAULT_BAND_COLORS },
     bandOpacities: { ...DEFAULT_BAND_OPACITIES },
     bandLineStyles: { ...DEFAULT_BAND_LINE_STYLES },
-    infoBox: { ...DEFAULT_INFO_BOX },
     lineWidth: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
     lineColor: DEFAULT_ROLLING_VWAP_LINE_COLOR,
     lineOpacity: DEFAULT_ROLLING_VWAP_LINE_OPACITY,
@@ -265,7 +181,6 @@ export const DEFAULT_ROLLING_VWAP_BAND_OPACITIES: RollingVwapBandOpacities = {
 export const DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
   ...DEFAULT_BAND_LINE_STYLES,
 }
-export const DEFAULT_ROLLING_VWAP_INFO_BOX: RollingVwapInfoBoxSettings = { ...DEFAULT_INFO_BOX }
 
 export function computeRollingVwapPointsForSettings(
   candles: readonly MarketCandle[],
@@ -291,7 +206,6 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     bandOpacities: sanitizeBandOpacities(record.bandOpacities, defaults.bandOpacities),
     bandLineStyles: sanitizeBandLineStyles(record.bandLineStyles, defaults.bandLineStyles),
-    infoBox: sanitizeInfoBox(record.infoBox, defaults.infoBox),
     lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
     lineColor: isRollingVwapHexColor(record.lineColor) ? record.lineColor : defaults.lineColor,
     lineOpacity: isRollingVwapLineOpacity(record.lineOpacity)

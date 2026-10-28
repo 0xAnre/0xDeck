@@ -6,7 +6,6 @@ import {
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES,
   DEFAULT_ROLLING_VWAP_BAND_OPACITIES,
-  DEFAULT_ROLLING_VWAP_INFO_BOX,
   DEFAULT_ROLLING_VWAP_LINE_COLOR,
   DEFAULT_ROLLING_VWAP_LINE_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
@@ -24,7 +23,6 @@ import {
 import {
   MARKET_STYLE_DEFAULTS,
   MARKET_STYLE_OPACITY_PERCENT,
-  MARKET_STYLE_PALETTE,
   MARKET_STYLE_ROLLING_BAND_SHADES,
 } from './marketStylePalette.ts'
 import {
@@ -48,14 +46,13 @@ describe('createDefaultRollingVwapSettings', () => {
       band3: 'solid',
     })
     assert.equal(DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE, 'solid')
-    assert.deepEqual(settings.infoBox, DEFAULT_ROLLING_VWAP_INFO_BOX)
     assert.equal(settings.lineWidth, DEFAULT_ROLLING_VWAP_LINE_WIDTH)
     assert.equal(settings.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
     assert.equal(settings.lineOpacity, DEFAULT_ROLLING_VWAP_LINE_OPACITY)
     assert.equal(settings.lineStyle, DEFAULT_ROLLING_VWAP_LINE_STYLE)
   })
 
-  it('uses palette defaults for bands, center line and info box', () => {
+  it('uses palette defaults for bands and center line', () => {
     const settings = createDefaultRollingVwapSettings()
     assert.deepEqual(settings.bandColors, {
       band1: MARKET_STYLE_ROLLING_BAND_SHADES[0],
@@ -70,10 +67,6 @@ describe('createDefaultRollingVwapSettings', () => {
     })
     assert.equal(settings.lineColor, MARKET_STYLE_DEFAULTS.primaryLine.color)
     assert.equal(settings.lineOpacity, 100)
-    assert.equal(settings.infoBox.backgroundColor, MARKET_STYLE_PALETTE.dark)
-    assert.equal(settings.infoBox.backgroundColorOpacity, 100)
-    assert.equal(settings.infoBox.textColor, MARKET_STYLE_PALETTE.light)
-    assert.equal(settings.infoBox.textColorOpacity, 100)
   })
 
   it('returns independent object instances', () => {
@@ -91,12 +84,9 @@ describe('sanitizeRollingVwapSettings', () => {
     const result = sanitizeRollingVwapSettings({
       minBars: 25,
       multipliers: { multiplier1: 1.5, multiplier2: 0, multiplier3: 0 },
-      infoBox: { visible: false },
     })
     assert.equal(result.minBars, 25)
     assert.equal(result.multipliers.multiplier1, 1.5)
-    assert.equal(result.infoBox.visible, false)
-    assert.equal(result.infoBox.size, 'small')
     assert.equal(result.fixedTimePeriod.days, 1)
   })
 
@@ -106,13 +96,6 @@ describe('sanitizeRollingVwapSettings', () => {
       minBars: 0,
       multipliers: { multiplier1: -2, multiplier2: Number.NaN, multiplier3: Number.POSITIVE_INFINITY },
       bandColors: { band1: 'red', band2: '#ffeb3b', band3: '#12345' },
-      infoBox: {
-        size: 'xlarge',
-        verticalPosition: 'sideways',
-        horizontalPosition: 'far-right',
-        backgroundColor: '#787b86',
-        textColor: '#fff',
-      },
     })
     assert.equal(result.fixedTimePeriod.useFixedTimePeriod, true)
     assert.equal(result.fixedTimePeriod.days, 1)
@@ -125,21 +108,14 @@ describe('sanitizeRollingVwapSettings', () => {
     assert.equal(result.bandColors.band1, DEFAULT_ROLLING_VWAP_BAND_COLORS.band1)
     assert.equal(result.bandColors.band2, '#ffeb3b')
     assert.equal(result.bandColors.band3, DEFAULT_ROLLING_VWAP_BAND_COLORS.band3)
-    assert.equal(result.infoBox.size, 'small')
-    assert.equal(result.infoBox.verticalPosition, 'bottom')
-    assert.equal(result.infoBox.horizontalPosition, 'right')
-    assert.equal(result.infoBox.textColor, DEFAULT_ROLLING_VWAP_INFO_BOX.textColor)
   })
 
-  it('keeps band, center-line and info-box opacities independent', () => {
+  it('keeps band and center-line opacities independent', () => {
     const result = sanitizeRollingVwapSettings({
       bandOpacities: { band1: 10, band2: 20, band3: 30 },
-      infoBox: { backgroundColorOpacity: 40, textColorOpacity: 90 },
       lineOpacity: 60,
     })
     assert.deepEqual(result.bandOpacities, { band1: 10, band2: 20, band3: 30 })
-    assert.equal(result.infoBox.backgroundColorOpacity, 40)
-    assert.equal(result.infoBox.textColorOpacity, 90)
     assert.equal(result.lineOpacity, 60)
   })
 
@@ -194,7 +170,6 @@ describe('sanitizeRollingVwapSettings', () => {
   it('loads legacy payloads without new opacity fields using palette defaults', () => {
     const result = sanitizeRollingVwapSettings({
       bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
-      infoBox: { backgroundColor: '#444444', textColor: '#555555' },
     })
     assert.deepEqual(result.bandColors, {
       band1: '#111111',
@@ -202,10 +177,55 @@ describe('sanitizeRollingVwapSettings', () => {
       band3: '#333333',
     })
     assert.deepEqual(result.bandOpacities, DEFAULT_ROLLING_VWAP_BAND_OPACITIES)
-    assert.equal(result.infoBox.backgroundColor, '#444444')
-    assert.equal(result.infoBox.textColor, '#555555')
-    assert.equal(result.infoBox.backgroundColorOpacity, 100)
-    assert.equal(result.infoBox.textColorOpacity, 100)
+  })
+
+  it('drops the retired info box field from a legacy record without disturbing other fields', () => {
+    const result = sanitizeRollingVwapSettings({
+      fixedTimePeriod: { days: 2, hours: 3, minutes: 4, useFixedTimePeriod: true },
+      minBars: 30,
+      multipliers: { multiplier1: 1, multiplier2: 2, multiplier3: 3 },
+      bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
+      bandOpacities: { band1: 10, band2: 20, band3: 30 },
+      bandLineStyles: { band1: 'dotted', band2: 'solid', band3: 'dotted' },
+      infoBox: {
+        visible: false,
+        size: 'large',
+        verticalPosition: 'top',
+        horizontalPosition: 'left',
+        backgroundColor: '#444444',
+        backgroundColorOpacity: 40,
+        textColor: '#555555',
+        textColorOpacity: 90,
+      },
+      lineWidth: 3,
+      lineColor: '#123456',
+      lineOpacity: 45,
+      lineStyle: 'dotted',
+    })
+    assert.equal('infoBox' in result, false)
+    assert.deepEqual(result.fixedTimePeriod, {
+      days: 2,
+      hours: 3,
+      minutes: 4,
+      useFixedTimePeriod: true,
+    })
+    assert.equal(result.minBars, 30)
+    assert.deepEqual(result.multipliers, { multiplier1: 1, multiplier2: 2, multiplier3: 3 })
+    assert.deepEqual(result.bandColors, {
+      band1: '#111111',
+      band2: '#222222',
+      band3: '#333333',
+    })
+    assert.deepEqual(result.bandOpacities, { band1: 10, band2: 20, band3: 30 })
+    assert.deepEqual(result.bandLineStyles, {
+      band1: 'dotted',
+      band2: 'solid',
+      band3: 'dotted',
+    })
+    assert.equal(result.lineWidth, 3)
+    assert.equal(result.lineColor, '#123456')
+    assert.equal(result.lineOpacity, 45)
+    assert.equal(result.lineStyle, 'dotted')
   })
 
   it('never treats the retired dashed style as selectable', () => {

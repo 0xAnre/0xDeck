@@ -12,6 +12,18 @@ import {
 
 const memory = new Map<string, string>()
 
+/** Info box settings from a record saved before the non-functional controls were removed. */
+const LEGACY_INFO_BOX = {
+  visible: false,
+  size: 'large',
+  verticalPosition: 'top',
+  horizontalPosition: 'left',
+  backgroundColor: '#444444',
+  backgroundColorOpacity: 40,
+  textColor: '#555555',
+  textColorOpacity: 90,
+}
+
 beforeEach(() => {
   memory.clear()
   globalThis.localStorage = {
@@ -44,7 +56,7 @@ describe('rollingVwapSettingsStorage', () => {
   it('returns defaults when panel has no saved entry', () => {
     const settings = loadWidgetRollingVwapSettings('panel-a')
     assert.equal(settings.minBars, 10)
-    assert.equal(settings.infoBox.size, 'small')
+    assert.equal(settings.lineWidth, 1)
   })
 
   it('isolates settings per panel id', () => {
@@ -69,9 +81,7 @@ describe('rollingVwapSettingsStorage', () => {
     saveWidgetRollingVwapSettings('panel-a', createDefaultRollingVwapSettings())
     const loaded = loadWidgetRollingVwapSettings('panel-a')
     loaded.minBars = 99
-    loaded.infoBox.visible = false
     assert.equal(loadWidgetRollingVwapSettings('panel-a').minBars, 10)
-    assert.equal(loadWidgetRollingVwapSettings('panel-a').infoBox.visible, true)
   })
 
   it('round-trips lineWidth through panel storage', () => {
@@ -103,11 +113,13 @@ describe('rollingVwapSettingsStorage', () => {
           minBars: legacy.minBars,
           multipliers: legacy.multipliers,
           bandColors: legacy.bandColors,
-          infoBox: legacy.infoBox,
+          infoBox: LEGACY_INFO_BOX,
         },
       }),
     )
-    assert.equal(loadWidgetRollingVwapSettings('panel-a').lineWidth, 1)
+    const loaded = loadWidgetRollingVwapSettings('panel-a')
+    assert.equal(loaded.lineWidth, 1)
+    assert.equal('infoBox' in loaded, false)
   })
 
   it('loads legacy settings without center-line presentation fields', () => {
@@ -120,7 +132,7 @@ describe('rollingVwapSettingsStorage', () => {
           minBars: legacy.minBars,
           multipliers: legacy.multipliers,
           bandColors: legacy.bandColors,
-          infoBox: legacy.infoBox,
+          infoBox: LEGACY_INFO_BOX,
           lineWidth: 2,
         },
       }),
