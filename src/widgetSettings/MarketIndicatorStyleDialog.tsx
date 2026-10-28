@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import {
   MARKET_INDICATOR_DEFINITIONS,
   marketIndicatorSupportsBandFill,
@@ -68,9 +69,6 @@ type MarketIndicatorStyleDialogProps = {
   onRsiSettingsChange?: (settings: RsiSettings) => void
 }
 
-const RSI_INPUT_CLASSNAME =
-  'h-8 w-full rounded-md border border-input bg-input/20 px-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30'
-
 /**
  * RSI range fields edit the dialog draft, so partially typed numbers are not
  * clamped per keystroke and sanitizing on blur/Enter rewrites the draft only.
@@ -93,13 +91,12 @@ function RsiRangeFields({
   ) => (
     <Field key={id}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <input
+      <Input
         id={id}
         type="number"
         min={min}
         max={max}
         step={1}
-        className={RSI_INPUT_CLASSNAME}
         value={settings[key]}
         onChange={(event) => onChange({ ...settings, [key]: Number(event.target.value) })}
         onBlur={onSanitize}
@@ -115,18 +112,16 @@ function RsiRangeFields({
       {numberField('rsi-period', 'Period', 'period', RSI_PERIOD_MIN, RSI_PERIOD_MAX)}
       {numberField('rsi-overbought', 'Overbought level', 'overbought', RSI_LEVEL_MIN, RSI_LEVEL_MAX)}
       {numberField('rsi-oversold', 'Oversold level', 'oversold', RSI_LEVEL_MIN, RSI_LEVEL_MAX)}
-      <Field>
-        <label className="flex items-center gap-2">
-          <input
-            id="rsi-threshold-glow"
-            type="checkbox"
-            checked={settings.thresholdGlow}
-            onChange={(event) =>
-              onChange({ ...settings, thresholdGlow: event.target.checked })
-            }
-          />
-          <span className="text-xs">Threshold Glow</span>
-        </label>
+      <Field orientation="horizontal">
+        <input
+          id="rsi-threshold-glow"
+          type="checkbox"
+          checked={settings.thresholdGlow}
+          onChange={(event) =>
+            onChange({ ...settings, thresholdGlow: event.target.checked })
+          }
+        />
+        <FieldLabel htmlFor="rsi-threshold-glow">Threshold Glow</FieldLabel>
       </Field>
     </FieldGroup>
   )

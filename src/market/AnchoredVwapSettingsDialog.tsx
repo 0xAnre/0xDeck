@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import {
@@ -21,11 +23,9 @@ import {
   type AnchoredVwapDrawingSettings,
 } from '@/market/anchoredVwapDrawingSettings'
 
-const inputClassName =
-  'h-8 w-full rounded-md border border-input bg-input/20 px-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30'
-
 type AnchoredVwapSettingsDialogProps = {
   open: boolean
+  instanceLabel?: string
   savedSettings: AnchoredVwapDrawingSettings
   returnFocusId: string
   onOpenChange: (open: boolean) => void
@@ -45,39 +45,41 @@ function BandPairSection({
 }) {
   return (
     <div className="space-y-2 rounded-md border border-border/60 p-2">
-      <label className="flex items-center gap-2">
+      <Field orientation="horizontal">
         <input
+          id={`${idPrefix}-visible`}
           type="checkbox"
           checked={draft.visible}
           onChange={(event) => onChange({ ...draft, visible: event.target.checked })}
         />
-        <span className="font-medium text-foreground">{label}</span>
-      </label>
-      <label className="block space-y-1">
-        <span className="text-muted-foreground">Multiplier</span>
-        <input
+        <FieldLabel htmlFor={`${idPrefix}-visible`}>{label}</FieldLabel>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-multiplier`}>Multiplier</FieldLabel>
+        <Input
+          id={`${idPrefix}-multiplier`}
           type="number"
           min={0}
           step={0.5}
-          className={inputClassName}
           value={draft.multiplier}
           onChange={(event) => onChange({ ...draft, multiplier: Number(event.target.value) })}
         />
-      </label>
+      </Field>
       <LineChartStrokeSelectFields
         widthId={`${idPrefix}-width`}
         lineWidth={draft.lineWidth}
         onLineWidthChange={(lineWidth) => onChange({ ...draft, lineWidth })}
       />
       <div className="space-y-2">
-        <label className="flex items-center gap-2">
+        <Field orientation="horizontal">
           <input
+            id={`${idPrefix}-upper-visible`}
             type="checkbox"
             checked={draft.upperVisible}
             onChange={(event) => onChange({ ...draft, upperVisible: event.target.checked })}
           />
-          <span className="text-muted-foreground">Upper</span>
-        </label>
+          <FieldLabel htmlFor={`${idPrefix}-upper-visible`}>Upper</FieldLabel>
+        </Field>
         <ColorOpacityField
           id={`${idPrefix}-upper-color`}
           label="Upper color"
@@ -90,14 +92,15 @@ function BandPairSection({
           onOpacityChange={(upperOpacity) => onChange({ ...draft, upperOpacity })}
           onLineStyleChange={(lineStyle) => onChange({ ...draft, lineStyle })}
         />
-        <label className="flex items-center gap-2">
+        <Field orientation="horizontal">
           <input
+            id={`${idPrefix}-lower-visible`}
             type="checkbox"
             checked={draft.lowerVisible}
             onChange={(event) => onChange({ ...draft, lowerVisible: event.target.checked })}
           />
-          <span className="text-muted-foreground">Lower</span>
-        </label>
+          <FieldLabel htmlFor={`${idPrefix}-lower-visible`}>Lower</FieldLabel>
+        </Field>
         <ColorOpacityField
           id={`${idPrefix}-lower-color`}
           label="Lower color"
@@ -122,10 +125,12 @@ function BandPairSection({
 }
 
 function AnchoredVwapSettingsDialogBody({
+  instanceLabel,
   savedSettings,
   onClose,
   onSave,
 }: {
+  instanceLabel?: string
   savedSettings: AnchoredVwapDrawingSettings
   onClose: () => void
   onSave: (settings: AnchoredVwapDrawingSettings) => void
@@ -143,14 +148,17 @@ function AnchoredVwapSettingsDialogBody({
     <>
       <DialogHeader className="shrink-0">
         <DialogTitle>Anchored VWAP settings</DialogTitle>
-        <DialogDescription>Anchored VWAP line and band presentation</DialogDescription>
+        <DialogDescription>
+          {instanceLabel ?? 'Anchored VWAP line and band presentation'}
+        </DialogDescription>
       </DialogHeader>
 
       <div className={`${CHART_SETTINGS_DIALOG_BODY_CLASS} text-xs`}>
         <section className="space-y-2">
           <p className="font-medium text-foreground">VWAP line</p>
-          <label className="flex items-center gap-2">
+          <Field orientation="horizontal">
             <input
+              id="anchored-vwap-line-visible"
               type="checkbox"
               checked={draft.vwapLine.visible}
               onChange={(event) =>
@@ -160,8 +168,8 @@ function AnchoredVwapSettingsDialogBody({
                 }))
               }
             />
-            <span>Visible</span>
-          </label>
+            <FieldLabel htmlFor="anchored-vwap-line-visible">Visible</FieldLabel>
+          </Field>
           <LineChartStrokeSelectFields
             widthId="anchored-vwap-line-width"
             lineWidth={draft.vwapLine.lineWidth}
@@ -236,6 +244,7 @@ function AnchoredVwapSettingsDialogBody({
 
 export function AnchoredVwapSettingsDialog({
   open,
+  instanceLabel,
   savedSettings,
   returnFocusId,
   onOpenChange,
@@ -253,6 +262,7 @@ export function AnchoredVwapSettingsDialog({
       >
         {open ? (
           <AnchoredVwapSettingsDialogBody
+            instanceLabel={instanceLabel}
             savedSettings={savedSettings}
             onClose={() => onOpenChange(false)}
             onSave={onSave}
