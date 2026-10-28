@@ -9,12 +9,14 @@ import {
   moveRsiPaneAbove,
   removeRsiChartPane,
   RSI_PANE_HEIGHT_SHARE,
+  RSI_THRESHOLD_FILL_OPACITY_PERCENT,
   rsiPaneHeightShare,
   setRsiPaneHistoryData,
   sumPaneStretchFactors,
   updateRsiPaneLiveData,
   type RsiChartPaneBundle,
 } from './rsiChartPane.ts'
+import type { RsiThresholdFillSeriesPrimitive } from './rsiThresholdFillSeriesPrimitive.ts'
 import { computeWilderRsi, RSI_MID_LEVEL, type RsiSettings } from './rsi.ts'
 import { resolveChartPaneRolePane } from './chartPaneRoles.ts'
 import {
@@ -74,6 +76,8 @@ function makeSeries() {
   const updateCalls: FakeLinePoint[] = []
   const createdPriceLines: FakePriceLine[] = []
   const applyOptionsCalls: LineSeriesPartialOptions[] = []
+  const attachedPrimitives: unknown[] = []
+  const detachedPrimitives: unknown[] = []
   const series = {
     setData: (data: FakeLinePoint[]) => {
       setDataCalls.push(data)
@@ -84,6 +88,13 @@ function makeSeries() {
     applyOptions: (options: LineSeriesPartialOptions) => {
       applyOptionsCalls.push(options)
     },
+    attachPrimitive: (primitive: unknown) => {
+      attachedPrimitives.push(primitive)
+    },
+    detachPrimitive: (primitive: unknown) => {
+      detachedPrimitives.push(primitive)
+    },
+    priceToCoordinate: (price: number) => 100 - price,
     createPriceLine: (options: PriceLineOptions) => {
       const priceLine: FakePriceLine = {
         options,
@@ -109,6 +120,8 @@ function makeSeries() {
     updateCalls,
     createdPriceLines,
     applyOptionsCalls,
+    attachedPrimitives,
+    detachedPrimitives,
     setPane: (pane: unknown) => {
       getPane = () => pane as never
     },
@@ -198,6 +211,31 @@ const CANDLE_BASELINE = 2
 
 /** Stretch factor the RSI pane opens with on a fresh chart. */
 const DEFAULT_STRETCH_FACTOR = computeRsiPaneStretchFactor(CANDLE_BASELINE)
+
+/**
+ * Attach the captured threshold-fill primitive to a minimal fake chart so the
+ * tests can observe whether it would render, without a real Lightweight Charts
+ * instance.
+ */
+function attachFillPrimitiveToChart(harness: ReturnType<typeof makeChart>) {
+  const primitive = harness.seriesBundle
+    .attachedPrimitives[0] as RsiThresholdFillSeriesPrimitive
+  const chart = {
+    timeScale: () => ({
+      timeToCoordinate: (time: number) => time,
+      options: () => ({ barSpacing: 6 }),
+    }),
+  }
+  primitive.attached({
+    chart: chart as never,
+    series: harness.seriesBundle.series as never,
+    requestUpdate: () => {},
+  })
+  return {
+    primitive,
+    view: primitive.paneViews()[0] as { renderer: () => unknown },
+  }
+}
 
 function assertShare(actual: number, expected: number, message?: string): void {
   assert.ok(
@@ -415,6 +453,53 @@ describe('RSI pane data', () => {
       `stretchFactor:${DEFAULT_STRETCH_FACTOR}`,
       'pane.addSeries',
     ])
+  })
+})
+
+describe('RSI threshold fill', () => {
+  it('attaches one fill primitive on creation and disposes it with the pane', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+
+    assert.equal(harness.seriesBundle.attachedPrimitives.length, 1)
+    assert.equal(RSI_THRESHOLD_FILL_OPACITY_PERCENT, 13)
+
+    removeRsiChartPane(harness.chart, bundle)
+    assert.deepEqual(
+      harness.seriesBundle.detachedPrimitives,
+      harness.seriesBundle.attachedPrimitives,
+    )
+  })
+
+  it('fills overbought history, follows live data and clears with the pane data', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    setRsiPaneHistoryData(bundle, risingCandles(20))
+    const { view } = attachFillPrimitiveToChart(harness)
+    assert.notEqual(view.renderer(), null)
+
+    // Live candle back inside the thresholds: no run is left to fill.
+    updateRsiPaneLiveData(bundle, oscillatingCandles(31))
+    assert.equal(view.renderer(), null)
+
+    clearRsiPaneData(bundle)
+    assert.equal(view.renderer(), null)
+  })
+
+  it('re-segments the stored points with new thresholds without re-sending history', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    setRsiPaneHistoryData(bundle, oscillatingCandles(30))
+    const { view } = attachFillPrimitiveToChart(harness)
+    assert.equal(view.renderer(), null)
+
+    applyRsiPaneSettings(bundle, { period: 14, overbought: 40, oversold: 20 })
+    assert.notEqual(view.renderer(), null)
+    // Threshold changes must not trigger a candle/history refetch or re-send.
+    assert.equal(harness.seriesBundle.setDataCalls.length, 1)
+
+    applyRsiPaneSettings(bundle, DEFAULTS)
+    assert.equal(view.renderer(), null)
   })
 })
 
