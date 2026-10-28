@@ -31,8 +31,7 @@ import type { MarketCandle } from './types.ts'
 /**
  * Fixed, quiet opacity for the threshold fill: a ~13 % wash behind the RSI
  * line while it is outside a threshold. The colors are the semantic threshold
- * colors, identical in every theme; the effect is intentionally not
- * user-configurable in this task.
+ * colors, identical in every theme; only the on/off state is user-configurable.
  */
 export const RSI_THRESHOLD_FILL_OPACITY_PERCENT = 13
 
@@ -177,12 +176,20 @@ type RsiThresholdFillSeriesOptions = {
   bottomFillColor1: string
   bottomFillColor2: string
   lineColor: string
+  visible: boolean
 }
 
 /**
  * Native BaselineSeries that paints one threshold band. The fill only spans
  * between the RSI line and `baseValue`, so the inside-threshold side is empty
- * by construction and the threshold-side gradient stop controls the fade.
+ * by construction.
+ *
+ * Gradient orientation (`relativeGradient: false`): `topFillColor1` sits at the
+ * pane top, `topFillColor2` at `baseValue`, `bottomFillColor1` at `baseValue`
+ * and `bottomFillColor2` at the pane bottom. The full opacity therefore goes on
+ * the threshold-adjacent stop and fades to 0 % towards the pane edge — the
+ * other way round the wash faded to nothing exactly at the threshold, where the
+ * eye actually sees it (measured peak alpha 5.4 % at the pane top).
  */
 function createRsiThresholdFillSeries(
   pane: IPaneApi<Time>,
@@ -198,6 +205,7 @@ function createRsiThresholdFillSeries(
     topLineColor: options.lineColor,
     bottomLineColor: options.lineColor,
     lineVisible: false,
+    visible: options.visible,
     lastValueVisible: false,
     priceLineVisible: false,
     crosshairMarkerVisible: false,
@@ -275,19 +283,21 @@ export function createRsiChartPane(
   registerChartPaneRoleSeries(chart, 'rsi', series)
   const overboughtFillSeries = createRsiThresholdFillSeries(pane, {
     baseValue: sanitized.overbought,
-    topFillColor1: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR),
-    topFillColor2: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR, 0),
+    topFillColor1: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR, 0),
+    topFillColor2: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR),
     bottomFillColor1: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR, 0),
     bottomFillColor2: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR, 0),
     lineColor: rsiThresholdFillColor(RSI_OVERBOUGHT_LINE_COLOR, 0),
+    visible: sanitized.thresholdGlow,
   })
   const oversoldFillSeries = createRsiThresholdFillSeries(pane, {
     baseValue: sanitized.oversold,
     topFillColor1: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR, 0),
     topFillColor2: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR, 0),
-    bottomFillColor1: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR, 0),
-    bottomFillColor2: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR),
+    bottomFillColor1: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR),
+    bottomFillColor2: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR, 0),
     lineColor: rsiThresholdFillColor(RSI_OVERSOLD_LINE_COLOR, 0),
+    visible: sanitized.thresholdGlow,
   })
   return {
     pane,
@@ -315,12 +325,14 @@ export function applyRsiPaneSettings(
     title: String(sanitized.oversold),
   })
   // Move each native baseline immediately; no candle refetch and no history
-  // re-send are needed for the new thresholds to take effect.
+  // re-send are needed for the new thresholds or the glow toggle to take effect.
   bundle.overboughtFillSeries.applyOptions({
     baseValue: { type: 'price', price: sanitized.overbought },
+    visible: sanitized.thresholdGlow,
   })
   bundle.oversoldFillSeries.applyOptions({
     baseValue: { type: 'price', price: sanitized.oversold },
+    visible: sanitized.thresholdGlow,
   })
 }
 

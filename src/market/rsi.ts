@@ -25,6 +25,9 @@ export const DEFAULT_RSI_OVERSOLD = 30
 /** Neutral mid line drawn between the overbought/oversold levels. */
 export const RSI_MID_LEVEL = 50
 
+/** The soft threshold fill is on unless the user turns it off. */
+export const DEFAULT_RSI_THRESHOLD_GLOW = true
+
 export type RsiPoint = {
   time: number
   value: number
@@ -34,6 +37,8 @@ export type RsiSettings = {
   period: number
   overbought: number
   oversold: number
+  /** Soft fill between the RSI line and each threshold while outside it. */
+  thresholdGlow: boolean
 }
 
 export function createDefaultRsiSettings(): RsiSettings {
@@ -41,6 +46,7 @@ export function createDefaultRsiSettings(): RsiSettings {
     period: DEFAULT_RSI_PERIOD,
     overbought: DEFAULT_RSI_OVERBOUGHT,
     oversold: DEFAULT_RSI_OVERSOLD,
+    thresholdGlow: DEFAULT_RSI_THRESHOLD_GLOW,
   }
 }
 
@@ -63,7 +69,9 @@ function sanitizeRsiLevel(value: unknown, fallback: number): number {
 
 /**
  * Sanitize persisted settings. An invalid pair (overbought <= oversold) falls
- * back to the default 70/30 pair instead of rendering inverted bands.
+ * back to the default 70/30 pair instead of rendering inverted bands. The glow
+ * only turns off on an explicit `false`, so missing/legacy/invalid values keep
+ * the default-on behavior.
  */
 export function sanitizeRsiSettings(value: unknown): RsiSettings {
   const record =
@@ -75,7 +83,8 @@ export function sanitizeRsiSettings(value: unknown): RsiSettings {
     overbought = DEFAULT_RSI_OVERBOUGHT
     oversold = DEFAULT_RSI_OVERSOLD
   }
-  return { period, overbought, oversold }
+  const thresholdGlow = record.thresholdGlow !== false
+  return { period, overbought, oversold, thresholdGlow }
 }
 
 function rsiValueFromAverages(averageGain: number, averageLoss: number): number {

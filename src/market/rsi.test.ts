@@ -6,6 +6,7 @@ import {
   DEFAULT_RSI_OVERBOUGHT,
   DEFAULT_RSI_OVERSOLD,
   DEFAULT_RSI_PERIOD,
+  DEFAULT_RSI_THRESHOLD_GLOW,
   RSI_LEVEL_MAX,
   RSI_LEVEL_MIN,
   RSI_PERIOD_MAX,
@@ -121,11 +122,27 @@ describe('sanitizeRsiSettings', () => {
   })
 
   it('keeps valid custom settings', () => {
-    assert.deepEqual(sanitizeRsiSettings({ period: 21, overbought: 80, oversold: 20 }), {
-      period: 21,
-      overbought: 80,
-      oversold: 20,
-    })
+    assert.deepEqual(
+      sanitizeRsiSettings({ period: 21, overbought: 80, oversold: 20, thresholdGlow: false }),
+      {
+        period: 21,
+        overbought: 80,
+        oversold: 20,
+        thresholdGlow: false,
+      },
+    )
+  })
+
+  it('keeps the threshold glow on unless it is explicitly false', () => {
+    assert.equal(DEFAULT_RSI_THRESHOLD_GLOW, true)
+    assert.equal(createDefaultRsiSettings().thresholdGlow, true)
+    for (const legacy of [undefined, null, 'false', 0, {}, true]) {
+      assert.equal(
+        sanitizeRsiSettings({ period: 21, overbought: 80, oversold: 20, thresholdGlow: legacy })
+          .thresholdGlow,
+        true,
+      )
+    }
   })
 
   it('clamps levels into 0-100 and rounds them', () => {
@@ -133,11 +150,13 @@ describe('sanitizeRsiSettings', () => {
       period: 14,
       overbought: RSI_LEVEL_MAX,
       oversold: RSI_LEVEL_MIN,
+      thresholdGlow: true,
     })
     assert.deepEqual(sanitizeRsiSettings({ period: 14, overbought: 72.6, oversold: 30.2 }), {
       period: 14,
       overbought: 73,
       oversold: 30,
+      thresholdGlow: true,
     })
   })
 
@@ -146,11 +165,13 @@ describe('sanitizeRsiSettings', () => {
       period: 14,
       overbought: DEFAULT_RSI_OVERBOUGHT,
       oversold: DEFAULT_RSI_OVERSOLD,
+      thresholdGlow: true,
     })
     assert.deepEqual(sanitizeRsiSettings({ period: 14, overbought: 50, oversold: 50 }), {
       period: 14,
       overbought: DEFAULT_RSI_OVERBOUGHT,
       oversold: DEFAULT_RSI_OVERSOLD,
+      thresholdGlow: true,
     })
   })
 })
