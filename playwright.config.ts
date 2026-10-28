@@ -9,14 +9,16 @@ import { defineConfig, devices } from '@playwright/test'
  * (Radix popover/dialog dismissal and the band-style draft round-trip).
  *
  * The app is served by the normal Vite dev server (no backend needed: the specs
- * never depend on market data, and `/api/**` is stubbed per spec). One chromium
- * project and a fixed viewport keep the geometry deterministic, which matters
- * because the specs assert that an overlay press lands outside the dialog panel.
+ * open the Rolling VWAP dialog from the widget header and never depend on
+ * backend data, and no `page.route` mocking is used). One chromium project and
+ * a fixed viewport keep the geometry deterministic, which matters because the
+ * specs assert that an overlay press lands outside the dialog panel.
  *
- * `OXDECK_E2E_PORT` exists so a second checkout can run the suite while another
- * dev server already holds the default port (the dev server uses `strictPort`).
+ * The default port is a dedicated e2e port, overridable via `OXDECK_E2E_PORT`
+ * for another checkout. `reuseExistingServer` stays off so a stale dev server
+ * is never adopted (the dev server uses `strictPort`).
  */
-const PORT = Number(process.env.OXDECK_E2E_PORT ?? 57341)
+const PORT = Number(process.env.OXDECK_E2E_PORT ?? 57421)
 const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
@@ -45,7 +47,7 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
     stdout: 'ignore',
     stderr: 'pipe',

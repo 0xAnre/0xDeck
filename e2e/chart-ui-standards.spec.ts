@@ -7,7 +7,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
  *   (and keeps the dialog + its unsaved draft), `Esc` closes the popover first,
  *   and a press on the transparent overlay still closes the dialog.
  * - #170 — the per-band solid/dotted style survives `Save`, the
- *   `0xdeck-widget-rolling-vwap-instances` payload and a page reload.
+ *   `0xdeck-widget-rolling-vwap-instances` payload and a page reload, while
+ *   `Cancel` leaves that payload untouched.
  *
  * Both bugs live in Radix layer stacking (popover over a non-modal dialog) and
  * in localStorage round-tripping, so no `node:test` module can reach them; only
@@ -74,6 +75,46 @@ async function openRollingVwapSettings(page: Page) {
   await expect(settingsDialog(page)).toBeVisible()
 }
 
+/** Persisted band styles for the one seeded instance, or `null` before any save. */
+async function readStoredBandLineStyles(page: Page): Promise<StoredBandStyles | null> {
+  const stored = await page.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey)
+    return raw === null ? null : (JSON.parse(raw) as Record<string, unknown>)
+  }, ROLLING_VWAP_STORAGE_KEY)
+
+  if (stored === null) return null
+  const instances = Object.values(stored).flatMap((value) =>
+    Array.isArray(value) ? value : [],
+  ) as {
+    settings?: { bandLineStyles?: StoredBandStyles }
+  }[]
+  expect(instances).toHaveLength(1)
+  return instances[0]?.settings?.bandLineStyles ?? null
+}
+
+/** Opens one band's color popover, picks a line style and closes the popover. */
+async function selectBandLineStyle(page: Page, band: 1 | 2 | 3, name: 'Line' | 'Dot') {
+  await page.locator(`#rolling-vwap-band${band}-color`).click()
+  await expect(colorPopover(page)).toBeVisible()
+  const toggle = colorPopover(page).getByRole('radio', { name })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await page.keyboard.press('Escape')
+  await expect(colorPopover(page)).toHaveCount(0)
+}
+
+/** Asserts a band's popover currently shows the expected saved style. */
+async function expectBandLineStyle(page: Page, band: 1 | 2 | 3, name: 'Line' | 'Dot') {
+  await page.locator(`#rolling-vwap-band${band}-color`).click()
+  await expect(colorPopover(page)).toBeVisible()
+  await expect(colorPopover(page).getByRole('radio', { name })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await page.keyboard.press('Escape')
+  await expect(colorPopover(page)).toHaveCount(0)
+}
+
 test.describe('chart settings color picker', () => {
   test('#169 dismisses the popover inside the dialog and keeps the dialog draft', async ({
     page,
@@ -126,36 +167,18 @@ test.describe('chart settings color picker', () => {
     await openRollingVwapSettings(page)
     const dialog = settingsDialog(page)
 
-    // Band 1 → Dot; band 2 keeps its default Line.
-    await page.locator('#rolling-vwap-band1-color').click()
-    await expect(colorPopover(page)).toBeVisible()
-    await colorPopover(page).getByRole('radio', { name: 'Dot' }).click()
-    await expect(colorPopover(page).getByRole('radio', { name: 'Dot' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
-    await page.keyboard.press('Escape')
-    await expect(colorPopover(page)).toHaveCount(0)
+    // Issue scenario: band 1 Dot, band 2 Line, band 3 Dot.
+    await selectBandLineStyle(page, 1, 'Dot')
+    await expectBandLineStyle(page, 2, 'Line')
+    await selectBandLineStyle(page, 3, 'Dot')
 
     await dialog.getByRole('button', { name: 'Save' }).click()
     await expect(dialog).toHaveCount(0)
 
-    const stored = await page.evaluate((storageKey) => {
-      const raw = window.localStorage.getItem(storageKey)
-      return raw === null ? null : (JSON.parse(raw) as Record<string, unknown>)
-    }, ROLLING_VWAP_STORAGE_KEY)
-
-    expect(stored).not.toBeNull()
-    const instances = Object.values(stored ?? {}).flatMap((value) =>
-      Array.isArray(value) ? value : [],
-    ) as {
-      settings?: { bandLineStyles?: StoredBandStyles }
-    }[]
-    expect(instances).toHaveLength(1)
-    expect(instances[0]?.settings?.bandLineStyles).toEqual({
+    expect(await readStoredBandLineStyles(page)).toEqual({
       band1: 'dotted',
       band2: 'solid',
-      band3: 'solid',
+      band3: 'dotted',
     })
 
     // Reload from localStorage and reopen the same instance's settings.
@@ -163,18 +186,19 @@ test.describe('chart settings color picker', () => {
     await expect(indicatorsTrigger(page)).toBeVisible()
     await openRollingVwapSettings(page)
 
-    await page.locator('#rolling-vwap-band1-color').click()
-    await expect(colorPopover(page).getByRole('radio', { name: 'Dot' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
-    await page.keyboard.press('Escape')
-    await expect(colorPopover(page)).toHaveCount(0)
+    await expectBandLineStyle(page, 1, 'Dot')
+    await expectBandLineStyle(page, 2, 'Line')
+    await expectBandLineStyle(page, 3, 'Dot')
 
-    await page.locator('#rolling-vwap-band2-color').click()
-    await expect(colorPopover(page).getByRole('radio', { name: 'Line' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
+    // Cancel discards a draft edit without writing the saved payload.
+    await selectBandLineStyle(page, 2, 'Dot')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toHaveCount(0)
+
+    expect(await readStoredBandLineStyles(page)).toEqual({
+      band1: 'dotted',
+      band2: 'solid',
+      band3: 'dotted',
+    })
   })
 })
