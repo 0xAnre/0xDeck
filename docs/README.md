@@ -9,7 +9,7 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [../README.md](../README.md) | Product overview, quick start, custom widget path |
 | [WIDGET-STANDARD.md](./WIDGET-STANDARD.md) | Normative widget rules (registry, data, states, DoD) |
 | [WIDGET-GUIDE.md](./WIDGET-GUIDE.md) | How-to: add widgets, wire Parquet data |
-| [CHART-OBJECT-STANDARD.md](./CHART-OBJECT-STANDARD.md) | Normative chart tool / indicator UI/UX rules |
+| [CHART-OBJECT-STANDARD.md](./CHART-OBJECT-STANDARD.md) | Normative chart tool / indicator rules: capability matrix, color picker, mouse, settings, persistence, feature parity |
 | [../templates/widget/README.md](../templates/widget/README.md) | Copy-paste starter panel + registry snippet |
 | [THEME-GUIDE.md](./THEME-GUIDE.md) | Color themes, shadcn tokens, shell rules |
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |
@@ -63,7 +63,7 @@ Runtime adapters configure how a particular agent tool loads these rules; the sh
 | Reports | Preview tab | Export mock; saved queries planned |
 | Notes | localStorage | Markdown edit + preview |
 | Market Times | — | Exchange sessions, open/close countdown |
-| BTC Perp | REST klines + WebSocket relay (Binance USD-M / Hyperliquid) | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line tools |
+| BTC Perp | REST klines + WebSocket relay (Binance USD-M / Hyperliquid) | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line / anchored VWAP tools |
 
 ## Data layout
 
