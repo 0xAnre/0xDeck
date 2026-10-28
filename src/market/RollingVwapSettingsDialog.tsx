@@ -326,7 +326,6 @@ export function RollingVwapSettingsDialog({
       <DialogContent
         className={CHART_SETTINGS_DIALOG_CONTENT_CLASS}
         overlayClassName={CHART_SETTINGS_DIALOG_OVERLAY_CLASS}
-        onClick={(event) => event.stopPropagation()}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           document.getElementById(returnFocusId)?.focus()
