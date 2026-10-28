@@ -37,27 +37,31 @@ export function bootstrapRollingVwapPanelState(panelId: string): RollingVwapPane
     legacyPresentation,
   })
 
+  const instances = sanitizeRollingVwapInstances(
+    migration.migrationNeeded ? migration.instances : loadedInstances,
+  )
+  const nextActiveIndicators = migration.migrationNeeded
+    ? migration.activeIndicators
+    : [...activeIndicators]
+
+  if (migration.migrationNeeded) {
+    // Persist the migrated instance (and the indicator list) before touching the
+    // legacy presentation: if either write throws, the legacy entry still holds
+    // the four center-line settings and no half-migrated state is left behind.
+    saveWidgetRollingVwapInstances(panelId, instances)
+    saveWidgetMarketIndicators(panelId, nextActiveIndicators)
+  }
+
   // Instances own Rolling VWAP presentation. The legacy global entry was folded
   // into the migrated instance (or is inert when instances already exist), so it
-  // is cleared once here and never rendered again.
+  // is cleared only after persistence succeeded and never rendered again.
   if (Object.keys(legacyPresentation).length > 0) {
     saveWidgetMarketIndicatorPresentation(panelId, 'rolling-vwap', {})
   }
 
-  if (migration.migrationNeeded) {
-    const instances = sanitizeRollingVwapInstances(migration.instances)
-    saveWidgetRollingVwapInstances(panelId, instances)
-    saveWidgetMarketIndicators(panelId, migration.activeIndicators)
-    return {
-      instances,
-      activeIndicators: migration.activeIndicators,
-      migrationApplied: true,
-    }
-  }
-
   return {
-    instances: sanitizeRollingVwapInstances(loadedInstances),
-    activeIndicators: [...activeIndicators],
-    migrationApplied: false,
+    instances,
+    activeIndicators: nextActiveIndicators,
+    migrationApplied: migration.migrationNeeded,
   }
 }

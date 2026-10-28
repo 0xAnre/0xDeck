@@ -12,6 +12,7 @@ import {
 import { WIDGET_MARKET_INDICATORS_STORAGE_KEY } from '../marketIndicatorStorage.ts'
 import { WIDGET_ROLLING_VWAP_SETTINGS_STORAGE_KEY } from '../rollingVwapSettingsStorage.ts'
 import {
+  hasWidgetRollingVwapInstancesEntry,
   loadWidgetRollingVwapInstances,
   WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY,
 } from '../rollingVwapInstancesStorage.ts'
@@ -146,5 +147,50 @@ describe('panel bootstrap legacy presentation migration', () => {
     assert.equal(boot.migrationApplied, false)
     assert.equal(boot.instances[0].settings.lineColor, '#00ff00')
     assert.deepEqual(loadWidgetMarketIndicatorPresentation(panelId, 'rolling-vwap'), {})
+  })
+
+  it('keeps the legacy presentation when instance persistence fails', () => {
+    const panelId = 'panel-c'
+    const legacy = createDefaultRollingVwapSettings()
+    legacy.minBars = 19
+    memory.set(WIDGET_ROLLING_VWAP_SETTINGS_STORAGE_KEY, JSON.stringify({ [panelId]: legacy }))
+    memory.set(
+      WIDGET_MARKET_INDICATORS_STORAGE_KEY,
+      JSON.stringify({ [panelId]: ['rolling-vwap', 'daily-vwap'] }),
+    )
+    const legacyPresentation = {
+      color: '#112233',
+      opacity: 40,
+      lineWidth: 3 as const,
+      lineStyle: 'dotted' as const,
+    }
+    saveWidgetMarketIndicatorPresentation(panelId, 'rolling-vwap', legacyPresentation)
+    saveWidgetMarketIndicatorPresentation(panelId, 'triple-ema', { color: '#abcdef' })
+
+    const originalSetItem = globalThis.localStorage.setItem
+    globalThis.localStorage.setItem = (key: string, value: string) => {
+      if (key === WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY) {
+        throw new Error('QuotaExceededError: instances write blocked')
+      }
+      originalSetItem.call(globalThis.localStorage, key, value)
+    }
+
+    try {
+      assert.throws(() => bootstrapRollingVwapPanelState(panelId), /QuotaExceededError/)
+    } finally {
+      globalThis.localStorage.setItem = originalSetItem
+    }
+
+    // The legacy presentation still holds the only copy of the four center-line
+    // settings, and no partial/corrupt instance entry was written.
+    assert.deepEqual(
+      loadWidgetMarketIndicatorPresentation(panelId, 'rolling-vwap'),
+      legacyPresentation,
+    )
+    assert.deepEqual(loadWidgetMarketIndicatorPresentation(panelId, 'triple-ema'), {
+      color: '#abcdef',
+    })
+    assert.equal(hasWidgetRollingVwapInstancesEntry(panelId), false)
+    assert.equal(memory.get(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY), undefined)
   })
 })
