@@ -89,6 +89,20 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 10. **shadcn first** — before building UI, check if shadcn has the component; compose thin wrappers only
 11. **Chart tools & indicators** — follow [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDARD.md) for chart tools, indicators and their settings (shared color/opacity, width and interaction modules; no parallel pickers or pointer paths)
 
+## Chart objects (indicators & tools)
+
+The normative rules are [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDARD.md) — capability matrix by object type, shared color picker, mouse contract, settings dialog, persistence, feature parity. This list is the checklist, not a second standard.
+
+1. **Read the standard first** — before adding or changing a chart indicator, tool, chart-object setting or chart-object interaction.
+2. **Check feature parity** — compare with existing objects of the same category before adding a control; a missing capability the matrix requires is a conformance gap, not an exception.
+3. **Reuse shared UI** — `ColorOpacityField` + `colorPickerPalette`, `LineChartStrokeSelectFields`, the shadcn `Dialog` with `chartSettingsDialogLayout` constants. No parallel picker, width control or modal shell.
+4. **No inconsistent styling controls or mouse interactions** — one behavior per action (single click, double click, outside click, `Esc`) across tools, panes and indicators.
+5. **Verify render + reload** — every exposed setting MUST change the chart and survive a reload; no persisted-but-unrendered or rendered-but-unpersisted setting.
+6. **Update the documentation in the same PR** — capability matrix, reference table, persistence keys and known gaps when chart capabilities change.
+7. **Reviewer gate** — the Reviewer MUST verify standard compliance (matrix, shared components, interaction and persistence contracts) before approving a chart tool/indicator PR, and MUST NOT accept an undocumented capability gap.
+
+Existing deviations are recorded in [Known conformance gaps](docs/CHART-OBJECT-STANDARD.md#known-conformance-gaps); do not cite them as precedent.
+
 ## shadcn-first workflow
 
 Before any new UI work:
