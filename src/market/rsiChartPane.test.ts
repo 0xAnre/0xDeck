@@ -591,7 +591,7 @@ describe('RSI pane data', () => {
 
 describe('RSI native threshold fill', () => {
   it('keeps the single fixed fill opacity constant', () => {
-    assert.equal(RSI_THRESHOLD_FILL_OPACITY_PERCENT, 13)
+    assert.equal(RSI_THRESHOLD_FILL_OPACITY_PERCENT, 25)
   })
 
   it('feeds both native fill series the same history, live point and clear as the line', () => {

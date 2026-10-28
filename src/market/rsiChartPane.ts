@@ -29,11 +29,11 @@ import {
 import type { MarketCandle } from './types.ts'
 
 /**
- * Fixed, quiet opacity for the threshold fill: a ~13 % wash behind the RSI
- * line while it is outside a threshold. The colors are the semantic threshold
- * colors, identical in every theme; only the on/off state is user-configurable.
+ * Fixed opacity for the threshold fill: a 25 % wash behind the RSI line while
+ * it is outside a threshold. The colors are the semantic threshold colors,
+ * identical in every theme; only the on/off state is user-configurable.
  */
-export const RSI_THRESHOLD_FILL_OPACITY_PERCENT = 13
+export const RSI_THRESHOLD_FILL_OPACITY_PERCENT = 25
 
 /**
  * RSI lives in its own native Lightweight Charts pane below the candles. The
