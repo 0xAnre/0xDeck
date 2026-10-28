@@ -101,7 +101,7 @@ The normative rules are [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDA
 6. **Update the documentation in the same PR** — capability matrix, reference table, persistence keys and known gaps when chart capabilities change.
 7. **Reviewer gate** — the Reviewer MUST verify standard compliance (matrix, shared components, interaction and persistence contracts) before approving a chart tool/indicator PR, and MUST NOT accept an undocumented capability gap.
 
-Existing deviations are recorded in [Known conformance gaps](docs/CHART-OBJECT-STANDARD.md#known-conformance-gaps); do not cite them as precedent.
+Deviations are recorded in [Known conformance gaps](docs/CHART-OBJECT-STANDARD.md#known-conformance-gaps), a table expected to be empty once the standard is met; a resolved or removed gap must never be cited as precedent.
 
 ## shadcn-first workflow
 
