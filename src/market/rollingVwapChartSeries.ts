@@ -18,6 +18,7 @@ import {
   DEFAULT_ROLLING_VWAP_LINE_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  resolveRollingVwapBandFillStyle,
   rollingVwapCenterLineRgbaColor,
   type RollingVwapBandColors,
   type RollingVwapBandLineStyles,
@@ -30,6 +31,11 @@ import { lineChartStrokeStyleToChartLineStyle } from './lineChartStroke.ts'
 import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import type { CandleInterval, MarketCandle } from './types.ts'
 import { resolveCandlePaneIndex } from './candlePane.ts'
+import {
+  attachSessionVwapBandSeriesPrimitive,
+  type SessionVwapBandSeriesAttachment,
+} from './sessionVwapBandSeriesPrimitive.ts'
+import type { SessionVwapBandPoint } from './sessionVwapBandRenderGeometry.ts'
 
 /** Same gray as anchored Daily/Weekly VWAP center lines. */
 export const ROLLING_VWAP_LINE_COLOR = DEFAULT_ROLLING_VWAP_LINE_COLOR
@@ -95,10 +101,17 @@ export type RollingVwapLinePoint =
   | { time: UTCTimestamp; value: number }
   | { time: UTCTimestamp }
 
+/** One attached band-pair fill per deviation band (band 1–3). */
+export type RollingVwapBandFillAttachments = Record<
+  RollingVwapBandFillKey,
+  SessionVwapBandSeriesAttachment
+>
+
 export type RollingVwapChartSeriesBundle = {
   center: ISeriesApi<'Line'>
   bands: Record<RollingVwapBandSeriesKey, ISeriesApi<'Line'>>
   ordered: ISeriesApi<'Line'>[]
+  bandFills?: RollingVwapBandFillAttachments
 }
 
 const BAND_COLOR_KEYS: Record<RollingVwapBandSeriesKey, keyof RollingVwapBandColors> = {
@@ -110,11 +123,64 @@ const BAND_COLOR_KEYS: Record<RollingVwapBandSeriesKey, keyof RollingVwapBandCol
   lower3: 'band3',
 }
 
-/** Band colors, their independent opacities and their independent line styles. */
+export const ROLLING_VWAP_BAND_FILL_KEYS = ['band1', 'band2', 'band3'] as const
+
+export type RollingVwapBandFillKey = (typeof ROLLING_VWAP_BAND_FILL_KEYS)[number]
+
+/** Band colors, their independent opacities and line styles, plus the shared fill. */
 export type RollingVwapBandStyle = {
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
   bandLineStyles: RollingVwapBandLineStyles
+  fillColor: string
+  fillOpacity: number
+}
+
+const BAND_FILL_POINT_KEYS: Record<
+  RollingVwapBandFillKey,
+  { upper: RollingVwapBandSeriesKey; lower: RollingVwapBandSeriesKey }
+> = {
+  band1: { upper: 'upper1', lower: 'lower1' },
+  band2: { upper: 'upper2', lower: 'lower2' },
+  band3: { upper: 'upper3', lower: 'lower3' },
+}
+
+/**
+ * Projects one band pair onto the shared session-VWAP fill geometry shape so
+ * the same primitive/geometry renders the Rolling VWAP band fills.
+ */
+export function rollingVwapBandFillPoints(
+  points: readonly RollingVwapPoint[],
+  bandKey: RollingVwapBandFillKey,
+): SessionVwapBandPoint[] {
+  const keys = BAND_FILL_POINT_KEYS[bandKey]
+  return points.map((point) => ({
+    time: point.time,
+    upper1: point[keys.upper],
+    lower1: point[keys.lower],
+  }))
+}
+
+function syncRollingVwapBandFillData(
+  bundle: RollingVwapChartSeriesBundle,
+  points: readonly RollingVwapPoint[],
+): void {
+  if (!bundle.bandFills) return
+  for (const bandKey of ROLLING_VWAP_BAND_FILL_KEYS) {
+    bundle.bandFills[bandKey].updateBandData(rollingVwapBandFillPoints(points, bandKey))
+  }
+}
+
+/** Applies the instance's one Background color + opacity to all three band fills. */
+export function applyRollingVwapChartBandFillStyle(
+  bundle: RollingVwapChartSeriesBundle,
+  settings: Pick<RollingVwapSettings, 'fillColor' | 'fillOpacity'>,
+): void {
+  if (!bundle.bandFills) return
+  const fillStyle = resolveRollingVwapBandFillStyle(settings)
+  for (const bandKey of ROLLING_VWAP_BAND_FILL_KEYS) {
+    bundle.bandFills[bandKey].setFillStyle(fillStyle)
+  }
 }
 
 /** Band color with its own opacity folded into the CSS color string. */
@@ -210,13 +276,28 @@ export function createRollingVwapChartSeriesBundle(
     ordered.push(series)
   }
 
-  return { center, bands, ordered }
+  const bandFills = {} as RollingVwapBandFillAttachments
+  const fillStyle = resolveRollingVwapBandFillStyle(bandStyle)
+  for (const bandKey of ROLLING_VWAP_BAND_FILL_KEYS) {
+    bandFills[bandKey] = attachSessionVwapBandSeriesPrimitive(center, {
+      points: [],
+      visible: false,
+      fillStyle,
+    })
+  }
+
+  return { center, bands, ordered, bandFills }
 }
 
 export function removeRollingVwapChartSeriesBundle(
   chart: IChartApi,
   bundle: RollingVwapChartSeriesBundle,
 ): void {
+  if (bundle.bandFills) {
+    for (const bandKey of ROLLING_VWAP_BAND_FILL_KEYS) {
+      bundle.bandFills[bandKey].dispose()
+    }
+  }
   for (const series of bundle.ordered) {
     chart.removeSeries(series)
   }
@@ -252,6 +333,7 @@ export function applyRollingVwapChartInstancePresentation(
 ): void {
   applyRollingVwapChartBandColors(bundle, instance.settings)
   applyRollingVwapChartBandLineStyles(bundle, instance.settings)
+  applyRollingVwapChartBandFillStyle(bundle, instance.settings)
   applyRollingVwapChartLineWidth(bundle, instance.settings.lineWidth)
   applyRollingVwapCenterLinePresentation(bundle.center, instance.settings)
   bundle.center.applyOptions({
@@ -276,12 +358,14 @@ export function setRollingVwapChartSeriesData(
   for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
     bundle.bands[key].setData(rollingVwapPointsToLineData(points, key))
   }
+  syncRollingVwapBandFillData(bundle, points)
 }
 
 export function clearRollingVwapChartSeriesData(bundle: RollingVwapChartSeriesBundle): void {
   for (const series of bundle.ordered) {
     series.setData([])
   }
+  syncRollingVwapBandFillData(bundle, [])
 }
 
 export function updateRollingVwapChartSeriesLast(
@@ -354,6 +438,16 @@ export function setRollingVwapInstanceSeriesVisibility(
     lastValueVisible: false,
     title: '',
   })
+
+  bundle.bandFills?.band1.setBandVisible(
+    bandPairVisible(instanceVisible, multipliers.multiplier1),
+  )
+  bundle.bandFills?.band2.setBandVisible(
+    bandPairVisible(instanceVisible, multipliers.multiplier2),
+  )
+  bundle.bandFills?.band3.setBandVisible(
+    bandPairVisible(instanceVisible, multipliers.multiplier3),
+  )
 }
 
 /** @deprecated Use setRollingVwapInstanceSeriesVisibility with instance model (Stage 4B+). */
@@ -385,4 +479,5 @@ export function applyRollingVwapLiveFromCandles(
   const points = computeRollingVwapPointsForSettings(candles, interval, settings)
   if (points.length === 0) return
   updateRollingVwapChartSeriesLast(bundle, points[points.length - 1])
+  syncRollingVwapBandFillData(bundle, points)
 }
