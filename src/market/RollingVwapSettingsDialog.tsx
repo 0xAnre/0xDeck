@@ -202,6 +202,19 @@ function RollingVwapSettingsDialogBody({
 
           <section className="space-y-3">
             <p className="font-medium text-foreground">Deviation bands</p>
+            <ColorOpacityField
+              id="rolling-vwap-fill-color"
+              opacityId="rolling-vwap-fill-opacity"
+              label="Background"
+              color={draft.fillColor}
+              opacityPercent={draft.fillOpacity}
+              onColorChange={(fillColor) =>
+                setDraft((current) => ({ ...current, fillColor }))
+              }
+              onOpacityChange={(fillOpacity) =>
+                setDraft((current) => ({ ...current, fillOpacity }))
+              }
+            />
             {(['Band 1', 'Band 2', 'Band 3'] as const).map((label, index) => {
               const bandKey = `band${index + 1}` as 'band1' | 'band2' | 'band3'
               const multKey = `multiplier${index + 1}` as keyof RollingVwapSettings['multipliers']

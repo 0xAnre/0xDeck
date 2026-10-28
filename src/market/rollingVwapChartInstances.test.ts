@@ -37,6 +37,8 @@ function trackChartBundle() {
       counters.update += 1
     },
     applyOptions: () => {},
+    attachPrimitive: () => {},
+    detachPrimitive: () => {},
   })
 
   const chart = {

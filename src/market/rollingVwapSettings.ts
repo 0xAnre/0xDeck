@@ -66,6 +66,14 @@ export type RollingVwapLineStyle = LineChartStrokeStyle
 
 export const DEFAULT_ROLLING_VWAP_LINE_STYLE: RollingVwapLineStyle = 'solid'
 
+/**
+ * Shared fill color from the palette fill role, with a lower Rolling-VWAP-only
+ * opacity: bands 1–3 are nested, so three 15% fills compound to ~39% in the
+ * innermost region instead of the ~58% a 25% role default would produce.
+ */
+export const DEFAULT_ROLLING_VWAP_FILL_COLOR = MARKET_STYLE_DEFAULTS.fill.color
+export const DEFAULT_ROLLING_VWAP_FILL_OPACITY = 15
+
 /** Shared default style for every deviation band until the user picks another. */
 export const DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE: RollingVwapLineStyle =
   DEFAULT_ROLLING_VWAP_LINE_STYLE
@@ -100,6 +108,10 @@ export type RollingVwapSettings = {
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
   bandLineStyles: RollingVwapBandLineStyles
+  /** Shared band-pair fill color (one color for bands 1–3). */
+  fillColor: string
+  /** Shared band-pair fill opacity (0–100, one value for bands 1–3). */
+  fillOpacity: number
   lineWidth: RollingVwapLineWidth
   lineColor: string
   lineOpacity: number
@@ -169,6 +181,8 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
     bandColors: { ...DEFAULT_BAND_COLORS },
     bandOpacities: { ...DEFAULT_BAND_OPACITIES },
     bandLineStyles: { ...DEFAULT_BAND_LINE_STYLES },
+    fillColor: DEFAULT_ROLLING_VWAP_FILL_COLOR,
+    fillOpacity: DEFAULT_ROLLING_VWAP_FILL_OPACITY,
     lineWidth: DEFAULT_ROLLING_VWAP_LINE_WIDTH,
     lineColor: DEFAULT_ROLLING_VWAP_LINE_COLOR,
     lineOpacity: DEFAULT_ROLLING_VWAP_LINE_OPACITY,
@@ -182,6 +196,25 @@ export const DEFAULT_ROLLING_VWAP_BAND_OPACITIES: RollingVwapBandOpacities = {
 }
 export const DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES: RollingVwapBandLineStyles = {
   ...DEFAULT_BAND_LINE_STYLES,
+}
+
+/**
+ * Rolling VWAP band-pair fill resolution.
+ *
+ * The fill covers all three upper/lower pairs with one color + opacity and is
+ * independent from the per-band line styling. Missing/invalid fields fall back
+ * to the Rolling VWAP fill default so legacy instances load without migration.
+ */
+export function resolveRollingVwapBandFillStyle(
+  settings: Partial<Pick<RollingVwapSettings, 'fillColor' | 'fillOpacity'>>,
+): string {
+  const color = isMarketStyleHexColor(settings.fillColor)
+    ? settings.fillColor
+    : DEFAULT_ROLLING_VWAP_FILL_COLOR
+  const opacityPercent = isMarketStyleOpacityPercent(settings.fillOpacity)
+    ? settings.fillOpacity
+    : DEFAULT_ROLLING_VWAP_FILL_OPACITY
+  return marketStyleColorWithOpacity(color, opacityPercent)
 }
 
 export function computeRollingVwapPointsForSettings(
@@ -208,6 +241,12 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     bandOpacities: sanitizeBandOpacities(record.bandOpacities, defaults.bandOpacities),
     bandLineStyles: sanitizeBandLineStyles(record.bandLineStyles, defaults.bandLineStyles),
+    fillColor: isMarketStyleHexColor(record.fillColor)
+      ? record.fillColor
+      : defaults.fillColor,
+    fillOpacity: isMarketStyleOpacityPercent(record.fillOpacity)
+      ? record.fillOpacity
+      : defaults.fillOpacity,
     lineWidth: isRollingVwapLineWidth(record.lineWidth) ? record.lineWidth : defaults.lineWidth,
     lineColor: isRollingVwapHexColor(record.lineColor) ? record.lineColor : defaults.lineColor,
     lineOpacity: isRollingVwapLineOpacity(record.lineOpacity)

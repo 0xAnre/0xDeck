@@ -6,6 +6,8 @@ import {
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES,
   DEFAULT_ROLLING_VWAP_BAND_OPACITIES,
+  DEFAULT_ROLLING_VWAP_FILL_COLOR,
+  DEFAULT_ROLLING_VWAP_FILL_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_COLOR,
   DEFAULT_ROLLING_VWAP_LINE_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
@@ -13,6 +15,7 @@ import {
   isRollingVwapLineStyle,
   isRollingVwapLineWidth,
   ROLLING_VWAP_LINE_WIDTHS,
+  resolveRollingVwapBandFillStyle,
   rollingVwapCenterLineRgbaColor,
   sanitizeRollingVwapSettings,
 } from './rollingVwapSettings.ts'
@@ -46,6 +49,8 @@ describe('createDefaultRollingVwapSettings', () => {
       band3: 'solid',
     })
     assert.equal(DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE, 'solid')
+    assert.equal(settings.fillColor, DEFAULT_ROLLING_VWAP_FILL_COLOR)
+    assert.equal(settings.fillOpacity, DEFAULT_ROLLING_VWAP_FILL_OPACITY)
     assert.equal(settings.lineWidth, DEFAULT_ROLLING_VWAP_LINE_WIDTH)
     assert.equal(settings.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
     assert.equal(settings.lineOpacity, DEFAULT_ROLLING_VWAP_LINE_OPACITY)
@@ -67,6 +72,8 @@ describe('createDefaultRollingVwapSettings', () => {
     })
     assert.equal(settings.lineColor, MARKET_STYLE_DEFAULTS.primaryLine.color)
     assert.equal(settings.lineOpacity, 100)
+    assert.equal(settings.fillColor, MARKET_STYLE_DEFAULTS.fill.color)
+    assert.equal(settings.fillOpacity, 15)
   })
 
   it('returns independent object instances', () => {
@@ -88,6 +95,48 @@ describe('sanitizeRollingVwapSettings', () => {
     assert.equal(result.minBars, 25)
     assert.equal(result.multipliers.multiplier1, 1.5)
     assert.equal(result.fixedTimePeriod.days, 1)
+  })
+
+  it('loads legacy records without fill fields using the shared fill default', () => {
+    const result = sanitizeRollingVwapSettings({
+      minBars: 12,
+      bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
+    })
+    assert.equal(result.fillColor, DEFAULT_ROLLING_VWAP_FILL_COLOR)
+    assert.equal(result.fillOpacity, DEFAULT_ROLLING_VWAP_FILL_OPACITY)
+  })
+
+  it('persists a valid fill color and opacity', () => {
+    const result = sanitizeRollingVwapSettings({
+      fillColor: '#123456',
+      fillOpacity: 0,
+    })
+    assert.equal(result.fillColor, '#123456')
+    assert.equal(result.fillOpacity, 0)
+    assert.equal(
+      sanitizeRollingVwapSettings({ fillOpacity: 100 }).fillOpacity,
+      100,
+    )
+    assert.equal(
+      sanitizeRollingVwapSettings({ fillOpacity: 37.5 }).fillOpacity,
+      37.5,
+    )
+  })
+
+  it('replaces invalid fill fields individually', () => {
+    const result = sanitizeRollingVwapSettings({
+      fillColor: 'rgba(1, 2, 3, 0.5)',
+      fillOpacity: 101,
+    })
+    assert.equal(result.fillColor, DEFAULT_ROLLING_VWAP_FILL_COLOR)
+    assert.equal(result.fillOpacity, DEFAULT_ROLLING_VWAP_FILL_OPACITY)
+
+    const partial = sanitizeRollingVwapSettings({
+      fillColor: '#abcdef',
+      fillOpacity: -1,
+    })
+    assert.equal(partial.fillColor, '#abcdef')
+    assert.equal(partial.fillOpacity, DEFAULT_ROLLING_VWAP_FILL_OPACITY)
   })
 
   it('replaces invalid fields individually', () => {
@@ -314,6 +363,37 @@ describe('rollingVwapCenterLineRgbaColor', () => {
 
   it('converts hex and opacity to rgba', () => {
     assert.equal(rollingVwapCenterLineRgbaColor('#ff0000', 50), 'rgba(255, 0, 0, 0.5)')
+  })
+})
+
+describe('resolveRollingVwapBandFillStyle', () => {
+  it('resolves the Rolling VWAP fill default for missing fields', () => {
+    assert.equal(
+      resolveRollingVwapBandFillStyle({}),
+      'rgba(163, 163, 163, 0.15)',
+    )
+    assert.equal(
+      resolveRollingVwapBandFillStyle({ fillColor: 'bad', fillOpacity: 250 }),
+      'rgba(163, 163, 163, 0.15)',
+    )
+  })
+
+  it('folds a custom color and opacity into rgba', () => {
+    assert.equal(
+      resolveRollingVwapBandFillStyle({ fillColor: '#123456', fillOpacity: 60 }),
+      'rgba(18, 52, 86, 0.6)',
+    )
+    assert.equal(
+      resolveRollingVwapBandFillStyle({ fillColor: '#ffffff', fillOpacity: 100 }),
+      '#ffffff',
+    )
+  })
+
+  it('resolves 0% to a fully transparent fill', () => {
+    assert.equal(
+      resolveRollingVwapBandFillStyle({ fillColor: '#123456', fillOpacity: 0 }),
+      'rgba(18, 52, 86, 0)',
+    )
   })
 })
 

@@ -92,6 +92,54 @@ async function readStoredBandLineStyles(page: Page): Promise<StoredBandStyles | 
   return instances[0]?.settings?.bandLineStyles ?? null
 }
 
+/** Persisted Background fill for the one seeded instance, or `null` before any save. */
+async function readStoredBackground(
+  page: Page,
+): Promise<{ fillColor?: string; fillOpacity?: number } | null> {
+  const stored = await page.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey)
+    return raw === null ? null : (JSON.parse(raw) as Record<string, unknown>)
+  }, ROLLING_VWAP_STORAGE_KEY)
+
+  if (stored === null) return null
+  const instances = Object.values(stored).flatMap((value) =>
+    Array.isArray(value) ? value : [],
+  ) as {
+    settings?: { fillColor?: string; fillOpacity?: number }
+  }[]
+  expect(instances).toHaveLength(1)
+  const settings = instances[0]?.settings
+  return settings === undefined
+    ? null
+    : { fillColor: settings.fillColor, fillOpacity: settings.fillOpacity }
+}
+
+/** Picks a palette swatch in the Background color popover and closes it. */
+async function selectBackgroundColor(page: Page, name: string) {
+  await page.locator('#rolling-vwap-fill-color').click()
+  await expect(colorPopover(page)).toBeVisible()
+  await colorPopover(page).getByRole('gridcell', { name }).click()
+  await page.keyboard.press('Escape')
+  await expect(colorPopover(page)).toHaveCount(0)
+}
+
+/** Drives the Background opacity slider inside its popover to an exact 0–100 value. */
+async function setBackgroundOpacity(page: Page, percent: number) {
+  if (!(await colorPopover(page).isVisible())) {
+    await page.locator('#rolling-vwap-fill-color').click()
+    await expect(colorPopover(page)).toBeVisible()
+  }
+  const slider = colorPopover(page).locator('#rolling-vwap-fill-opacity')
+  await slider.focus()
+  await slider.press('Home')
+  for (let step = 0; step < percent; step += 1) {
+    await slider.press('ArrowRight')
+  }
+  await expect(slider).toHaveAttribute('aria-valuenow', String(percent))
+  await page.keyboard.press('Escape')
+  await expect(colorPopover(page)).toHaveCount(0)
+}
+
 /** Opens one band's color popover, picks a line style and closes the popover. */
 async function selectBandLineStyle(page: Page, band: 1 | 2 | 3, name: 'Line' | 'Dot') {
   await page.locator(`#rolling-vwap-band${band}-color`).click()
@@ -199,6 +247,55 @@ test.describe('chart settings color picker', () => {
       band1: 'dotted',
       band2: 'solid',
       band3: 'dotted',
+    })
+  })
+
+  test('#189 persists the Rolling VWAP Background color and opacity across save and reload', async ({
+    page,
+  }) => {
+    await openBtcPerpWorkspace(page)
+    await addRollingVwapInstance(page)
+    await openRollingVwapSettings(page)
+    const dialog = settingsDialog(page)
+
+    await selectBackgroundColor(page, 'Blue base')
+    await setBackgroundOpacity(page, 40)
+
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toHaveCount(0)
+
+    expect(await readStoredBackground(page)).toEqual({
+      fillColor: '#2563EB',
+      fillOpacity: 40,
+    })
+
+    // Reload from localStorage and confirm the dialog shows the saved Background.
+    await page.reload()
+    await expect(indicatorsTrigger(page)).toBeVisible()
+    await openRollingVwapSettings(page)
+
+    await page.locator('#rolling-vwap-fill-color').click()
+    await expect(colorPopover(page)).toBeVisible()
+    await expect(colorPopover(page).getByRole('gridcell', { name: 'Blue base' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await expect(colorPopover(page).locator('#rolling-vwap-fill-opacity')).toHaveAttribute(
+      'aria-valuenow',
+      '40',
+    )
+    await page.keyboard.press('Escape')
+    await expect(colorPopover(page)).toHaveCount(0)
+
+    // Cancel discards a draft Background edit without writing the saved payload.
+    await selectBackgroundColor(page, 'Red base')
+    await setBackgroundOpacity(page, 0)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toHaveCount(0)
+
+    expect(await readStoredBackground(page)).toEqual({
+      fillColor: '#2563EB',
+      fillOpacity: 40,
     })
   })
 })

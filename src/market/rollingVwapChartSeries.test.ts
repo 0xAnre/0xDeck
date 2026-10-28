@@ -8,12 +8,16 @@ import {
 } from './rollingVwapSettings.ts'
 import { LineStyle, type IChartApi } from 'lightweight-charts'
 import {
+  ROLLING_VWAP_BAND_FILL_KEYS,
   ROLLING_VWAP_BAND_SERIES_KEYS,
   ROLLING_VWAP_LINE_CHART_OPTIONS,
+  applyRollingVwapChartBandFillStyle,
   applyRollingVwapChartBandLineStyles,
   applyRollingVwapChartInstancePresentation,
   applyRollingVwapLiveFromCandles,
+  clearRollingVwapChartSeriesData,
   createRollingVwapChartSeriesBundle,
+  rollingVwapBandFillPoints,
   rollingVwapPointToLinePoint,
   rollingVwapPointsToLineData,
   setRollingVwapChartSeriesData,
@@ -104,6 +108,8 @@ describe('rollingVwap chart series defaults', () => {
           setData: () => {},
           update: () => {},
           applyOptions: () => {},
+          attachPrimitive: () => {},
+          detachPrimitive: () => {},
         }
       },
     } as IChartApi
@@ -152,6 +158,8 @@ describe('rollingVwap chart series defaults', () => {
           setData: () => {},
           update: () => {},
           applyOptions: () => {},
+          attachPrimitive: () => {},
+          detachPrimitive: () => {},
         }
       },
     } as unknown as IChartApi
@@ -174,6 +182,8 @@ describe('rollingVwap chart series defaults', () => {
           setData: () => {},
           update: () => {},
           applyOptions: () => {},
+          attachPrimitive: () => {},
+          detachPrimitive: () => {},
         }
       },
     } as IChartApi
@@ -200,6 +210,8 @@ describe('rollingVwap chart series defaults', () => {
           setData: () => {},
           update: () => {},
           applyOptions: () => {},
+          attachPrimitive: () => {},
+          detachPrimitive: () => {},
         }
       },
     } as IChartApi
@@ -218,6 +230,8 @@ describe('rollingVwap chart series defaults', () => {
           setData: () => {},
           update: () => {},
           applyOptions: () => {},
+          attachPrimitive: () => {},
+          detachPrimitive: () => {},
         }
       },
     } as IChartApi
@@ -247,6 +261,8 @@ describe('rollingVwap chart series defaults', () => {
           setData: () => {},
           update: () => {},
           applyOptions: () => {},
+          attachPrimitive: () => {},
+          detachPrimitive: () => {},
         }
       },
     } as IChartApi
@@ -618,5 +634,151 @@ describe('rollingVwapPointToLinePoint', () => {
     const point = rollingPoint({ upper2: 42 })
     const line = rollingVwapPointToLinePoint(point, 'upper2')
     assert.equal(line.value, 42)
+  })
+})
+
+
+function makeFillRecorder() {
+  const calls = {
+    points: [] as unknown[],
+    visible: [] as boolean[],
+    fillStyles: [] as string[],
+  }
+  const attachment = {
+    updateBandData: (points: unknown) => calls.points.push(points),
+    setBandVisible: (visible: boolean) => calls.visible.push(visible),
+    setFillStyle: (fillStyle: string) => calls.fillStyles.push(fillStyle),
+    update: () => {},
+    dispose: () => {},
+  }
+  return { attachment, calls }
+}
+
+describe('rolling VWAP band fills', () => {
+  it('projects each band pair onto the shared fill geometry', () => {
+    const points: RollingVwapPoint[] = [
+      rollingPoint({ time: 1, upper1: 11, lower1: 9, upper2: 12, lower2: 8, upper3: 13, lower3: 7 }),
+      rollingPoint({ time: 2, upper1: 21, lower1: 19, upper2: 22, lower2: 18, upper3: 23, lower3: 17 }),
+    ]
+    assert.deepEqual(rollingVwapBandFillPoints(points, 'band1'), [
+      { time: 1, upper1: 11, lower1: 9 },
+      { time: 2, upper1: 21, lower1: 19 },
+    ])
+    assert.deepEqual(rollingVwapBandFillPoints(points, 'band2'), [
+      { time: 1, upper1: 12, lower1: 8 },
+      { time: 2, upper1: 22, lower1: 18 },
+    ])
+    assert.deepEqual(rollingVwapBandFillPoints(points, 'band3'), [
+      { time: 1, upper1: 13, lower1: 7 },
+      { time: 2, upper1: 23, lower1: 17 },
+    ])
+  })
+
+  it('attaches one fill primitive per band pair at creation', () => {
+    const attached: unknown[] = []
+    const makeLine = () => ({
+      setData: () => {},
+      update: () => {},
+      applyOptions: () => {},
+      attachPrimitive: (primitive: unknown) => attached.push(primitive),
+      detachPrimitive: () => {},
+    })
+    const chart = { addSeries: () => makeLine() } as unknown as IChartApi
+    const settings = createDefaultRollingVwapSettings()
+    settings.fillColor = '#123456'
+    settings.fillOpacity = 40
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings)
+    assert.equal(attached.length, ROLLING_VWAP_BAND_FILL_KEYS.length)
+    assert.ok(bundle.bandFills)
+    for (const bandKey of ROLLING_VWAP_BAND_FILL_KEYS) {
+      assert.equal(typeof bundle.bandFills[bandKey].updateBandData, 'function')
+    }
+  })
+
+  it('applies one Background color + opacity to all band fills', () => {
+    const { bundle } = trackBundle()
+    const fills = {
+      band1: makeFillRecorder(),
+      band2: makeFillRecorder(),
+      band3: makeFillRecorder(),
+    }
+    bundle.bandFills = {
+      band1: fills.band1.attachment,
+      band2: fills.band2.attachment,
+      band3: fills.band3.attachment,
+    } as unknown as RollingVwapChartSeriesBundle['bandFills']
+
+    applyRollingVwapChartBandFillStyle(bundle, { fillColor: '#123456', fillOpacity: 40 })
+    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
+      assert.deepEqual(fills[key].calls.fillStyles, ['rgba(18, 52, 86, 0.4)'])
+    }
+
+    applyRollingVwapChartBandFillStyle(bundle, { fillColor: '#123456', fillOpacity: 0 })
+    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
+      assert.equal(fills[key].calls.fillStyles.at(-1), 'rgba(18, 52, 86, 0)')
+    }
+  })
+
+  it('shows each fill only while its band pair is visible', () => {
+    const { bundle } = trackBundle()
+    const fills = {
+      band1: makeFillRecorder(),
+      band2: makeFillRecorder(),
+      band3: makeFillRecorder(),
+    }
+    bundle.bandFills = {
+      band1: fills.band1.attachment,
+      band2: fills.band2.attachment,
+      band3: fills.band3.attachment,
+    } as unknown as RollingVwapChartSeriesBundle['bandFills']
+
+    const settings = createDefaultRollingVwapSettings()
+    settings.multipliers = { multiplier1: 1, multiplier2: 0, multiplier3: 2 }
+    const instance = createRollingVwapInstance({ id: 'fills', settings, randomId: () => 'fills' })
+    setRollingVwapInstanceSeriesVisibility(bundle, instance, '1m')
+    assert.deepEqual(fills.band1.calls.visible, [true])
+    assert.deepEqual(fills.band2.calls.visible, [false])
+    assert.deepEqual(fills.band3.calls.visible, [true])
+
+    setRollingVwapInstanceSeriesVisibility(bundle, { ...instance, enabled: false }, '1m')
+    assert.deepEqual(fills.band1.calls.visible, [true, false])
+    assert.deepEqual(fills.band3.calls.visible, [true, false])
+  })
+
+  it('keeps fill geometry in sync with history, live ticks and clearing', () => {
+    const { bundle } = trackBundle()
+    const fills = {
+      band1: makeFillRecorder(),
+      band2: makeFillRecorder(),
+      band3: makeFillRecorder(),
+    }
+    bundle.bandFills = {
+      band1: fills.band1.attachment,
+      band2: fills.band2.attachment,
+      band3: fills.band3.attachment,
+    } as unknown as RollingVwapChartSeriesBundle['bandFills']
+    const settings = createDefaultRollingVwapSettings()
+    settings.minBars = 1
+    const point = rollingPoint({ time: 1 })
+
+    setRollingVwapChartSeriesData(bundle, [point])
+    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
+      assert.deepEqual(fills[key].calls.points.at(-1), rollingVwapBandFillPoints([point], key))
+    }
+
+    applyRollingVwapLiveFromCandles(
+      [candle({ time: 1, close: 10, volume: 1 })],
+      bundle,
+      '1m',
+      settings,
+    )
+    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
+      assert.equal(fills[key].calls.points.length, 2)
+    }
+
+    clearRollingVwapChartSeriesData(bundle)
+    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
+      assert.deepEqual(fills[key].calls.points.at(-1), [])
+    }
   })
 })

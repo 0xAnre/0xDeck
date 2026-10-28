@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import { createRollingVwapInstance } from './rollingVwapInstances.ts'
-import { createDefaultRollingVwapSettings } from './rollingVwapSettings.ts'
+import {
+  createDefaultRollingVwapSettings,
+  DEFAULT_ROLLING_VWAP_FILL_COLOR,
+  DEFAULT_ROLLING_VWAP_FILL_OPACITY,
+} from './rollingVwapSettings.ts'
 import {
   hasWidgetRollingVwapInstancesEntry,
   loadWidgetRollingVwapInstances,
@@ -79,6 +83,39 @@ describe('rollingVwapInstancesStorage', () => {
     const loaded = loadWidgetRollingVwapInstances('panel-a')
     assert.equal(loaded.length, 1)
     assert.equal(loaded[0].id, 'ok')
+  })
+
+  it('round-trips the per-instance Background color and opacity', () => {
+    const instance = createRollingVwapInstance({ id: 'fill', randomId: () => 'fill' })
+    instance.settings.fillColor = '#123456'
+    instance.settings.fillOpacity = 40
+    saveWidgetRollingVwapInstances('panel-a', [instance])
+
+    const raw = memory.get(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY) ?? ''
+    assert.match(raw, /"fillColor":"#123456"/)
+    assert.match(raw, /"fillOpacity":40/)
+
+    const loaded = loadWidgetRollingVwapInstances('panel-a')
+    assert.equal(loaded[0].settings.fillColor, '#123456')
+    assert.equal(loaded[0].settings.fillOpacity, 40)
+  })
+
+  it('loads legacy records without fill fields using the default without rewriting storage', () => {
+    const legacySettings: Record<string, unknown> = { ...createDefaultRollingVwapSettings() }
+    delete legacySettings.fillColor
+    delete legacySettings.fillOpacity
+    const raw = JSON.stringify({
+      'panel-a': [
+        { id: 'legacy', enabled: true, settings: legacySettings, displaySequence: 1 },
+      ],
+    })
+    memory.set(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY, raw)
+
+    const loaded = loadWidgetRollingVwapInstances('panel-a')
+    assert.equal(loaded.length, 1)
+    assert.equal(loaded[0].settings.fillColor, DEFAULT_ROLLING_VWAP_FILL_COLOR)
+    assert.equal(loaded[0].settings.fillOpacity, DEFAULT_ROLLING_VWAP_FILL_OPACITY)
+    assert.equal(memory.get(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY), raw)
   })
 
   it('does not let mutating a loaded list affect the next load', () => {
