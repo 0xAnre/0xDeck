@@ -151,11 +151,9 @@ export function applyMarketIndicatorPresentationToBundle(
       applyPresentationToOrderedLineSeries(bundle.yearlyVwap.ordered, presentation)
       return
     case 'rolling-vwap':
-      for (const chartBundle of bundle.rollingVwaps.values()) {
-        chartBundle.center.applyOptions(
-          presentationOptionsForSeries(chartBundle.center, presentation),
-        )
-      }
+      // Rolling VWAP presentation is owned by per-instance settings
+      // (`0xdeck-widget-rolling-vwap-instances`). The legacy global entry is
+      // migrated into those settings and must never influence rendering.
       return
     case 'rsi':
       if (bundle.rsi) {
@@ -179,6 +177,9 @@ export function syncWidgetMarketIndicatorPresentations(
   bundle: ChartSeriesBundle,
 ): void {
   for (const indicatorId of MARKET_INDICATOR_IDS) {
+    // Skip Rolling VWAP: instances own its presentation, so a stale legacy entry
+    // must not override the per-instance settings applied by the chart panel.
+    if (indicatorId === 'rolling-vwap') continue
     const presentation = loadWidgetMarketIndicatorPresentation(panelId, indicatorId)
     applyMarketIndicatorPresentationToBundle(bundle, indicatorId, presentation)
   }

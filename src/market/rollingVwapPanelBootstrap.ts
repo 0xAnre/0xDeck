@@ -6,6 +6,10 @@ import {
 } from './rollingVwapInstances.ts'
 import { loadWidgetRollingVwapSettings } from '../rollingVwapSettingsStorage.ts'
 import {
+  loadWidgetMarketIndicatorPresentation,
+  saveWidgetMarketIndicatorPresentation,
+} from '../marketIndicatorPresentationStorage.ts'
+import {
   hasWidgetRollingVwapInstancesEntry,
   loadWidgetRollingVwapInstances,
   saveWidgetRollingVwapInstances,
@@ -23,13 +27,22 @@ export function bootstrapRollingVwapPanelState(panelId: string): RollingVwapPane
   const loadedInstances = hasEntry ? loadWidgetRollingVwapInstances(panelId) : []
   const activeIndicators = loadWidgetMarketIndicators(panelId)
   const legacySettings = loadWidgetRollingVwapSettings(panelId)
+  const legacyPresentation = loadWidgetMarketIndicatorPresentation(panelId, 'rolling-vwap')
 
   const migration = migrateLegacyRollingVwapToInstances({
     hasInstancesEntry: hasEntry,
     loadedInstances,
     activeIndicators,
     legacySettings,
+    legacyPresentation,
   })
+
+  // Instances own Rolling VWAP presentation. The legacy global entry was folded
+  // into the migrated instance (or is inert when instances already exist), so it
+  // is cleared once here and never rendered again.
+  if (Object.keys(legacyPresentation).length > 0) {
+    saveWidgetMarketIndicatorPresentation(panelId, 'rolling-vwap', {})
+  }
 
   if (migration.migrationNeeded) {
     const instances = sanitizeRollingVwapInstances(migration.instances)
