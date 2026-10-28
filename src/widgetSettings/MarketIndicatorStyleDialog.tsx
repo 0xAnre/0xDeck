@@ -115,6 +115,19 @@ function RsiRangeFields({
       {numberField('rsi-period', 'Period', 'period', RSI_PERIOD_MIN, RSI_PERIOD_MAX)}
       {numberField('rsi-overbought', 'Overbought level', 'overbought', RSI_LEVEL_MIN, RSI_LEVEL_MAX)}
       {numberField('rsi-oversold', 'Oversold level', 'oversold', RSI_LEVEL_MIN, RSI_LEVEL_MAX)}
+      <Field>
+        <label className="flex items-center gap-2">
+          <input
+            id="rsi-threshold-glow"
+            type="checkbox"
+            checked={settings.thresholdGlow}
+            onChange={(event) =>
+              onChange({ ...settings, thresholdGlow: event.target.checked })
+            }
+          />
+          <span className="text-xs">Threshold Glow</span>
+        </label>
+      </Field>
     </FieldGroup>
   )
 }

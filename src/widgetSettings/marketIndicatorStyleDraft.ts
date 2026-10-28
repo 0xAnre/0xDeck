@@ -83,7 +83,10 @@ export function sanitizeMarketIndicatorStyleDraft(
 function rsiSettingsEqual(a: RsiSettings | null, b: RsiSettings | null): boolean {
   if (a === null || b === null) return a === b
   return (
-    a.period === b.period && a.overbought === b.overbought && a.oversold === b.oversold
+    a.period === b.period &&
+    a.overbought === b.overbought &&
+    a.oversold === b.oversold &&
+    a.thresholdGlow === b.thresholdGlow
   )
 }
 

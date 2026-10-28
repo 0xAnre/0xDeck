@@ -45,28 +45,46 @@ describe('marketRsiSettingsStorage', () => {
   })
 
   it('round-trips settings per widget instance', () => {
-    saveWidgetRsiSettings('panel-a', { period: 21, overbought: 80, oversold: 20 })
-    saveWidgetRsiSettings('panel-b', { period: 7, overbought: 75, oversold: 25 })
+    saveWidgetRsiSettings('panel-a', {
+      period: 21,
+      overbought: 80,
+      oversold: 20,
+      thresholdGlow: false,
+    })
+    saveWidgetRsiSettings('panel-b', {
+      period: 7,
+      overbought: 75,
+      oversold: 25,
+      thresholdGlow: true,
+    })
 
     assert.deepEqual(loadWidgetRsiSettings('panel-a'), {
       period: 21,
       overbought: 80,
       oversold: 20,
+      thresholdGlow: false,
     })
     assert.deepEqual(loadWidgetRsiSettings('panel-b'), {
       period: 7,
       overbought: 75,
       oversold: 25,
+      thresholdGlow: true,
     })
     assert.ok(memory.has(WIDGET_MARKET_RSI_SETTINGS_STORAGE_KEY))
   })
 
   it('sanitizes values on save', () => {
-    saveWidgetRsiSettings('panel-a', { period: 0, overbought: 500, oversold: 80 })
+    saveWidgetRsiSettings('panel-a', {
+      period: 0,
+      overbought: 500,
+      oversold: 80,
+      thresholdGlow: true,
+    })
     assert.deepEqual(loadWidgetRsiSettings('panel-a'), {
       period: 2,
       overbought: 100,
       oversold: 80,
+      thresholdGlow: true,
     })
   })
 
@@ -80,6 +98,8 @@ describe('marketRsiSettingsStorage', () => {
       period: 14,
       overbought: 70,
       oversold: 30,
+      // A legacy record without `thresholdGlow` keeps the glow on.
+      thresholdGlow: true,
     })
   })
 

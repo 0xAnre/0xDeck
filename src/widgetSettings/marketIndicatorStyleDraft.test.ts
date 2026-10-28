@@ -7,7 +7,12 @@ import {
   sanitizeMarketIndicatorStyleDraft,
   type MarketIndicatorStyleDraft,
 } from './marketIndicatorStyleDraft.ts'
-import { DEFAULT_RSI_OVERBOUGHT, DEFAULT_RSI_OVERSOLD, DEFAULT_RSI_PERIOD } from '../market/rsi.ts'
+import {
+  DEFAULT_RSI_OVERBOUGHT,
+  DEFAULT_RSI_OVERSOLD,
+  DEFAULT_RSI_PERIOD,
+  DEFAULT_RSI_THRESHOLD_GLOW,
+} from '../market/rsi.ts'
 
 function baseDraft(
   overrides: Partial<MarketIndicatorStyleDraft> = {},
@@ -36,6 +41,7 @@ function rsiDraft(overrides: Partial<MarketIndicatorStyleDraft> = {}) {
       period: DEFAULT_RSI_PERIOD,
       overbought: DEFAULT_RSI_OVERBOUGHT,
       oversold: DEFAULT_RSI_OVERSOLD,
+      thresholdGlow: DEFAULT_RSI_THRESHOLD_GLOW,
     },
     ...overrides,
   })
@@ -59,7 +65,12 @@ describe('marketIndicatorStyleDraftFromInputs', () => {
       fillOpacityPercent: 25,
       rsiSettings: { period: 0, overbought: 500, oversold: -20 },
     })
-    assert.deepEqual(draft.rsi, { period: 2, overbought: 100, oversold: 0 })
+    assert.deepEqual(draft.rsi, {
+      period: 2,
+      overbought: 100,
+      oversold: 0,
+      thresholdGlow: true,
+    })
   })
 })
 
@@ -132,9 +143,14 @@ describe('marketIndicatorStyleDraftPatch', () => {
     const initial = rsiDraft()
     const patch = marketIndicatorStyleDraftPatch(initial, {
       ...initial,
-      rsi: { period: 21, overbought: 80, oversold: 20 },
+      rsi: { period: 21, overbought: 80, oversold: 20, thresholdGlow: false },
     })
-    assert.deepEqual(patch.rsi, { period: 21, overbought: 80, oversold: 20 })
+    assert.deepEqual(patch.rsi, {
+      period: 21,
+      overbought: 80,
+      oversold: 20,
+      thresholdGlow: false,
+    })
     assert.deepEqual(patch.presentation, {})
   })
 
@@ -145,11 +161,17 @@ describe('marketIndicatorStyleDraftPatch', () => {
     assert.deepEqual(typed.rsi, { period: 500, overbought: 120, oversold: -1 })
     // Only blur/Enter/Save sanitizes, and it rewrites the draft, not storage.
     const sanitized = sanitizeMarketIndicatorStyleDraft(initial, typed)
-    assert.deepEqual(sanitized.rsi, { period: 200, overbought: 100, oversold: 0 })
+    assert.deepEqual(sanitized.rsi, {
+      period: 200,
+      overbought: 100,
+      oversold: 0,
+      thresholdGlow: true,
+    })
     assert.deepEqual(marketIndicatorStyleDraftPatch(initial, sanitized).rsi, {
       period: 200,
       overbought: 100,
       oversold: 0,
+      thresholdGlow: true,
     })
   })
 
@@ -160,7 +182,7 @@ describe('marketIndicatorStyleDraftPatch', () => {
       color: '#000000',
       fillColor: '#000000',
       fillOpacityPercent: 0,
-      rsi: { period: 30, overbought: 75, oversold: 25 },
+      rsi: { period: 30, overbought: 75, oversold: 25, thresholdGlow: true },
     }
     assert.deepEqual(marketIndicatorStyleDraftPatch(initial, initial), {
       presentation: {},

@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { AutoscaleInfoProvider, IChartApi, LineSeriesPartialOptions, PriceLineOptions } from 'lightweight-charts'
+import { BaselineSeries, LineSeries } from 'lightweight-charts'
+import type {
+  AutoscaleInfoProvider,
+  BaselineStyleOptions,
+  IChartApi,
+  LineSeriesPartialOptions,
+  PriceLineOptions,
+} from 'lightweight-charts'
 import {
   applyRsiPaneSettings,
   clearRsiPaneData,
@@ -9,6 +16,7 @@ import {
   moveRsiPaneAbove,
   removeRsiChartPane,
   RSI_PANE_HEIGHT_SHARE,
+  RSI_THRESHOLD_FILL_OPACITY_PERCENT,
   rsiPaneHeightShare,
   setRsiPaneHistoryData,
   sumPaneStretchFactors,
@@ -21,6 +29,7 @@ import {
   RSI_OVERBOUGHT_LINE_COLOR,
   RSI_OVERSOLD_LINE_COLOR,
 } from './rsiLineColors.ts'
+import { marketStyleColorWithOpacity } from './marketStylePalette.ts'
 import type { MarketCandle } from './types.ts'
 
 type FakeLinePoint = { time: number; value: number; color?: string }
@@ -96,7 +105,6 @@ function makeSeries() {
       createdPriceLines.push(priceLine)
       return priceLine
     },
-    options: () => ({ color: '#D4D4D4' }),
     // Native price-scale options (scale margins) are applied to the pane scale;
     // the fake only has to accept them, pane sizing is what these tests assert.
     priceScale: () => ({ applyOptions: () => {} }),
@@ -115,6 +123,13 @@ function makeSeries() {
   }
 }
 
+type CreatedSeries = {
+  definition: unknown
+  options: LineSeriesPartialOptions
+  bundle: ReturnType<typeof makeSeries>
+  label: 'rsi' | 'overboughtFill' | 'oversoldFill' | 'other'
+}
+
 /**
  * Fake chart with pane-level stretch-factor state, mirroring how Lightweight
  * Charts sizes panes (`height = factor / totalStretch * plotHeight`). Pane index
@@ -123,8 +138,7 @@ function makeSeries() {
  */
 function makeChart(initialPaneStretchFactors: readonly number[] = [2]) {
   const calls: string[] = []
-  const seriesBundle = makeSeries()
-  let createdSeriesOptions: LineSeriesPartialOptions = {}
+  const createdSeries: CreatedSeries[] = []
 
   type PaneState = { stretchFactor: number; index: number }
   const paneStates: PaneState[] = initialPaneStretchFactors.map(
@@ -144,15 +158,27 @@ function makeChart(initialPaneStretchFactors: readonly number[] = [2]) {
       calls.push(`moveTo:${target}`)
       state.index = target
     },
-    addSeries: (_definition: unknown, options: LineSeriesPartialOptions) => {
+    addSeries: (definition: unknown, options: LineSeriesPartialOptions) => {
       calls.push('pane.addSeries')
-      createdSeriesOptions = options
-      return seriesBundle.series
+      const bundle = makeSeries()
+      bundle.setPane(pane)
+      const baselineCount = createdSeries.filter(
+        (created) => created.definition === BaselineSeries,
+      ).length
+      const label =
+        definition === LineSeries
+          ? 'rsi'
+          : definition === BaselineSeries
+            ? baselineCount === 0
+              ? 'overboughtFill'
+              : 'oversoldFill'
+            : 'other'
+      createdSeries.push({ definition, options, bundle, label })
+      return bundle.series
     },
   })
 
   const pane = paneApi(rsiState)
-  seriesBundle.setPane(pane)
 
   const chart = {
     addPane: () => {
@@ -161,7 +187,8 @@ function makeChart(initialPaneStretchFactors: readonly number[] = [2]) {
       return pane
     },
     removeSeries: (series: unknown) => {
-      calls.push(series === seriesBundle.series ? 'removeSeries:rsi' : 'removeSeries:other')
+      const created = createdSeries.find((entry) => entry.bundle.series === series)
+      calls.push(`removeSeries:${created?.label ?? 'other'}`)
     },
     removePane: () => {
       calls.push('removePane')
@@ -176,7 +203,14 @@ function makeChart(initialPaneStretchFactors: readonly number[] = [2]) {
     calls,
     pane,
     paneStates,
-    seriesBundle,
+    get seriesBundle() {
+      return createdSeries.find((created) => created.label === 'rsi')!.bundle
+    },
+    baselineSeriesBundles: () =>
+      createdSeries
+        .filter((created) => created.definition === BaselineSeries)
+        .map((created) => created.bundle),
+    createdSeries: () => createdSeries,
     setPaneIndex: (next: number) => {
       rsiState.index = next
     },
@@ -187,11 +221,17 @@ function makeChart(initialPaneStretchFactors: readonly number[] = [2]) {
     },
     stretchFactorCalls: () =>
       calls.filter((call) => call.startsWith('stretchFactor:')),
-    createdSeriesOptions: () => createdSeriesOptions,
+    createdSeriesOptions: () =>
+      createdSeries.find((created) => created.label === 'rsi')?.options ?? {},
   }
 }
 
-const DEFAULTS: RsiSettings = { period: 14, overbought: 70, oversold: 30 }
+const DEFAULTS: RsiSettings = {
+  period: 14,
+  overbought: 70,
+  oversold: 30,
+  thresholdGlow: true,
+}
 
 /** Candle pane baseline seeded by `createChart({ addDefaultPane })`. */
 const CANDLE_BASELINE = 2
@@ -207,13 +247,15 @@ function assertShare(actual: number, expected: number, message?: string): void {
 }
 
 describe('createRsiChartPane', () => {
-  it('creates its own native pane and adds the line series inside it', () => {
+  it('creates its own native pane and adds the line and both fill series inside it', () => {
     const harness = makeChart()
     const bundle = createRsiChartPane(harness.chart, DEFAULTS)
 
     assert.deepEqual(harness.calls, [
       'chart.addPane',
       `stretchFactor:${DEFAULT_STRETCH_FACTOR}`,
+      'pane.addSeries',
+      'pane.addSeries',
       'pane.addSeries',
     ])
     assert.equal(bundle.pane, harness.pane)
@@ -230,9 +272,67 @@ describe('createRsiChartPane', () => {
     })
   })
 
+  it('creates the two native baseline fill series with threshold base values and gradient stops', () => {
+    const harness = makeChart()
+    createRsiChartPane(harness.chart, DEFAULTS)
+
+    const created = harness.createdSeries()
+    assert.deepEqual(
+      created.map((entry) => entry.definition),
+      [LineSeries, BaselineSeries, BaselineSeries],
+    )
+    const overboughtOptions = created[1].options as BaselineStyleOptions
+    const oversoldOptions = created[2].options as BaselineStyleOptions
+
+    const overboughtFill = marketStyleColorWithOpacity(
+      RSI_OVERBOUGHT_LINE_COLOR,
+      RSI_THRESHOLD_FILL_OPACITY_PERCENT,
+    )
+    const overboughtStop = marketStyleColorWithOpacity(RSI_OVERBOUGHT_LINE_COLOR, 0)
+    const oversoldFill = marketStyleColorWithOpacity(
+      RSI_OVERSOLD_LINE_COLOR,
+      RSI_THRESHOLD_FILL_OPACITY_PERCENT,
+    )
+    const oversoldStop = marketStyleColorWithOpacity(RSI_OVERSOLD_LINE_COLOR, 0)
+
+    assert.deepEqual(overboughtOptions.baseValue, { type: 'price', price: 70 })
+    assert.equal(overboughtOptions.relativeGradient, false)
+    // `topFillColor2` sits at `baseValue`, so the opacity belongs there.
+    assert.equal(overboughtOptions.topFillColor1, overboughtStop)
+    assert.equal(overboughtOptions.topFillColor2, overboughtFill)
+    assert.equal(overboughtOptions.bottomFillColor1, overboughtStop)
+    assert.equal(overboughtOptions.bottomFillColor2, overboughtStop)
+
+    assert.deepEqual(oversoldOptions.baseValue, { type: 'price', price: 30 })
+    assert.equal(oversoldOptions.relativeGradient, false)
+    // `bottomFillColor1` sits at `baseValue`, so the opacity belongs there.
+    assert.equal(oversoldOptions.topFillColor1, oversoldStop)
+    assert.equal(oversoldOptions.topFillColor2, oversoldStop)
+    assert.equal(oversoldOptions.bottomFillColor1, oversoldFill)
+    assert.equal(oversoldOptions.bottomFillColor2, oversoldStop)
+
+    for (const options of [overboughtOptions, oversoldOptions]) {
+      assert.equal(options.visible, true)
+      assert.equal(options.lineVisible, false)
+      assert.equal(options.lastValueVisible, false)
+      assert.equal(options.priceLineVisible, false)
+      assert.equal(options.crosshairMarkerVisible, false)
+      assert.equal(options.pointMarkersVisible, false)
+      const provider = options.autoscaleInfoProvider as AutoscaleInfoProvider
+      assert.deepEqual(provider(() => null), {
+        priceRange: { minValue: 5, maxValue: 95 },
+      })
+    }
+  })
+
   it('creates overbought, mid and oversold reference lines from the settings', () => {
     const harness = makeChart()
-    createRsiChartPane(harness.chart, { period: 21, overbought: 80, oversold: 20 })
+    createRsiChartPane(harness.chart, {
+      period: 21,
+      overbought: 80,
+      oversold: 20,
+      thresholdGlow: true,
+    })
     assert.deepEqual(
       harness.seriesBundle.createdPriceLines.map((line) => line.options.price),
       [80, RSI_MID_LEVEL, 20],
@@ -256,20 +356,70 @@ describe('applyRsiPaneSettings', () => {
   it('moves only the overbought/oversold lines and keeps the bundle settings in sync', () => {
     const harness = makeChart()
     const bundle = createRsiChartPane(harness.chart, DEFAULTS)
-    applyRsiPaneSettings(bundle, { period: 21, overbought: 85, oversold: 15 })
+    applyRsiPaneSettings(bundle, {
+      period: 21,
+      overbought: 85,
+      oversold: 15,
+      thresholdGlow: true,
+    })
 
     const [overbought, mid, oversold] = harness.seriesBundle.createdPriceLines
-    assert.deepEqual(bundle.settings, { period: 21, overbought: 85, oversold: 15 })
+    assert.deepEqual(bundle.settings, {
+      period: 21,
+      overbought: 85,
+      oversold: 15,
+      thresholdGlow: true,
+    })
     assert.deepEqual(overbought.applyOptionsCalls, [{ price: 85, title: '85' }])
     assert.deepEqual(oversold.applyOptionsCalls, [{ price: 15, title: '15' }])
     assert.deepEqual(mid.applyOptionsCalls, [])
   })
 
-  it('sanitizes invalid settings before applying them', () => {
+  it('re-applies the new thresholds to both native baseline series', () => {
     const harness = makeChart()
     const bundle = createRsiChartPane(harness.chart, DEFAULTS)
-    applyRsiPaneSettings(bundle, { period: 0, overbought: 10, oversold: 90 })
-    assert.deepEqual(bundle.settings, { period: 2, overbought: 70, oversold: 30 })
+    applyRsiPaneSettings(bundle, {
+      period: 21,
+      overbought: 85,
+      oversold: 15,
+      thresholdGlow: true,
+    })
+
+    const [overboughtFill, oversoldFill] = harness.baselineSeriesBundles()
+    assert.deepEqual(overboughtFill.applyOptionsCalls, [
+      { baseValue: { type: 'price', price: 85 }, visible: true },
+    ])
+    assert.deepEqual(oversoldFill.applyOptionsCalls, [
+      { baseValue: { type: 'price', price: 15 }, visible: true },
+    ])
+    // Threshold changes must not trigger a candle refetch or history re-send.
+    assert.equal(harness.seriesBundle.setDataCalls.length, 0)
+  })
+
+  it('sanitizes invalid settings and applies the glow toggle to both fill series', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    applyRsiPaneSettings(bundle, {
+      period: 0,
+      overbought: 10,
+      oversold: 90,
+      thresholdGlow: false,
+    })
+    assert.deepEqual(bundle.settings, {
+      period: 2,
+      overbought: 70,
+      oversold: 30,
+      thresholdGlow: false,
+    })
+    const [overboughtFill, oversoldFill] = harness.baselineSeriesBundles()
+    assert.deepEqual(overboughtFill.applyOptionsCalls.at(-1), {
+      baseValue: { type: 'price', price: 70 },
+      visible: false,
+    })
+    assert.deepEqual(oversoldFill.applyOptionsCalls.at(-1), {
+      baseValue: { type: 'price', price: 30 },
+      visible: false,
+    })
   })
 })
 
@@ -294,6 +444,9 @@ describe('RSI pane data', () => {
       harness.seriesBundle.setDataCalls[0].map(({ time, value }) => ({ time, value })),
       expected,
     )
+    for (const fillSeries of harness.baselineSeriesBundles()) {
+      assert.deepEqual(fillSeries.setDataCalls, [expected])
+    }
   })
 
   it('colors every history point from the thresholds, not just the last one', () => {
@@ -341,14 +494,24 @@ describe('RSI pane data', () => {
 
     // Mirrors `handleRsiSettingsChange`: apply the settings, then recolor from
     // the candles that are already loaded (no refetch).
-    applyRsiPaneSettings(bundle, { period: 14, overbought: 40, oversold: 20 })
+    applyRsiPaneSettings(bundle, {
+      period: 14,
+      overbought: 40,
+      oversold: 20,
+      thresholdGlow: true,
+    })
     setRsiPaneHistoryData(bundle, history)
     const redPoints = harness.seriesBundle.setDataCalls.at(-1) ?? []
     assert.deepEqual(pointColors(redPoints), [
       ...Array.from({ length: redPoints.length }, () => RSI_OVERBOUGHT_LINE_COLOR),
     ])
 
-    applyRsiPaneSettings(bundle, { period: 14, overbought: 90, oversold: 60 })
+    applyRsiPaneSettings(bundle, {
+      period: 14,
+      overbought: 90,
+      oversold: 60,
+      thresholdGlow: true,
+    })
     setRsiPaneHistoryData(bundle, history)
     const greenPoints = harness.seriesBundle.setDataCalls.at(-1) ?? []
     assert.deepEqual(pointColors(greenPoints), [
@@ -403,17 +566,70 @@ describe('RSI pane data', () => {
     const bundle = createRsiChartPane(harness.chart, DEFAULTS)
     updateRsiPaneLiveData(bundle, [makeCandle(0, 100), makeCandle(1, 101)])
     assert.deepEqual(harness.seriesBundle.updateCalls, [])
+    for (const fillSeries of harness.baselineSeriesBundles()) {
+      assert.deepEqual(fillSeries.updateCalls, [])
+    }
   })
 
-  it('clears the line without touching the pane', () => {
+  it('clears all three series without touching the pane', () => {
     const harness = makeChart()
     const bundle = createRsiChartPane(harness.chart, DEFAULTS)
     clearRsiPaneData(bundle)
     assert.deepEqual(harness.seriesBundle.setDataCalls, [[]])
+    for (const fillSeries of harness.baselineSeriesBundles()) {
+      assert.deepEqual(fillSeries.setDataCalls, [[]])
+    }
     assert.deepEqual(harness.calls, [
       'chart.addPane',
       `stretchFactor:${DEFAULT_STRETCH_FACTOR}`,
       'pane.addSeries',
+      'pane.addSeries',
+      'pane.addSeries',
+    ])
+  })
+})
+
+describe('RSI native threshold fill', () => {
+  it('keeps the single fixed fill opacity constant', () => {
+    assert.equal(RSI_THRESHOLD_FILL_OPACITY_PERCENT, 25)
+  })
+
+  it('feeds both native fill series the same history, live point and clear as the line', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    const history = risingCandles(20)
+    const fillSeries = harness.baselineSeriesBundles()
+    assert.equal(fillSeries.length, 2)
+
+    setRsiPaneHistoryData(bundle, history)
+    const expectedHistory = computeWilderRsi(history, 14)
+    for (const fill of fillSeries) {
+      assert.deepEqual(fill.setDataCalls, [expectedHistory])
+    }
+
+    const live = [...history, makeCandle(20, 140)]
+    updateRsiPaneLiveData(bundle, live)
+    const liveValues = computeWilderRsi(live, 14)
+    const expectedLivePoint = liveValues[liveValues.length - 1]
+    for (const fill of fillSeries) {
+      assert.deepEqual(fill.updateCalls, [expectedLivePoint])
+    }
+
+    clearRsiPaneData(bundle)
+    for (const fill of fillSeries) {
+      assert.deepEqual(fill.setDataCalls.at(-1), [])
+    }
+  })
+
+  it('removes both baseline series with the RSI line', () => {
+    const harness = makeChart()
+    const bundle = createRsiChartPane(harness.chart, DEFAULTS)
+    removeRsiChartPane(harness.chart, bundle)
+
+    assert.deepEqual(harness.calls.slice(-3), [
+      'removeSeries:overboughtFill',
+      'removeSeries:oversoldFill',
+      'removeSeries:rsi',
     ])
   })
 })
@@ -478,7 +694,12 @@ describe('RSI pane default height', () => {
       draggedRsiStretch,
     )
 
-    applyRsiPaneSettings(bundle, { period: 21, overbought: 80, oversold: 20 })
+    applyRsiPaneSettings(bundle, {
+      period: 21,
+      overbought: 80,
+      oversold: 20,
+      thresholdGlow: true,
+    })
     setRsiPaneHistoryData(bundle, risingCandles(20))
     updateRsiPaneLiveData(bundle, risingCandles(20))
     clearRsiPaneData(bundle)
