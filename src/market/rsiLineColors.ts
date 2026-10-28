@@ -1,4 +1,8 @@
 import type { LineData, UTCTimestamp } from 'lightweight-charts'
+import {
+  MARKET_SEMANTIC_NEGATIVE_COLOR,
+  MARKET_SEMANTIC_POSITIVE_COLOR,
+} from './marketSemanticColors.ts'
 import type { RsiPoint } from './rsi.ts'
 
 /**
@@ -8,8 +12,8 @@ import type { RsiPoint } from './rsi.ts'
  */
 
 /** Fixed threshold colors (same in every theme), like the account markers. */
-export const RSI_OVERBOUGHT_LINE_COLOR = '#EF4444'
-export const RSI_OVERSOLD_LINE_COLOR = '#22C55E'
+export const RSI_OVERBOUGHT_LINE_COLOR = MARKET_SEMANTIC_NEGATIVE_COLOR
+export const RSI_OVERSOLD_LINE_COLOR = MARKET_SEMANTIC_POSITIVE_COLOR
 
 export type RsiLineThresholds = {
   overbought: number
