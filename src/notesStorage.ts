@@ -1,4 +1,15 @@
+import {
+  readScopedValue,
+  resolveActiveWorkspaceId,
+  workspaceScopedKey,
+} from './lib/workspaceScope.ts'
+
 export const NOTES_STORAGE_KEY = '0xdeck-notes'
+
+/** Workspace-scoped key of the note library (`0xdeck-notes:<workspaceId>`). */
+export function notesStorageKey(workspaceId: string = resolveActiveWorkspaceId()): string {
+  return workspaceScopedKey(NOTES_STORAGE_KEY, workspaceId)
+}
 
 export type NoteSource = 'bundled' | 'local'
 
@@ -23,8 +34,11 @@ export const SEED_NOTES: NoteFile[] = [
   { id: 'research', name: 'research.md', source: 'bundled', path: '/notes/research.md' },
 ]
 
-export function saveNotesWorkspace(workspace: NotesWorkspace) {
-  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(workspace))
+export function saveNotesWorkspace(
+  workspace: NotesWorkspace,
+  workspaceId: string = resolveActiveWorkspaceId(),
+) {
+  localStorage.setItem(notesStorageKey(workspaceId), JSON.stringify(workspace))
 }
 
 function normalizeWorkspace(saved: Partial<NotesWorkspace>): NotesWorkspace | null {
@@ -163,7 +177,8 @@ export function deleteNoteFile(workspace: NotesWorkspace, fileId: string): Notes
 
 export async function loadNotesWorkspace(): Promise<NotesWorkspace> {
   try {
-    const raw = localStorage.getItem(NOTES_STORAGE_KEY)
+    // The legacy `0xdeck-notes` singleton is only read for Workspace 1 (see `readScopedValue`).
+    const raw = readScopedValue(NOTES_STORAGE_KEY)
     if (raw) {
       const saved = JSON.parse(raw) as Partial<NotesWorkspace>
       const normalized = normalizeWorkspace(saved)

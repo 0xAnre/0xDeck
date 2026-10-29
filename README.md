@@ -169,8 +169,10 @@ docs/                      Guides (see docs/README.md)
 
 | File | Role |
 |------|------|
-| `src/layoutStorage.ts` | Workspace layout persistence |
-| `src/datasetStorage.ts` | Per-widget dataset + column defaults |
+| `src/layoutStorage.ts` | Workspace layout persistence (app adapter over `src/lib/workspaceStorage.ts`) |
+| `src/lib/workspaceStorage.ts` | Pure workspace persistence core (grid migration, restore/patch, load/save) |
+| `src/lib/workspaceScope.ts` | Active-workspace accessor for workspace-scoped storage keys |
+| `src/datasetStorage.ts` | Per-widget dataset + per-workspace Data Table defaults |
 | `src/timeRangeStorage.ts` | Per-widget time range |
 | `src/kpiStorage.ts` | KPI metric + aggregation per widget |
 | `backend/.canvas-state.json` | Parquet folder path (gitignored) |
