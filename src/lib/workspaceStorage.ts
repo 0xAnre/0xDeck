@@ -382,3 +382,27 @@ export function updateWorkspaceState(
     return next === entry.state ? entry : { id: entry.id, state: next }
   })
 }
+
+/**
+ * Persists `next` and returns it — or keeps `prev` when the write throws.
+ *
+ * Workspace-scoped storage (`notesStorage`, `datasetStorage`) resolves the active workspace from
+ * `localStorage` (`lib/workspaceScope.ts`). A failed write (quota, private mode) leaves the stored
+ * payload — and therefore the scope — on the previous workspace, so keeping `prev` in memory is
+ * what keeps memory and scoped writes on the same workspace. Letting the failure escape the click
+ * handler, or applying `next` unsaved, would send later scoped writes to a different workspace.
+ */
+export function saveWorkspaceChange(
+  prev: WorkspaceStore,
+  next: WorkspaceStore,
+  save: (store: WorkspaceStore) => void,
+): WorkspaceStore {
+  if (next === prev) return prev
+
+  try {
+    save(next)
+    return next
+  } catch {
+    return prev
+  }
+}

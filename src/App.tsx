@@ -27,6 +27,7 @@ import {
   lgLayoutEqual,
   loadWorkspaces,
   removePanel,
+  saveWorkspaceChangeOrKeepPrevious,
   saveWorkspaces,
   selectWorkspace,
   updateWorkspaceState,
@@ -313,20 +314,13 @@ function App() {
   }, [])
 
   const handleSelectWorkspace = useCallback((workspaceId: string) => {
-    setWorkspaces((prev) => {
-      const next = selectWorkspace(prev, workspaceId)
-      if (next === prev) return prev
-      saveWorkspaces(next)
-      return next
-    })
+    setWorkspaces((prev) =>
+      saveWorkspaceChangeOrKeepPrevious(prev, selectWorkspace(prev, workspaceId)),
+    )
   }, [])
 
   const handleCreateWorkspace = useCallback(() => {
-    setWorkspaces((prev) => {
-      const next = createWorkspace(prev)
-      saveWorkspaces(next)
-      return next
-    })
+    setWorkspaces((prev) => saveWorkspaceChangeOrKeepPrevious(prev, createWorkspace(prev)))
   }, [])
 
   const handleThemeChange = useCallback((next: Theme) => {

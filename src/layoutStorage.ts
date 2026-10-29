@@ -10,6 +10,7 @@ import {
   WORKSPACE_STORAGE_KEY,
   createWorkspaceStorage,
   createWorkspace as createWorkspaceInStore,
+  saveWorkspaceChange,
   selectWorkspace as selectWorkspaceInStore,
   updateWorkspaceState as updateWorkspaceStateInStore,
   type WorkspaceState,
@@ -49,6 +50,17 @@ export function loadWorkspaces(): WorkspaceStore {
 
 export function saveWorkspaces(store: WorkspaceStore) {
   workspaceStorage.save(store)
+}
+
+/**
+ * Saves a workspace change and returns the store to keep — the previous one when the write fails,
+ * so the in-memory active workspace never disagrees with the id `workspaceScope` resolves.
+ */
+export function saveWorkspaceChangeOrKeepPrevious(
+  prev: WorkspaceStore,
+  next: WorkspaceStore,
+): WorkspaceStore {
+  return saveWorkspaceChange(prev, next, saveWorkspaces)
 }
 
 /** Activates an existing workspace without touching any workspace's stored state. */

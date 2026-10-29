@@ -6,6 +6,8 @@ import {
   createWorkspace,
   createWorkspaceStorage,
   needsLegacyColMigration,
+  saveWorkspaceChange,
+  selectWorkspace,
   updateWorkspaceState,
   type PanelGrid,
   type WorkspaceStore,
@@ -423,5 +425,75 @@ describe('workspace isolation and active-workspace restoration', () => {
 describe('workspace storage key', () => {
   it('keeps using the shared `0xdeck-workspace` key', () => {
     assert.equal(WORKSPACE_STORAGE_KEY, '0xdeck-workspace')
+  })
+})
+
+/**
+ * A workspace switch / creation persists the new active id mid-click. Workspace-scoped storage
+ * (`lib/workspaceScope.ts`) resolves the active workspace from what is stored, so a failed write
+ * must not move the in-memory active workspace — otherwise later scoped writes (notes, Data Table
+ * columns) land in the previous workspace.
+ */
+describe('failed persist of a workspace switch', () => {
+  function switchSeed(): string {
+    return envelope(
+      [
+        {
+          id: 'ws-1',
+          activePanels: ['kpi-card-e2e'],
+          layout: [{ i: 'kpi-card-e2e', x: 0, y: 0, w: 18, h: 12 }],
+          gridVersion: CURRENT_GRID_VERSION,
+        },
+        {
+          id: 'ws-2',
+          activePanels: ['notes-e2e'],
+          layout: [{ i: 'notes-e2e', x: 0, y: 0, w: 12, h: 12 }],
+          gridVersion: CURRENT_GRID_VERSION,
+        },
+      ],
+      'ws-1',
+    )
+  }
+
+  it('keeps the previous store when the switch cannot be written', () => {
+    const stub = createStorageStub(switchSeed(), { failWrites: true })
+    const core = createCore(stub)
+    const store = core.load()
+
+    const switched = selectWorkspace(store, 'ws-2')
+    assert.equal(switched.activeWorkspaceId, 'ws-2')
+
+    // No throw escapes the caller, and memory stays on the workspace that is actually stored.
+    const kept = saveWorkspaceChange(store, switched, core.save)
+
+    assert.equal(kept, store)
+    assert.equal(kept.activeWorkspaceId, 'ws-1')
+    assert.equal(stub.writes.length, 0)
+  })
+
+  it('keeps a created workspace when the write succeeds', () => {
+    const stub = createStorageStub(switchSeed())
+    const core = createCore(stub)
+    const store = core.load()
+
+    const created = createWorkspace(store, core.emptyState, 'ws-new')
+    const kept = saveWorkspaceChange(store, created, core.save)
+
+    assert.equal(kept, created)
+    assert.equal(kept.activeWorkspaceId, 'ws-new')
+    const persisted = stub.parsed() as { activeWorkspaceId: string; workspaces: unknown[] }
+    assert.equal(persisted.activeWorkspaceId, 'ws-new')
+    assert.equal(persisted.workspaces.length, 3)
+  })
+
+  it('writes nothing when the store did not change', () => {
+    const stub = createStorageStub(switchSeed())
+    const core = createCore(stub)
+    const store = core.load()
+
+    const kept = saveWorkspaceChange(store, selectWorkspace(store, 'ws-1'), core.save)
+
+    assert.equal(kept, store)
+    assert.equal(stub.writes.length, 0)
   })
 })
