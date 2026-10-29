@@ -71,6 +71,31 @@ function twoWorkspacePayload(activeWorkspaceId: string): string {
 }
 
 /**
+ * Seeding the bundled notes must never reach another workspace: the seed load `await`s the note
+ * fetches and the user can switch workspaces inside that window.
+ */
+function twoNotesWorkspacePayload(activeWorkspaceId: string): string {
+  return JSON.stringify({
+    version: 2,
+    activeWorkspaceId,
+    workspaces: [
+      {
+        id: 'ws-1',
+        activePanels: ['notes-e2e'],
+        layout: [{ i: 'notes-e2e', x: 0, y: 0, w: 18, h: 12 }],
+        gridVersion: 3,
+      },
+      {
+        id: 'ws-2',
+        activePanels: ['notes-e2e'],
+        layout: [{ i: 'notes-e2e', x: 0, y: 0, w: 18, h: 12 }],
+        gridVersion: 3,
+      },
+    ],
+  })
+}
+
+/**
  * Seeds the initial payload once per browser context. `addInitScript` runs on every navigation, so
  * an existing key is left untouched: a reload must observe what the app itself persisted.
  */
@@ -107,6 +132,13 @@ function panelCloseButton(page: Page, title: string) {
 
 function notesTextarea(page: Page) {
   return page.locator('.panel-body textarea')
+}
+
+/** Height of one header button: a header taller than this has wrapped onto a second row. */
+async function rowHeight(page: Page): Promise<number> {
+  const box = await workspaceButton(page, 1).boundingBox()
+  expect(box).not.toBeNull()
+  return box!.height
 }
 
 async function addWidget(page: Page, title: string) {
@@ -286,6 +318,60 @@ test('Notes content stays per workspace and the legacy singleton keeps Workspace
   await expect(notesTextarea(page)).toHaveValue(/# MIGRATED LEGACY NOTE/)
 })
 
+test('a switch during the Notes seed load never overwrites the other workspace', async ({
+  page,
+}) => {
+  const workspace2Notes = JSON.stringify({
+    files: [{ id: 'note-2', name: 'mine.md', source: 'local' }],
+    contents: { 'note-2': '# WORKSPACE 2 USER NOTE' },
+    activeId: 'note-2',
+    openIds: ['note-2'],
+  })
+
+  // Workspace 1 has no notes yet and therefore seeds from the bundled notes; Workspace 2 already
+  // holds the user's own note.
+  await seedLocalStorage(page, {
+    [WORKSPACE_STORAGE_KEY]: twoNotesWorkspacePayload('ws-1'),
+    [`${NOTES_STORAGE_KEY}:ws-2`]: workspace2Notes,
+  })
+
+  // Hold the bundled notes back so the switch below lands while Workspace 1 is still loading them.
+  await page.route('**/notes/*.md', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    await route.fulfill({ body: '# bundled seed' })
+  })
+
+  await page.goto('/')
+
+  await workspaceButton(page, 2).click()
+  await expect(notesTextarea(page)).toHaveValue(/# WORKSPACE 2 USER NOTE/)
+
+  // Wait for the in-flight seed write to land in either workspace (a regression lands it in
+  // Workspace 2), so the assertions below see the final state instead of racing it.
+  const notesKeys = [`${NOTES_STORAGE_KEY}:ws-1`, `${NOTES_STORAGE_KEY}:ws-2`]
+  const readStoredNotes = () =>
+    page.evaluate(
+      ({ keys, seedMarker }) => {
+        const [workspace1, workspace2] = keys.map(
+          (key) => window.localStorage.getItem(key) ?? '',
+        )
+        return { workspace1Seeded: workspace1.includes(seedMarker), workspace2 }
+      },
+      { keys: notesKeys, seedMarker: '# bundled seed' },
+    )
+
+  await expect
+    .poll(async () => {
+      const stored = await readStoredNotes()
+      return stored.workspace1Seeded || stored.workspace2 !== workspace2Notes
+    })
+    .toBe(true)
+
+  const stored = await readStoredNotes()
+  expect(stored.workspace1Seeded).toBe(true)
+  expect(stored.workspace2).toBe(workspace2Notes)
+})
+
 test('Data Table columns stay per workspace', async ({ page }) => {
   await page.route('**/api/health', (route) =>
     route.fulfill({ json: { status: 'ok', parquet_folder: '/tmp/e2e-parquet' } }),
@@ -358,6 +444,17 @@ test('many workspaces keep the right-side header controls reachable', async ({ p
   await page.goto('/')
 
   await expect(workspaceButton(page, 1)).toHaveAttribute('aria-pressed', 'true')
+
+  // The header must stay a single row. Without the fix the right-side controls wrap instead of
+  // being pushed out, so every control still exists and is visible — only the header grows a row.
+  // One row is the button height plus the header's vertical padding, so a second wrapped row lands
+  // near two button heights.
+  const singleRowHeight = await rowHeight(page)
+  const headerHeight = await page
+    .locator('header')
+    .evaluate((element) => element.getBoundingClientRect().height)
+  expect(headerHeight).toBeLessThan(singleRowHeight * 2)
+
   // `+` and the right-side controls stay inside the viewport instead of being pushed out.
   await expect(addWorkspaceButton(page)).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Widget ekle' })).toBeInViewport()
