@@ -130,7 +130,7 @@ The outer workspace (`main.workspace-scroller` in `App.tsx`) scrolls vertically 
 
 **Screen shortcuts:** press `m`, then `1`–`9` within ~500ms to jump to workspace screen positions 1–9 (scroll offsets 0…8 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`.
 
-**Screens 1–9 always exist:** a wrapper inside `main.workspace-scroller` reserves a virtual 9-viewport scroll extent (`resolveWorkspaceScreenExtentHeight`), so empty screens below the last panel are still reachable. Widget positions, sizes and the persisted `0xdeck-workspace` layout shape are unchanged.
+**Screens 1–9 always exist:** a wrapper inside `main.workspace-scroller` reserves a virtual 9-viewport scroll extent (`resolveWorkspaceScreenExtentHeight`), so empty screens below the last panel are still reachable. Widget positions and sizes are unchanged by screen navigation; the persisted `0xdeck-workspace` payload now holds one lg layout per workspace ([AGENTS.md](AGENTS.md) persistence keys).
 
 **Screen Lock:** the header **Screen Lock** toggle (in-memory, not persisted) pins the workspace to the active screen.
 
@@ -169,8 +169,10 @@ docs/                      Guides (see docs/README.md)
 
 | File | Role |
 |------|------|
-| `src/layoutStorage.ts` | Workspace layout persistence |
-| `src/datasetStorage.ts` | Per-widget dataset + column defaults |
+| `src/layoutStorage.ts` | Workspace layout persistence (app adapter over `src/lib/workspaceStorage.ts`) |
+| `src/lib/workspaceStorage.ts` | Pure workspace persistence core (grid migration, restore/patch, load/save) |
+| `src/lib/workspaceScope.ts` | Fallback active-workspace accessor for workspace-scoped storage keys (mounted widgets pass their workspace id explicitly) |
+| `src/datasetStorage.ts` | Per-widget dataset + per-workspace Data Table defaults |
 | `src/timeRangeStorage.ts` | Per-widget time range |
 | `src/kpiStorage.ts` | KPI metric + aggregation per widget |
 | `backend/.canvas-state.json` | Parquet folder path (gitignored) |

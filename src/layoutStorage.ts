@@ -1,222 +1,129 @@
-import type { Layout, LayoutItem, ResponsiveLayouts } from 'react-grid-layout'
-import { BREAKPOINT_KEYS, COLS, type BreakpointKey } from './breakpoints'
+import type { Layout } from 'react-grid-layout'
 import {
   DEFAULT_ACTIVE_PANELS,
   createLayoutItem,
   createPanelInstance,
   getPanelTemplate,
-  isPanelInstanceId,
   resolvePanelInstance,
 } from './panels'
+import {
+  WORKSPACE_STORAGE_KEY,
+  adoptExternalWorkspaces,
+  createWorkspaceStorage,
+  createWorkspace as createWorkspaceInStore,
+  saveWorkspaceChange,
+  selectWorkspace as selectWorkspaceInStore,
+  updateWorkspaceState as updateWorkspaceStateInStore,
+  type WorkspaceState,
+  type WorkspaceStore,
+} from './lib/workspaceStorage'
 
-export const WORKSPACE_STORAGE_KEY = '0xdeck-workspace'
-const LEGACY_LG_COLS = 12
-const GRID_SCALE = COLS.lg / LEGACY_LG_COLS
+export {
+  CURRENT_GRID_VERSION,
+  WORKSPACE_STORAGE_KEY,
+  type WorkspaceEntry,
+  type WorkspaceState,
+  type WorkspaceStore,
+} from './lib/workspaceStorage'
 
-const FALLBACK_GRID = { w: 12, h: 12 } as const
+/**
+ * App adapter over the pure workspace persistence core (`src/lib/workspaceStorage.ts`): it plugs in
+ * the browser `localStorage` and the widget catalog (`resolvePanelInstance`) so the core itself stays
+ * testable under `node --experimental-strip-types`.
+ */
+const workspaceStorage = createWorkspaceStorage({
+  storage: {
+    getItem: (key) => localStorage.getItem(key),
+    setItem: (key, value) => localStorage.setItem(key, value),
+  },
+  lookupPanelGrid: (instanceId) => resolvePanelInstance(instanceId)?.grid,
+  defaultPanelIds: DEFAULT_ACTIVE_PANELS,
+  storageKey: WORKSPACE_STORAGE_KEY,
+})
 
-export type WorkspaceState = {
-  activePanels: string[]
-  layouts: ResponsiveLayouts
-}
+/**
+ * Envelope as this tab last read or wrote it. The diff against it tells the storage core which
+ * workspaces this tab actually changed, so a save never overwrites a workspace another tab edited
+ * (see `mergeWorkspaceCollections`).
+ */
+let knownStore: WorkspaceStore | null = null
 
-/** Persisted shape — only lg layout is stored; md/sm are derived on load. */
-type StoredWorkspace = {
-  activePanels: string[]
-  layout: Layout
-  gridVersion?: number
-}
+/** Ids whose state this tab changed since it last read/wrote storage. */
+function changedWorkspaceIds(
+  baseline: WorkspaceStore | null,
+  next: WorkspaceStore,
+): Set<string> {
+  if (!baseline) return new Set(next.workspaces.map((entry) => entry.id))
 
-const CURRENT_GRID_VERSION = 3
-
-function emptyLayouts(): ResponsiveLayouts {
-  return Object.fromEntries(
-    BREAKPOINT_KEYS.map((bp) => [bp, []]),
-  ) as ResponsiveLayouts
-}
-
-function migrateFromLegacyCols(layout: Layout): Layout {
-  if (layout.length === 0) return layout
-
-  return layout.map((item) => ({
-    ...item,
-    x: item.x * GRID_SCALE,
-    y: item.y * GRID_SCALE,
-    w: item.w * GRID_SCALE,
-    h: item.h * GRID_SCALE,
-    minW: item.minW != null ? item.minW * GRID_SCALE : undefined,
-    minH: item.minH != null ? item.minH * GRID_SCALE : undefined,
-    maxW: item.maxW != null ? item.maxW * GRID_SCALE : undefined,
-    maxH: item.maxH != null ? item.maxH * GRID_SCALE : undefined,
-  }))
-}
-
-function needsLegacyColMigration(
-  layout: Layout,
-  gridVersion?: number,
-): boolean {
-  if (gridVersion === CURRENT_GRID_VERSION) return false
-  if (layout.length === 0) return false
-  if (gridVersion === undefined) return false
-  const maxW = Math.max(...layout.map((item) => item.w))
-  return maxW <= LEGACY_LG_COLS
-}
-
-function prepareStoredLayout(
-  layout: Layout,
-  gridVersion?: number,
-): Layout {
-  if (!needsLegacyColMigration(layout, gridVersion)) return layout
-  return migrateFromLegacyCols(layout)
-}
-
-function attachCatalogConstraints(item: LayoutItem): LayoutItem {
-  const panel = resolvePanelInstance(item.i)
-  if (!panel) return item
-
-  const cols = COLS.lg
-  const minW = Math.min(panel.grid.minW ?? 1, cols)
-  const minH = panel.grid.minH ?? 1
-  const w = Math.min(Math.max(item.w, minW), cols)
-
-  return {
-    ...item,
-    w,
-    x: Math.min(item.x, Math.max(0, cols - w)),
-    minW,
-    minH,
-    maxW: item.maxW ?? panel.grid.maxW,
-    maxH: item.maxH ?? panel.grid.maxH,
+  const baselineStates = new Map(baseline.workspaces.map((entry) => [entry.id, entry.state]))
+  const changed = new Set<string>()
+  for (const entry of next.workspaces) {
+    if (baselineStates.get(entry.id) !== entry.state) changed.add(entry.id)
   }
+  return changed
 }
 
-function lgLayoutForPanels(activePanels: string[], lgLayout: Layout): Layout {
-  const cols = COLS.lg
-
-  return activePanels.map((id) => {
-    const savedItem = lgLayout.find((entry) => entry.i === id)
-    if (savedItem) return attachCatalogConstraints(savedItem)
-
-    const panel = resolvePanelInstance(id)
-    if (!panel) return { i: id, x: 0, y: 0, ...FALLBACK_GRID }
-    return { i: id, ...panel.grid, minW: Math.min(panel.grid.minW ?? 1, cols) }
-  })
+/**
+ * Loads every workspace, migrating the legacy single-workspace payload (both the older
+ * `layout` variant and the newer `layouts.lg` one) into Workspace 1 in place.
+ */
+export function loadWorkspaces(): WorkspaceStore {
+  const store = workspaceStorage.load()
+  knownStore = store
+  return store
 }
 
-/** Stack panels on md/sm using lg visual order (top-to-bottom, left-to-right). */
-function buildStackedLayout(
-  activePanels: string[],
-  lgLayout: Layout,
-  breakpoint: BreakpointKey,
-): Layout {
-  const cols = COLS[breakpoint]
-  const ordered = [...activePanels].sort((a, b) => {
-    const ia = lgLayout.find((item) => item.i === a)
-    const ib = lgLayout.find((item) => item.i === b)
-    const ya = ia?.y ?? 0
-    const yb = ib?.y ?? 0
-    if (ya !== yb) return ya - yb
-    return (ia?.x ?? 0) - (ib?.x ?? 0)
-  })
-
-  let y = 0
-  return ordered.map((id) => {
-    const lgItem = lgLayout.find((item) => item.i === id)
-    const panel = resolvePanelInstance(id)
-    const h = lgItem?.h ?? panel?.grid.h ?? FALLBACK_GRID.h
-    const item: LayoutItem = {
-      i: id,
-      x: 0,
-      y,
-      w: cols,
-      h,
-      minW: Math.min(panel?.grid.minW ?? 1, cols),
-      minH: panel?.grid.minH ?? 1,
-    }
-    y += h
-    return item
-  })
+/**
+ * Persists the store. Workspaces this tab changed override the stored ones; workspaces it never
+ * touched — including ones another tab created — are adopted from storage instead of being
+ * dropped, so two open tabs cannot delete each other's workspaces.
+ */
+export function saveWorkspaces(store: WorkspaceStore) {
+  workspaceStorage.save(store, changedWorkspaceIds(knownStore, store))
+  knownStore = store
 }
 
-/** Toggle path — preserve lg geometry; only add/remove items, refresh md/sm. */
-function patchWorkspace(activePanels: string[], lgLayout: Layout): WorkspaceState {
-  const panels = activePanels.filter((id) => isPanelInstanceId(id))
-
-  if (panels.length === 0) {
-    return { activePanels: [], layouts: emptyLayouts() }
-  }
-
-  const lg = lgLayoutForPanels(panels, lgLayout)
-  return {
-    activePanels: panels,
-    layouts: {
-      lg,
-      md: buildStackedLayout(panels, lg, 'md'),
-      sm: buildStackedLayout(panels, lg, 'sm'),
-    },
-  }
+/**
+ * Re-reads the envelope after another tab wrote it (`storage` event) and adopts its changes while
+ * keeping this tab's active workspace and its not-yet-persisted edits.
+ */
+export function reloadWorkspaces(current: WorkspaceStore): WorkspaceStore {
+  const pending = changedWorkspaceIds(knownStore, current)
+  const reloaded = workspaceStorage.load()
+  knownStore = reloaded
+  return adoptExternalWorkspaces(reloaded, current, pending)
 }
 
-function buildDefaultWorkspace(): WorkspaceState {
-  const activePanels = [...DEFAULT_ACTIVE_PANELS]
-  const catalogLayout = activePanels.map((id) => {
-    const panel = resolvePanelInstance(id)
-    return panel ? { i: id, ...panel.grid } : { i: id, x: 0, y: 0, ...FALLBACK_GRID }
-  })
-  return patchWorkspace(activePanels, catalogLayout)
+/**
+ * Saves a workspace change and returns the store to keep — the previous one when the write fails,
+ * so the in-memory active workspace keeps matching the persisted per-tab active id that
+ * `resolveActiveWorkspaceId()` (`lib/workspaceScope.ts`) would read as its fallback. Mounted widgets
+ * are unaffected either way: they pass their workspace id explicitly from React.
+ */
+export function saveWorkspaceChangeOrKeepPrevious(
+  prev: WorkspaceStore,
+  next: WorkspaceStore,
+): WorkspaceStore {
+  return saveWorkspaceChange(prev, next, saveWorkspaces)
 }
 
-function loadStoredWorkspace(
-  activePanels: string[],
-  layout: Layout,
-  gridVersion?: number,
-): WorkspaceState {
-  const migrated = prepareStoredLayout(layout, gridVersion)
-  const state = patchWorkspace(activePanels, migrated)
-  if (needsLegacyColMigration(layout, gridVersion) || gridVersion === undefined) {
-    saveWorkspace(state)
-  }
-  return state
+/** Activates an existing workspace without touching any workspace's stored state. */
+export function selectWorkspace(store: WorkspaceStore, workspaceId: string): WorkspaceStore {
+  return selectWorkspaceInStore(store, workspaceId)
 }
 
-function parseStoredWorkspace(raw: string): WorkspaceState | null {
-  const data = JSON.parse(raw) as Partial<
-    StoredWorkspace & WorkspaceState & { layout?: LayoutItem[] }
-  >
-
-  if (!Array.isArray(data.activePanels)) return null
-
-  if (Array.isArray(data.layout)) {
-    return loadStoredWorkspace(data.activePanels, data.layout, data.gridVersion)
-  }
-  if (data.layouts?.lg) {
-    return loadStoredWorkspace(data.activePanels, data.layouts.lg, data.gridVersion)
-  }
-
-  return null
+/** Creates a new empty workspace and activates it immediately. */
+export function createWorkspace(store: WorkspaceStore, workspaceId?: string): WorkspaceStore {
+  return createWorkspaceInStore(store, workspaceStorage.emptyState, workspaceId)
 }
 
-export function loadWorkspace(): WorkspaceState {
-  try {
-    const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY)
-    if (raw) {
-      const state = parseStoredWorkspace(raw)
-      if (state) return state
-    }
-  } catch {
-    // fall through
-  }
-
-  return buildDefaultWorkspace()
-}
-
-export function saveWorkspace(state: WorkspaceState) {
-  const payload: StoredWorkspace = {
-    activePanels: state.activePanels,
-    layout: state.layouts.lg ?? [],
-    gridVersion: CURRENT_GRID_VERSION,
-  }
-  localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(payload))
+/** Applies a state change to exactly one workspace; other workspaces keep their identity. */
+export function updateWorkspaceState(
+  store: WorkspaceStore,
+  workspaceId: string,
+  update: (state: WorkspaceState) => WorkspaceState,
+): WorkspaceStore {
+  return updateWorkspaceStateInStore(store, workspaceId, update)
 }
 
 export function lgLayoutEqual(a: Layout = [], b: Layout = []): boolean {
@@ -249,8 +156,13 @@ export function appendPanel(
   const instance = createPanelInstance(templateId)
   if (!instance) return null
 
-  const lg = appendToLg(state.layouts.lg ?? [], instance.id, templateId)
-  return patchWorkspace([...state.activePanels, instance.id], lg)
+  // Preserved (unresolvable) items stay in the payload; the new panel goes below every item.
+  const lg = appendToLg(
+    [...(state.layouts.lg ?? []), ...state.preservedLayout],
+    instance.id,
+    templateId,
+  )
+  return workspaceStorage.patch([...state.activePanels, instance.id], lg)
 }
 
 export function removePanel(
@@ -259,8 +171,12 @@ export function removePanel(
 ): WorkspaceState | null {
   if (!state.activePanels.includes(panelId)) return null
 
-  const lg = (state.layouts.lg ?? []).filter((item) => item.i !== panelId)
-  return patchWorkspace(
+  // Only the addressed panel is dropped; preserved (unresolvable) items stay untouched.
+  const lg = [
+    ...(state.layouts.lg ?? []).filter((item) => item.i !== panelId),
+    ...state.preservedLayout.filter((item) => item.i !== panelId),
+  ]
+  return workspaceStorage.patch(
     state.activePanels.filter((id) => id !== panelId),
     lg,
   )

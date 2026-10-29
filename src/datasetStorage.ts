@@ -1,3 +1,9 @@
+import {
+  readScopedValue,
+  resolveActiveWorkspaceId,
+  workspaceScopedKey,
+} from './lib/workspaceScope.ts'
+
 export const WIDGET_DATASET_STORAGE_KEY = '0xdeck-widget-datasets'
 export const WORKSPACE_DATA_CONFIG_STORAGE_KEY = '0xdeck-data-config'
 export const DATASET_CHANGED_EVENT = 'parquet-dataset-changed'
@@ -8,9 +14,19 @@ export type WorkspaceDataConfig = {
   columns: string[]
 }
 
-export function loadWorkspaceDataConfig(): WorkspaceDataConfig {
+/** Workspace-scoped key of the Data Table defaults (`0xdeck-data-config:<workspaceId>`). */
+export function workspaceDataConfigKey(
+  workspaceId: string = resolveActiveWorkspaceId(),
+): string {
+  return workspaceScopedKey(WORKSPACE_DATA_CONFIG_STORAGE_KEY, workspaceId)
+}
+
+export function loadWorkspaceDataConfig(
+  workspaceId: string = resolveActiveWorkspaceId(),
+): WorkspaceDataConfig {
   try {
-    const raw = localStorage.getItem(WORKSPACE_DATA_CONFIG_STORAGE_KEY)
+    // The legacy `0xdeck-data-config` singleton is only read for Workspace 1.
+    const raw = readScopedValue(WORKSPACE_DATA_CONFIG_STORAGE_KEY, workspaceId)
     if (!raw) return { datasetName: null, columns: [] }
     const parsed = JSON.parse(raw) as Partial<WorkspaceDataConfig>
     return {
@@ -24,8 +40,11 @@ export function loadWorkspaceDataConfig(): WorkspaceDataConfig {
   }
 }
 
-export function saveWorkspaceDataConfig(config: WorkspaceDataConfig) {
-  localStorage.setItem(WORKSPACE_DATA_CONFIG_STORAGE_KEY, JSON.stringify(config))
+export function saveWorkspaceDataConfig(
+  config: WorkspaceDataConfig,
+  workspaceId: string = resolveActiveWorkspaceId(),
+) {
+  localStorage.setItem(workspaceDataConfigKey(workspaceId), JSON.stringify(config))
   window.dispatchEvent(new CustomEvent(WIDGET_DATA_CHANGED_EVENT))
 }
 

@@ -33,6 +33,7 @@ import {
   type ParquetDataContextValue,
   type ParquetDataState,
 } from '@/context/parquetDataContextValue'
+import { useWorkspaceScope } from '@/context/workspaceScopeContextValue'
 
 function useParquetDataLoader(): ParquetDataContextValue {
   const [catalog, setCatalog] = useState<ParquetCatalogState>({ status: 'loading' })
@@ -115,6 +116,7 @@ export function useParquetData(): ParquetDataContextValue {
 function pickWidgetDataset(
   datasets: DatasetSummary[],
   widgetId: string,
+  workspaceId: string,
   preferredName?: string,
 ): DatasetSummary | null {
   const saved = loadWidgetDataset(widgetId)
@@ -122,7 +124,7 @@ function pickWidgetDataset(
     const match = datasets.find((dataset) => dataset.name === saved)
     if (match) return match
   }
-  const workspaceDataset = loadWorkspaceDataConfig().datasetName
+  const workspaceDataset = loadWorkspaceDataConfig(workspaceId).datasetName
   if (workspaceDataset) {
     const match = datasets.find((dataset) => dataset.name === workspaceDataset)
     if (match) return match
@@ -144,9 +146,11 @@ export function useWidgetParquetData(
   options?: WidgetParquetOptions,
 ) {
   const { catalog } = useParquetData()
+  // Workspace defaults are read for the workspace this panel renders (see `WorkspaceScopeContext`).
+  const workspaceId = useWorkspaceScope()
   const fixedTimeRange = options?.fixedTimeRange
   const [selectedName, setSelectedName] = useState<string | null>(
-    () => loadWidgetDataset(widgetId) ?? loadWorkspaceDataConfig().datasetName,
+    () => loadWidgetDataset(widgetId) ?? loadWorkspaceDataConfig(workspaceId).datasetName,
   )
   const [timeRange, setTimeRangeState] = useState<TimeRange>(
     () => fixedTimeRange ?? loadWidgetTimeRange(widgetId),
@@ -163,9 +167,9 @@ export function useWidgetParquetData(
 
     return (
       catalog.datasets.find((item) => item.name === selectedName) ??
-      pickWidgetDataset(catalog.datasets, widgetId, preferredName)
+      pickWidgetDataset(catalog.datasets, widgetId, workspaceId, preferredName)
     )
-  }, [catalog, preferredName, selectedName, widgetId])
+  }, [catalog, preferredName, selectedName, widgetId, workspaceId])
 
   const effectiveTimeRange = fixedTimeRange ?? timeRange
 
