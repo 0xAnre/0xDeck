@@ -171,7 +171,7 @@ docs/                      Guides (see docs/README.md)
 |------|------|
 | `src/layoutStorage.ts` | Workspace layout persistence (app adapter over `src/lib/workspaceStorage.ts`) |
 | `src/lib/workspaceStorage.ts` | Pure workspace persistence core (grid migration, restore/patch, load/save) |
-| `src/lib/workspaceScope.ts` | Active-workspace accessor for workspace-scoped storage keys |
+| `src/lib/workspaceScope.ts` | Fallback active-workspace accessor for workspace-scoped storage keys (mounted widgets pass their workspace id explicitly) |
 | `src/datasetStorage.ts` | Per-widget dataset + per-workspace Data Table defaults |
 | `src/timeRangeStorage.ts` | Per-widget time range |
 | `src/kpiStorage.ts` | KPI metric + aggregation per widget |

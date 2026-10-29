@@ -97,7 +97,7 @@ Do not change spacing, font sizes, radius, or layout per theme. Themes change co
 | Breakpoints | lg 36 cols / md 24 / sm 12 |
 | Row height | 11px |
 | Overlap | Enabled — last dragged panel on top |
-| Layout storage | `localStorage` key `0xdeck-workspace` (lg only) |
+| Layout storage | `localStorage` key `0xdeck-workspace` (one lg layout per workspace; only `lg` is persisted) |
 | Resize | 8 invisible handles (edges + corners) |
 | Workspace scroll | Outer `main.workspace-scroller` (`App.tsx`) scrolls when panels extend below the viewport |
 | Scrollbars | Hidden for `.workspace-scroller` and `.panel-body` (`App.css`); regions remain scrollable |
