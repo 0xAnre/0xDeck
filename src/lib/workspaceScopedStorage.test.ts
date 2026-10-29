@@ -77,6 +77,25 @@ function notesWorkspace(marker: string): NotesWorkspace {
   }
 }
 
+/** Runs `body` with a stubbed `fetch` (always OK, fixed note text), then restores the real one. */
+async function withSeedFetch<T>(text: string, body: () => Promise<T>): Promise<T> {
+  const originalFetch = globalThis.fetch
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async () => ({ ok: true, text: async () => text }),
+    configurable: true,
+    writable: true,
+  })
+  try {
+    return await body()
+  } finally {
+    Object.defineProperty(globalThis, 'fetch', {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    })
+  }
+}
+
 beforeEach(() => {
   storage = createLocalStorageStub()
   Object.defineProperty(globalThis, 'localStorage', {
@@ -186,6 +205,41 @@ describe('notes per workspace', () => {
       storage.getItem(NOTES_STORAGE_KEY),
       JSON.stringify(notesWorkspace('legacy')),
     )
+  })
+
+  it('never seeds the workspace that is activated while the seed loads', async () => {
+    // Workspace 1 has no notes and therefore seeds; Workspace 2 holds a user's own note.
+    activateWorkspace('ws-1')
+    const workspace2Notes = JSON.stringify(notesWorkspace('workspace 2 user note'))
+    storage.setItem(notesStorageKey('ws-2'), workspace2Notes)
+
+    const loaded = await withSeedFetch('# seeded', async () => {
+      // The user switches workspaces while the bundled notes are still in flight.
+      const load = loadNotesWorkspace()
+      activateWorkspace('ws-2')
+      return load
+    })
+
+    // The seed is written to the workspace the load started on (captured once at entry) …
+    assert.equal(loaded.contents['daily'], '# seeded')
+    assert.ok(storage.getItem(notesStorageKey('ws-1')))
+    // … never into the workspace that became active during the await.
+    assert.equal(storage.getItem(notesStorageKey('ws-2')), workspace2Notes)
+  })
+
+  it('never overwrites notes written while the seed loads', async () => {
+    activateWorkspace('ws-1')
+    const typed = notesWorkspace('typed while loading')
+
+    const loaded = await withSeedFetch('# seeded', async () => {
+      const load = loadNotesWorkspace()
+      // Notes saved for this very workspace while the fetches are still in flight win over the seed.
+      saveNotesWorkspace(typed, 'ws-1')
+      return load
+    })
+
+    assert.deepEqual(loaded.contents, typed.contents)
+    assert.equal(storage.getItem(notesStorageKey('ws-1')), JSON.stringify(typed))
   })
 })
 

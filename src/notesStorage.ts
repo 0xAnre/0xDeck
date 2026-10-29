@@ -175,18 +175,31 @@ export function deleteNoteFile(workspace: NotesWorkspace, fileId: string): Notes
   }
 }
 
-export async function loadNotesWorkspace(): Promise<NotesWorkspace> {
+/** Stored notes of one workspace, or `null` when it has none yet (or only an unusable payload). */
+function readStoredNotes(workspaceId: string): NotesWorkspace | null {
   try {
     // The legacy `0xdeck-notes` singleton is only read for Workspace 1 (see `readScopedValue`).
-    const raw = readScopedValue(NOTES_STORAGE_KEY)
-    if (raw) {
-      const saved = JSON.parse(raw) as Partial<NotesWorkspace>
-      const normalized = normalizeWorkspace(saved)
-      if (normalized) return normalized
-    }
+    const raw = readScopedValue(NOTES_STORAGE_KEY, workspaceId)
+    if (!raw) return null
+    return normalizeWorkspace(JSON.parse(raw) as Partial<NotesWorkspace>)
   } catch {
-    // fall through to seed load
+    return null
   }
+}
+
+/**
+ * Loads the active workspace's notes, seeding the bundled notes for a workspace that has none.
+ *
+ * The workspace id is resolved **once**, at entry, and used for both the read and the write. The
+ * seed load `await`s the bundled note fetches, and the app can switch workspaces inside that
+ * window: re-resolving the id at write time would save the bundled seed into the *newly activated*
+ * workspace and destroy its user notes.
+ */
+export async function loadNotesWorkspace(): Promise<NotesWorkspace> {
+  const workspaceId = resolveActiveWorkspaceId()
+
+  const stored = readStoredNotes(workspaceId)
+  if (stored) return stored
 
   const contents = Object.fromEntries(
     await Promise.all(
@@ -205,7 +218,12 @@ export async function loadNotesWorkspace(): Promise<NotesWorkspace> {
     openIds: SEED_NOTES.map((note) => note.id),
   }
 
-  saveNotesWorkspace(workspace)
+  // Re-check after the await: notes written for this workspace while the fetches were in flight
+  // win over the seed, so a seed never overwrites an existing payload.
+  const raced = readStoredNotes(workspaceId)
+  if (raced) return raced
+
+  saveNotesWorkspace(workspace, workspaceId)
   return workspace
 }
 
