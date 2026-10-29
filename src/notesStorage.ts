@@ -188,16 +188,17 @@ function readStoredNotes(workspaceId: string): NotesWorkspace | null {
 }
 
 /**
- * Loads the active workspace's notes, seeding the bundled notes for a workspace that has none.
+ * Loads a workspace's notes, seeding the bundled notes for a workspace that has none.
  *
- * The workspace id is resolved **once**, at entry, and used for both the read and the write. The
- * seed load `await`s the bundled note fetches, and the app can switch workspaces inside that
- * window: re-resolving the id at write time would save the bundled seed into the *newly activated*
- * workspace and destroy its user notes.
+ * The workspace id is resolved **once**, at entry: by the caller on the mounted-widget path
+ * (`WorkspaceScopeContext`, so a stale tab keeps its own workspace) and by the optional default
+ * here for backwards compatibility and tests. The seed load `await`s the bundled note fetches, so
+ * the app can switch workspaces inside that window; re-resolving the id at write time would save
+ * the bundled seed into the *newly activated* workspace and destroy its user notes.
  */
-export async function loadNotesWorkspace(): Promise<NotesWorkspace> {
-  const workspaceId = resolveActiveWorkspaceId()
-
+export async function loadNotesWorkspace(
+  workspaceId: string = resolveActiveWorkspaceId(),
+): Promise<NotesWorkspace> {
   const stored = readStoredNotes(workspaceId)
   if (stored) return stored
 

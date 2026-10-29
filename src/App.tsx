@@ -41,6 +41,7 @@ import {
 } from '@/widgets/registry'
 import { ParquetDataProvider } from './context/ParquetDataContext'
 import { WidgetSettingsProvider } from './context/WidgetSettingsContext'
+import { WorkspaceScopeProvider } from './context/WorkspaceScopeContext'
 import { DataSourceDialog } from './DataSourceDialog'
 import { ThemeSelect } from './ThemeSelect'
 import { WidgetSelect } from './WidgetSelect'
@@ -368,6 +369,7 @@ function App() {
   return (
     <ParquetDataProvider>
     <WidgetSettingsProvider>
+    <WorkspaceScopeProvider workspaceId={activeWorkspaceId}>
     <div className="flex h-screen min-h-screen flex-col bg-background text-foreground">
       <header className="flex items-center justify-between gap-4 px-3 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 pl-[5ch]">
@@ -498,6 +500,7 @@ function App() {
         </div>
       </main>
     </div>
+    </WorkspaceScopeProvider>
     </WidgetSettingsProvider>
     </ParquetDataProvider>
   )

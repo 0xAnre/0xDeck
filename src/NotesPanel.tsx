@@ -12,6 +12,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { useWorkspaceScope } from '@/context/workspaceScopeContextValue'
 import {
   closeNoteTab,
   createNoteFile,
@@ -30,20 +31,26 @@ const markdownClassName =
   'flex flex-col gap-2 text-xs leading-relaxed [&_h1]:text-sm [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:font-medium [&_li]:ml-4 [&_ol]:list-decimal [&_p]:text-muted-foreground [&_strong]:text-foreground [&_table]:w-full [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_thead]:border-b [&_tr]:border-b [&_ul]:list-disc'
 
 export function NotesPanel() {
+  // The workspace this panel renders — not whatever `0xdeck-workspace` currently says (another tab
+  // may have activated a different workspace). Both the read and the write target it.
+  const workspaceId = useWorkspaceScope()
   const [workspace, setWorkspace] = useState<NotesWorkspace | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<'edit' | 'preview'>('edit')
 
-  const persist = useCallback((next: NotesWorkspace) => {
-    setWorkspace(next)
-    saveNotesWorkspace(next)
-  }, [])
+  const persist = useCallback(
+    (next: NotesWorkspace) => {
+      setWorkspace(next)
+      saveNotesWorkspace(next, workspaceId)
+    },
+    [workspaceId],
+  )
 
   useEffect(() => {
     let cancelled = false
 
-    void loadNotesWorkspace()
+    void loadNotesWorkspace(workspaceId)
       .then((loaded) => {
         if (!cancelled) {
           setWorkspace(loaded)
@@ -60,7 +67,7 @@ export function NotesPanel() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [workspaceId])
 
   const openFiles = workspace ? getOpenFiles(workspace) : []
   const canCloseTabs = openFiles.length > 1

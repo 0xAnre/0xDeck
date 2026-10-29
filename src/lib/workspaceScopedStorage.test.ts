@@ -303,3 +303,61 @@ describe('data table config per workspace', () => {
     assert.deepEqual(loadWorkspaceDataConfig(), { datasetName: 'trades', columns: ['size'] })
   })
 })
+
+/**
+ * Mounted widgets get the workspace they render from `WorkspaceScopeContext` (#198 follow-up) and
+ * pass it explicitly. It must win over `0xdeck-workspace`, which another tab can activate at any
+ * moment: a tab that still renders Workspace 1 writes Workspace 1 while storage says Workspace 2.
+ */
+describe('explicit workspace ids from the mounted widget', () => {
+  it('writes notes to the rendered workspace while another one is active', () => {
+    const workspace1Notes = JSON.stringify(notesWorkspace('workspace 1'))
+    const workspace2Notes = JSON.stringify(notesWorkspace('workspace 2 user note'))
+    storage.setItem(notesStorageKey('ws-1'), workspace1Notes)
+    storage.setItem(notesStorageKey('ws-2'), workspace2Notes)
+    // Another tab activated Workspace 2.
+    activateWorkspace('ws-2')
+
+    saveNotesWorkspace(notesWorkspace('edited in tab A'), 'ws-1')
+
+    assert.equal(storage.getItem(notesStorageKey('ws-2')), workspace2Notes)
+    assert.notEqual(storage.getItem(notesStorageKey('ws-1')), workspace1Notes)
+    assert.match(storage.getItem(notesStorageKey('ws-1'))!, /edited in tab A/)
+  })
+
+  it('reads notes for the rendered workspace while another one is active', async () => {
+    storage.setItem(notesStorageKey('ws-1'), JSON.stringify(notesWorkspace('workspace 1')))
+    storage.setItem(notesStorageKey('ws-2'), JSON.stringify(notesWorkspace('workspace 2')))
+    activateWorkspace('ws-2')
+
+    assert.deepEqual((await loadNotesWorkspace('ws-1')).contents, { 'note-1': '# workspace 1' })
+    assert.deepEqual((await loadNotesWorkspace('ws-2')).contents, { 'note-1': '# workspace 2' })
+  })
+
+  it('seeds the explicitly requested workspace while another one is active', async () => {
+    activateWorkspace('ws-2')
+
+    const seeded = await withSeedFetch('# seeded for ws-1', () => loadNotesWorkspace('ws-1'))
+
+    assert.equal(seeded.contents['daily'], '# seeded for ws-1')
+    assert.ok(storage.getItem(notesStorageKey('ws-1')))
+    assert.equal(storage.getItem(notesStorageKey('ws-2')), null)
+  })
+
+  it('writes the Data Table config to the rendered workspace while another one is active', () => {
+    const workspace2Config = JSON.stringify({ datasetName: 'trades', columns: ['price'] })
+    storage.setItem(workspaceDataConfigKey('ws-2'), workspace2Config)
+    activateWorkspace('ws-2')
+
+    saveWorkspaceDataConfig({ datasetName: 'trades', columns: ['size'] }, 'ws-1')
+
+    assert.equal(storage.getItem(workspaceDataConfigKey('ws-2')), workspace2Config)
+    assert.equal(
+      storage.getItem(workspaceDataConfigKey('ws-1')),
+      JSON.stringify({ datasetName: 'trades', columns: ['size'] }),
+    )
+    // The rendered workspace's default is read back explicitly, regardless of the active id.
+    assert.deepEqual(loadWorkspaceDataConfig('ws-2'), { datasetName: 'trades', columns: ['price'] })
+    assert.deepEqual(loadWorkspaceDataConfig('ws-1'), { datasetName: 'trades', columns: ['size'] })
+  })
+})

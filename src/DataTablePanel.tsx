@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { useWorkspaceScope } from '@/context/workspaceScopeContextValue'
 import { formatCellValue, getCellTitle } from '@/lib/formatCellValue'
 import { loadWorkspaceDataConfig, saveWorkspaceDataConfig } from '@/datasetStorage'
 import { useParquetWidgetSettings } from '@/hooks/useParquetWidgetSettings'
@@ -33,6 +34,9 @@ function LoadingTable() {
 }
 
 export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps) {
+  // The workspace this panel renders: the Data Table defaults are stored per workspace and must be
+  // read and written for this one, whatever `0xdeck-workspace` says after another tab's switch.
+  const workspaceId = useWorkspaceScope()
   const { state, datasets, selectedName, selectDataset, timeRange, setTimeRange, catalogStatus } =
     useWidgetParquetData(panelId, 'trades')
   const readyState = isParquetReady(state) ? state : null
@@ -46,7 +50,7 @@ export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps)
       return { available: EMPTY_COLUMNS, selected: EMPTY_COLUMNS }
     }
 
-    const saved = loadWorkspaceDataConfig()
+    const saved = loadWorkspaceDataConfig(workspaceId)
     const validSavedColumns =
       saved.datasetName === readyState.dataset.name
         ? saved.columns.filter((column) => readyState.preview.columns.includes(column))
@@ -56,7 +60,7 @@ export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps)
       available: readyState.preview.columns,
       selected: validSavedColumns.length > 0 ? validSavedColumns : readyState.preview.columns,
     }
-  }, [readyState])
+  }, [readyState, workspaceId])
 
   const [columnOverride, setColumnOverride] = useState<{
     syncKey: string
@@ -71,19 +75,19 @@ export function DataTablePanel({ panelId, headerSettings }: WidgetInstanceProps)
 
   const handleSelectDataset = useCallback(
     (name: string) => {
-      saveWorkspaceDataConfig({ datasetName: name, columns: [] })
+      saveWorkspaceDataConfig({ datasetName: name, columns: [] }, workspaceId)
       setColumnOverride(null)
       selectDataset(name)
     },
-    [selectDataset],
+    [selectDataset, workspaceId],
   )
 
   const handleColumnChange = useCallback(
     (columns: string[]) => {
       setColumnOverride({ syncKey: columnSyncKey, selected: columns })
-      saveWorkspaceDataConfig({ datasetName: selectedName, columns })
+      saveWorkspaceDataConfig({ datasetName: selectedName, columns }, workspaceId)
     },
-    [columnSyncKey, selectedName],
+    [columnSyncKey, selectedName, workspaceId],
   )
 
   const previewColumns = useMemo(
