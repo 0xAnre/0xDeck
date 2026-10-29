@@ -51,10 +51,11 @@ panels.ts                  → instance ids (chart-abc123), layout helpers; cata
 ParquetDataContext.tsx     → dataset catalog + useWidgetParquetData hook
 backend/app/               → FastAPI + DuckDB Parquet queries
 backend/app/market/        → exchange-aware BTC perp providers (Binance USD-M + Hyperliquid), shared VWAP context, volume-profile source
-layoutStorage.ts           → localStorage workspaces: per-workspace activePanels + lg layout, legacy payload migration
+layoutStorage.ts           → localStorage workspaces: per-workspace activePanels + lg layout, legacy payload migration, two-tab envelope merge
 lib/workspaceModel.ts      → pure multi-workspace model (list ops, persisted envelope, legacy migration)
-lib/workspaceStorage.ts    → pure persistence core (gridVersion migration, restore/patch, load/save)
-lib/workspaceScope.ts      → active-workspace accessor for workspace-scoped storage keys
+lib/workspaceStorage.ts    → pure persistence core (gridVersion migration, restore/patch, load/save, envelope merge policy)
+lib/workspaceScope.ts      → fallback active-workspace accessor for workspace-scoped storage keys (unmounted/test callers only)
+context/WorkspaceScopeContext.tsx → hands the active workspace id of *this tab* to the panel tree
 WorkspaceSwitcher.tsx      → header workspace icon switcher (+ new empty workspace)
 datasetStorage.ts          → per-widget dataset + workspace Data Table defaults (per workspace)
 timeRangeStorage.ts        → per-widget time range
@@ -65,6 +66,17 @@ PanelHeaderControls.tsx    → header dropdowns (dataset, columns, range, metric
 Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on last interaction. Only **lg** layout is persisted.
 
 **Workspaces:** several independent workspaces share the app shell; one is active at a time and is switched with the icon buttons in the header (`WorkspaceSwitcher.tsx`, immediately right of the logo; `+` appends and activates an empty one; the icon strip scrolls horizontally once the header runs out of room). Each workspace owns its panel instances, layout, chart configuration/indicators/drawing tools, widget settings, Notes content and Data Table columns; stacking order is per workspace. There is no workspace limit. The existing single-workspace payload migrates to **Workspace 1** on first load. Widget state is workspace-private because every `0xdeck-widget-*` key is keyed by the unique panel instance id; the two former singletons `0xdeck-notes` and `0xdeck-data-config` are stored per workspace under `<key>:<workspaceId>`.
+
+**Scoped-key call convention (required):** a mounted widget gets its workspace id from `useWorkspaceScope()` (`context/workspaceScopeContextValue.ts`, provider `WorkspaceScopeProvider` mounted in `App.tsx` from `workspaces.activeWorkspaceId`) and passes it **explicitly** to `loadNotesWorkspace(workspaceId)` / `saveNotesWorkspace(workspace, workspaceId)` / `loadWorkspaceDataConfig(workspaceId)` / `saveWorkspaceDataConfig(config, workspaceId)` / `workspaceScopedKey(baseKey, workspaceId)`. Never resolve the write target by re-reading `0xdeck-workspace` at save time: another tab can activate a different workspace at any moment, and a tab that still renders Workspace 1 must keep writing Workspace 1. The optional `workspaceId = resolveActiveWorkspaceId()` parameter on the storage APIs exists only for backwards compatibility and pure unit tests; `lib/workspaceScope.ts` is not a mount-time source of truth for widgets.
+
+**Multi-tab conflict policy (local only, no server, no locks):** every tab writes the whole `0xdeck-workspace` envelope, so both sides are merged instead of blindly overwritten.
+
+- *Widget writes:* scoped by the explicit id above, so a stale tab writes the workspace it renders.
+- *Envelope save:* `saveWorkspaces` (app adapter) diffs the store against what this tab last read/wrote and names the changed workspace ids; `mergeWorkspaceCollections` then lets only those override the stored entry, adopts every other stored workspace (including ones created in another tab) and appends workspaces created here. `activeWorkspaceId` stays this tab's when the merge kept it.
+- *Envelope read:* the `storage` event on `0xdeck-workspace` re-reads the envelope and adopts external changes (`reloadWorkspaces` → `adoptExternalWorkspaces`), keeping the workspaces this tab edited but has not saved yet, and keeping this tab's active workspace — a switch in another tab is not a switch here, so two tabs can render different workspaces at the same time. `0xdeck-workspace.activeWorkspaceId` is therefore "last workspace activated anywhere", not a per-tab view.
+- There is no delete/rename, so a merge never drops a stored workspace; concurrent edits of the *same* workspace are last-write-wins per workspace.
+
+**Header at narrow widths:** the header is a wrapping flex row (`flex-wrap`, `md:flex-nowrap`): below `768px` the right control group (Theme, Widgets, Data Source, Screen Lock) moves to a second row and wraps internally if it still cannot fit, so every control stays reachable instead of overflowing. From `768px` up it is one row, the workspace icon strip is the only horizontally scrollable part (`max-w-[50vw]`, hidden scrollbar) and `+` sits outside the strip. `e2e/workspace-switcher.spec.ts` asserts every control is fully inside the viewport and clickable at 375px and 600px, and that the header stays a single row at 900px with 16 workspaces.
 
 **Widget instances:** `WIDGET_REGISTRY` defines templates; each open panel gets a unique id (`chart-a1b2c3`). Widgets menu **adds** instances; panel **X** closes. Each instance has its own dataset, time range, and KPI config in localStorage. **Reusable widget** = one registry entry, add many instances, port bodies from other projects ([WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md)).
 
@@ -188,13 +200,13 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 
 | Key | Content |
 |-----|---------|
-| `0xdeck-workspace` | **Workspace-scoped.** `{ version, activeWorkspaceId, workspaces: [{ id, activePanels, layout, gridVersion }] }` — one lg layout per workspace, instance ids. A legacy `{ activePanels, layout, gridVersion }` payload (or its `layouts.lg` variant) is migrated in place to Workspace 1; a pre-version payload (no `gridVersion`, 12 columns) is scaled 12→36 exactly once. Panel ids the catalog cannot resolve and orphan layout items are kept in the payload (filtered only when rendering) |
+| `0xdeck-workspace` | **Workspace-scoped.** `{ version, activeWorkspaceId, workspaces: [{ id, activePanels, layout, gridVersion }] }` — one lg layout per workspace, instance ids. A legacy `{ activePanels, layout, gridVersion }` payload (or its `layouts.lg` variant) is migrated in place to Workspace 1; a pre-version payload (no `gridVersion`, 12 columns) is scaled 12→36 exactly once. Panel ids the catalog cannot resolve and orphan layout items are kept in the payload (filtered only when rendering). Written with the two-tab merge policy above (see *Multi-tab conflict policy*); `activeWorkspaceId` is the last workspace activated in any tab |
 | `0xdeck-theme` | Theme id string — **global**, shared by all workspaces |
-| `0xdeck-notes:<workspaceId>` | Notes workspace of one workspace (files, contents, active tab). The legacy `0xdeck-notes` singleton is read for **Workspace 1 only**, so existing notes survive the upgrade; other workspaces seed from the bundled notes |
+| `0xdeck-notes:<workspaceId>` | Notes workspace of one workspace (files, contents, active tab). Written with the **explicit** workspace id of the widget's context (never resolved at save time). The legacy `0xdeck-notes` singleton is read for **Workspace 1 only**, so existing notes survive the upgrade; other workspaces seed from the bundled notes |
 | `0xdeck-widget-datasets` | Per-widget dataset name |
 | `0xdeck-widget-time-ranges` | Per-widget time range (`15m` … `all`) |
 | `0xdeck-widget-kpi-config` | Per-widget `{ metricColumn, aggregation }` |
-| `0xdeck-data-config:<workspaceId>` | Data Table default dataset + columns of one workspace. The legacy `0xdeck-data-config` singleton is read for **Workspace 1 only**; other workspaces start from no dataset and all columns |
+| `0xdeck-data-config:<workspaceId>` | Data Table default dataset + columns of one workspace, written with the **explicit** workspace id of the widget's context. The legacy `0xdeck-data-config` singleton is read for **Workspace 1 only**; other workspaces start from no dataset and all columns |
 | `0xdeck-widget-market-exchanges` | Per-instance BTC Perp exchange (`binance` default / `hyperliquid`) |
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
