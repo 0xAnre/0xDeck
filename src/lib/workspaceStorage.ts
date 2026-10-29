@@ -94,7 +94,15 @@ export type WorkspaceStorageOptions = {
 export type WorkspaceStorage = {
   /** Restores every workspace; a failed write-back keeps the restored result. */
   load(): WorkspaceStore
-  save(store: WorkspaceStore): void
+  /**
+   * Writes `store`, merged with the envelope that is stored right now.
+   *
+   * `changedWorkspaceIds` names the workspaces this tab changed: only those override the stored
+   * entry, every other stored workspace (including ones this tab has never seen) is kept. Omitted
+   * means "every entry of `store` overrides the stored one, unknown stored entries are adopted"
+   * (used by the load write-back, which must persist its migration).
+   */
+  save(store: WorkspaceStore, changedWorkspaceIds?: ReadonlySet<string>): void
   /** Derives one workspace state from its persisted ids + lg layout. */
   patch(activePanels: string[], layout: Layout): WorkspaceState
   /** Empty workspace state (new workspace, no panels, nothing preserved). */
@@ -291,6 +299,89 @@ function restoreWorkspace(
   }
 }
 
+/**
+ * Two-tab conflict policy for the shared `0xdeck-workspace` envelope.
+ *
+ * Every tab writes the whole envelope, so a naive `setItem` lets a stale tab delete workspaces the
+ * other tab created (and revert their layouts). The policy is deliberately local and small:
+ *
+ * - a workspace this tab **changed** (`changedWorkspaceIds`) overrides the stored entry — this tab
+ *   is the author of that change;
+ * - every other stored workspace wins over this tab's copy, so a workspace created or edited in
+ *   another tab is adopted instead of overwritten (this is what keeps a stale tab from deleting it);
+ * - a workspace this tab has but storage does not is appended (a workspace created here).
+ *
+ * Order follows the stored envelope first, so another tab's workspace ordering is preserved.
+ * `activeWorkspaceId` is this tab's when the merge kept it, otherwise the stored one. Deletion is
+ * not a feature, so a stored workspace is never dropped by a merge.
+ */
+export function mergeWorkspaceCollections(
+  stored: WorkspaceCollection<WorkspaceSnapshot>,
+  next: WorkspaceCollection<WorkspaceSnapshot>,
+  changedWorkspaceIds: ReadonlySet<string>,
+): WorkspaceCollection<WorkspaceSnapshot> {
+  const nextById = new Map(next.workspaces.map((entry) => [entry.id, entry]))
+  const merged: WorkspaceSnapshot[] = []
+  const seen = new Set<string>()
+
+  for (const entry of stored.workspaces) {
+    seen.add(entry.id)
+    const mine = nextById.get(entry.id)
+    merged.push(mine && changedWorkspaceIds.has(entry.id) ? mine : entry)
+  }
+
+  for (const entry of next.workspaces) {
+    if (seen.has(entry.id)) continue
+    merged.push(entry)
+  }
+
+  return {
+    version: WORKSPACE_STORAGE_VERSION,
+    activeWorkspaceId: resolveMergedActiveId(merged, next.activeWorkspaceId, stored.activeWorkspaceId),
+    workspaces: merged,
+  }
+}
+
+function resolveMergedActiveId(
+  workspaces: readonly { id: string }[],
+  preferredId: string,
+  fallbackId: string,
+): string {
+  if (workspaces.some((entry) => entry.id === preferredId)) return preferredId
+  if (workspaces.some((entry) => entry.id === fallbackId)) return fallbackId
+  return workspaces[0]?.id ?? preferredId
+}
+
+/**
+ * Merge for a `storage` event: adopt the envelope another tab just wrote while keeping this tab's
+ * active workspace (a switch in another tab is not a switch here) and its not-yet-saved edits.
+ *
+ * `pendingWorkspaceIds` are the workspaces this tab changed since it last read/wrote storage; their
+ * local state wins so an in-flight drag or note edit is not thrown away by an unrelated external
+ * change. Everything else follows storage, which owns the workspace list.
+ */
+export function adoptExternalWorkspaces(
+  reloaded: WorkspaceStore,
+  current: WorkspaceStore,
+  pendingWorkspaceIds: ReadonlySet<string>,
+): WorkspaceStore {
+  const currentById = new Map(current.workspaces.map((entry) => [entry.id, entry]))
+  const workspaces = reloaded.workspaces.map((entry) => {
+    const local = currentById.get(entry.id)
+    return local && pendingWorkspaceIds.has(entry.id) ? local : entry
+  })
+
+  return {
+    version: WORKSPACE_STORAGE_VERSION,
+    activeWorkspaceId: resolveMergedActiveId(
+      workspaces,
+      current.activeWorkspaceId,
+      reloaded.activeWorkspaceId,
+    ),
+    workspaces,
+  }
+}
+
 export function createWorkspaceStorage(options: WorkspaceStorageOptions): WorkspaceStorage {
   const { storage, lookupPanelGrid, defaultPanelIds } = options
   const storageKey = options.storageKey ?? WORKSPACE_STORAGE_KEY
@@ -312,8 +403,26 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
     }
   }
 
-  function save(store: WorkspaceStore) {
-    storage.setItem(storageKey, serializeWorkspaceCollection(storeToStoredCollection(store)))
+  function readStoredCollection(): WorkspaceCollection<WorkspaceSnapshot> | null {
+    try {
+      return parseWorkspaceCollection(storage.getItem(storageKey))?.collection ?? null
+    } catch {
+      // Storage unreadable (e.g. blocked): write this tab's envelope without a merge.
+      return null
+    }
+  }
+
+  function save(store: WorkspaceStore, changedWorkspaceIds?: ReadonlySet<string>) {
+    const next = storeToStoredCollection(store)
+    const stored = readStoredCollection()
+    const merged = stored
+      ? mergeWorkspaceCollections(
+          stored,
+          next,
+          changedWorkspaceIds ?? new Set(next.workspaces.map((entry) => entry.id)),
+        )
+      : next
+    storage.setItem(storageKey, serializeWorkspaceCollection(merged))
   }
 
   function load(): WorkspaceStore {

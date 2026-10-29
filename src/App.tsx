@@ -22,10 +22,12 @@ import {
 import { PanelHeaderControls } from './PanelHeaderControls'
 import { BREAKPOINTS, COLS, ROW_HEIGHT, breakpointFromWidth } from './breakpoints'
 import {
+  WORKSPACE_STORAGE_KEY,
   appendPanel,
   createWorkspace,
   lgLayoutEqual,
   loadWorkspaces,
+  reloadWorkspaces,
   removePanel,
   saveWorkspaceChangeOrKeepPrevious,
   saveWorkspaces,
@@ -112,6 +114,27 @@ function App() {
   useEffect(() => {
     activeWorkspaceIdRef.current = activeWorkspaceId
   }, [activeWorkspaceId])
+
+  // Latest store for the `storage` listener, which runs outside the render pass.
+  const workspacesRef = useRef(workspaces)
+  useEffect(() => {
+    workspacesRef.current = workspaces
+  }, [workspaces])
+
+  // Another tab writes the same `0xdeck-workspace` key. Re-read it so this tab adopts workspaces
+  // created elsewhere instead of rendering (and later saving) a stale list, while keeping its own
+  // active workspace and its not-yet-persisted edits.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== WORKSPACE_STORAGE_KEY) return
+      setWorkspaces(reloadWorkspaces(workspacesRef.current))
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
 
   useEffect(() => {
     applyTheme(theme)

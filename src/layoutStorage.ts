@@ -8,6 +8,7 @@ import {
 } from './panels'
 import {
   WORKSPACE_STORAGE_KEY,
+  adoptExternalWorkspaces,
   createWorkspaceStorage,
   createWorkspace as createWorkspaceInStore,
   saveWorkspaceChange,
@@ -41,15 +42,56 @@ const workspaceStorage = createWorkspaceStorage({
 })
 
 /**
+ * Envelope as this tab last read or wrote it. The diff against it tells the storage core which
+ * workspaces this tab actually changed, so a save never overwrites a workspace another tab edited
+ * (see `mergeWorkspaceCollections`).
+ */
+let knownStore: WorkspaceStore | null = null
+
+/** Ids whose state this tab changed since it last read/wrote storage. */
+function changedWorkspaceIds(
+  baseline: WorkspaceStore | null,
+  next: WorkspaceStore,
+): Set<string> {
+  if (!baseline) return new Set(next.workspaces.map((entry) => entry.id))
+
+  const baselineStates = new Map(baseline.workspaces.map((entry) => [entry.id, entry.state]))
+  const changed = new Set<string>()
+  for (const entry of next.workspaces) {
+    if (baselineStates.get(entry.id) !== entry.state) changed.add(entry.id)
+  }
+  return changed
+}
+
+/**
  * Loads every workspace, migrating the legacy single-workspace payload (both the older
  * `layout` variant and the newer `layouts.lg` one) into Workspace 1 in place.
  */
 export function loadWorkspaces(): WorkspaceStore {
-  return workspaceStorage.load()
+  const store = workspaceStorage.load()
+  knownStore = store
+  return store
 }
 
+/**
+ * Persists the store. Workspaces this tab changed override the stored ones; workspaces it never
+ * touched — including ones another tab created — are adopted from storage instead of being
+ * dropped, so two open tabs cannot delete each other's workspaces.
+ */
 export function saveWorkspaces(store: WorkspaceStore) {
-  workspaceStorage.save(store)
+  workspaceStorage.save(store, changedWorkspaceIds(knownStore, store))
+  knownStore = store
+}
+
+/**
+ * Re-reads the envelope after another tab wrote it (`storage` event) and adopts its changes while
+ * keeping this tab's active workspace and its not-yet-persisted edits.
+ */
+export function reloadWorkspaces(current: WorkspaceStore): WorkspaceStore {
+  const pending = changedWorkspaceIds(knownStore, current)
+  const reloaded = workspaceStorage.load()
+  knownStore = reloaded
+  return adoptExternalWorkspaces(reloaded, current, pending)
 }
 
 /**

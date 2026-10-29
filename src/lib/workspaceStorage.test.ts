@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   CURRENT_GRID_VERSION,
   WORKSPACE_STORAGE_KEY,
+  adoptExternalWorkspaces,
   createWorkspace,
   createWorkspaceStorage,
   needsLegacyColMigration,
@@ -495,5 +496,150 @@ describe('failed persist of a workspace switch', () => {
 
     assert.equal(kept, store)
     assert.equal(stub.writes.length, 0)
+  })
+})
+
+/**
+ * Two tabs share the `0xdeck-workspace` envelope and each writes the whole payload. Without a
+ * conflict policy a stale tab re-writes its own list and deletes every workspace the other tab
+ * created. The policy: a changed workspace overrides the stored entry, everything else is adopted.
+ */
+describe('two-tab envelope conflict policy', () => {
+  function twoTabSeed(): string {
+    return envelope(
+      [
+        {
+          id: 'ws-1',
+          activePanels: ['kpi-card-e2e'],
+          layout: [{ i: 'kpi-card-e2e', x: 0, y: 0, w: 18, h: 12 }],
+          gridVersion: CURRENT_GRID_VERSION,
+        },
+        {
+          id: 'ws-2',
+          activePanels: ['notes-e2e'],
+          layout: [{ i: 'notes-e2e', x: 0, y: 0, w: 12, h: 12 }],
+          gridVersion: CURRENT_GRID_VERSION,
+        },
+      ],
+      'ws-1',
+    )
+  }
+
+  type ParsedEnvelope = {
+    activeWorkspaceId: string
+    workspaces: Array<{ id: string; activePanels: string[]; layout: Array<{ i: string; y: number }> }>
+  }
+
+  function movePanel(store: WorkspaceStore, workspaceId: string, y: number): WorkspaceStore {
+    return updateWorkspaceState(store, workspaceId, (state) => ({
+      ...state,
+      layouts: {
+        ...state.layouts,
+        lg: (state.layouts.lg ?? []).map((item) => ({ ...item, y })),
+      },
+    }))
+  }
+
+  it('keeps a workspace another tab created when this tab saves', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const tabA = createCore(stub)
+    // Tab A loaded before tab B created Workspace 3 (a stale list on purpose).
+    const staleTabA = tabA.load()
+
+    const tabB = createCore(stub)
+    tabB.save(createWorkspace(tabB.load(), tabB.emptyState, 'ws-3'))
+
+    tabA.save(movePanel(staleTabA, 'ws-1', 6), new Set(['ws-1']))
+
+    const parsed = stub.parsed() as ParsedEnvelope
+    // The stale tab neither deleted Workspace 3 nor Workspace 2.
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2', 'ws-3'])
+    // Its own change is persisted.
+    assert.equal(parsed.workspaces[0].layout[0].y, 6)
+    assert.equal(parsed.activeWorkspaceId, 'ws-1')
+  })
+
+  it('does not revert a workspace this tab did not change', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const tabA = createCore(stub)
+    const storedTabA = tabA.load()
+
+    const tabB = createCore(stub)
+    tabB.save(
+      updateWorkspaceState(tabB.load(), 'ws-2', (state) => ({
+        ...state,
+        activePanels: [...state.activePanels, 'chart-e2e'],
+      })),
+      new Set(['ws-2']),
+    )
+
+    // Tab A only edits Workspace 1 but writes the whole (stale) envelope.
+    tabA.save(movePanel(storedTabA, 'ws-1', 3), new Set(['ws-1']))
+
+    const parsed = stub.parsed() as ParsedEnvelope
+    assert.deepEqual(parsed.workspaces[1].activePanels, ['notes-e2e', 'chart-e2e'])
+    assert.equal(parsed.workspaces[0].layout[0].y, 3)
+  })
+
+  it('appends a workspace created in this tab and keeps the stored active id valid', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const core = createCore(stub)
+    const created = createWorkspace(core.load(), core.emptyState, 'ws-new')
+
+    core.save(created, new Set(['ws-new']))
+
+    const parsed = stub.parsed() as ParsedEnvelope
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2', 'ws-new'])
+    assert.equal(parsed.activeWorkspaceId, 'ws-new')
+  })
+
+  it('adoptExternalWorkspaces takes storage order but this tab active workspace and edits', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const core = createCore(stub)
+    const current = movePanel(core.load(), 'ws-1', 9)
+
+    // Another tab created Workspace 3 and activated it.
+    const tabB = createCore(stub)
+    tabB.save(createWorkspace(tabB.load(), tabB.emptyState, 'ws-3'))
+
+    const reloaded = core.load()
+    const adopted = adoptExternalWorkspaces(reloaded, current, new Set(['ws-1']))
+
+    assert.deepEqual(adopted.workspaces.map((entry) => entry.id), ['ws-1', 'ws-2', 'ws-3'])
+    // The pending local edit survives the external change …
+    assert.equal(adopted.workspaces[0], current.workspaces[0])
+    assert.equal(adopted.workspaces[0].state.layouts.lg?.[0].y, 9)
+    // … and a switch in the other tab is not a switch in this one.
+    assert.equal(adopted.activeWorkspaceId, 'ws-1')
+  })
+
+  it('adoptExternalWorkspaces follows the reloaded active id when this tab has no such workspace', () => {
+    const core = createCore(createStorageStub(twoTabSeed()))
+    const current = core.load()
+    const reloaded: WorkspaceStore = {
+      ...current,
+      activeWorkspaceId: 'ws-2',
+      workspaces: current.workspaces.filter((entry) => entry.id !== 'ws-1'),
+    }
+
+    const adopted = adoptExternalWorkspaces(
+      reloaded,
+      { ...current, activeWorkspaceId: 'ws-1' },
+      new Set(),
+    )
+
+    assert.equal(adopted.activeWorkspaceId, 'ws-2')
+  })
+
+  it('merges on save only when the tab names the workspaces it changed', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const core = createCore(stub)
+    const store = core.load()
+
+    // No `changed` set means "this tab authored every entry" (the load write-back path).
+    core.save(store)
+
+    const parsed = stub.parsed() as ParsedEnvelope
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2'])
   })
 })
