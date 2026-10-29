@@ -376,7 +376,7 @@ function App() {
     <WidgetSettingsProvider>
     <div className="flex h-screen min-h-screen flex-col bg-background text-foreground">
       <header className="flex items-center justify-between gap-4 px-3 py-2">
-        <div className="flex items-center gap-2 pl-[5ch]">
+        <div className="flex min-w-0 flex-1 items-center gap-2 pl-[5ch]">
           <img
             className="block h-7 w-7 shrink-0"
             src="/favicon.png"
@@ -384,7 +384,7 @@ function App() {
             width={28}
             height={28}
           />
-          <h1 className="m-0 text-[0.95rem] font-semibold tracking-wide text-muted-foreground">
+          <h1 className="m-0 shrink-0 text-[0.95rem] font-semibold tracking-wide text-muted-foreground">
             0xDeck
           </h1>
           <WorkspaceSwitcher
@@ -395,7 +395,7 @@ function App() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <ThemeSelect value={theme} onChange={handleThemeChange} />
           <WidgetSelect panelCount={visiblePanels.length} onAdd={handleAddPanel} />
           <DataSourceDialog />
