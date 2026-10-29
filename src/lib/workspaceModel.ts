@@ -10,6 +10,9 @@
 /** Envelope version written under `0xdeck-workspace`. */
 export const WORKSPACE_STORAGE_VERSION = 2
 
+/** localStorage key holding every workspace plus the last active one. */
+export const WORKSPACE_STORAGE_KEY = '0xdeck-workspace'
+
 /** Stable id of the workspace that a legacy single-workspace payload migrates into. */
 export const MIGRATED_WORKSPACE_ID = 'ws-1'
 
