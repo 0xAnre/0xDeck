@@ -394,8 +394,8 @@ function App() {
     <WidgetSettingsProvider>
     <WorkspaceScopeProvider workspaceId={activeWorkspaceId}>
     <div className="flex h-screen min-h-screen flex-col bg-background text-foreground">
-      <header className="flex items-center justify-between gap-4 px-3 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 pl-[5ch]">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 md:flex-nowrap">
+        <div className="flex min-w-0 grow shrink basis-auto items-center gap-2 pl-[5ch]">
           <img
             className="block h-7 w-7 shrink-0"
             src="/favicon.png"
@@ -414,7 +414,7 @@ function App() {
           />
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto flex min-w-0 shrink flex-wrap items-center justify-end gap-2 md:shrink-0">
           <ThemeSelect value={theme} onChange={handleThemeChange} />
           <WidgetSelect panelCount={visiblePanels.length} onAdd={handleAddPanel} />
           <DataSourceDialog />

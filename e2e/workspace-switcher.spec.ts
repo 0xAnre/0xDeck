@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 /**
  * Minimal browser regression for multi-workspace support (#198) and the follow-up fixes:
@@ -472,3 +472,69 @@ test('many workspaces keep the right-side header controls reachable', async ({ p
   })
   await expect(workspaceButton(page, 16)).toBeInViewport()
 })
+
+/**
+ * Every header control must be fully inside the viewport — not clipped by an overflowing header and
+ * not scrolled out of a shrinkable strip. `toBeInViewport()` alone accepts a partial intersection,
+ * so the box is checked against the viewport width as well.
+ */
+async function expectFullyInViewport(control: Locator, viewportWidth: number) {
+  await expect(control).toBeVisible()
+  const box = await control.boundingBox()
+  expect(box).not.toBeNull()
+  expect(box!.x).toBeGreaterThanOrEqual(0)
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewportWidth)
+  await expect(control).toBeInViewport()
+}
+
+for (const width of [375, 600]) {
+  test(`every header control stays reachable and clickable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await seedLocalStorage(page, { [WORKSPACE_STORAGE_KEY]: twoWorkspacePayload('ws-1') })
+    await page.goto('/')
+    await expect(workspaceButton(page, 1)).toHaveAttribute('aria-pressed', 'true')
+
+    const themeButton = page.getByRole('button', { name: 'Tema seç' })
+    const widgetsButton = page.getByRole('button', { name: 'Widget ekle' })
+    const dataSourceButton = page.getByRole('button', { name: 'Data source' })
+    const screenLockButton = page.getByRole('button', { name: /Screen Lock/ })
+
+    // Nothing is clipped: all controls, the workspace icons and `+` are inside the viewport.
+    for (const control of [
+      workspaceButton(page, 1),
+      workspaceButton(page, 2),
+      addWorkspaceButton(page),
+      themeButton,
+      widgetsButton,
+      dataSourceButton,
+      screenLockButton,
+    ]) {
+      await expectFullyInViewport(control, width)
+    }
+
+    // … and every one of them reacts to a click.
+    await themeButton.click()
+    await expect(page.getByRole('menuitemradio').first()).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    await widgetsButton.click()
+    await expect(page.getByRole('menuitem').first()).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    await dataSourceButton.click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    await screenLockButton.click()
+    await expect(screenLockButton).toHaveAttribute('aria-pressed', 'true')
+    await screenLockButton.click()
+    await expect(screenLockButton).toHaveAttribute('aria-pressed', 'false')
+
+    await workspaceButton(page, 2).click()
+    await expect(workspaceButton(page, 2)).toHaveAttribute('aria-pressed', 'true')
+
+    await addWorkspaceButton(page).click()
+    await expect.poll(async () => (await readWorkspacePayload(page)).workspaces?.length).toBe(3)
+  })
+}
