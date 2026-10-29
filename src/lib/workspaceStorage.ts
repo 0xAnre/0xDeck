@@ -312,8 +312,15 @@ function restoreWorkspace(
  * - a workspace this tab has but storage does not is appended (a workspace created here).
  *
  * Order follows the stored envelope first, so another tab's workspace ordering is preserved.
- * `activeWorkspaceId` is this tab's when the merge kept it, otherwise the stored one. Deletion is
- * not a feature, so a stored workspace is never dropped by a merge.
+ * Deletion is not a feature, so a stored workspace is never dropped by a merge.
+ *
+ * `activeWorkspaceId` is resolved by `resolveMergedActiveId`: the writer's own active id wins
+ * whenever it exists in the merged set, and only then does the stored id apply (then the first
+ * merged workspace). Because merging keeps every workspace this tab holds, the writer's id is in
+ * practice always present, so the persisted value is the active workspace of whichever tab wrote
+ * the envelope last — not "the workspace activated most recently" and not a global source of truth:
+ * every tab keeps and renders its own active workspace, and any later write (a drag, a panel add)
+ * from another tab replaces the persisted id with that tab's.
  */
 export function mergeWorkspaceCollections(
   stored: WorkspaceCollection<WorkspaceSnapshot>,
@@ -495,11 +502,13 @@ export function updateWorkspaceState(
 /**
  * Persists `next` and returns it — or keeps `prev` when the write throws.
  *
- * Workspace-scoped storage (`notesStorage`, `datasetStorage`) resolves the active workspace from
- * `localStorage` (`lib/workspaceScope.ts`). A failed write (quota, private mode) leaves the stored
- * payload — and therefore the scope — on the previous workspace, so keeping `prev` in memory is
- * what keeps memory and scoped writes on the same workspace. Letting the failure escape the click
- * handler, or applying `next` unsaved, would send later scoped writes to a different workspace.
+ * Mounted widgets take their workspace id from React (`WorkspaceScopeContext`) and pass it
+ * explicitly to `notesStorage` / `datasetStorage`, so a failed write cannot retarget them;
+ * `resolveActiveWorkspaceId()` (`lib/workspaceScope.ts`) is only the fallback for unmounted and test
+ * callers, and it reads the persisted envelope. Keeping `prev` therefore keeps memory and the
+ * persisted per-tab active id — and therefore any fallback-scoped write — on the same workspace:
+ * applying `next` unsaved would render a workspace the stored envelope does not name, and letting
+ * the failure escape the click handler would leave the switch half-applied.
  */
 export function saveWorkspaceChange(
   prev: WorkspaceStore,

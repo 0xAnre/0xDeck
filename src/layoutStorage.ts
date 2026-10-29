@@ -96,7 +96,9 @@ export function reloadWorkspaces(current: WorkspaceStore): WorkspaceStore {
 
 /**
  * Saves a workspace change and returns the store to keep — the previous one when the write fails,
- * so the in-memory active workspace never disagrees with the id `workspaceScope` resolves.
+ * so the in-memory active workspace keeps matching the persisted per-tab active id that
+ * `resolveActiveWorkspaceId()` (`lib/workspaceScope.ts`) would read as its fallback. Mounted widgets
+ * are unaffected either way: they pass their workspace id explicitly from React.
  */
 export function saveWorkspaceChangeOrKeepPrevious(
   prev: WorkspaceStore,

@@ -430,10 +430,11 @@ describe('workspace storage key', () => {
 })
 
 /**
- * A workspace switch / creation persists the new active id mid-click. Workspace-scoped storage
- * (`lib/workspaceScope.ts`) resolves the active workspace from what is stored, so a failed write
- * must not move the in-memory active workspace — otherwise later scoped writes (notes, Data Table
- * columns) land in the previous workspace.
+ * A workspace switch / creation persists the new active id mid-click. Only callers that omit an
+ * explicit workspace id resolve their scope from what is stored (`lib/workspaceScope.ts`); mounted
+ * widgets pass theirs explicitly. A failed write must still not move the in-memory active workspace:
+ * memory and the persisted per-tab active id would disagree, and fallback-scoped writes (notes, Data
+ * Table columns) would keep landing in the previous workspace.
  */
 describe('failed persist of a workspace switch', () => {
   function switchSeed(): string {

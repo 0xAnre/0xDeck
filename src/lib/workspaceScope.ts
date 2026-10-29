@@ -5,6 +5,12 @@
  * now stored as `<key>:<workspaceId>` so each workspace keeps its own content, while the legacy
  * singleton keeps belonging to the pre-existing **Workspace 1**.
  *
+ * Mounted widgets never resolve their scope here: they read the workspace id of the panel tree from
+ * React (`context/WorkspaceScopeContext.tsx`) and pass it explicitly, so a tab that still renders
+ * Workspace 1 keeps writing Workspace 1 while another tab activated Workspace 2. The helpers below
+ * are the fallback for callers that omit the id (unmounted reads, pure unit tests) and resolve it
+ * from whatever `0xdeck-workspace` currently holds.
+ *
  * Pure and alias-free so `node --experimental-strip-types` can execute it (`npm run test:ui`).
  */
 import {
@@ -27,7 +33,13 @@ export function parseActiveWorkspaceId(raw: string | null): string {
   return parseWorkspaceCollection(raw)?.collection.activeWorkspaceId ?? MIGRATED_WORKSPACE_ID
 }
 
-/** Id of the workspace that is active right now (Workspace 1 when nothing is stored yet). */
+/**
+ * Id of the workspace the stored `0xdeck-workspace` envelope names right now
+ * (Workspace 1 when nothing usable is stored).
+ *
+ * Fallback for callers that omit an explicit id — mounted widgets pass theirs from React — so this
+ * value may belong to a different workspace than the one a given panel renders.
+ */
 export function resolveActiveWorkspaceId(): string {
   let raw: string | null
   try {
