@@ -77,15 +77,26 @@ measures the save path itself (`read + parse + merge + re-serialize + write`) on
 envelope, without a browser (the persistence core is a pure module with an injected storage):
 
 ```bash
-node --experimental-strip-types perf/save-cost.mjs --dir /tmp/0xdeck-perf-bb42a75
-node --experimental-strip-types perf/save-cost.mjs --dir .                  # 46 840 B, the multi seed
-node --experimental-strip-types perf/save-cost.mjs --dir . --target-bytes 16900  # the single seed
+# the multi-workspace payload the app really writes: 2 169 B seed, 5 workspaces / 23 panels
+node --experimental-strip-types perf/save-cost.mjs --dir .
+# the single-workspace deck: 672 B, 6 panels
+node --experimental-strip-types perf/save-cost.mjs --dir . --workload single
+# synthetic scaling point — NOT a payload this app writes (it clones Workspace 1 to 77 workspaces)
+node --experimental-strip-types perf/save-cost.mjs --dir . --target-bytes 46840
 ```
 
-It grows the seeded envelope by cloning Workspace 1 until it reaches `--target-bytes` (default:
-the 46 840 bytes the browser writes for `--workload multi`), then reports the median/p95 of 200
-saves plus the median `JSON.parse` of the same envelope. Pre-#199 revisions have no
-`src/lib/workspaceStorage.ts` (no envelope, no merge) and are not measurable this way.
+`--workload single|multi` picks the seeded payload (the single seed is the legacy payload, which the
+core migrates to Workspace 1 exactly like the app). `--target-bytes` defaults to the seeded
+envelope size measured in the browser — **672 B** (single) / **2 169 B** (multi, from the #200 review) —
+so the default run measures a real payload with **0 cloned workspaces** and reports the size it
+actually re-serialized (`envelopeBytes`: 672 B / 2 482 B; the browser's own write of the same decks is
+845 B / 2 342 B, see `workspaceSetBytesPerSave` — the delta is the catalog grid metadata this
+harness only approximates). A larger `--target-bytes` is reached by cloning Workspace 1, so it is a
+**synthetic** scaling point rather than a deck a user has — per-byte cost grows with the workspace
+count. Every run prints `seedWorkload`, `synthetic`, `workspaces`, `seedEnvelopeBytes` and
+`envelopeBytes` next to the median/p95 of 200 saves and the median `JSON.parse` of the same envelope.
+Pre-#199 revisions have no `src/lib/workspaceStorage.ts` (no envelope, no merge) and are not
+measurable this way.
 
 ## Workload (identical for both revisions)
 
@@ -94,14 +105,16 @@ Defined once in `perf/workload.mjs`:
 - **Workspace seed, `--workload single` (default):** 6 panels — 2 × `btc-perpetual-chart`, 2 ×
   `chart` (Recharts), 1 × `data-table`, 1 × `kpi-card` — with a fixed 36-column lg layout. The seed is
   the **legacy** single-workspace `0xdeck-workspace` payload, which both revisions can read: `9976989`
-  reads it directly, `bb42a75` migrates it to Workspace 1. Same bytes in, same 6 panels out.
+  reads it directly, `bb42a75` migrates it to Workspace 1. Same bytes in, same 6 panels out. Stored
+  envelope: **672 B** as seeded, **845 B** per write once the app re-serializes it. `9976989` writes
+  777 B because it keeps the legacy layout verbatim.
 - **Workspace seed, `--workload multi`:** a `version: 2` envelope with 5 workspaces / 23 panels —
-  Workspace 1 is the 6-panel seed above, Workspaces 2–5 add chart, table and KPI panels (~47 KB of
-  stored envelope instead of ~17 KB). Only Workspace 1 is rendered, so mount/drag/resize do the same
-  work in both variants: the variant isolates the cost that scales with **envelope size × workspace
-  count**, which is the dimension #199's parse + merge + re-serialize added. Pre-#199 revisions cannot
-  read this payload (they only know the legacy single-workspace format), so the multi-workspace table
-  compares `bb42a75` with the fix.
+  Workspace 1 is the 6-panel seed above, Workspaces 2–5 add chart, table and KPI panels. Stored
+  envelope: **2 169 B** as seeded, **2 342 B per write** — 2.8–3.5× the single payload, not 30×. Only
+  Workspace 1 is rendered, so mount/drag/resize do the same work in both variants; the variant
+  isolates the cost that scales with **envelope size × workspace count**, which is what #199's parse +
+  merge + re-serialize added. Pre-#199 revisions cannot read this payload (they only know the legacy
+  single-workspace format), so the multi-workspace table compares `bb42a75` with the fix.
 - **Widget settings:** dataset, time range, market interval/exchange and indicators are seeded per
   panel id (`0xdeck-widget-*`), including daily VWAP so the BTC panels take the `*-context` candle
   path.
@@ -128,7 +141,12 @@ Instrumentation (`perf/workload.mjs`, injected with `addInitScript`, no app chan
 - `PerformanceObserver('longtask')` for main-thread blocking;
 - a `requestAnimationFrame` sampler for frame pacing;
 - `Storage.prototype.getItem/setItem` and `JSON.parse/JSON.stringify` wrappers that count calls and
-  bytes, split by key/size so `0xdeck-workspace` envelope traffic is separable from per-widget keys;
+  bytes, split by key/size so `0xdeck-workspace` envelope traffic is separable from per-widget keys.
+  The envelope bytes are counted **per direction** (`workspaceGetBytes` = bytes returned by
+  `getItem`, `workspaceSetBytes` = bytes passed to `setItem`) and are cumulative over a scenario;
+  `perf/measure.mjs` derives `workspaceSetBytesPerSave` (what one drag stop really stores),
+  `workspaceGetBytesPerRead` and the read + written aggregate `workspaceIoBytes`. Read the per-save
+  row, not a scenario total, when asking "how big is the envelope";
 - the React DevTools global hook: every commit walks the fiber tree and counts a fiber as rendered
   when its `memoizedProps` object differs from its alternate's (or it mounted), per component name.
   Component names survive in dev builds only, hence `--mode dev` for the attribution table.
@@ -136,6 +154,15 @@ Instrumentation (`perf/workload.mjs`, injected with `addInitScript`, no app chan
   props of every rendered fiber per commit) does not dominate the dev numbers.
 
 ## Interpreting the tables
+
+**Envelope bytes.** A drag stop writes the whole `0xdeck-workspace` envelope once, so over 10 stops
+the payload is written 10 times. `workspaceSetBytes` is cumulative over the scenario and the earlier
+revision of this harness added `workspaceGetBytes` into the same total, which made the stored payload
+look ~20× larger than it is (46 840 B instead of 2 342 B for the multi seed; 16 900 B instead of
+845 B for the single seed). Use `envelope bytes written per save` (`workspaceSetBytesPerSave`) for
+"how big is the envelope"; the `cumulative` rows are labelled and are only a traffic total. The real
+stored payload of the seeded workloads is 672 B (single) / 2 169 B (multi), i.e. **845 B / 2 342 B
+per write** once the app re-serializes them.
 
 `localStorage` "envelope reads" being 0 on a pre-#199 revision is not a win: that revision wrote the
 single-workspace payload blindly, so a stale tab could clobber another tab's data. From #199 on a

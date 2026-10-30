@@ -12,6 +12,11 @@
  *   CDP deltas, React commits per component, localStorage/JSON traffic, JS CPU profile top functions);
  * - `dragStops`: 10 drag-stop cycles (wall time, commits, localStorage/JSON traffic);
  * - `resize`: 1.5 s scripted resize through the `se` handle (same metrics as `drag`).
+ *
+ * The `storage` block of every scenario is cumulative over that scenario. For the `0xdeck-workspace`
+ * envelope it is also reported **per write** (`workspaceSetBytesPerSave`, the size one drag stop
+ * actually stores) and **per read** (`workspaceGetBytesPerRead`), so a scenario total can never be
+ * mistaken for the size of the stored envelope; `workspaceIoBytes` is the read + written aggregate.
  */
 import { chromium } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -59,7 +64,28 @@ function diffCounters(before, after) {
     const delta = count - (before.commits.byName[name] ?? 0)
     if (delta !== 0) commits.byName[name] = delta
   }
-  return { longTasks, frames, storage, json, commits }
+  return { longTasks, frames, storage: envelopeByteMetrics(storage), json, commits }
+}
+
+/**
+ * Turns the cumulative envelope byte counters into the per-operation size plus an explicit aggregate.
+ *
+ * `workspaceSetBytes` / `workspaceGetBytes` are sums over the whole scenario (a drag stop writes the
+ * envelope once, so 10 stops write it 10 times), and reading one of them as "the envelope" is what
+ * overstated the stored payload of this workload as 46 840 B instead of ~2.2 KB. The real stored
+ * sizes are reported by `workspaceSetBytesPerSave` (bytes per `setItem`).
+ */
+function envelopeByteMetrics(storage) {
+  const setBytes = storage.workspaceSetBytes ?? 0
+  const getBytes = storage.workspaceGetBytes ?? 0
+  const saves = storage.workspaceSet ?? 0
+  const reads = storage.workspaceGet ?? 0
+  return {
+    ...storage,
+    workspaceSetBytesPerSave: saves === 0 ? null : round(setBytes / saves),
+    workspaceGetBytesPerRead: reads === 0 ? null : round(getBytes / reads),
+    workspaceIoBytes: setBytes + getBytes,
+  }
 }
 
 function frameStats(frames) {

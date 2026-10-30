@@ -247,7 +247,10 @@ export function mockApiResponse(pathname, search) {
  * - `frames` via requestAnimationFrame — frame pacing / dropped frames;
  * - `storage`/`json` counters by wrapping `Storage.prototype.getItem/setItem` and
  *   `JSON.parse/stringify`, split by key/payload size so the `0xdeck-workspace` envelope traffic is
- *   separable from the per-widget keys;
+ *   separable from the per-widget keys. The envelope counters are kept **per direction**
+ *   (`workspaceGetBytes` = bytes returned by `getItem`, `workspaceSetBytes` = bytes passed to
+ *   `setItem`) and are cumulative over the scenario, so `perf/measure.mjs` can report bytes per
+ *   write (one drag stop) instead of a sum that also contains the reads;
  * - `commits` from the React DevTools global hook: every commit walks the fiber tree and counts a
  *   fiber as "rendered" when its `memoizedProps` object differs from its alternate's (or it mounted),
  *   aggregated per component name. No production code is touched.
@@ -259,7 +262,16 @@ export function instrumentationScript() {
   const state = {
     longTasks: [],
     frames: [],
-    storage: { getItem: 0, setItem: 0, getBytes: 0, setBytes: 0, workspaceGet: 0, workspaceSet: 0, workspaceBytes: 0 },
+    storage: {
+      getItem: 0,
+      setItem: 0,
+      getBytes: 0,
+      setBytes: 0,
+      workspaceGet: 0,
+      workspaceSet: 0,
+      workspaceGetBytes: 0,
+      workspaceSetBytes: 0,
+    },
     json: { parse: 0, parseBytes: 0, largeParse: 0, largeParseBytes: 0, stringify: 0, stringifyBytes: 0, largeStringify: 0, largeStringifyBytes: 0 },
     commits: { total: 0, byName: {} },
     recording: true,
@@ -287,7 +299,7 @@ export function instrumentationScript() {
     state.storage.getBytes += bytes
     if (key === '0xdeck-workspace') {
       state.storage.workspaceGet += 1
-      state.storage.workspaceBytes += bytes
+      state.storage.workspaceGetBytes += bytes
     }
     return value
   }
@@ -297,7 +309,7 @@ export function instrumentationScript() {
     state.storage.setBytes += bytes
     if (key === '0xdeck-workspace') {
       state.storage.workspaceSet += 1
-      state.storage.workspaceBytes += bytes
+      state.storage.workspaceSetBytes += bytes
     }
     return originalSetItem.call(this, key, value)
   }

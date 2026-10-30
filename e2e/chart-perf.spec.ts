@@ -43,7 +43,8 @@ type PerfCounters = {
     setBytes: number
     workspaceGet: number
     workspaceSet: number
-    workspaceBytes: number
+    workspaceGetBytes: number
+    workspaceSetBytes: number
   }
   json: {
     parse: number

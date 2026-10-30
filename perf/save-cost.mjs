@@ -6,29 +6,46 @@
  * "N `JSON.parse` calls per drag stop" and whole-scenario script time, where ~1.8 s of panel-tree
  * re-rendering dominates. This isolates the persistence work #199 added on the interaction path:
  * read + `JSON.parse` + merge + re-serialize of every stored workspace, measured against the same
- * envelope size the app writes for a multi-workspace deck.
+ * envelope size the app writes for a single- or multi-workspace deck.
  *
  * Usage (from the repo root, Node ≥ 22 for `--experimental-strip-types`):
  *
- *   node --experimental-strip-types perf/save-cost.mjs --dir /tmp/0xdeck-perf-bb42a75
- *   node --experimental-strip-types perf/save-cost.mjs --dir . --target-bytes 46840
+ *   node --experimental-strip-types perf/save-cost.mjs --dir .                      # multi, 2 169 B
+ *   node --experimental-strip-types perf/save-cost.mjs --dir . --workload single     # single, 672 B
+ *   node --experimental-strip-types perf/save-cost.mjs --dir . --target-bytes 46840  # synthetic stress case
  *
  * `--dir` is the checkout whose `src/lib/workspaceStorage.ts` is measured (they are pure modules with
- * an injected storage, so no browser is needed). `--target-bytes` grows the seeded 5-workspace
- * envelope by duplicating Workspace 1 until the serialized payload reaches that many bytes — by
- * default the 46 840 bytes the browser writes for the `--workload multi` seed.
+ * an injected storage, so no browser is needed). `--workload single|multi` picks the seeded payload
+ * (`single` seeds the legacy payload, which the core migrates to Workspace 1, exactly like the app),
+ * and `--target-bytes` defaults to the size that seed really stores — 672 B / 2 169 B, measured in
+ * the browser on the same workloads (see `perf/README.md`). Larger targets are **synthetic**: they
+ * grow the envelope by cloning Workspace 1 (`--target-bytes 46840` → 77 workspaces), so they are a
+ * scaling point, not a payload this app writes.
  */
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { multiWorkspacePayload } from './workload.mjs'
+import { legacyWorkspacePayload, multiWorkspacePayload } from './workload.mjs'
+
+/**
+ * Bytes the seeded payloads store on disk, measured in the browser (`localStorage.getItem(
+ * '0xdeck-workspace')` right after the seeded boot of `perf/compare.mjs`, #200 review): 672 B for
+ * the 6-panel single workspace, 2 169 B for the 5-workspace / 23-panel envelope. The app's own next
+ * save writes those decks back as 845 B / 2 342 B (it re-serializes the layout with the catalog
+ * `minW`/`minH`), which is what `workspaceSetBytesPerSave` reports in `perf:compare`.
+ */
+const REAL_ENVELOPE_BYTES = { single: 672, multi: 2_169 }
 
 function parseArgs(argv) {
-  const args = { dir: '.', targetBytes: 46_840, iterations: 200 }
+  const args = { dir: '.', workload: 'multi', targetBytes: null, iterations: 200 }
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]
     if (key === '--dir') args.dir = argv[++i]
+    else if (key === '--workload') args.workload = argv[++i]
     else if (key === '--target-bytes') args.targetBytes = Number(argv[++i])
     else if (key === '--iterations') args.iterations = Number(argv[++i])
+  }
+  if (!(args.workload in REAL_ENVELOPE_BYTES)) {
+    throw new Error(`--workload must be single|multi, got ${args.workload}`)
   }
   return args
 }
@@ -69,16 +86,25 @@ function createStorage(initial) {
   }
 }
 
-const seed = JSON.stringify(multiWorkspacePayload())
+const seedPayload = args.workload === 'single' ? legacyWorkspacePayload() : multiWorkspacePayload()
+const seed = JSON.stringify(seedPayload)
+const targetBytes = args.targetBytes ?? REAL_ENVELOPE_BYTES[args.workload]
 const core = storageCore.createWorkspaceStorage({
   storage: createStorage(seed),
   lookupPanelGrid,
   defaultPanelIds: [],
 })
 
-/** Grow the seed to the target size by cloning Workspace 1, the way a real deck accumulates workspaces. */
-function storeWithEnvelopeOfAtLeast(bytes) {
-  const base = core.load()
+const baseStore = core.load()
+const seedEnvelopeBytes = serialize(baseStore).length
+
+/**
+ * Grow the envelope to the target size by cloning Workspace 1, the way a deck accumulates
+ * workspaces. Only reached for a target **above** the seeded envelope, i.e. a synthetic scaling point:
+ * the real 5-workspace envelope is ~2.2 KB, so `--target-bytes 46840` clones it up to 77 workspaces.
+ */
+function growEnvelopeTo(bytes) {
+  const base = baseStore
   const template = base.workspaces[0]
   let count = base.workspaces.length
   let store = base
@@ -92,7 +118,9 @@ function storeWithEnvelopeOfAtLeast(bytes) {
   }
 }
 
-const store = storeWithEnvelopeOfAtLeast(args.targetBytes)
+// A target at or below what the seed already stores measures the seed itself (0 cloned workspaces).
+const store = seedEnvelopeBytes >= targetBytes ? baseStore : growEnvelopeTo(targetBytes)
+const synthetic = store.workspaces.length > baseStore.workspaces.length
 const storage = createStorage(seed)
 // Re-create the core over the measured storage so `lastRaw`/cache state matches a real tab: one load,
 // then the first save (which writes every workspace), then the timed saves.
@@ -144,7 +172,12 @@ console.log(
   JSON.stringify(
     {
       dir,
+      seedWorkload: args.workload,
+      targetBytes,
+      // True only when the envelope was grown by cloning Workspace 1 (a scaling point, not a real deck).
+      synthetic,
       workspaces: store.workspaces.length,
+      seedEnvelopeBytes,
       envelopeBytes,
       saves: args.iterations,
       saveMedianMs: round(median(times)),
