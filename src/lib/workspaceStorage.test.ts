@@ -644,3 +644,119 @@ describe('two-tab envelope conflict policy', () => {
     assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2'])
   })
 })
+
+/**
+ * Hot-path cost of a save (Issue #200).
+ *
+ * `save` must stay multi-tab safe — it compares the stored envelope with the one this tab last
+ * read/wrote — but a save that follows this tab's own write has nothing to merge, and parsing +
+ * merging + re-serializing every workspace on each drag/resize stop was measurable work on the
+ * interaction path (`bb42a75`: one full-envelope `JSON.parse` per stop). These tests pin both halves:
+ * the parse is skipped when the stored payload is this tab's own, and it still happens as soon as
+ * another tab has written the envelope.
+ */
+describe('save hot path (no envelope parse when this tab owns the stored payload)', () => {
+  function envelopeWithTwoWorkspaces(): string {
+    return envelope(
+      [
+        {
+          id: 'ws-1',
+          activePanels: ['kpi-card-e2e'],
+          layout: [{ i: 'kpi-card-e2e', x: 0, y: 0, w: 18, h: 12 }],
+          gridVersion: CURRENT_GRID_VERSION,
+        },
+        {
+          id: 'ws-2',
+          activePanels: ['notes-e2e'],
+          layout: [{ i: 'notes-e2e', x: 0, y: 0, w: 12, h: 12 }],
+          gridVersion: CURRENT_GRID_VERSION,
+        },
+      ],
+      'ws-1',
+    )
+  }
+
+  type ParsedEnvelope = {
+    activeWorkspaceId: string
+    workspaces: Array<{ id: string; activePanels: string[]; layout: Array<{ i: string; y: number }> }>
+  }
+
+  function movePanel(store: WorkspaceStore, workspaceId: string, y: number): WorkspaceStore {
+    return updateWorkspaceState(store, workspaceId, (state) => ({
+      ...state,
+      layouts: {
+        ...state.layouts,
+        lg: (state.layouts.lg ?? []).map((item) => ({ ...item, y })),
+      },
+    }))
+  }
+
+  /** Runs `run` and counts `JSON.parse` calls whose input is a workspace envelope. */
+  function countEnvelopeParses(run: () => void): number {
+    const original = JSON.parse
+    let parses = 0
+    JSON.parse = ((text: string, reviver?: (key: string, value: unknown) => unknown) => {
+      if (typeof text === 'string' && text.includes('"workspaces"')) parses += 1
+      return original(text, reviver)
+    }) as typeof JSON.parse
+
+    try {
+      run()
+    } finally {
+      JSON.parse = original
+    }
+    return parses
+  }
+
+  it('does not parse the stored envelope for saves that follow its own read or write', () => {
+    const stub = createStorageStub(envelopeWithTwoWorkspaces())
+    const core = createCore(stub)
+    const store = core.load()
+
+    const parses = countEnvelopeParses(() => {
+      core.save(movePanel(store, 'ws-1', 4), new Set(['ws-1']))
+      core.save(movePanel(store, 'ws-1', 5), new Set(['ws-1']))
+      core.save(movePanel(store, 'ws-1', 6), new Set(['ws-1']))
+    })
+
+    assert.equal(parses, 0)
+    // The write itself is unchanged: every workspace is persisted, this tab's edit included.
+    const parsed = stub.parsed() as ParsedEnvelope
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2'])
+    assert.equal(parsed.workspaces[0].layout[0].y, 6)
+  })
+
+  it('parses and merges as soon as another tab wrote the envelope', () => {
+    const stub = createStorageStub(envelopeWithTwoWorkspaces())
+    const tabA = createCore(stub)
+    const storeA = tabA.load()
+
+    const tabB = createCore(stub)
+    tabB.save(createWorkspace(tabB.load(), tabB.emptyState, 'ws-3'))
+
+    const parses = countEnvelopeParses(() => {
+      tabA.save(movePanel(storeA, 'ws-1', 7), new Set(['ws-1']))
+    })
+
+    assert.equal(parses, 1)
+    const parsed = stub.parsed() as ParsedEnvelope
+    // Workspace 3 created by the other tab survives, so the merge still ran.
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2', 'ws-3'])
+    assert.equal(parsed.workspaces[0].layout[0].y, 7)
+  })
+
+  it('parses again after a fresh load in another tab instance', () => {
+    const stub = createStorageStub(envelopeWithTwoWorkspaces())
+    const core = createCore(stub)
+    const store = core.load()
+
+    const second = createCore(stub)
+    const parses = countEnvelopeParses(() => {
+      second.load()
+      second.save(movePanel(store, 'ws-1', 2), new Set(['ws-1']))
+    })
+
+    // `load` has to parse the payload it just read; the following save does not parse it again.
+    assert.equal(parses, 1)
+  })
+})

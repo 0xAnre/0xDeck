@@ -392,6 +392,17 @@ export function adoptExternalWorkspaces(
 export function createWorkspaceStorage(options: WorkspaceStorageOptions): WorkspaceStorage {
   const { storage, lookupPanelGrid, defaultPanelIds } = options
   const storageKey = options.storageKey ?? WORKSPACE_STORAGE_KEY
+  /**
+   * Raw `storageKey` value this instance last read or wrote.
+   *
+   * Every write merges the whole envelope, so a save has to read what is stored right now to see
+   * whether another tab wrote it. Comparing the raw strings first keeps that read (a cheap
+   * synchronous `getItem`) but skips the `JSON.parse` + merge + re-serialize of every workspace
+   * whenever the stored payload is still the one this tab produced itself — which is the normal
+   * case on the interaction path (a drag or resize stop saves on every stop). The multi-tab
+   * guarantee is unchanged: a differing payload is still parsed and merged exactly as before.
+   */
+  let lastRaw: string | null = null
 
   function createDefaultState(): WorkspaceState {
     const activePanels = [...defaultPanelIds]
@@ -410,18 +421,18 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
     }
   }
 
-  function readStoredCollection(): WorkspaceCollection<WorkspaceSnapshot> | null {
-    try {
-      return parseWorkspaceCollection(storage.getItem(storageKey))?.collection ?? null
-    } catch {
-      // Storage unreadable (e.g. blocked): write this tab's envelope without a merge.
-      return null
-    }
-  }
-
   function save(store: WorkspaceStore, changedWorkspaceIds?: ReadonlySet<string>) {
     const next = storeToStoredCollection(store)
-    const stored = readStoredCollection()
+    let raw: string | null
+    try {
+      raw = storage.getItem(storageKey)
+    } catch {
+      // Storage unreadable (e.g. blocked): write this tab's envelope without a merge.
+      raw = null
+    }
+
+    // Unchanged raw means no other tab wrote since this tab last read/wrote it: nothing to merge.
+    const stored = raw === lastRaw ? null : parseWorkspaceCollection(raw)?.collection ?? null
     const merged = stored
       ? mergeWorkspaceCollections(
           stored,
@@ -429,7 +440,9 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
           changedWorkspaceIds ?? new Set(next.workspaces.map((entry) => entry.id)),
         )
       : next
-    storage.setItem(storageKey, serializeWorkspaceCollection(merged))
+    const serialized = serializeWorkspaceCollection(merged)
+    storage.setItem(storageKey, serialized)
+    lastRaw = serialized
   }
 
   function load(): WorkspaceStore {
@@ -440,6 +453,9 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
       // Storage unreadable (e.g. blocked): fall back to the default workspace.
       return createDefaultStore()
     }
+
+    // Remember what this tab has seen, so the next save can skip a needless envelope merge.
+    lastRaw = raw
 
     const parsed = parseWorkspaceCollection(raw)
     if (!parsed) return createDefaultStore()

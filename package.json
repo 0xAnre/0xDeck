@@ -12,6 +12,9 @@
     "test:navigation": "node --experimental-strip-types --test src/screenNavigationShortcuts.test.ts",
     "test:ui": "node --experimental-strip-types --test src/widgetSettings/*.test.ts src/lib/*.test.ts",
     "test:e2e": "playwright test",
+    "test:perf": "playwright test e2e/chart-perf.spec.ts",
+    "perf:measure": "node perf/measure.mjs",
+    "perf:compare": "node perf/compare.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

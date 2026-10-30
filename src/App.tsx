@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ResponsiveGridLayout,
   getCompactor,
@@ -40,6 +40,7 @@ import { panelDisplayTitle, resolvePanelInstance } from './panels'
 import {
   getWidgetDefinitionForInstance,
   widgetHasHeaderControls,
+  type WidgetDefinition,
 } from '@/widgets/registry'
 import { ParquetDataProvider } from './context/ParquetDataContext'
 import { WidgetSettingsProvider } from './context/WidgetSettingsContext'
@@ -77,6 +78,44 @@ function reconcileStackOrder(previous: string[], activePanels: string[]): string
   const added = activePanels.filter((id) => !kept.includes(id))
   return [...kept, ...added]
 }
+
+/**
+ * Widget body, memoized by the identity of its two props.
+ *
+ * A react-grid-layout drag or resize emits a layout change per frame, and `handleLayoutChange` /
+ * `persistLayoutInteraction` store it per frame, so `App` re-renders on every mouse move. The body
+ * props (`definition.component` from the registry, `panelId`, `headerSettings`) never change during
+ * that, so without this memo every chart panel body — lightweight-charts, Recharts, the data table —
+ * was re-rendered several times per mouse move and dominated the interaction. Measured on the
+ * issue #200 workload (2 BTC charts, 2 Recharts charts, a table and a KPI card): the drag re-rendered
+ * the BTC chart bodies 386 times and the header controls 1158 times, and 10 drag stops accumulated
+ * ~1.9 s of long tasks; with the memo neither body renders at all during a drag or resize and 10 drag
+ * stops no longer produce a single long task.
+ *
+ * Context reads still reach the body: `WorkspaceScopeProvider` and `WidgetSettingsProvider` updates
+ * pierce `memo`, so a workspace switch or a settings change still re-renders exactly the panels that
+ * consume them.
+ */
+const PanelWidgetBody = memo(function PanelWidgetBody({
+  component: WidgetBody,
+  panelId,
+  headerSettings,
+}: {
+  component: WidgetDefinition['component']
+  panelId: string
+  headerSettings: WidgetDefinition['headerSettings']
+}) {
+  return <WidgetBody panelId={panelId} headerSettings={headerSettings} />
+})
+
+/**
+ * Panel header controls, memoized by `panelId`.
+ *
+ * The controls re-read their widget settings from `WidgetSettingsContext`, whose value changes only
+ * when a panel registers or bumps its settings, so a workspace layout update never changes what they
+ * render. Memoizing keeps the dropdown triggers out of the per-frame `App` re-render as well.
+ */
+const MemoPanelHeaderControls = memo(PanelHeaderControls)
 
 function App() {
   const { width, containerRef, mounted } = useContainerWidth()
@@ -470,8 +509,6 @@ function App() {
                 const definition = getWidgetDefinitionForInstance(panel.id)
                 if (!definition) return null
 
-                const WidgetBody = definition.component
-
                 return (
                 <Card
                   key={panel.id}
@@ -488,7 +525,7 @@ function App() {
                       </CardTitle>
                     )}
                     {widgetHasHeaderControls(definition) && (
-                      <PanelHeaderControls panelId={panel.id} />
+                      <MemoPanelHeaderControls panelId={panel.id} />
                     )}
                     <CardAction className="!col-start-auto !row-span-1 !row-start-auto ml-auto shrink-0">
                       <Button
@@ -504,7 +541,8 @@ function App() {
                     </CardAction>
                   </CardHeader>
                   <CardContent className="panel-body min-h-0 flex-1 overflow-auto px-2 pb-2 pt-0">
-                    <WidgetBody
+                    <PanelWidgetBody
+                      component={definition.component}
                       panelId={panel.id}
                       headerSettings={definition.headerSettings}
                     />
