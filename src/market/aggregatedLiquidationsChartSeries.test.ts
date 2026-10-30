@@ -50,24 +50,52 @@ function createFakePane(
  *
  * `addSeriesJoinsCandlePane` simulates the pane-collision hazard (a series that
  * ends up inside the candle pane) so the candle-pane guard can be asserted.
+ *
+ * `modelPriceScaleRecalculation` models the three Lightweight Charts 5.2.0
+ * behaviours the refresh fix depends on, and nothing else:
+ *
+ * 1. options applied to the **default** `'right'` scale id are merged into the
+ *    chart-wide options, i.e. they become the template every pane created later
+ *    inherits (`Model._internal_applyPriceScaleOptions`);
+ * 2. `Pane._internal_recalculatePriceScale` early-returns for a non-autoscale
+ *    scale, so `setData` never recomputes the range of a manual pane;
+ * 3. a new pane always gets one autoscale pass, which installs the library's
+ *    `[-0.5, 0.5]` placeholder when the series has no bars yet.
  */
 function createHarness({
   addSeriesJoinsCandlePane = false,
   paneAboveCandles = false,
-}: { addSeriesJoinsCandlePane?: boolean; paneAboveCandles?: boolean } = {}) {
+  modelPriceScaleRecalculation = false,
+}: {
+  addSeriesJoinsCandlePane?: boolean
+  paneAboveCandles?: boolean
+  modelPriceScaleRecalculation?: boolean
+} = {}) {
   const panes: FakePane[] = []
   const heights = new Map<FakePane, number>()
   const paneEvents: PaneEvent[] = []
   const scaleOptions: Array<{
     invertScale?: boolean
     scaleMargins?: { top: number; bottom: number }
+    autoScale?: boolean
   }> = []
   const addSeriesPaneIndexes: number[] = []
   // Price-scale state the overlay reads: `null` models a scale that never
   // received a visible-bar window (no range at all).
-  const scaleState: { visibleRange: { from: number; to: number } | null } = {
+  const scaleState: {
+    autoScale: boolean
+    visibleRange: { from: number; to: number } | null
+  } = {
+    autoScale: true,
     visibleRange: { from: 0, to: 930_000 },
   }
+  /**
+   * Chart-wide `rightPriceScale` options. Lightweight Charts merges options
+   * applied to the default `'right'` scale id here, so this is what a pane
+   * created later inherits.
+   */
+  const template: { autoScale: boolean } = { autoScale: true }
+
   const otherPane = createFakePane(panes, heights, paneEvents)
   if (paneAboveCandles) panes.push(otherPane)
   const candlePane = createFakePane(panes, heights, paneEvents)
@@ -85,11 +113,23 @@ function createHarness({
     priceScale: () => ({
       applyOptions: (options: (typeof scaleOptions)[number]) => {
         scaleOptions.push(options)
+        if (options.autoScale === undefined) return
+        // Default `'right'` scale id: the instance *and* the chart-wide template.
+        scaleState.autoScale = options.autoScale
+        template.autoScale = options.autoScale
       },
       getVisibleRange: () => scaleState.visibleRange,
     }),
-    setData: () => {
+    setData: (data?: ReadonlyArray<{ time: number; value: number }>) => {
       setDataCount += 1
+      if (!modelPriceScaleRecalculation) return
+      // A manual (non-autoscale) pane is never re-scaled: the library's
+      // `Pane._internal_recalculatePriceScale` returns before touching it.
+      if (!scaleState.autoScale) return
+      const peak = (data ?? []).reduce((max, point) => Math.max(max, point.value), 0)
+      // An empty series leaves the `[-0.5, 0.5]` placeholder the pane got from
+      // its one creation-time autoscale pass; real bars scale to `[0, peak]`.
+      scaleState.visibleRange = peak > 0 ? { from: 0, to: peak } : { from: -0.5, to: 0.5 }
     },
     attachPrimitive: (primitive: AggregatedLiquidationsSeriesPrimitive) => {
       attachedPrimitive = primitive
@@ -102,7 +142,25 @@ function createHarness({
       })
     },
     detachPrimitive: () => {},
-    priceToCoordinate: () => null,
+    priceToCoordinate: (value: number) => priceToCoordinate(value),
+  }
+
+  /**
+   * Library-shaped price → y mapping (`PriceScale._private__logicalToCoordinate`)
+   * so the tests can assert what is drawn, not just which options were applied.
+   */
+  const priceToCoordinate = (value: number): number | null => {
+    if (!modelPriceScaleRecalculation) return null
+    const range = scaleState.visibleRange
+    if (!range || range.from === range.to) return null
+    const height = AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX
+    const margins = scaleOptions.at(-1)?.scaleMargins ?? { top: 0, bottom: 0 }
+    const topPx = margins.top * height
+    const bottomPx = margins.bottom * height
+    const internalHeight = height - topPx - bottomPx - 1
+    const invertedCoordinate =
+      bottomPx + (internalHeight * (value - range.from)) / (range.to - range.from)
+    return height - 1 - invertedCoordinate
   }
 
   const chart = {
@@ -120,6 +178,12 @@ function createHarness({
       } else {
         panes.push(liquidationPane)
         seriesPane = liquidationPane
+        if (modelPriceScaleRecalculation) {
+          // A brand new pane inherits the chart-wide template and always gets
+          // one autoscale pass, which installs the placeholder (no bars yet).
+          scaleState.autoScale = template.autoScale
+          scaleState.visibleRange = { from: -0.5, to: 0.5 }
+        }
       }
       return series
     },
@@ -150,6 +214,8 @@ function createHarness({
     paneEvents,
     addSeriesPaneIndexes,
     scaleState,
+    template,
+    priceToCoordinate,
     get requestUpdateCount() {
       return requestUpdateCount
     },
@@ -250,13 +316,73 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
     overlay.dispose()
   })
 
+  it('re-asserts autoscale for a pane born from a leaked manual candle price-scale template', () => {
+    const harness = createHarness({ modelPriceScaleRecalculation: true })
+    // A manual candle price scale was restored before this overlay existed. The
+    // default `'right'` id is chart-global in Lightweight Charts 5, so the
+    // restored `autoScale: false` becomes the template for panes created later
+    // (refresh order: restore in `applyInitialSeries`, overlay after
+    // `setChartReady(true)`).
+    harness.template.autoScale = false
+
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // The pane must not inherit the manual template, and the template itself has
+    // to be repaired so panes created later (e.g. RSI) are not born manual.
+    assert.equal(harness.scaleState.autoScale, true)
+    assert.equal(harness.template.autoScale, true)
+
+    // Which is what makes the first real bucket land on a usable scale.
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+    assert.deepEqual(harness.scaleState.visibleRange, { from: 0, to: 9_500 })
+
+    overlay.dispose()
+  })
+
+  it('ends on the real autoscaled range when a manual candle viewport was restored first', () => {
+    const harness = createHarness({ modelPriceScaleRecalculation: true })
+    // 1. Manual candle viewport restored before the overlay exists: the chart-wide
+    //    default `'right'` template is now `autoScale: false`.
+    harness.template.autoScale = false
+
+    // 2. The overlay is created afterwards (the refresh ordering), so its pane is
+    //    born manual and gets the library's `[-0.5, 0.5]` creation placeholder.
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+    assert.deepEqual(harness.scaleState.visibleRange, { from: -0.5, to: 0.5 })
+
+    // 3. The bucket effect runs before liquidation history arrives …
+    overlay.setBuckets([])
+
+    // 4. … and the real buckets follow.
+    overlay.setBuckets([
+      { time: 60, long: 9_500, short: 400 },
+      { time: 120, long: 1_200, short: 750_000 },
+    ])
+
+    const range = harness.scaleState.visibleRange
+    assert.notDeepEqual(range, { from: -0.5, to: 0.5 })
+    assert.deepEqual(range, { from: 0, to: 750_000 })
+
+    // The zero baseline sits at the pane bottom and the peak is inside the pane,
+    // so the bars are drawn instead of being projected off-pane by the
+    // placeholder (the `0` / `0.5` axis the issue reports).
+    const zeroCoordinate = harness.priceToCoordinate(0)
+    const peakCoordinate = harness.priceToCoordinate(750_000)
+    assert.ok(zeroCoordinate !== null && zeroCoordinate > AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX - 5)
+    assert.ok(peakCoordinate !== null && peakCoordinate >= 0)
+    assert.ok(peakCoordinate !== null && peakCoordinate <= AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX)
+
+    overlay.dispose()
+  })
+
   it('moves the existing pane between Bottom and Top without recreating anything', () => {
     const harness = createHarness()
     const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
 
     assert.equal(harness.panes[1], harness.liquidationPane)
     assert.equal(harness.heights.get(harness.liquidationPane), AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX)
-    assert.deepEqual(harness.scaleOptions.at(-1), {
+    // `at(-2)`: creation re-asserts autoscale after the layout options.
+    assert.deepEqual(harness.scaleOptions.at(-2), {
       invertScale: false,
       scaleMargins: { top: 0.08, bottom: 0 },
     })
@@ -269,6 +395,8 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
     assert.equal(harness.panes[0], harness.liquidationPane)
     assert.equal(harness.panes[1], harness.candlePane)
     assert.equal(harness.heights.get(harness.liquidationPane), AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX)
+    // The position change applied the layout options last (the creation-time
+    // autoscale re-assertion belongs to the entries before it).
     assert.deepEqual(harness.scaleOptions.at(-1), {
       invertScale: true,
       scaleMargins: { top: 0, bottom: 0.08 },

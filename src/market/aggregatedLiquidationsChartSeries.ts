@@ -272,6 +272,24 @@ export function createAggregatedLiquidationsChartOverlay(
   }
   applyPosition(position)
 
+  // The default `'right'` price-scale id is chart-global in Lightweight Charts 5:
+  // `PriceScaleApi.applyOptions` merges the options into the chart-wide
+  // `rightPriceScale` template, which is what every pane created afterwards
+  // inherits. Restoring a manual candle price scale therefore leaves the template
+  // at `autoScale: false`, and this pane — created after that restore on a page
+  // refresh — would be born manual. A non-autoscale pane is never re-scaled again
+  // (`Pane._internal_recalculatePriceScale` returns early), so it would stay on
+  // the `[-0.5, 0.5]` placeholder its creation pass installed: bars projected far
+  // off-pane and a `0` / `0.5` axis until the price axis is double-clicked, which
+  // repairs the pane instance only. Re-assert autoscale once here, at creation,
+  // which also repairs the chart-wide template for panes created later.
+  // Deliberately **not** inside `applyPosition`: that runs on Top/Bottom changes
+  // and must preserve a manual liquidation zoom the user applied on purpose. The
+  // candle pane is skipped for the same reason `applyPosition` skips it.
+  if (!paneHoldsCandleSeries(chart, series.getPane())) {
+    series.priceScale().applyOptions({ autoScale: true })
+  }
+
   return {
     setBuckets: (buckets) => {
       if (buckets === currentBuckets) return
