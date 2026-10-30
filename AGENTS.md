@@ -253,10 +253,17 @@ Use these for checks after changes. **Do not start dev servers** (`npm run dev`,
 npm run build
 npm run lint
 npm run test:market
+npm run test:ui          # pure model/storage/widget-settings tests
+npm run test:navigation  # workspace screen shortcuts
+npm run test:perf        # chart interaction perf budgets (Playwright, local)
+npm run test:e2e         # Playwright suite; starts its own dev server on 57421
 
 # backend (from backend/, venv activated)
 python -m unittest discover -s tests
 ```
+
+`npm run perf:compare -- --before <checkout> --after .` produces the before/after interaction
+benchmark (mount, drag, 10 drag stops, resize) described in [perf/README.md](perf/README.md).
 
 ## Extended docs
 
