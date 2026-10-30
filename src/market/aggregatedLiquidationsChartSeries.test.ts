@@ -63,6 +63,13 @@ function createHarness({
     scaleMargins?: { top: number; bottom: number }
   }> = []
   const addSeriesPaneIndexes: number[] = []
+  // Manual price-scale state, mirroring the `IPriceScaleApi` surface the
+  // overlay reads and resets.
+  const scaleState: {
+    autoScale: boolean
+    visibleRange: { from: number; to: number } | null
+    setAutoScaleCalls: boolean[]
+  } = { autoScale: true, visibleRange: null, setAutoScaleCalls: [] }
   const otherPane = createFakePane(panes, heights, paneEvents)
   if (paneAboveCandles) panes.push(otherPane)
   const candlePane = createFakePane(panes, heights, paneEvents)
@@ -80,6 +87,12 @@ function createHarness({
     priceScale: () => ({
       applyOptions: (options: (typeof scaleOptions)[number]) => {
         scaleOptions.push(options)
+      },
+      options: () => ({ autoScale: scaleState.autoScale }),
+      getVisibleRange: () => scaleState.visibleRange,
+      setAutoScale: (on: boolean) => {
+        scaleState.setAutoScaleCalls.push(on)
+        scaleState.autoScale = on
       },
     }),
     setData: () => {
@@ -143,6 +156,7 @@ function createHarness({
     otherPane,
     paneEvents,
     addSeriesPaneIndexes,
+    scaleState,
     get requestUpdateCount() {
       return requestUpdateCount
     },
@@ -254,6 +268,46 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
     assert.equal(harness.panes[0], harness.candlePane)
     assert.equal(harness.requestUpdateCount, 4)
     assert.equal(harness.addSeriesCount, 1)
+
+    overlay.dispose()
+  })
+
+  it('restores native autoscale when a manual price range cannot show a bar', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // A manual range above every bar (an accidental drag on the 88px axis):
+    // the pane would render nothing until the axis is double-clicked.
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 1_000_000, to: 2_000_000 }
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [true])
+    assert.equal(harness.scaleState.autoScale, true)
+
+    overlay.dispose()
+  })
+
+  it('keeps a manual price range that still shows bars', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // The user zoomed the pane; the bars are still inside the visible range, so
+    // the manual scale is their intent and must survive.
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 0, to: 20_000 }
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
+
+    harness.scaleState.visibleRange = { from: 4_000, to: 12_000 }
+    overlay.setBuckets([{ time: 120, long: 9_500, short: 400 }])
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
+
+    // Autoscale panes are never touched at all.
+    harness.scaleState.autoScale = true
+    harness.scaleState.visibleRange = { from: 1_000_000, to: 2_000_000 }
+    overlay.setBuckets([{ time: 180, long: 9_500, short: 400 }])
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
 
     overlay.dispose()
   })

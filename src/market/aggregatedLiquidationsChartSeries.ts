@@ -19,6 +19,8 @@ import type { AggregatedLiquidationBucket } from './aggregatedLiquidations.ts'
 import type { AggregatedLiquidationsPosition } from './aggregatedLiquidationsSettings.ts'
 import {
   AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX,
+  aggregatedLiquidationsPeakNotional,
+  manualAggregatedLiquidationsRangeHidesBars,
   resolveAggregatedLiquidationsPaneLayout,
 } from './aggregatedLiquidationsPaneLayout.ts'
 import {
@@ -216,6 +218,10 @@ export function createAggregatedLiquidationsChartOverlay(
   chart: IChartApi,
   position: AggregatedLiquidationsPosition,
 ): AggregatedLiquidationsChartOverlay {
+  // Peak of the buckets currently on the pane; only used to tell whether a
+  // manual price range can still show a bar.
+  let peakNotional = 0
+
   const series = chart.addSeries(
     HistogramSeries,
     {
@@ -267,6 +273,24 @@ export function createAggregatedLiquidationsChartOverlay(
       if (buckets === currentBuckets) return
       currentBuckets = buckets
       context.buckets = buckets
+      peakNotional = aggregatedLiquidationsPeakNotional(buckets)
+
+      // Native autoscale stays the normal path; this only undoes a manual price
+      // range that cannot show a single bar. Lightweight Charts keeps such a
+      // range until the axis is double-clicked, which leaves an enabled
+      // indicator looking absent with no way to notice why. A range that still
+      // shows bars is left exactly as the user scaled it.
+      const priceScale = series.priceScale()
+      if (
+        !priceScale.options().autoScale &&
+        manualAggregatedLiquidationsRangeHidesBars(
+          priceScale.getVisibleRange(),
+          peakNotional,
+        )
+      ) {
+        priceScale.setAutoScale(true)
+      }
+
       series.setData(
         buckets.map((bucket) => ({
           time: bucket.time as UTCTimestamp,

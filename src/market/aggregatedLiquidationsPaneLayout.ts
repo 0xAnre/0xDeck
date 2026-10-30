@@ -1,3 +1,4 @@
+import type { AggregatedLiquidationBucket } from './aggregatedLiquidations.ts'
 import type { AggregatedLiquidationsPosition } from './aggregatedLiquidationsSettings.ts'
 
 export const AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX = 88
@@ -33,4 +34,44 @@ export function resolveAggregatedLiquidationsPaneLayout(
     invertScale: false,
     scaleMargins: { top: PANE_SCALE_MARGIN, bottom: 0 },
   }
+}
+
+/**
+ * Largest notional the pane renders, matching the value the native histogram
+ * series carries for each bucket. `0` when there is nothing to draw.
+ */
+export function aggregatedLiquidationsPeakNotional(
+  buckets: readonly AggregatedLiquidationBucket[],
+): number {
+  let peak = 0
+  for (const bucket of buckets) {
+    const value = Math.max(bucket.long, bucket.short)
+    if (Number.isFinite(value) && value > peak) peak = value
+  }
+  return peak
+}
+
+/**
+ * True when a manually scaled pane cannot show a single liquidation bar.
+ *
+ * Bars span `[0, peak]` up from the pane baseline, so a manual price range that
+ * lies entirely above the peak (or entirely at/below zero) renders an empty
+ * pane. That is the one reachable "enabled indicator looks absent" state:
+ * Lightweight Charts keeps a manual price range — this chart enables
+ * `handleScale.axisPressedMouseMove.price`, so a drag on the 88px axis under
+ * the candles is enough — until the user happens to double-click that axis
+ * (`axisDoubleClickReset.price`), which is the workaround this guard removes.
+ */
+export function manualAggregatedLiquidationsRangeHidesBars(
+  priceRange: { from: number; to: number } | null,
+  peakNotional: number,
+): boolean {
+  if (priceRange === null) return false
+  if (!Number.isFinite(peakNotional) || peakNotional <= 0) return false
+
+  const low = Math.min(priceRange.from, priceRange.to)
+  const high = Math.max(priceRange.from, priceRange.to)
+  if (!Number.isFinite(low) || !Number.isFinite(high)) return false
+
+  return high <= 0 || low >= peakNotional
 }
