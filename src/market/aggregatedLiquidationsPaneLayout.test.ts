@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX,
-  aggregatedLiquidationsPeakNotional,
+  aggregatedLiquidationsPeakNotionalInRange,
   manualAggregatedLiquidationsRangeHidesBars,
   resolveAggregatedLiquidationsPaneLayout,
 } from './aggregatedLiquidationsPaneLayout.ts'
@@ -34,25 +34,57 @@ describe('resolveAggregatedLiquidationsPaneLayout', () => {
   })
 })
 
-describe('aggregatedLiquidationsPeakNotional', () => {
-  it('is the largest long/short notional the pane renders', () => {
+describe('aggregatedLiquidationsPeakNotionalInRange', () => {
+  const buckets = [
+    { time: 60, long: 1_200, short: 400 },
+    { time: 120, long: 300, short: 9_500 },
+    { time: 180, long: 40_000, short: 900 },
+  ]
+
+  it('is the largest on-screen long/short notional', () => {
     assert.equal(
-      aggregatedLiquidationsPeakNotional([
-        { time: 60, long: 1_200, short: 400 },
-        { time: 120, long: 300, short: 9_500 },
-      ]),
+      aggregatedLiquidationsPeakNotionalInRange(buckets, { from: 0, to: 200 }),
+      40_000,
+    )
+    assert.equal(
+      aggregatedLiquidationsPeakNotionalInRange(buckets, { from: 0, to: 130 }),
       9_500,
     )
   })
 
-  it('is zero without buckets and ignores non-finite values', () => {
-    assert.equal(aggregatedLiquidationsPeakNotional([]), 0)
+  it('ignores buckets outside the visible window', () => {
+    // The 40k bucket at t=180 is off screen: the on-screen peak is 9.5k.
     assert.equal(
-      aggregatedLiquidationsPeakNotional([
-        { time: 60, long: Number.NaN, short: 0 },
-        { time: 120, long: 250, short: 0 },
-      ]),
-      250,
+      aggregatedLiquidationsPeakNotionalInRange(buckets, { from: 100, to: 150 }),
+      9_500,
+    )
+  })
+
+  it('treats the window bounds as inclusive and normalises an inverted range', () => {
+    assert.equal(
+      aggregatedLiquidationsPeakNotionalInRange(buckets, { from: 60, to: 60 }),
+      1_200,
+    )
+    assert.equal(
+      aggregatedLiquidationsPeakNotionalInRange(buckets, { from: 200, to: 0 }),
+      40_000,
+    )
+  })
+
+  it('is zero without a window, without on-screen buckets, or with bad input', () => {
+    assert.equal(aggregatedLiquidationsPeakNotionalInRange(buckets, null), 0)
+    assert.equal(aggregatedLiquidationsPeakNotionalInRange(buckets, { from: 500, to: 600 }), 0)
+    assert.equal(aggregatedLiquidationsPeakNotionalInRange([], { from: 0, to: 200 }), 0)
+    assert.equal(
+      aggregatedLiquidationsPeakNotionalInRange(buckets, { from: Number.NaN, to: 200 }),
+      0,
+    )
+    assert.equal(
+      aggregatedLiquidationsPeakNotionalInRange(
+        [{ time: 60, long: Number.NaN, short: 0 }],
+        { from: 0, to: 200 },
+      ),
+      0,
     )
   })
 })

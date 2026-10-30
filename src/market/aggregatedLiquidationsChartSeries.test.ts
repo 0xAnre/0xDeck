@@ -70,6 +70,11 @@ function createHarness({
     visibleRange: { from: number; to: number } | null
     setAutoScaleCalls: boolean[]
   } = { autoScale: true, visibleRange: null, setAutoScaleCalls: [] }
+  // Visible time window, as reported by `ITimeScaleApi.getVisibleRange()`.
+  const timeRangeState: {
+    range: { from: number; to: number } | null
+    handlers: Set<() => void>
+  } = { range: { from: 0, to: 10_000_000 }, handlers: new Set() }
   const otherPane = createFakePane(panes, heights, paneEvents)
   if (paneAboveCandles) panes.push(otherPane)
   const candlePane = createFakePane(panes, heights, paneEvents)
@@ -134,6 +139,13 @@ function createHarness({
     timeScale: () => ({
       options: () => ({ barSpacing: 10 }),
       timeToCoordinate: () => null,
+      getVisibleRange: () => timeRangeState.range,
+      subscribeVisibleTimeRangeChange: (handler: () => void) => {
+        timeRangeState.handlers.add(handler)
+      },
+      unsubscribeVisibleTimeRangeChange: (handler: () => void) => {
+        timeRangeState.handlers.delete(handler)
+      },
     }),
     removeSeries: () => {
       const target = seriesPane
@@ -157,6 +169,15 @@ function createHarness({
     paneEvents,
     addSeriesPaneIndexes,
     scaleState,
+    timeRangeState,
+    /** Simulates a pan/zoom: new visible window, then the library's callback. */
+    changeVisibleTimeRange(range: { from: number; to: number } | null) {
+      timeRangeState.range = range
+      for (const handler of [...timeRangeState.handlers]) handler()
+    },
+    get visibleTimeRangeHandlerCount() {
+      return timeRangeState.handlers.size
+    },
     get requestUpdateCount() {
       return requestUpdateCount
     },
@@ -276,7 +297,7 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
     const harness = createHarness()
     const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
 
-    // A manual range above every bar (an accidental drag on the 88px axis):
+    // A manual range above every bar (an accidental axis zoom plus pane drag):
     // the pane would render nothing until the axis is double-clicked.
     harness.scaleState.autoScale = false
     harness.scaleState.visibleRange = { from: 1_000_000, to: 2_000_000 }
@@ -284,6 +305,63 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
 
     assert.deepEqual(harness.scaleState.setAutoScaleCalls, [true])
     assert.equal(harness.scaleState.autoScale, true)
+
+    overlay.dispose()
+  })
+
+  it('judges the manual range against the on-screen bars, not the whole history', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // A 1M bucket sits far off screen; only 9.5k is drawn. The manual range
+    // hides every visible bar, so it must be replaced even though the manual
+    // `low` is below the whole-history peak.
+    harness.timeRangeState.range = { from: 900, to: 1_100 }
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 500_000, to: 2_000_000 }
+    overlay.setBuckets([
+      { time: 60, long: 1_000_000, short: 0 },
+      { time: 1_000, long: 9_500, short: 400 },
+    ])
+
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [true])
+
+    overlay.dispose()
+  })
+
+  it('leaves a manual range alone when no bar is on screen', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // Nothing is drawn in this window, so there is nothing to protect: the
+    // guard must not override the user's scale.
+    harness.timeRangeState.range = { from: 5_000, to: 6_000 }
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 500_000, to: 2_000_000 }
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
+
+    // Empty time scale: no visible window, so no judgement either.
+    harness.changeVisibleTimeRange(null)
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
+
+    overlay.dispose()
+  })
+
+  it('re-checks when panning or zooming changes the visible window', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // Data change alone does not fire: the bucket is off screen at that moment.
+    harness.timeRangeState.range = { from: 0, to: 10 }
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 500_000, to: 2_000_000 }
+    overlay.setBuckets([{ time: 1_000, long: 9_500, short: 400 }])
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
+
+    // Panning brings that bar on screen: the manual range now hides it.
+    harness.changeVisibleTimeRange({ from: 900, to: 1_100 })
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [true])
 
     overlay.dispose()
   })
@@ -310,6 +388,34 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
     assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
 
     overlay.dispose()
+  })
+
+  it('never resets the candle pane scale when the series collides into it', () => {
+    const harness = createHarness({ addSeriesJoinsCandlePane: true })
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 1_000_000, to: 2_000_000 }
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+    harness.changeVisibleTimeRange({ from: 0, to: 200 })
+
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
+
+    overlay.dispose()
+  })
+
+  it('stops watching the visible range after dispose', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+    assert.equal(harness.visibleTimeRangeHandlerCount, 1)
+
+    overlay.dispose()
+    assert.equal(harness.visibleTimeRangeHandlerCount, 0)
+
+    harness.scaleState.autoScale = false
+    harness.scaleState.visibleRange = { from: 1_000_000, to: 2_000_000 }
+    harness.changeVisibleTimeRange({ from: 0, to: 200 })
+    assert.deepEqual(harness.scaleState.setAutoScaleCalls, [])
   })
 
   it('creates its series in a brand new pane instead of joining an existing one', () => {

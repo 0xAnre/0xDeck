@@ -19,7 +19,7 @@ import type { AggregatedLiquidationBucket } from './aggregatedLiquidations.ts'
 import type { AggregatedLiquidationsPosition } from './aggregatedLiquidationsSettings.ts'
 import {
   AGGREGATED_LIQUIDATIONS_PANE_HEIGHT_PX,
-  aggregatedLiquidationsPeakNotional,
+  aggregatedLiquidationsPeakNotionalInRange,
   manualAggregatedLiquidationsRangeHidesBars,
   resolveAggregatedLiquidationsPaneLayout,
 } from './aggregatedLiquidationsPaneLayout.ts'
@@ -218,10 +218,6 @@ export function createAggregatedLiquidationsChartOverlay(
   chart: IChartApi,
   position: AggregatedLiquidationsPosition,
 ): AggregatedLiquidationsChartOverlay {
-  // Peak of the buckets currently on the pane; only used to tell whether a
-  // manual price range can still show a bar.
-  let peakNotional = 0
-
   const series = chart.addSeries(
     HistogramSeries,
     {
@@ -248,6 +244,59 @@ export function createAggregatedLiquidationsChartOverlay(
   let currentPosition = position
   let currentBuckets: readonly AggregatedLiquidationBucket[] | null = null
 
+  /** Visible time range in unix seconds, or `null` when the time scale is empty. */
+  const visibleTimeRange = (): { from: number; to: number } | null => {
+    const range = chart.timeScale().getVisibleRange()
+    if (range === null) return null
+    const { from, to } = range
+    if (typeof from !== 'number' || typeof to !== 'number') return null
+    return { from, to }
+  }
+
+  /**
+   * Restore native autoscale when the pane's manual price range cannot show a
+   * single bar that is actually on screen.
+   *
+   * Native autoscale stays the normal path — autoscale panes return here before
+   * reading anything — and Lightweight Charts keeps a manual price range until
+   * the axis is double-clicked, which leaves an enabled indicator looking
+   * absent with no way to notice why. Only a range that hides every *visible*
+   * bar is replaced; a range that still shows bars is left exactly as the user
+   * scaled it. The peak is taken from the buckets inside the visible time
+   * window, because that is what both the primitive and the library's own
+   * autoscale consider: a large bucket far off screen must not keep a manual
+   * range alive that hides everything currently drawn.
+   */
+  const restoreAutoscaleWhenManualRangeHidesVisibleBars = () => {
+    const priceScale = series.priceScale()
+    if (priceScale.options().autoScale) return
+    // Never reset the candle pane's scale, even if a pane collision ever put
+    // this series inside it (`applyPosition` guards the same hazard).
+    if (paneHoldsCandleSeries(chart, series.getPane())) return
+
+    const visiblePeak = aggregatedLiquidationsPeakNotionalInRange(
+      currentBuckets ?? [],
+      visibleTimeRange(),
+    )
+    if (
+      !manualAggregatedLiquidationsRangeHidesBars(
+        priceScale.getVisibleRange(),
+        visiblePeak,
+      )
+    ) {
+      return
+    }
+    priceScale.setAutoScale(true)
+  }
+
+  // Panning and zooming change which bars are on screen without touching the
+  // bucket data, so the same check has to run on every visible-range change.
+  const onVisibleTimeRangeChange = () => {
+    restoreAutoscaleWhenManualRangeHidesVisibleBars()
+  }
+  chart.timeScale().subscribeVisibleTimeRangeChange(onVisibleTimeRangeChange)
+
+
   const applyPosition = (next: AggregatedLiquidationsPosition) => {
     const pane = series.getPane()
     // The candle pane owns the candles and must never be reordered or resized
@@ -273,24 +322,7 @@ export function createAggregatedLiquidationsChartOverlay(
       if (buckets === currentBuckets) return
       currentBuckets = buckets
       context.buckets = buckets
-      peakNotional = aggregatedLiquidationsPeakNotional(buckets)
-
-      // Native autoscale stays the normal path; this only undoes a manual price
-      // range that cannot show a single bar. Lightweight Charts keeps such a
-      // range until the axis is double-clicked, which leaves an enabled
-      // indicator looking absent with no way to notice why. A range that still
-      // shows bars is left exactly as the user scaled it.
-      const priceScale = series.priceScale()
-      if (
-        !priceScale.options().autoScale &&
-        manualAggregatedLiquidationsRangeHidesBars(
-          priceScale.getVisibleRange(),
-          peakNotional,
-        )
-      ) {
-        priceScale.setAutoScale(true)
-      }
-
+      restoreAutoscaleWhenManualRangeHidesVisibleBars()
       series.setData(
         buckets.map((bucket) => ({
           time: bucket.time as UTCTimestamp,
@@ -314,6 +346,7 @@ export function createAggregatedLiquidationsChartOverlay(
     getPosition: () => currentPosition,
     update: () => primitive.requestRedraw(),
     dispose: () => {
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(onVisibleTimeRangeChange)
       unregisterChartPaneRoleSeries(chart, 'aggregated-liquidations', series)
       series.detachPrimitive(primitive)
       primitive.detached()
