@@ -393,16 +393,22 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
   const { storage, lookupPanelGrid, defaultPanelIds } = options
   const storageKey = options.storageKey ?? WORKSPACE_STORAGE_KEY
   /**
-   * Raw `storageKey` value this instance last read or wrote.
+   * Raw `storageKey` value this instance last read or wrote, plus the collection it parsed to.
    *
-   * Every write merges the whole envelope, so a save has to read what is stored right now to see
+   * Every write merges the whole envelope, so a save has to know what is stored right now to see
    * whether another tab wrote it. Comparing the raw strings first keeps that read (a cheap
-   * synchronous `getItem`) but skips the `JSON.parse` + merge + re-serialize of every workspace
-   * whenever the stored payload is still the one this tab produced itself — which is the normal
-   * case on the interaction path (a drag or resize stop saves on every stop). The multi-tab
-   * guarantee is unchanged: a differing payload is still parsed and merged exactly as before.
+   * synchronous `getItem`) but skips the `JSON.parse` of the envelope whenever the stored payload is
+   * still the one this tab produced itself — which is the normal case on the interaction path (a
+   * drag or resize stop saves on every stop).
+   *
+   * The cached **collection** — not just the string — is what the merge runs against, and that is a
+   * correctness requirement rather than an optimisation: a save that merged adopts the other tab's
+   * workspaces into storage but not into this tab's in-memory store, so the next save still has to
+   * merge against everything that is stored (dropping the merge here would silently delete a
+   * workspace another tab created). A differing payload is parsed and merged exactly as before.
    */
   let lastRaw: string | null = null
+  let lastCollection: WorkspaceCollection<WorkspaceSnapshot> | null = null
 
   function createDefaultState(): WorkspaceState {
     const activePanels = [...defaultPanelIds]
@@ -431,8 +437,11 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
       raw = null
     }
 
-    // Unchanged raw means no other tab wrote since this tab last read/wrote it: nothing to merge.
-    const stored = raw === lastRaw ? null : parseWorkspaceCollection(raw)?.collection ?? null
+    // Unchanged raw means the stored envelope is exactly the collection this tab last read or
+    // wrote, so there is nothing new to parse — but it still has to be merged: it can hold
+    // workspaces another tab created that this tab's store never adopted.
+    const stored =
+      raw === lastRaw ? lastCollection : (parseWorkspaceCollection(raw)?.collection ?? null)
     const merged = stored
       ? mergeWorkspaceCollections(
           stored,
@@ -441,8 +450,11 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
         )
       : next
     const serialized = serializeWorkspaceCollection(merged)
+    // Cache only after a successful write: a throwing `setItem` must leave the cache pointing at
+    // what is actually stored, so the next save re-reads and re-merges.
     storage.setItem(storageKey, serialized)
     lastRaw = serialized
+    lastCollection = merged
   }
 
   function load(): WorkspaceStore {
@@ -454,10 +466,12 @@ export function createWorkspaceStorage(options: WorkspaceStorageOptions): Worksp
       return createDefaultStore()
     }
 
-    // Remember what this tab has seen, so the next save can skip a needless envelope merge.
-    lastRaw = raw
-
     const parsed = parseWorkspaceCollection(raw)
+    // Remember what this tab has seen, so the next save can merge from the parsed cache instead of
+    // parsing the envelope again. An unreadable payload caches `null` (nothing to merge).
+    lastRaw = raw
+    lastCollection = parsed?.collection ?? null
+
     if (!parsed) return createDefaultStore()
 
     const restored = parsed.collection.workspaces.map((stored) =>

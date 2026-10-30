@@ -560,6 +560,95 @@ describe('two-tab envelope conflict policy', () => {
     assert.equal(parsed.activeWorkspaceId, 'ws-1')
   })
 
+  /**
+   * Regression for the `save` fast path of #201 (`e3737a9`): the second save of a stale tab took a
+   * "the stored payload is mine" shortcut and therefore did not merge what its own previous,
+   * *merged* save had written — the other tab's workspace vanished from `0xdeck-workspace`.
+   *
+   * Two saves in a row with the same stale store is what a re-invoked `setWorkspaces` updater or a
+   * second gesture before the `storage` event runs produces.
+   */
+  it('keeps a workspace another tab created across a merged save and the save after it', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const tabA = createCore(stub)
+    const staleTabA = tabA.load()
+
+    const tabB = createCore(stub)
+    tabB.save(createWorkspace(tabB.load(), tabB.emptyState, 'ws-3'))
+
+    // Drag stop 1: merges Workspace 3 into storage, but tab A's store still lacks it.
+    tabA.save(movePanel(staleTabA, 'ws-1', 6), new Set(['ws-1']))
+    // Drag stop 2 uses the same stale store: the merge must run again against storage.
+    tabA.save(movePanel(staleTabA, 'ws-1', 7), new Set(['ws-1']))
+
+    const parsed = stub.parsed() as ParsedEnvelope
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2', 'ws-3'])
+    assert.equal(parsed.workspaces[0].layout[0].y, 7)
+  })
+
+  it('keeps merging after a failed write instead of trusting the unwritten merge', () => {
+    let raw = twoTabSeed()
+    let failWrites = false
+    const storage = {
+      getItem: () => raw,
+      setItem: (_key: string, value: string) => {
+        if (failWrites) throw new Error('QuotaExceededError')
+        raw = value
+      },
+    }
+    const newCore = () =>
+      createWorkspaceStorage({ storage, lookupPanelGrid, defaultPanelIds: ['kpi-card-e2e'] })
+
+    const tabA = newCore()
+    const staleTabA = tabA.load()
+
+    const tabB = newCore()
+    tabB.save(createWorkspace(tabB.load(), tabB.emptyState, 'ws-3'))
+    const afterTabB = raw
+
+    // A quota/private-mode failure writes nothing and does not poison this tab's cache.
+    failWrites = true
+    assert.throws(() => tabA.save(movePanel(staleTabA, 'ws-1', 6), new Set(['ws-1'])))
+    assert.equal(raw, afterTabB)
+
+    failWrites = false
+    tabA.save(movePanel(staleTabA, 'ws-1', 7), new Set(['ws-1']))
+
+    const parsed = JSON.parse(raw) as ParsedEnvelope
+    // The retry re-read and merged storage, so Workspace 3 is still there.
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2', 'ws-3'])
+    assert.equal(parsed.workspaces[0].layout[0].y, 7)
+  })
+
+  it('adopts an external write after a merged save and keeps it on the next save', () => {
+    const stub = createStorageStub(twoTabSeed())
+    const tabA = createCore(stub)
+    const staleTabA = tabA.load()
+
+    const tabB = createCore(stub)
+    tabB.save(createWorkspace(tabB.load(), tabB.emptyState, 'ws-3'))
+
+    tabA.save(movePanel(staleTabA, 'ws-1', 6), new Set(['ws-1']))
+
+    // The `storage` event arrives (`reloadWorkspaces` → `load` + `adoptExternalWorkspaces`) while
+    // this tab holds an unsaved edit of Workspace 1.
+    const reloaded = tabA.load()
+    const adopted = adoptExternalWorkspaces(
+      reloaded,
+      movePanel(staleTabA, 'ws-1', 9),
+      new Set(['ws-1']),
+    )
+
+    assert.deepEqual(adopted.workspaces.map((entry) => entry.id), ['ws-1', 'ws-2', 'ws-3'])
+    assert.equal(adopted.workspaces[0].state.layouts.lg?.[0].y, 9)
+    assert.equal(adopted.activeWorkspaceId, 'ws-1')
+
+    tabA.save(adopted, new Set(['ws-1']))
+    const parsed = stub.parsed() as ParsedEnvelope
+    assert.deepEqual(parsed.workspaces.map((workspace) => workspace.id), ['ws-1', 'ws-2', 'ws-3'])
+    assert.equal(parsed.workspaces[0].layout[0].y, 9)
+  })
+
   it('does not revert a workspace this tab did not change', () => {
     const stub = createStorageStub(twoTabSeed())
     const tabA = createCore(stub)
@@ -648,12 +737,12 @@ describe('two-tab envelope conflict policy', () => {
 /**
  * Hot-path cost of a save (Issue #200).
  *
- * `save` must stay multi-tab safe — it compares the stored envelope with the one this tab last
- * read/wrote — but a save that follows this tab's own write has nothing to merge, and parsing +
- * merging + re-serializing every workspace on each drag/resize stop was measurable work on the
- * interaction path (`bb42a75`: one full-envelope `JSON.parse` per stop). These tests pin both halves:
- * the parse is skipped when the stored payload is this tab's own, and it still happens as soon as
- * another tab has written the envelope.
+ * `save` must stay multi-tab safe: it merges against the envelope that is stored right now. Caching
+ * the parsed collection of the raw payload this tab last read/wrote keeps that guarantee — the merge
+ * still runs, so a workspace another tab created is never dropped — and skips the envelope
+ * `JSON.parse`, which was measurable work on the interaction path (`bb42a75`: one full-envelope
+ * parse per drag/resize stop). These tests pin both halves: no parse while the stored payload is
+ * this tab's own, and a parse as soon as another tab has written the envelope.
  */
 describe('save hot path (no envelope parse when this tab owns the stored payload)', () => {
   function envelopeWithTwoWorkspaces(): string {
