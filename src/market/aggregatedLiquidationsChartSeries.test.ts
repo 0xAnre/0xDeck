@@ -63,6 +63,11 @@ function createHarness({
     scaleMargins?: { top: number; bottom: number }
   }> = []
   const addSeriesPaneIndexes: number[] = []
+  // Price-scale state the overlay reads: `null` models a scale that never
+  // received a visible-bar window (no range at all).
+  const scaleState: { visibleRange: { from: number; to: number } | null } = {
+    visibleRange: { from: 0, to: 930_000 },
+  }
   const otherPane = createFakePane(panes, heights, paneEvents)
   if (paneAboveCandles) panes.push(otherPane)
   const candlePane = createFakePane(panes, heights, paneEvents)
@@ -81,6 +86,7 @@ function createHarness({
       applyOptions: (options: (typeof scaleOptions)[number]) => {
         scaleOptions.push(options)
       },
+      getVisibleRange: () => scaleState.visibleRange,
     }),
     setData: () => {
       setDataCount += 1
@@ -143,6 +149,7 @@ function createHarness({
     otherPane,
     paneEvents,
     addSeriesPaneIndexes,
+    scaleState,
     get requestUpdateCount() {
       return requestUpdateCount
     },
@@ -208,6 +215,39 @@ describe('createAggregatedLiquidationsChartOverlay', () => {
       resolveChartPaneRolePane(harness.chart as never, 'aggregated-liquidations'),
       null,
     )
+  })
+
+  it('re-attaches the data once when the pane price scale has no range', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    // State B: the pane's price scale never received a visible-bar window, so
+    // it has no range at all (empty axis, priceToCoordinate() === 0 for every
+    // value, nothing drawn) until the price axis is double-clicked. Attaching
+    // the data has to run the library's own pane recalculation a second time.
+    harness.scaleState.visibleRange = null
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+
+    assert.equal(harness.setDataCount, 2)
+
+    overlay.dispose()
+  })
+
+  it('does not re-attach the data when the pane price scale already has a range', () => {
+    const harness = createHarness()
+    const overlay = createAggregatedLiquidationsChartOverlay(harness.chart as never, 'bottom')
+
+    harness.scaleState.visibleRange = { from: 0, to: 930_000 }
+    overlay.setBuckets([{ time: 60, long: 9_500, short: 400 }])
+    assert.equal(harness.setDataCount, 1)
+
+    // An empty pane still gets a placeholder range from the library, so the
+    // healthy path stays a single setData.
+    harness.scaleState.visibleRange = { from: -0.5, to: 0.5 }
+    overlay.setBuckets([{ time: 120, long: 9_500, short: 400 }])
+    assert.equal(harness.setDataCount, 2)
+
+    overlay.dispose()
   })
 
   it('moves the existing pane between Bottom and Top without recreating anything', () => {

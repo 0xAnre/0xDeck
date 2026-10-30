@@ -242,6 +242,16 @@ export function createAggregatedLiquidationsChartOverlay(
   let currentPosition = position
   let currentBuckets: readonly AggregatedLiquidationBucket[] | null = null
 
+  /**
+   * Data the hidden histogram series carries: one point per bucket, the larger
+   * of the two sides, which is what the primitive's bar geometry scales to.
+   */
+  const liquidationSeriesData = (buckets: readonly AggregatedLiquidationBucket[]) =>
+    buckets.map((bucket) => ({
+      time: bucket.time as UTCTimestamp,
+      value: Math.max(bucket.long, bucket.short),
+    }))
+
   const applyPosition = (next: AggregatedLiquidationsPosition) => {
     const pane = series.getPane()
     // The candle pane owns the candles and must never be reordered or resized
@@ -267,12 +277,25 @@ export function createAggregatedLiquidationsChartOverlay(
       if (buckets === currentBuckets) return
       currentBuckets = buckets
       context.buckets = buckets
-      series.setData(
-        buckets.map((bucket) => ({
-          time: bucket.time as UTCTimestamp,
-          value: Math.max(bucket.long, bucket.short),
-        })),
-      )
+      const data = liquidationSeriesData(buckets)
+      series.setData(data)
+
+      // A pane whose price scale never received a visible-bar window has no
+      // price range at all: the axis draws no marks and `priceToCoordinate()`
+      // returns `0` for every value, so the primitive renders nothing — an
+      // enabled indicator whose pane *and* scale both look empty until the
+      // price axis is double-clicked, which performs exactly this
+      // recalculation (`_internal_resetPriceScale`). Re-attaching the same data
+      // is the only public API that makes the library recalculate this pane's
+      // autoscale: `setData` runs `recalculatePane`, which stores the visible
+      // bar window the lazy range computation needs. It is idempotent, changes
+      // no visible range, and is skipped whenever the scale already has a
+      // range, so the healthy path pays one cheap read. Autoscale stays the
+      // only scaling mode used.
+      if (series.priceScale().getVisibleRange() === null) {
+        series.setData(data)
+      }
+
       primitive.requestRedraw()
     },
     setPosition: (next) => {
