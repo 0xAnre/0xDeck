@@ -102,10 +102,12 @@ function stackedWorkspaceLayout(panelIds) {
 }
 
 /**
- * Current-version `0xdeck-workspace` envelope with 5 workspaces (23 panels, ~47 KB written).
- * Workspace 1 is the single-workspace seed, Workspaces 2–5 add chart panels. Pre-#199 revisions
- * cannot read this payload (they only know the legacy single-workspace one), so the multi-workspace
- * table compares `bb42a75` and the fix; `9976989` is reported on the legacy payload it actually had.
+ * Current-version `0xdeck-workspace` envelope with 5 workspaces (23 panels): **2 169 B** stored as
+ * seeded, **2 342 B per write** once the app re-serializes it (single seed: 672 B / 845 B), i.e. 2.8×
+ * the single payload. Workspace 1 is the single-workspace seed, Workspaces 2–5 add chart panels.
+ * Pre-#199 revisions cannot read this payload (they only know the legacy single-workspace one), so
+ * the multi-workspace table compares `bb42a75` and the fix; `9976989` is reported on the legacy
+ * payload it actually had.
  */
 export function multiWorkspacePayload() {
   return {
