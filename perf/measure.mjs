@@ -19,12 +19,13 @@ import { dirname } from 'node:path'
 import { HANDLE_SELECTOR, PANEL_SELECTOR, VIEWPORT, mockApi, seedContext } from './workload.mjs'
 
 function parseArgs(argv) {
-  const args = { url: 'http://localhost:57431/', label: 'run', out: null }
+  const args = { url: 'http://localhost:57431/', label: 'run', out: null, workload: 'single' }
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]
     if (key === '--url') args.url = argv[++i]
     else if (key === '--label') args.label = argv[++i]
     else if (key === '--out') args.out = argv[++i]
+    else if (key === '--workload') args.workload = argv[++i]
   }
   return args
 }
@@ -191,10 +192,10 @@ async function runDragStops(page, index, cycles = 10) {
   return Date.now() - startedAt
 }
 
-export async function measure({ url, label }) {
+export async function measure({ url, label, workload = 'single' }) {
   const browser = await chromium.launch()
   const context = await browser.newContext({ viewport: VIEWPORT })
-  await seedContext(context)
+  const seed = await seedContext(context, { workload })
   const page = await context.newPage()
   const requestLog = new Map()
   await mockApi(page, requestLog)
@@ -208,7 +209,7 @@ export async function measure({ url, label }) {
   await session.send('Profiler.enable')
   await session.send('Profiler.setSamplingInterval', { interval: 200 })
 
-  const report = { label, url, scenarios: {}, requestLog: {} }
+  const report = { label, url, workload, seed, scenarios: {}, requestLog: {} }
 
   // ---- mount (fresh context: the counters start at zero) ------------------------------------
   const cdpBeforeMount = await cdpMetrics(session)

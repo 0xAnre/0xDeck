@@ -1,41 +1,52 @@
 /**
- * Before/after benchmark for Issue #200: measures the same chart workload on two revisions and
- * prints the comparison table.
+ * Before/after benchmark for Issue #200: measures the same chart workload on two or three revisions
+ * and prints the comparison table.
  *
  * One command (from the repo root):
  *
  *   npm run perf:compare -- --before /tmp/0xdeck-perf-baseline [--after .] [--repeats 3]
+ *   npm run perf:compare -- --before A --middle B --after . --labels pre,regressed,fix
  *
- * `--before`/`--after` are checkout directories. For each one the harness builds it (production
- * mode, `--skip-build` to reuse an existing `dist/`), starts `vite preview` on its own port, runs the
- * full measurement suite in headless Chromium (`perf/measure.mjs`) `--repeats` times and reports the
- * median of every metric — so a single noisy run cannot decide the result.
+ * `--before`/`--middle`/`--after` are checkout directories. For each one the harness builds it
+ * (production mode, `--skip-build` to reuse an existing `dist/`), starts `vite preview` on its own
+ * port, runs the full measurement suite in headless Chromium (`perf/measure.mjs`) `--repeats` times
+ * and reports the median of every metric — so a single noisy run cannot decide the result. The
+ * delta column compares the last two revisions.
+ *
+ * `--workload single|multi` picks the seeded payload: one heavy 6-panel workspace (default) or a
+ * 5-workspace / 23-panel envelope, which is the dimension #199's envelope work scales with.
  *
  * `--mode dev` runs the dev servers instead: React's per-component commit attribution only works
  * there (production names are minified), so the `dev` table is the one that names which components
  * re-render during a drag/resize.
  *
- * Both runs get the identical seeded workspace, identical widget settings and identical mocked
+ * Every run gets the identical seeded workspace, identical widget settings and identical mocked
  * `/api/*` bytes (see `perf/workload.mjs`), so the only variable is the revision under test.
  */
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { measure } from './measure.mjs'
 
 function parseArgs(argv) {
   const args = {
     before: null,
+    middle: null,
     after: '.',
     mode: 'prod',
     repeats: 3,
     out: null,
     skipBuild: false,
+    workload: 'single',
+    labels: [],
   }
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]
     if (key === '--before') args.before = argv[++i]
+    else if (key === '--middle') args.middle = argv[++i]
     else if (key === '--after') args.after = argv[++i]
+    else if (key === '--workload') args.workload = argv[++i]
+    else if (key === '--labels') args.labels = argv[++i].split(',').map((label) => label.trim())
     else if (key === '--mode') args.mode = argv[++i]
     else if (key === '--repeats') args.repeats = Number(argv[++i])
     else if (key === '--out') args.out = argv[++i]
@@ -145,8 +156,13 @@ function medianReport(reports, profileKey) {
   return merged
 }
 
-function formatTable(before, after, rows, devMode) {
-  const lines = [`| metric | before | after | delta |`, `| --- | --- | --- | --- |`]
+function formatTable(columns, rows, devMode) {
+  const previous = columns[columns.length - 2]
+  const last = columns[columns.length - 1]
+  const lines = [
+    `| metric | ${columns.map((column) => column.label).join(' | ')} | Δ ${previous.label} → ${last.label} |`,
+    `| --- |${columns.map(() => ' --- |').join('')} --- |`,
+  ]
   for (const [label, path, devOnly] of rows) {
     // Per-component commit names survive only in dev builds (production names are minified).
     if (devOnly && !devMode) continue
@@ -155,13 +171,14 @@ function formatTable(before, after, rows, devMode) {
       const value = readPath(report, path)
       return value === undefined && path.includes('.byName.') ? 0 : value
     }
-    const beforeValue = readCounter(before)
-    const afterValue = readCounter(after)
+    const previousValue = readCounter(previous.report)
+    const lastValue = readCounter(last.report)
     const delta =
-      typeof beforeValue === 'number' && typeof afterValue === 'number' && beforeValue !== 0
-        ? `${Math.round(((afterValue - beforeValue) / beforeValue) * 1000) / 10}%`
+      typeof previousValue === 'number' && typeof lastValue === 'number' && previousValue !== 0
+        ? `${Math.round(((lastValue - previousValue) / previousValue) * 1000) / 10}%`
         : '—'
-    lines.push(`| ${label} | ${formatValue(beforeValue)} | ${formatValue(afterValue)} | ${delta} |`)
+    const cells = columns.map((column) => formatValue(readCounter(column.report)))
+    lines.push(`| ${label} | ${cells.join(' | ')} | ${delta} |`)
   }
   return lines.join('\n')
 }
@@ -211,7 +228,7 @@ const ROWS = [
   ['resize: chart-panel commits', 'scenarios.resize.commits.byName.BtcPerpetualChartPanel', true],
 ]
 
-async function measureRevision(dir, port, mode, repeats, skipBuild) {
+async function measureRevision(dir, port, mode, repeats, skipBuild, workload) {
   const cwd = resolve(dir)
   if (!existsSync(cwd)) throw new Error(`no such directory: ${cwd}`)
   if (mode === 'prod' && !skipBuild) {
@@ -222,12 +239,12 @@ async function measureRevision(dir, port, mode, repeats, skipBuild) {
   startServer(cwd, port, mode)
   const url = `http://localhost:${port}/`
   await waitForServer(url)
-  process.stderr.write(`measuring ${cwd} (${mode}) …\n`)
+  process.stderr.write(`measuring ${cwd} (${mode}, ${workload}) …\n`)
 
   const reports = []
   try {
     for (let i = 0; i < repeats; i += 1) {
-      reports.push(await measure({ url, label: `${cwd}#${i + 1}` }))
+      reports.push(await measure({ url, label: `${cwd}#${i + 1}`, workload }))
       process.stderr.write(`  run ${i + 1}/${repeats}\n`)
     }
   } finally {
@@ -238,19 +255,40 @@ async function measureRevision(dir, port, mode, repeats, skipBuild) {
 }
 
 const args = parseArgs(process.argv.slice(2))
-const before = await measureRevision(args.before, 57471, args.mode, args.repeats, args.skipBuild)
-const after = await measureRevision(args.after, 57472, args.mode, args.repeats, args.skipBuild)
+const revisions = [
+  { dir: args.before },
+  ...(args.middle ? [{ dir: args.middle }] : []),
+  { dir: args.after },
+].map((revision, index) => ({
+  ...revision,
+  label: args.labels[index] ?? basename(resolve(revision.dir)),
+}))
+
+const PORTS = [57471, 57472, 57473]
+const columns = []
+for (const [index, revision] of revisions.entries()) {
+  const report = await measureRevision(
+    revision.dir,
+    PORTS[index],
+    args.mode,
+    args.repeats,
+    args.skipBuild,
+    args.workload,
+  )
+  columns.push({ label: revision.label, report })
+}
 
 const table = [
-  `### 0xDeck issue #200 — ${args.mode === 'dev' ? 'dev server' : 'production build'} (median of ${args.repeats} runs)`,
+  `### 0xDeck issue #200 — ${args.mode === 'dev' ? 'dev server' : 'production build'} — ${args.workload}-workspace payload (median of ${args.repeats} runs)`,
   '',
-  formatTable(before, after, ROWS, args.mode === 'dev'),
+  formatTable(columns, ROWS, args.mode === 'dev'),
   '',
   'Chart-panel commit counters (dev mode only; production function names are minified):',
   '',
   '```',
-  `before drag commits: ${JSON.stringify(before.scenarios.drag.commits)}`,
-  `after  drag commits: ${JSON.stringify(after.scenarios.drag.commits)}`,
+  ...columns.map(
+    (column) => `${column.label} drag commits: ${JSON.stringify(column.report.scenarios.drag.commits)}`,
+  ),
   '```',
 ].join('\n')
 
@@ -258,9 +296,10 @@ console.log(table)
 
 if (args.out) {
   mkdirSync(args.out, { recursive: true })
-  writeFileSync(join(args.out, `compare-${args.mode}.md`), `${table}\n`)
+  const stem = `compare-${args.mode}-${args.workload}`
+  writeFileSync(join(args.out, `${stem}.md`), `${table}\n`)
   writeFileSync(
-    join(args.out, `compare-${args.mode}.json`),
-    `${JSON.stringify({ mode: args.mode, before, after }, null, 2)}\n`,
+    join(args.out, `${stem}.json`),
+    `${JSON.stringify({ mode: args.mode, workload: args.workload, revisions: columns }, null, 2)}\n`,
   )
 }

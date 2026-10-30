@@ -28,6 +28,45 @@ import {
  */
 test.use({ viewport: VIEWPORT })
 
+/**
+ * Shape of the in-page counters that `perf/workload.mjs` installs (`instrumentationScript`).
+ * Declared here, next to the only consumer that reads them from a `.ts` file, so type-checking
+ * `e2e/` sees the hook; nothing in `src/` or `dist/` knows about it.
+ */
+type PerfCounters = {
+  longTasks: Array<{ start: number; duration: number }>
+  frames: number[]
+  storage: {
+    getItem: number
+    setItem: number
+    getBytes: number
+    setBytes: number
+    workspaceGet: number
+    workspaceSet: number
+    workspaceBytes: number
+  }
+  json: {
+    parse: number
+    parseBytes: number
+    largeParse: number
+    largeParseBytes: number
+    stringify: number
+    stringifyBytes: number
+    largeStringify: number
+    largeStringifyBytes: number
+  }
+  commits: { total: number; byName: Record<string, number> }
+  recording: boolean
+  framesSampling: boolean
+}
+
+declare global {
+  interface Window {
+    /** Test-only instrumentation of the perf harness (issue #200); never present in the app. */
+    __perf: PerfCounters
+  }
+}
+
 const CHART_BODY_RENDER_BUDGET = 1
 const ENVELOPE_PARSE_BUDGET = 0
 

@@ -5,8 +5,10 @@
  * the app renders is defined exactly once here and imported by both the before/after benchmark
  * (`perf/compare.mjs`) and the Playwright regression spec (`e2e/chart-perf.spec.ts`):
  *
- * - the seeded `0xdeck-workspace` payload (6 panels: 2 BTC perp charts, 2 Recharts charts, a data
- *   table and a KPI card — i.e. a realistic heavy workspace),
+ * - the seeded `0xdeck-workspace` payload, in two variants: `single` — 6 panels (2 BTC perp
+ *   charts, 2 Recharts charts, a data table and a KPI card, i.e. a realistic heavy workspace) — and
+ *   `multi` — the same workspace plus 4 more chart workspaces (23 panels), which is the dimension
+ *   the #199 envelope cost (parse + merge + serialize) scales with,
  * - the per-widget settings (dataset / interval / time range) seeded as localStorage,
  * - the `/api/*` mock responses (identical bytes in both runs),
  * - the in-page instrumentation (long tasks, frames, localStorage/JSON traffic, React commits).
@@ -54,32 +56,95 @@ export function legacyWorkspacePayload() {
   return { activePanels: PANEL_ORDER, layout: PANEL_LAYOUT, gridVersion: 3 }
 }
 
+/** `WORKSPACE_STORAGE_VERSION` of `src/lib/workspaceModel.ts` (the harness does not import app code). */
+const ENVELOPE_VERSION = 2
+
+/**
+ * Workspaces 2–5 of the multi-workspace seed (#200 follow-up).
+ *
+ * Only Workspace 1 is ever rendered, so the mount and interaction workloads stay identical to the
+ * single-workspace seed and the *only* variable is the size of the persisted `0xdeck-workspace`
+ * envelope — which is exactly the dimension #199's parse + merge + re-serialize cost scales with
+ * (envelope bytes × workspace count). A real multi-workspace deck looks like this: a heavy first
+ * workspace plus a handful of chart workspaces kept for later.
+ */
+const EXTRA_WORKSPACES = {
+  'ws-2': [
+    'btc-perpetual-chart-w2a11',
+    'btc-perpetual-chart-w2b22',
+    'chart-w2a11',
+    'data-table-w2a11',
+  ],
+  'ws-3': ['btc-perpetual-chart-w3a11', 'chart-w3a11', 'chart-w3b22', 'chart-w3c33', 'kpi-card-w3a11'],
+  'ws-4': [
+    'btc-perpetual-chart-w4a11',
+    'btc-perpetual-chart-w4b22',
+    'chart-w4a11',
+    'data-table-w4a11',
+  ],
+  'ws-5': ['btc-perpetual-chart-w5a11', 'btc-perpetual-chart-w5b22', 'chart-w5a11', 'kpi-card-w5a11'],
+}
+
+/** Every panel of the multi-workspace seed, Workspace 1 included. */
+const MULTI_WORKSPACE_PANEL_IDS = [
+  ...PANEL_ORDER,
+  ...Object.values(EXTRA_WORKSPACES).flat(),
+]
+
+function stackedWorkspaceLayout(panelIds) {
+  return panelIds.map((id, index) => ({
+    i: id,
+    x: (index % 2) * 18,
+    y: Math.floor(index / 2) * 18,
+    w: 18,
+    h: 16,
+  }))
+}
+
+/**
+ * Current-version `0xdeck-workspace` envelope with 5 workspaces (23 panels, ~47 KB written).
+ * Workspace 1 is the single-workspace seed, Workspaces 2–5 add chart panels. Pre-#199 revisions
+ * cannot read this payload (they only know the legacy single-workspace one), so the multi-workspace
+ * table compares `bb42a75` and the fix; `9976989` is reported on the legacy payload it actually had.
+ */
+export function multiWorkspacePayload() {
+  return {
+    version: ENVELOPE_VERSION,
+    activeWorkspaceId: 'ws-1',
+    workspaces: [
+      { id: 'ws-1', activePanels: PANEL_ORDER, layout: PANEL_LAYOUT, gridVersion: 3 },
+      ...Object.entries(EXTRA_WORKSPACES).map(([id, panelIds]) => ({
+        id,
+        activePanels: panelIds,
+        layout: stackedWorkspaceLayout(panelIds),
+        gridVersion: 3,
+      })),
+    ],
+  }
+}
+
 /** Per-widget settings seeded in both runs (identical dataset + market interval everywhere). */
 export function seededSettings() {
+  const panelIds = MULTI_WORKSPACE_PANEL_IDS
+  const datasetPanels = panelIds.filter(
+    (id) => id.startsWith('chart-') || id.startsWith('data-table-') || id.startsWith('kpi-card-'),
+  )
+  const marketPanels = panelIds.filter((id) => id.startsWith('btc-perpetual-chart-'))
+
   return {
-    '0xdeck-widget-datasets': Object.fromEntries(
-      [PANEL_IDS.chartA, PANEL_IDS.chartB, PANEL_IDS.table, PANEL_IDS.kpi].map((id) => [
-        id,
-        'trades',
-      ]),
-    ),
-    '0xdeck-widget-time-ranges': Object.fromEntries(
-      [PANEL_IDS.chartA, PANEL_IDS.chartB, PANEL_IDS.table, PANEL_IDS.kpi].map((id) => [id, '1h']),
-    ),
-    '0xdeck-widget-market-intervals': {
-      [PANEL_IDS.btcA]: '1m',
-      [PANEL_IDS.btcB]: '1m',
-    },
-    '0xdeck-widget-market-exchanges': {
-      [PANEL_IDS.btcA]: 'binance',
-      [PANEL_IDS.btcB]: 'binance',
-    },
+    '0xdeck-widget-datasets': Object.fromEntries(datasetPanels.map((id) => [id, 'trades'])),
+    '0xdeck-widget-time-ranges': Object.fromEntries(datasetPanels.map((id) => [id, '1h'])),
+    '0xdeck-widget-market-intervals': Object.fromEntries(marketPanels.map((id) => [id, '1m'])),
+    '0xdeck-widget-market-exchanges': Object.fromEntries(marketPanels.map((id) => [id, 'binance'])),
     // Daily VWAP on: the initial candle request then goes through the context endpoint, which is
     // what a default BTC Perp panel does.
-    '0xdeck-widget-market-indicators': {
-      [PANEL_IDS.btcA]: ['ema20', 'ema50', 'ema200', 'vwap-daily'],
-      [PANEL_IDS.btcB]: ['ema20', 'vwap-daily'],
-    },
+    '0xdeck-widget-market-indicators': Object.fromEntries(
+      marketPanels.map((id) => [
+        id,
+        // The primary BTC panel is the one the single-workspace seed gives the full EMA stack.
+        id === PANEL_IDS.btcA ? ['ema20', 'ema50', 'ema200', 'vwap-daily'] : ['ema20', 'vwap-daily'],
+      ]),
+    ),
   }
 }
 
@@ -371,23 +436,26 @@ export function instrumentationScript() {
 }
 
 /** Seeds localStorage and installs the instrumentation before the app boots. */
-export async function seedContext(context) {
-  const payload = JSON.stringify(legacyWorkspacePayload())
+export async function seedContext(context, { workload = 'single' } = {}) {
+  const source = workload === 'multi' ? multiWorkspacePayload() : legacyWorkspacePayload()
+  const payload = JSON.stringify(source)
   const settings = seededSettings()
+  const seedFlag = `perf-seeded-${workload}`
 
   await context.addInitScript(instrumentationScript)
   await context.addInitScript(
-    ({ workspace, settings: seeded }) => {
-      if (sessionStorage.getItem('perf-seeded') === '1') return
+    ({ workspace, settings: seeded, flag }) => {
+      if (sessionStorage.getItem(flag) === '1') return
       localStorage.clear()
       localStorage.setItem('0xdeck-workspace', workspace)
       for (const [key, value] of Object.entries(seeded)) {
         localStorage.setItem(key, JSON.stringify(value))
       }
-      sessionStorage.setItem('perf-seeded', '1')
+      sessionStorage.setItem(flag, '1')
     },
-    { workspace: payload, settings },
+    { workspace: payload, settings, flag: seedFlag },
   )
+  return { workload, bytes: payload.length }
 }
 
 /** Routes every `/api/*` request through `mockApiResponse` and records what was requested. */
