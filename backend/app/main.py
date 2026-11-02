@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from . import config, datasets
+from . import APP_VERSION, config, datasets
 from .market.common import (
     DEFAULT_INTERVAL,
     DEFAULT_LIMIT,
@@ -438,6 +438,7 @@ def health() -> dict[str, str]:
     return {
         "status": "ok",
         "parquet_folder": str(folder) if folder else "",
+        "version": APP_VERSION,
     }
 
 
