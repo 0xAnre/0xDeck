@@ -115,11 +115,18 @@ def resolve_liquidation_db_path(path: str | Path | None = None) -> Path:
 
 @dataclass(frozen=True)
 class LiquidationHistoryPage:
-    """One newest-first page plus the cursor for the next (older) page."""
+    """One newest-first page plus the cursor for the next (older) page.
+
+    ``trade_time`` alone is not a total order: several events can share one
+    timestamp, and a page boundary that splits such a group would drop its
+    tail. ``next_before_id`` makes the cursor a keyset on
+    ``(trade_time, id)`` so callers can page without loss.
+    """
 
     events: list[dict[str, object]]
     has_more: bool
     next_before: int | None
+    next_before_id: str | None = None
 
 
 def _row_to_event(row: sqlite3.Row) -> dict[str, object]:
@@ -151,13 +158,23 @@ def _apply_additive_migrations(connection: sqlite3.Connection) -> list[str]:
 
     Existing rows pick up the declared defaults (``source = 'live'``,
     ``order_price = NULL``), so live history is unchanged by the migration.
+
+    The columns are read outside the write lock, so two processes first-touching
+    the same legacy database can race between the check and the ``ALTER``. A
+    duplicate-column error therefore means another process already added it and
+    is not a failure.
     """
     existing = _table_columns(connection)
     added: list[str] = []
     for column, statement in ADDITIVE_COLUMNS:
         if column in existing:
             continue
-        connection.execute(statement)
+        try:
+            connection.execute(statement)
+        except sqlite3.OperationalError as error:
+            if "duplicate column name" not in str(error).lower():
+                raise
+            continue
         added.append(column)
     return added
 
@@ -274,9 +291,17 @@ class LiquidationStore:
         self,
         *,
         before: int | None = None,
+        before_id: str | None = None,
         limit: int = DEFAULT_HISTORY_LIMIT,
     ) -> LiquidationHistoryPage:
-        """Read newest-first events, optionally older than an exclusive cursor."""
+        """Read newest-first events, optionally older than an exclusive cursor.
+
+        ``before`` alone keeps the historical behaviour (a ``trade_time``
+        cursor). Passing ``before_id`` as well switches to a ``(trade_time,
+        id)`` keyset so a group of rows sharing one timestamp survives a page
+        boundary intact; the existing ``(trade_time DESC, id DESC)`` index
+        serves both forms.
+        """
         safe_limit = max(MIN_HISTORY_LIMIT, min(int(limit), MAX_HISTORY_LIMIT))
         sql = """
             SELECT id, trade_time, event_time, side, price, quantity,
@@ -285,8 +310,15 @@ class LiquidationStore:
         """
         params: list[object] = []
         if before is not None:
-            sql += " WHERE trade_time < ?"
-            params.append(int(before))
+            if before_id is not None:
+                sql += (
+                    " WHERE trade_time < ?"
+                    " OR (trade_time = ? AND id < ?)"
+                )
+                params.extend((int(before), int(before), str(before_id)))
+            else:
+                sql += " WHERE trade_time < ?"
+                params.append(int(before))
         sql += " ORDER BY trade_time DESC, id DESC LIMIT ?"
         # One extra row distinguishes "exactly full page" from "more exist".
         params.append(safe_limit + 1)
@@ -297,13 +329,16 @@ class LiquidationStore:
         has_more = len(rows) > safe_limit
         page_rows = rows[:safe_limit]
         events = [_row_to_event(row) for row in page_rows]
-        next_before = (
-            int(page_rows[-1]["trade_time"]) if has_more and page_rows else None
-        )
+        next_before = None
+        next_before_id = None
+        if has_more and page_rows:
+            next_before = int(page_rows[-1]["trade_time"])
+            next_before_id = str(page_rows[-1]["id"])
         return LiquidationHistoryPage(
             events=events,
             has_more=has_more,
             next_before=next_before,
+            next_before_id=next_before_id,
         )
 
 
@@ -393,10 +428,12 @@ def insert_liquidation_event(
 def read_liquidation_history(
     *,
     before: int | None = None,
+    before_id: str | None = None,
     limit: int = DEFAULT_HISTORY_LIMIT,
     store: LiquidationStore | None = None,
 ) -> LiquidationHistoryPage:
     return (store or get_liquidation_store()).read_history(
         before=before,
+        before_id=before_id,
         limit=limit,
     )
