@@ -136,8 +136,19 @@ class LiquidationStoreTests(unittest.TestCase):
                 "exchange",
                 "symbol",
                 "created_at",
+                "source",
+                "order_price",
             },
         )
+
+    def test_live_rows_default_to_the_live_source(self) -> None:
+        self.store.insert_event(_event(event_id="live-row"))
+
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            row = connection.execute(
+                "SELECT source, order_price FROM liquidation_events"
+            ).fetchone()
+        self.assertEqual(tuple(row), ("live", None))
 
 
 if __name__ == "__main__":
