@@ -120,6 +120,7 @@ class ImportReport:
     already_present: int = 0
     pending: int = 0
     inserted: int = 0
+    duplicate_content_keys: int = 0
     batch_failures: int = 0
     source_min_event_time: int | None = None
     source_max_event_time: int | None = None
@@ -128,6 +129,32 @@ class ImportReport:
     dry_run: bool = False
     counts_before: dict[str, int] = field(default_factory=dict)
     counts_after: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def nothing_usable(self) -> bool:
+        """The archive produced no usable event at all.
+
+        A whole archive whose rows are all rejected (schema drift, wrong
+        timestamp unit, another symbol) must not look like a successful import
+        that inserted nothing. ``pending`` is used rather than ``inserted`` so a
+        dry run over a healthy archive is not misread as a failure; a legitimate
+        idempotent re-run is excluded because it reports ``already_present`` or
+        ``duplicates_collapsed``.
+        """
+        return (
+            self.rows_read > 0
+            and self.pending == 0
+            and self.already_present == 0
+            and self.duplicates_collapsed == 0
+        )
+
+    @property
+    def has_duplicate_content_keys(self) -> bool:
+        return self.duplicate_content_keys > 0
+
+    @property
+    def failed(self) -> bool:
+        return self.nothing_usable or self.has_duplicate_content_keys
 
     @property
     def balanced(self) -> bool:
@@ -277,12 +304,18 @@ def backup_database(db_path: Path) -> str | None:
     """Copy the database with SQLite's online backup API. Returns the new path.
 
     A file copy would miss a live WAL, so the backup API is used even though it
-    needs a read connection to the source.
+    needs a read connection to the source. The name carries a UTC timestamp
+    plus a counter, so two imports started in the same second cannot overwrite
+    each other's backup.
     """
     if not db_path.exists():
         return None
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     target = db_path.with_name(f"{db_path.name}.bak-{stamp}")
+    suffix = 1
+    while target.exists():
+        target = db_path.with_name(f"{db_path.name}.bak-{stamp}-{suffix}")
+        suffix += 1
     with connect_read_only(db_path) as source:
         with sqlite3.connect(target) as destination:
             source.backup(destination)
@@ -298,25 +331,33 @@ def stored_counts(db_path: Path) -> dict[str, int]:
     counts = {"total": 0, "live": 0, "import": 0}
     if not db_path.exists():
         return counts
-    try:
-        with connect_read_only(db_path) as connection:
+    with connect_read_only(db_path) as connection:
+        try:
             counts["total"] = int(
                 connection.execute(
                     "SELECT count(*) FROM liquidation_events"
                 ).fetchone()[0]
             )
-            try:
-                rows = connection.execute(
-                    "SELECT source, count(*) FROM liquidation_events GROUP BY 1"
-                ).fetchall()
-            except sqlite3.OperationalError:
+        except sqlite3.OperationalError as error:
+            # No table yet (a database file that was never initialised):
+            # report zero rather than failing the run.
+            if "no such table" in str(error).lower():
+                return {"total": 0, "live": 0, "import": 0}
+            raise
+        try:
+            rows = connection.execute(
+                "SELECT source, count(*) FROM liquidation_events GROUP BY 1"
+            ).fetchall()
+        except sqlite3.OperationalError as error:
+            # A pre-migration database has no `source` column yet: every row in
+            # it was written by the collector.
+            if "no such column" in str(error).lower():
                 counts["live"] = counts["total"]
                 return counts
-            for source, count in rows:
-                if source in counts:
-                    counts[str(source)] = int(count)
-    except sqlite3.OperationalError:
-        return {"total": 0, "live": 0, "import": 0}
+            raise
+        for source, count in rows:
+            if source in counts:
+                counts[str(source)] = int(count)
     return counts
 
 
@@ -327,8 +368,38 @@ def load_source_rows(paths: Sequence[Path]) -> list[tuple]:
         return connection.execute(
             _GROUP_SQL, [[str(path) for path in paths]]
         ).fetchall()
+    except duckdb.Error as error:
+        raise LiquidationImportError(
+            f"cannot read the source parquet ({len(paths)} file(s), first: "
+            f"{paths[0]}): {error}"
+        ) from error
     finally:
         connection.close()
+
+
+def count_duplicate_content_keys(db_path: Path) -> int:
+    """Count ``(event_time, side, price, quantity)`` groups with >1 row.
+
+    Runs over the whole table after an import so any drift (a future source
+    layout, a manual edit) is reported instead of silently accumulating.
+    """
+    if not db_path.exists():
+        return 0
+    try:
+        with connect_read_only(db_path) as connection:
+            return int(
+                connection.execute(
+                    """
+                    SELECT count(*) FROM (
+                        SELECT 1 FROM liquidation_events
+                        GROUP BY event_time, side, price, quantity
+                        HAVING count(*) > 1
+                    )
+                    """
+                ).fetchone()[0]
+            )
+    except sqlite3.OperationalError:
+        return 0
 
 
 def run_import(
@@ -421,6 +492,9 @@ def run_import(
 
     if dry_run or not fresh:
         report.counts_after = stored_counts(resolved_db)
+        report.duplicate_content_keys = count_duplicate_content_keys(
+            resolved_db
+        )
         report.elapsed_seconds = time.perf_counter() - started
         return report
 
@@ -434,6 +508,7 @@ def run_import(
         report.inserted += store.insert_import_events(batch)
 
     report.counts_after = stored_counts(resolved_db)
+    report.duplicate_content_keys = count_duplicate_content_keys(resolved_db)
     report.elapsed_seconds = time.perf_counter() - started
     return report
 
@@ -468,9 +543,21 @@ def format_report(report: ImportReport) -> str:
         f" .. {_format_timestamp(report.source_max_event_time)}",
         f"  rows before       : {_format_counts(report.counts_before)}",
         f"  rows after        : {_format_counts(report.counts_after)}",
+        f"  duplicate keys    : {report.duplicate_content_keys}",
         f"  backup            : {report.backup_path or '-'}",
         f"  elapsed           : {report.elapsed_seconds:.2f}s",
     ]
+    if report.has_duplicate_content_keys:
+        lines.append(
+            "  WARNING: the table now holds duplicate "
+            "(event_time, side, price, quantity) rows; the import must not be "
+            "trusted until they are cleaned up"
+        )
+    if report.nothing_usable:
+        lines.append(
+            "  ERROR: the source produced no usable event (every row was "
+            "rejected or the archive is not liquidation data)"
+        )
     if not report.balanced:
         lines.append(
             "  WARNING: rows read != duplicates + invalid + present + pending"

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import math
 import sqlite3
 import tempfile
@@ -51,6 +53,19 @@ def write_parquet(path: Path, rows: list[tuple]) -> Path:
             )
         connection.execute(
             f"COPY liquidation_rows TO '{path}' (FORMAT parquet)"
+        )
+    finally:
+        connection.close()
+    return path
+
+
+def write_custom_parquet(path: Path, select_sql: str) -> Path:
+    """Write a parquet file from an arbitrary ``SELECT`` (schema-drift tests)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect()
+    try:
+        connection.execute(
+            f"COPY ({select_sql}) TO '{path}' (FORMAT parquet)"
         )
     finally:
         connection.close()
@@ -392,6 +407,199 @@ class ValidationTests(ImportTestCase):
         self.assertEqual(report.inserted, 1)
 
 
+class SchemaDriftTests(ImportTestCase):
+    def test_an_extra_parquet_column_is_ignored(self) -> None:
+        write_custom_parquet(
+            self.source / "day.parquet",
+            """
+            SELECT %d::BIGINT AS timestamp, 'BTCUSDT'::VARCHAR AS symbol,
+                   'SELL'::VARCHAR AS side, 78000.0::DOUBLE AS price,
+                   78120.5::DOUBLE AS avg_price, 0.25::DOUBLE AS quantity,
+                   0.25::DOUBLE AS filled_qty,
+                   'binance_futures'::VARCHAR AS exchange,
+                   'extra'::VARCHAR AS extra_column
+            """ % (BASE_DAY_MS + 1),
+        )
+
+        report = self.import_from(self.source)
+
+        self.assertEqual(report.rows_read, 1)
+        self.assertEqual(report.inserted, 1)
+        self.assertEqual(report.invalid_rows, 0)
+
+    def test_a_missing_required_column_is_a_clean_error(self) -> None:
+        # A Mac legacy layout that read_parquet accepts but the mapping cannot
+        # use must fail loudly instead of reporting "inserted 0".
+        write_custom_parquet(
+            self.source / "day.parquet",
+            """
+            SELECT %d::BIGINT AS timestamp, 'BTCUSDT'::VARCHAR AS symbol,
+                   'SELL'::VARCHAR AS side, 78000.0::DOUBLE AS price,
+                   78120.5::DOUBLE AS avg_price, 0.25::DOUBLE AS quantity,
+                   'binance_futures'::VARCHAR AS exchange
+            """ % (BASE_DAY_MS + 1),
+        )
+
+        with self.assertRaises(LiquidationImportError) as caught:
+            self.import_from(self.source)
+
+        self.assertIn("filled_qty", str(caught.exception))
+        self.assertFalse(self.db_path.exists())
+
+    def test_cli_reports_a_missing_column_without_a_traceback(self) -> None:
+        from scripts.import_liquidation_parquet import main
+
+        write_custom_parquet(
+            self.source / "day.parquet",
+            "SELECT 1::BIGINT AS timestamp, 'BTCUSDT'::VARCHAR AS symbol",
+        )
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--path",
+                    str(self.source),
+                    "--db",
+                    str(self.db_path),
+                ]
+            )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("import failed:", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_all_invalid_rows_fail_the_run_instead_of_reporting_zero(self) -> None:
+        # Unknown side and another symbol: every row is rejected, so a run that
+        # printed "inserted 0" and exited 0 would be a silent success.
+        write_parquet(
+            self.source / "day.parquet",
+            [
+                source_row(timestamp=BASE_DAY_MS + 1, side="HOLD"),
+                source_row(timestamp=BASE_DAY_MS + 2, symbol="ETHUSDT"),
+            ],
+        )
+
+        report = self.import_from(self.source)
+
+        self.assertEqual(report.rows_read, 2)
+        self.assertEqual(report.pending, 0)
+        self.assertEqual(report.inserted, 0)
+        self.assertTrue(report.nothing_usable)
+        self.assertTrue(report.failed)
+        self.assertIn("ERROR:", format_report(report))
+
+    def test_cli_exits_non_zero_when_nothing_is_usable(self) -> None:
+        from scripts.import_liquidation_parquet import main
+
+        write_parquet(
+            self.source / "day.parquet",
+            [source_row(timestamp=BASE_DAY_MS + 1, side="HOLD")],
+        )
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            exit_code = main(
+                ["--path", str(self.source), "--db", str(self.db_path)]
+            )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("ERROR: the source produced no usable event", stdout.getvalue())
+
+    def test_a_healthy_dry_run_is_not_treated_as_a_failure(self) -> None:
+        write_parquet(
+            self.source / "day.parquet",
+            [source_row(timestamp=BASE_DAY_MS + 1)],
+        )
+
+        report = self.import_from(self.source, dry_run=True)
+
+        self.assertEqual(report.pending, 1)
+        self.assertFalse(report.nothing_usable)
+        self.assertFalse(report.failed)
+
+    def test_an_idempotent_re_run_is_not_treated_as_a_failure(self) -> None:
+        write_parquet(
+            self.source / "day.parquet",
+            [source_row(timestamp=BASE_DAY_MS + 1)],
+        )
+        self.import_from(self.source)
+
+        report = self.import_from(self.source)
+
+        self.assertEqual(report.inserted, 0)
+        self.assertEqual(report.already_present, 1)
+        self.assertFalse(report.nothing_usable)
+        self.assertFalse(report.failed)
+
+    def test_order_price_fold_is_deterministic_when_copies_disagree(self) -> None:
+        # Two collectors recorded the same event with different order prices.
+        # The fold must pick the same value regardless of file order, and the
+        # synthesized id (which does not include the order price) must match.
+        first = source_row(timestamp=BASE_DAY_MS + 1, price=78_000.0)
+        second = source_row(timestamp=BASE_DAY_MS + 1, price=78_400.0)
+
+        write_parquet(self.source / "a-first.parquet", [first, second])
+        report = self.import_from(self.source)
+
+        row = self.rows()[0]
+        self.assertEqual(row["order_price"], 78_000.0)
+        self.assertEqual(report.duplicates_collapsed, 1)
+
+        # Same data, opposite file order, fresh database: identical row.
+        other_source = self.root / "source-reversed"
+        write_parquet(other_source / "b-second.parquet", [second, first])
+        other_db = self.root / "reversed.sqlite3"
+        other_report = run_import(
+            path_patterns=[str(other_source)],
+            db_path=other_db,
+            backup=False,
+        )
+        with connect_read_only(other_db) as connection:
+            other_row = connection.execute(
+                "SELECT id, price, order_price, quantity FROM liquidation_events"
+            ).fetchone()
+        self.assertEqual(other_report.inserted, 1)
+        self.assertEqual(
+            tuple(other_row),
+            tuple(row[key] for key in ("id", "price", "order_price", "quantity")),
+        )
+
+    def test_duplicate_rows_already_in_the_table_are_reported(self) -> None:
+        # Simulates drift the importer did not cause: a hand-inserted copy of
+        # the same content under a different id.
+        write_parquet(
+            self.source / "day.parquet",
+            [source_row(timestamp=BASE_DAY_MS + 1)],
+        )
+        report = self.import_from(self.source)
+        self.assertEqual(report.duplicate_content_keys, 0)
+
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            connection.execute(
+                """
+                INSERT INTO liquidation_events (
+                    id, trade_time, event_time, side, price, quantity,
+                    notional, exchange, symbol, created_at, source, order_price
+                )
+                SELECT 'manual-copy', trade_time, event_time, side, price,
+                       quantity, notional, exchange, symbol, created_at,
+                       'live', NULL
+                FROM liquidation_events LIMIT 1
+                """
+            )
+            connection.commit()
+
+        recheck = self.import_from(self.source)
+
+        self.assertEqual(recheck.duplicate_content_keys, 1)
+        self.assertTrue(recheck.has_duplicate_content_keys)
+        self.assertTrue(recheck.failed)
+        self.assertIn("WARNING: the table now holds duplicate", format_report(recheck))
+        # The importer itself added nothing on the re-check.
+        self.assertEqual(recheck.inserted, 0)
+
+
 class SchemaMigrationTests(ImportTestCase):
     def test_migration_adds_columns_to_a_legacy_database(self) -> None:
         with closing(sqlite3.connect(self.db_path)) as connection:
@@ -465,6 +673,69 @@ class SchemaMigrationTests(ImportTestCase):
 
         self.assertEqual(report.inserted, 1)
         self.assertEqual(report.counts_after, {"total": 1, "live": 0, "import": 1})
+
+    def test_concurrent_first_touch_tolerates_a_duplicate_column(self) -> None:
+        """Two processes racing the first migration must not fail.
+
+        The column list is read outside the write lock, so the loser of the
+        race hits ``duplicate column name`` on its ``ALTER``. That means the
+        other process already migrated and is not an error.
+        """
+        from unittest.mock import patch
+
+        from app.market.liquidation_store import _apply_additive_migrations
+
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            connection.execute(
+                """
+                CREATE TABLE liquidation_events (
+                    id TEXT PRIMARY KEY,
+                    trade_time INTEGER NOT NULL,
+                    event_time INTEGER NOT NULL,
+                    side TEXT NOT NULL,
+                    price REAL NOT NULL,
+                    quantity REAL NOT NULL,
+                    notional REAL NOT NULL,
+                    exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                )
+                """
+            )
+            # The other process wins the race for `source`.
+            connection.execute(
+                "ALTER TABLE liquidation_events "
+                "ADD COLUMN source TEXT NOT NULL DEFAULT 'live'"
+            )
+            connection.commit()
+
+            stale_columns = {
+                "id",
+                "trade_time",
+                "event_time",
+                "side",
+                "price",
+                "quantity",
+                "notional",
+                "exchange",
+                "symbol",
+                "created_at",
+            }
+            with patch(
+                "app.market.liquidation_store._table_columns",
+                return_value=stale_columns,
+            ):
+                added = _apply_additive_migrations(connection)
+
+            columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(liquidation_events)"
+                ).fetchall()
+            }
+
+        self.assertEqual(added, ["order_price"])
+        self.assertTrue({"source", "order_price"} <= columns)
 
     def test_legacy_database_counts_every_row_as_live_before_migrating(self) -> None:
         with closing(sqlite3.connect(self.db_path)) as connection:

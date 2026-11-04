@@ -30,6 +30,8 @@ backend/.canvas-state.json
 backend/.liquidations.sqlite3
 backend/.liquidations.sqlite3-wal
 backend/.liquidations.sqlite3-shm
+# Pre-import copies of the database written by the parquet importer.
+backend/.liquidations.sqlite3.bak-*
 __pycache__/
 *.pyc
 

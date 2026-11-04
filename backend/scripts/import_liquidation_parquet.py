@@ -23,6 +23,7 @@ Examples
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -113,8 +114,22 @@ def main(argv: list[str] | None = None) -> int:
     except LiquidationImportError as error:
         print(f"import failed: {error}", file=sys.stderr)
         return 1
+    except sqlite3.Error as error:
+        # A live collector holding the database, a corrupt file or a vanished
+        # directory: report it like any other failure instead of a traceback.
+        print(
+            f"import failed: database error: {error} (a re-run is safe; the "
+            "import is idempotent)",
+            file=sys.stderr,
+        )
+        return 1
+    except OSError as error:
+        print(f"import failed: {error}", file=sys.stderr)
+        return 1
 
     print(format_report(report))
+    if report.failed:
+        return 1
     if not report.balanced:
         return 1
     return 0
