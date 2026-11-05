@@ -13,6 +13,7 @@ import duckdb
 
 from app.market.liquidation_import import (
     LiquidationImportError,
+    count_duplicate_content_keys,
     expand_parquet_paths,
     format_report,
     run_import,
@@ -598,6 +599,63 @@ class SchemaDriftTests(ImportTestCase):
         self.assertIn("WARNING: the table now holds duplicate", format_report(recheck))
         # The importer itself added nothing on the re-check.
         self.assertEqual(recheck.inserted, 0)
+
+
+class DuplicateScanErrorTests(ImportTestCase):
+    """The post-import duplicate scan must not hide a real database error."""
+
+    def test_missing_table_reports_zero(self) -> None:
+        # A database file that was never initialised: nothing to count.
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            connection.execute("CREATE TABLE unrelated (id TEXT)")
+            connection.commit()
+
+        self.assertEqual(count_duplicate_content_keys(self.db_path), 0)
+
+    def test_transient_lock_surfaces_instead_of_reporting_zero(self) -> None:
+        from unittest.mock import patch
+
+        @contextlib.contextmanager
+        def locked_connection(_path):
+            raise sqlite3.OperationalError("database is locked")
+            yield  # pragma: no cover - unreachable
+
+        write_parquet(
+            self.source / "day.parquet",
+            [source_row(timestamp=BASE_DAY_MS + 1)],
+        )
+        self.import_from(self.source)
+
+        with patch(
+            "app.market.liquidation_import.connect_read_only",
+            locked_connection,
+        ):
+            with self.assertRaises(sqlite3.OperationalError):
+                count_duplicate_content_keys(self.db_path)
+
+    def test_cli_reports_a_failed_duplicate_scan_as_an_import_failure(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.import_liquidation_parquet import main
+
+        write_parquet(
+            self.source / "day.parquet",
+            [source_row(timestamp=BASE_DAY_MS + 1)],
+        )
+
+        stderr = io.StringIO()
+        with patch(
+            "app.market.liquidation_import.count_duplicate_content_keys",
+            side_effect=sqlite3.OperationalError("database is locked"),
+        ):
+            with contextlib.redirect_stderr(stderr):
+                exit_code = main(
+                    ["--path", str(self.source), "--db", str(self.db_path)]
+                )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("import failed: database error: database is locked", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
 
 class SchemaMigrationTests(ImportTestCase):
