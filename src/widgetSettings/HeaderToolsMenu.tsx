@@ -37,6 +37,7 @@ import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 import { RectangleFillStyleDialog } from '@/widgetSettings/RectangleFillStyleDialog'
 import { LineStyleDialog } from '@/widgetSettings/LineStyleDialog'
 import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
+import type { FrvpLevelRenderMode } from '@/market/frvpDevelopingMode'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { FrvpLevelLineKind } from '@/market/frvpInstanceLineStyles'
@@ -55,6 +56,14 @@ type HeaderToolsMenuProps = {
   onFixedRangeVolumeProfileExtendRightChange?: (
     instanceId: string,
     extendRight: boolean,
+  ) => void
+  onFixedRangeVolumeProfileValueAreaModeChange?: (
+    instanceId: string,
+    mode: FrvpLevelRenderMode,
+  ) => void
+  onFixedRangeVolumeProfilePocModeChange?: (
+    instanceId: string,
+    mode: FrvpLevelRenderMode,
   ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
@@ -122,6 +131,8 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileRowCountChange,
   onFixedRangeVolumeProfileValueAreaChange,
   onFixedRangeVolumeProfileExtendRightChange,
+  onFixedRangeVolumeProfileValueAreaModeChange,
+  onFixedRangeVolumeProfilePocModeChange,
   onFixedRangeVolumeProfileLevelStrokeColorChange,
   onFixedRangeVolumeProfileLevelLineWidthChange,
   onFixedRangeVolumeProfileLevelLineStyleChange,
@@ -396,6 +407,12 @@ export function HeaderToolsMenu({
         }}
         onExtendRightChange={(instanceId, extendRight) => {
           onFixedRangeVolumeProfileExtendRightChange?.(instanceId, extendRight)
+        }}
+        onValueAreaModeChange={(instanceId, mode) => {
+          onFixedRangeVolumeProfileValueAreaModeChange?.(instanceId, mode)
+        }}
+        onPocModeChange={(instanceId, mode) => {
+          onFixedRangeVolumeProfilePocModeChange?.(instanceId, mode)
         }}
         onLevelStrokeColorChange={(instanceId, kind, strokeColor) => {
           onFixedRangeVolumeProfileLevelStrokeColorChange?.(instanceId, kind, strokeColor)

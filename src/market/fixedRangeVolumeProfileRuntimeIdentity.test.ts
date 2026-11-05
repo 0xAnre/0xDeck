@@ -78,6 +78,7 @@ function readyState(
       requestEndTime: target.toTime,
       sourceInterval: '1m',
       profile: value,
+      developing: [],
       historyUnavailable: false,
       availableFrom: null,
     },

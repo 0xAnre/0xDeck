@@ -253,6 +253,11 @@ import {
   updateFixedRangeVolumeProfileInstancesById,
 } from '@/market/fixedRangeVolumeProfileInstances'
 import {
+  setFrvpInstancePocMode,
+  setFrvpInstanceValueAreaMode,
+  type FrvpLevelRenderMode,
+} from '@/market/frvpDevelopingMode'
+import {
   setFrvpInstanceLevelLineStyle,
   setFrvpInstanceLevelLineWidth,
   setFrvpInstanceLevelStrokeColor,
@@ -1409,6 +1414,32 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileValueAreaModeChange = useCallback(
+    (instanceId: string, mode: FrvpLevelRenderMode) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceValueAreaMode(instance, mode),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfilePocModeChange = useCallback(
+    (instanceId: string, mode: FrvpLevelRenderMode) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstancePocMode(instance, mode),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleFixedRangeVolumeProfileLevelStrokeColorChange = useCallback(
     (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => {
       persistFixedRangeVolumeProfileInstances(
@@ -1907,6 +1938,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onFixedRangeVolumeProfileValueAreaChange: handleFixedRangeVolumeProfileValueAreaChange,
     onFixedRangeVolumeProfileExtendRightChange:
       handleFixedRangeVolumeProfileExtendRightChange,
+    onFixedRangeVolumeProfileValueAreaModeChange:
+      handleFixedRangeVolumeProfileValueAreaModeChange,
+    onFixedRangeVolumeProfilePocModeChange: handleFixedRangeVolumeProfilePocModeChange,
     onFixedRangeVolumeProfileLevelStrokeColorChange:
       handleFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange:

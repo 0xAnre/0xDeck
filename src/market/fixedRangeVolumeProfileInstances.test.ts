@@ -37,6 +37,12 @@ import {
   frvpHistogramColorInputValue,
   frvpHistogramOpacityPercent,
 } from './frvpHistogramStyles.ts'
+import {
+  frvpInstancePocMode,
+  frvpInstanceValueAreaMode,
+  setFrvpInstancePocMode,
+  setFrvpInstanceValueAreaMode,
+} from './frvpDevelopingMode.ts'
 import { MARKET_STYLE_PALETTE } from './marketStylePalette.ts'
 
 describe('fixedRangeVolumeProfileInstances storage', () => {
@@ -389,5 +395,96 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       Object.keys(sanitizeFixedRangeVolumeProfileInstances([instance])[0]).sort(),
       Object.keys(instance).sort(),
     )
+  })
+
+  it('loads a legacy instance without render modes as the line default', () => {
+    const legacy = {
+      id: 'frvp-legacy',
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+      rowCount: 24,
+      valueAreaPercent: 70,
+      enabled: true,
+      extendRight: true,
+    }
+    const instance = sanitizeFixedRangeVolumeProfileInstances([legacy])[0]
+    assert.equal(instance.valueAreaMode, undefined)
+    assert.equal(instance.pocMode, undefined)
+    assert.equal(frvpInstanceValueAreaMode(instance), 'line')
+    assert.equal(frvpInstancePocMode(instance), 'line')
+  })
+
+  it('ignores an invalid stored render mode and keeps the line default', () => {
+    const instance = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-invalid-mode',
+        fromTime: 1_000,
+        toTime: 2_000,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+        valueAreaMode: 'staircase',
+        pocMode: 'dotted',
+      },
+    ])[0]
+    assert.equal(instance.valueAreaMode, undefined)
+    assert.equal(instance.pocMode, undefined)
+    assert.equal(frvpInstanceValueAreaMode(instance), 'line')
+    assert.equal(frvpInstancePocMode(instance), 'line')
+  })
+
+  it('persists independent render modes for two instances in one panel', () => {
+    const memory = new Map<string, string>()
+    const original = globalThis.localStorage
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          memory.set(key, value)
+        },
+        removeItem: (key: string) => {
+          memory.delete(key)
+        },
+      },
+    })
+
+    try {
+      const first = setFrvpInstanceValueAreaMode(
+        createFixedRangeVolumeProfileInstance({
+          fromTime: 10,
+          toTime: 20,
+          selectionInterval: '1m',
+        })!,
+        'step',
+      )
+      const second = setFrvpInstancePocMode(
+        createFixedRangeVolumeProfileInstance({
+          fromTime: 30,
+          toTime: 40,
+          selectionInterval: '5m',
+          existingIds: new Set([first.id]),
+        })!,
+        'both',
+      )
+      second.valueAreaMode = 'both'
+      saveWidgetFixedRangeVolumeProfileInstances(panelA, [first, second])
+
+      const loaded = loadWidgetFixedRangeVolumeProfileInstances(panelA, {
+        selectionIntervalFallback: '1m',
+      })
+      const loadedFirst = loaded.find((item) => item.id === first.id)!
+      const loadedSecond = loaded.find((item) => item.id === second.id)!
+      assert.equal(frvpInstanceValueAreaMode(loadedFirst), 'step')
+      // Both is stored even though it shares the same level strokes.
+      assert.equal(frvpInstancePocMode(loadedSecond), 'both')
+      assert.equal(frvpInstanceValueAreaMode(loadedSecond), 'both')
+      assert.equal(loadedFirst.pocMode, undefined)
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original })
+      memory.delete(WIDGET_FIXED_RANGE_VP_INSTANCES_STORAGE_KEY)
+    }
   })
 })

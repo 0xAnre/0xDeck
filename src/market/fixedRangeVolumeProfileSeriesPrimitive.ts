@@ -13,7 +13,10 @@ import {
   buildFixedRangeVolumeProfileDrawModels,
   type FixedRangeVolumeProfileInstanceDrawModel,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { resolveChartEventTime } from './fixedRangeVolumeProfileChartTime.ts'
 import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
+import type { FixedRangeVolumeProfileDevelopingSample } from './fixedRangeVolumeProfile.ts'
+import type { FrvpDevelopingVisibleTimeRange } from './frvpDevelopingStepLine.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
@@ -81,6 +84,33 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
           }
         }
 
+        for (const developingLine of model.developingLines) {
+          if (developingLine.runs.length === 0) continue
+          context.save()
+          context.beginPath()
+          context.setLineDash(
+            developingLine.lineDash.map((value) => value * horizontalPixelRatio),
+          )
+          context.strokeStyle = developingLine.strokeStyle
+          context.lineWidth = developingLine.lineWidthCssPx * verticalPixelRatio
+          for (const run of developingLine.runs) {
+            if (run.length === 0) continue
+            context.moveTo(
+              Math.round(run[0].x * horizontalPixelRatio),
+              Math.round(run[0].y * verticalPixelRatio),
+            )
+            for (let index = 1; index < run.length; index += 1) {
+              const point = run[index]
+              context.lineTo(
+                Math.round(point.x * horizontalPixelRatio),
+                Math.round(point.y * verticalPixelRatio),
+              )
+            }
+          }
+          context.stroke()
+          context.restore()
+        }
+
         for (const line of model.lines) {
           const y = Math.round(line.y * verticalPixelRatio)
           const x1 = Math.round(line.x1 * horizontalPixelRatio)
@@ -115,6 +145,36 @@ class FixedRangeVolumeProfileRenderer implements IPrimitivePaneRenderer {
       context.restore()
     })
   }
+}
+
+/**
+ * Instances without accumulated samples are skipped; the level render mode
+ * still decides whether any step geometry is built from an entry.
+ */
+function buildFixedRangeVolumeProfileDevelopingSamplesById(
+  readyById: ReadonlyMap<
+    string,
+    { developing: readonly FixedRangeVolumeProfileDevelopingSample[] }
+  >,
+): Map<string, readonly FixedRangeVolumeProfileDevelopingSample[]> {
+  const byId = new Map<string, readonly FixedRangeVolumeProfileDevelopingSample[]>()
+  for (const [id, ready] of readyById) {
+    if (ready.developing.length === 0) continue
+    byId.set(id, ready.developing)
+  }
+  return byId
+}
+
+/** Visible time window used to bound the developing step walk to on-screen bars. */
+function resolveDevelopingVisibleTimeRange(
+  chart: IChartApi,
+): FrvpDevelopingVisibleTimeRange | null {
+  const range = chart.timeScale().getVisibleRange()
+  if (!range) return null
+  const fromTime = resolveChartEventTime(range.from)
+  const toTime = resolveChartEventTime(range.to)
+  if (fromTime === null || toTime === null) return null
+  return { fromTime, toTime }
 }
 
 class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
@@ -157,6 +217,8 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
 
     const timeScale = chart.timeScale()
     const barSpacing = timeScale.options().barSpacing
+    const developingSamplesById = buildFixedRangeVolumeProfileDevelopingSamplesById(readyById)
+    const developingVisibleTimeRange = resolveDevelopingVisibleTimeRange(chart)
     const { fromTimeToCoordinate, toTimeToCoordinate } =
       buildFixedRangeVolumeProfileTimeCoordinateResolvers(
         chart,
@@ -174,6 +236,8 @@ class FixedRangeVolumeProfilePaneView implements IPrimitivePaneView {
       toTimeToCoordinate,
       priceToY: (price) => series.priceToCoordinate(price),
       liveRightEdge: context.getLastBarUnixTime(),
+      developingSamplesById,
+      developingVisibleTimeRange,
       styleForInstance: (instanceId) => {
         const instance = instanceById.get(instanceId)
         return instance ? frvpDrawStyleForInstance(instance) : frvpDefaultDrawStyle()

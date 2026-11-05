@@ -3,6 +3,7 @@ import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
+import type { FrvpLevelRenderMode } from '@/market/frvpDevelopingMode'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
@@ -68,6 +69,14 @@ export type WidgetSettingsRegistration = {
   onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
   onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
   onFixedRangeVolumeProfileExtendRightChange?: (instanceId: string, extendRight: boolean) => void
+  onFixedRangeVolumeProfileValueAreaModeChange?: (
+    instanceId: string,
+    mode: FrvpLevelRenderMode,
+  ) => void
+  onFixedRangeVolumeProfilePocModeChange?: (
+    instanceId: string,
+    mode: FrvpLevelRenderMode,
+  ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
     kind: 'poc' | 'vah' | 'val',

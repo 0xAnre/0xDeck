@@ -5,7 +5,10 @@ import {
   type FixedRangeVolumeProfileSeriesPrimitiveContext,
 } from './fixedRangeVolumeProfileSeriesPrimitive.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
-import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
+import type {
+  FixedRangeVolumeProfileDevelopingSample,
+  FixedRangeVolumeProfileResult,
+} from './fixedRangeVolumeProfile.ts'
 import { buildFixedRangeVolumeProfileRequestIdentityKey } from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import type { FixedRangeVolumeProfileRuntimeState } from './fixedRangeVolumeProfileRuntimeTypes.ts'
 import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
@@ -26,7 +29,10 @@ function frvpInstance(
   }
 }
 
-function readyState(instance: FixedRangeVolumeProfileInstance): FixedRangeVolumeProfileRuntimeState {
+function readyState(
+  instance: FixedRangeVolumeProfileInstance,
+  developing: FixedRangeVolumeProfileDevelopingSample[] = [],
+): FixedRangeVolumeProfileRuntimeState {
   const profile: FixedRangeVolumeProfileResult = {
     fromTime: instance.fromTime,
     toTime: instance.toTime - 1,
@@ -69,6 +75,7 @@ function readyState(instance: FixedRangeVolumeProfileInstance): FixedRangeVolume
       requestEndTime: instance.toTime,
       sourceInterval: '1m',
       profile,
+      developing,
       historyUnavailable: false,
       availableFrom: null,
     },
@@ -80,9 +87,46 @@ function fakeChart() {
     timeScale: () => ({
       timeToCoordinate: (time: number) => time / 10,
       options: () => ({ barSpacing: 6 }),
+      getVisibleRange: () => null,
     }),
     panes: () => [{ getHeight: () => 400 }],
   } as never
+}
+
+type CanvasOp = [string, ...number[]]
+
+/** Capture the renderer's canvas calls without a real canvas (1:1 pixel ratio). */
+function drawOps(renderer: { draw: (target: unknown) => void }): CanvasOp[] {
+  const ops: CanvasOp[] = []
+  const context = {
+    save: () => ops.push(['save']),
+    restore: () => ops.push(['restore']),
+    beginPath: () => ops.push(['beginPath']),
+    rect: (x: number, y: number, width: number, height: number) =>
+      ops.push(['rect', x, y, width, height]),
+    clip: () => ops.push(['clip']),
+    setLineDash: (segments: number[]) => ops.push(['setLineDash', ...segments]),
+    moveTo: (x: number, y: number) => ops.push(['moveTo', x, y]),
+    lineTo: (x: number, y: number) => ops.push(['lineTo', x, y]),
+    stroke: () => ops.push(['stroke']),
+    fillRect: (x: number, y: number, width: number, height: number) =>
+      ops.push(['fillRect', x, y, width, height]),
+    arc: (x: number, y: number, radius: number) => ops.push(['arc', x, y, radius]),
+    fill: () => ops.push(['fill']),
+    strokeStyle: '',
+    fillStyle: '',
+    lineWidth: 1,
+  }
+  renderer.draw({
+    useBitmapCoordinateSpace: (callback: (scope: unknown) => void) =>
+      callback({
+        context,
+        horizontalPixelRatio: 1,
+        verticalPixelRatio: 1,
+        bitmapSize: { width: 1_000, height: 1_000 },
+      }),
+  })
+  return ops
 }
 
 function rendererFor(
@@ -114,6 +158,7 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
       timeScale: () => ({
         timeToCoordinate: () => 50,
         options: () => ({ barSpacing: 6 }),
+        getVisibleRange: () => null,
       }),
       panes: () => [{ getHeight: () => 400 }],
     }
@@ -154,6 +199,7 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
       timeScale: () => ({
         timeToCoordinate: () => 50,
         options: () => ({ barSpacing: 6 }),
+        getVisibleRange: () => null,
       }),
       panes: () => [{ getHeight: () => 400 }],
     }
@@ -226,5 +272,67 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
     }))
 
     assert.notEqual(renderer, null)
+  })
+
+  it('draws today’s flat lines for a legacy instance even when samples exist', () => {
+    const committed = frvpInstance()
+    const samples: FixedRangeVolumeProfileDevelopingSample[] = [
+      { time: 100, pocPrice: 112, vah: 117, val: 107 },
+      { time: 150, pocPrice: 108, vah: 116, val: 104 },
+      { time: 200, pocPrice: 110, vah: 118, val: 106 },
+    ]
+    const baseline = drawOps(
+      rendererFor(() => ({
+        instances: [committed],
+        runtimeById: { [committed.id]: readyState(committed) },
+        selectedId: null,
+        interaction: null,
+        getIntervalDurationSeconds: () => 60,
+        getLastBarUnixTime: () => null,
+      })) as { draw: (target: unknown) => void },
+    )
+    const legacyWithSamples = drawOps(
+      rendererFor(() => ({
+        instances: [committed],
+        runtimeById: { [committed.id]: readyState(committed, samples) },
+        selectedId: null,
+        interaction: null,
+        getIntervalDurationSeconds: () => 60,
+        getLastBarUnixTime: () => null,
+      })) as { draw: (target: unknown) => void },
+    )
+
+    // Default regression: the default (line) instance draws exactly the same
+    // bitmap operations whether or not developing samples are available.
+    assert.deepEqual(legacyWithSamples, baseline)
+    assert.equal(baseline.filter((op) => op[0] === 'moveTo').length, 3)
+  })
+
+  it('draws the developing staircase when a group is in step mode', () => {
+    const committed = frvpInstance({ valueAreaMode: 'step', pocMode: 'step' })
+    const samples: FixedRangeVolumeProfileDevelopingSample[] = [
+      { time: 100, pocPrice: 112, vah: 117, val: 107 },
+      { time: 150, pocPrice: 108, vah: 116, val: 104 },
+      { time: 200, pocPrice: 110, vah: 118, val: 106 },
+    ]
+    const ops = drawOps(
+      rendererFor(() => ({
+        instances: [committed],
+        runtimeById: { [committed.id]: readyState(committed, samples) },
+        selectedId: null,
+        interaction: null,
+        getIntervalDurationSeconds: () => 60,
+        getLastBarUnixTime: () => null,
+      })) as { draw: (target: unknown) => void },
+    )
+
+    // 500 - price: the POC's developing levels are drawn as step segments.
+    const drawnYs = ops.filter((op) => op[0] === 'lineTo').map((op) => op[2])
+    assert.ok(drawnYs.includes(388), `POC level 112 missing from ${JSON.stringify(drawnYs)}`)
+    assert.ok(drawnYs.includes(392))
+    assert.ok(drawnYs.includes(390))
+    // The flat full-range POC/VAH/VAL lines (390/385/395 only) are gone.
+    assert.equal(ops.filter((op) => op[0] === 'moveTo').length, 3)
+    assert.ok(ops.filter((op) => op[0] === 'lineTo').length > 3)
   })
 })

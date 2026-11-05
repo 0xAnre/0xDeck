@@ -205,6 +205,12 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onFixedRangeVolumeProfileExtendRightChange={
               settings.onFixedRangeVolumeProfileExtendRightChange
             }
+            onFixedRangeVolumeProfileValueAreaModeChange={
+              settings.onFixedRangeVolumeProfileValueAreaModeChange
+            }
+            onFixedRangeVolumeProfilePocModeChange={
+              settings.onFixedRangeVolumeProfilePocModeChange
+            }
             onFixedRangeVolumeProfileLevelStrokeColorChange={
               settings.onFixedRangeVolumeProfileLevelStrokeColorChange
             }

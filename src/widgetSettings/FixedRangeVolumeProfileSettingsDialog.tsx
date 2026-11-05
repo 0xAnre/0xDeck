@@ -10,6 +10,14 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import {
   DEFAULT_FIXED_RANGE_VP_ROW_COUNT,
@@ -27,6 +35,12 @@ import {
   type FrvpHistogramDirection,
 } from '@/market/frvpHistogramStyles'
 import { FRVP_LEVEL_DEFAULT_OPACITY_PERCENT } from '@/market/frvpLevelLineColors'
+import {
+  DEFAULT_FRVP_LEVEL_RENDER_MODE,
+  FRVP_LEVEL_RENDER_MODE_LABELS,
+  FRVP_LEVEL_RENDER_MODES,
+  type FrvpLevelRenderMode,
+} from '@/market/frvpDevelopingMode'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
@@ -51,6 +65,8 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
   onRowCountChange: (instanceId: string, rowCount: number) => void
   onValueAreaPercentChange: (instanceId: string, valueAreaPercent: number) => void
   onExtendRightChange: (instanceId: string, extendRight: boolean) => void
+  onValueAreaModeChange: (instanceId: string, mode: FrvpLevelRenderMode) => void
+  onPocModeChange: (instanceId: string, mode: FrvpLevelRenderMode) => void
   onHistogramColorChange: (
     instanceId: string,
     direction: FrvpHistogramDirection,
@@ -119,6 +135,47 @@ function LevelLineStyleFields({
   )
 }
 
+function RenderModeField({
+  id,
+  label,
+  description,
+  mode,
+  onChange,
+}: {
+  id: string
+  label: string
+  description: string
+  mode: FrvpLevelRenderMode
+  onChange: (mode: FrvpLevelRenderMode) => void
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldDescription>{description}</FieldDescription>
+      <Select
+        value={mode}
+        onValueChange={(value) => {
+          if (!FRVP_LEVEL_RENDER_MODES.includes(value as FrvpLevelRenderMode)) return
+          onChange(value as FrvpLevelRenderMode)
+        }}
+      >
+        <SelectTrigger id={id} className="w-full" size="default">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {FRVP_LEVEL_RENDER_MODES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {FRVP_LEVEL_RENDER_MODE_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </Field>
+  )
+}
+
 function HistogramStyleFields({
   direction,
   label,
@@ -166,6 +223,9 @@ function FixedRangeVolumeProfileSettingsDialogBody({
   const [draft, setDraft] = useState<FrvpSettingsDraft>(initial)
 
   const sanitizeDraft = () => setDraft((current) => sanitizeFrvpSettingsDraft(initial, current))
+
+  const setMode = (group: 'valueAreaMode' | 'pocMode', mode: FrvpLevelRenderMode) =>
+    setDraft((current) => ({ ...current, [group]: mode }))
 
   const setLevel = (kind: FrvpLevelLineKind, next: Partial<FrvpLevelStyleDraft>) =>
     setDraft((current) => ({
@@ -244,6 +304,29 @@ function FixedRangeVolumeProfileSettingsDialogBody({
             </FieldContent>
           </Field>
           <FieldGroup className="gap-3 border-t border-border pt-3">
+            <p className="text-sm font-medium">Developing series</p>
+            <FieldDescription>
+              The developing series recomputes the value area and POC from the range start through
+              each candle. Line is the flat full-range level (default), Step draws the developing
+              staircase only, Both draws the staircase and the full-range line. Step and Both reuse
+              each level&apos;s color, opacity, width and Line/Dot style below.
+            </FieldDescription>
+            <RenderModeField
+              id="frvp-value-area-mode"
+              label="Value area (VAH/VAL)"
+              description="Applies to VAH and VAL together."
+              mode={draft.valueAreaMode}
+              onChange={(mode) => setMode('valueAreaMode', mode)}
+            />
+            <RenderModeField
+              id="frvp-poc-mode"
+              label="POC"
+              description="Independent from the value area."
+              mode={draft.pocMode}
+              onChange={(mode) => setMode('pocMode', mode)}
+            />
+          </FieldGroup>
+          <FieldGroup className="gap-3 border-t border-border pt-3">
             <p className="text-sm font-medium">Histogram</p>
             <FieldDescription>
               Opacity is the Value-Area ceiling; rows outside the value area render at ~25/55
@@ -297,7 +380,9 @@ function FixedRangeVolumeProfileSettingsDialogBody({
             Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows,{' '}
             {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on, red dotted
             POC and grey solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
-            {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity.
+            {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity,{' '}
+            {FRVP_LEVEL_RENDER_MODE_LABELS[DEFAULT_FRVP_LEVEL_RENDER_MODE].toLowerCase()} level
+            rendering for both groups.
           </p>
         </FieldGroup>
       </div>
@@ -329,6 +414,8 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onRowCountChange,
   onValueAreaPercentChange,
   onExtendRightChange,
+  onValueAreaModeChange,
+  onPocModeChange,
   onHistogramColorChange,
   onHistogramOpacityChange,
   onLevelStrokeColorChange,
@@ -342,6 +429,10 @@ export function FixedRangeVolumeProfileSettingsDialog({
       onValueAreaPercentChange(instanceId, patch.valueAreaPercent)
     }
     if (patch.extendRight !== undefined) onExtendRightChange(instanceId, patch.extendRight)
+    if (patch.valueAreaMode !== undefined) {
+      onValueAreaModeChange(instanceId, patch.valueAreaMode)
+    }
+    if (patch.pocMode !== undefined) onPocModeChange(instanceId, patch.pocMode)
     for (const level of patch.levels) {
       if (level.strokeColor !== undefined) {
         onLevelStrokeColorChange(instanceId, level.kind, level.strokeColor)

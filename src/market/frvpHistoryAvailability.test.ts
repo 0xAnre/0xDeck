@@ -48,6 +48,7 @@ function readyState(
       requestEndTime: 200,
       sourceInterval: '1m' as const,
       profile,
+      developing: [],
       historyUnavailable: options.historyUnavailable,
       availableFrom: options.availableFrom,
     },

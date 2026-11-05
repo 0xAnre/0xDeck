@@ -1,3 +1,4 @@
+import type { FixedRangeVolumeProfileDevelopingSample } from './fixedRangeVolumeProfile.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
 import { resolveFixedRangeVolumeProfileEffectiveToTime } from './fixedRangeVolumeProfileRequestBounds.ts'
@@ -13,6 +14,8 @@ export type FixedRangeVolumeProfileIdentityTimes = {
 
 export type FixedRangeVolumeProfileReadyRuntime = {
   profile: Extract<FixedRangeVolumeProfileRuntimeState, { status: 'ready' }>['profile']
+  /** Cumulative per-bar levels for the optional developing step render mode. */
+  developing: readonly FixedRangeVolumeProfileDevelopingSample[]
 }
 
 export function buildFixedRangeVolumeProfileRequestIdentityKey(
@@ -134,7 +137,11 @@ export function buildFixedRangeVolumeProfileReadyRuntime(
     ) {
       continue
     }
-    ready.set(instance.id, { profile: state.profile })
+    ready.set(instance.id, {
+      profile: state.profile,
+      // Older ready snapshots (in-memory only) may predate the developing walk.
+      developing: state.pipeline.developing ?? [],
+    })
   }
   return ready
 }

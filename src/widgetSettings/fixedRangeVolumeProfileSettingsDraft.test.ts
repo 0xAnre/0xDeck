@@ -180,3 +180,61 @@ describe('sanitizeFrvpSettingsDraft', () => {
     assert.equal(frvpInstanceLevelLineStyle(frvpInstance(), 'poc'), 'dotted')
   })
 })
+
+describe('frvp render modes in the settings draft', () => {
+  it('opens a legacy instance with the line default for both groups', () => {
+    const draft = frvpSettingsDraftFromInstance(frvpInstance())
+    assert.equal(draft.valueAreaMode, 'line')
+    assert.equal(draft.pocMode, 'line')
+  })
+
+  it('mirrors the stored modes of one instance', () => {
+    const draft = frvpSettingsDraftFromInstance(
+      frvpInstance({ valueAreaMode: 'step', pocMode: 'both' }),
+    )
+    assert.equal(draft.valueAreaMode, 'step')
+    assert.equal(draft.pocMode, 'both')
+  })
+
+  it('patches only the modes that changed', () => {
+    const initial = frvpSettingsDraftFromInstance(frvpInstance())
+    const modePatch = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      pocMode: 'step',
+    })
+    assert.equal(modePatch.valueAreaMode, undefined)
+    assert.equal(modePatch.pocMode, 'step')
+    assert.equal(isFrvpSettingsDraftPatchEmpty(modePatch), false)
+
+    const valueAreaPatch = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      valueAreaMode: 'both',
+    })
+    assert.equal(valueAreaPatch.valueAreaMode, 'both')
+    assert.equal(valueAreaPatch.pocMode, undefined)
+  })
+
+  it('resets a stored step mode back to line through the patch', () => {
+    const initial = frvpSettingsDraftFromInstance(
+      frvpInstance({ valueAreaMode: 'step', pocMode: 'both' }),
+    )
+    const patch = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      valueAreaMode: 'line',
+      pocMode: 'line',
+    })
+    assert.equal(patch.valueAreaMode, 'line')
+    assert.equal(patch.pocMode, 'line')
+  })
+
+  it('keeps an invalid draft mode at the opened value when sanitizing', () => {
+    const initial = frvpSettingsDraftFromInstance(frvpInstance({ pocMode: 'step' }))
+    const sanitized = sanitizeFrvpSettingsDraft(initial, {
+      ...initial,
+      valueAreaMode: 'staircase' as never,
+      pocMode: 'nope' as never,
+    })
+    assert.equal(sanitized.valueAreaMode, 'line')
+    assert.equal(sanitized.pocMode, 'step')
+  })
+})

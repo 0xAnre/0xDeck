@@ -70,6 +70,7 @@ function frvpRuntime(
       requestEndTime: instance.toTime,
       sourceInterval: '1m',
       profile,
+      developing: [],
       historyUnavailable: false,
       availableFrom: null,
       pipeline: {

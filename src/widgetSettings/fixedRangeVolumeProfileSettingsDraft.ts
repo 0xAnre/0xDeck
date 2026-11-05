@@ -17,6 +17,12 @@ import {
 } from '../market/lineChartStroke.ts'
 import { isMarketStyleOpacityPercent } from '../market/marketStylePalette.ts'
 import {
+  frvpInstancePocMode,
+  frvpInstanceValueAreaMode,
+  isFrvpLevelRenderMode,
+  type FrvpLevelRenderMode,
+} from '../market/frvpDevelopingMode.ts'
+import {
   MAX_FIXED_RANGE_VP_ROW_COUNT,
   type FixedRangeVolumeProfileInstance,
 } from '../market/fixedRangeVolumeProfileInstances.ts'
@@ -53,6 +59,8 @@ export type FrvpSettingsDraft = {
   rowCount: number
   valueAreaPercent: number
   extendRight: boolean
+  valueAreaMode: FrvpLevelRenderMode
+  pocMode: FrvpLevelRenderMode
   histogram: Record<FrvpHistogramDirection, FrvpHistogramStyleDraft>
   levels: Record<FrvpLevelLineKind, FrvpLevelStyleDraft>
 }
@@ -76,6 +84,8 @@ export type FrvpSettingsDraftPatch = {
   rowCount?: number
   valueAreaPercent?: number
   extendRight?: boolean
+  valueAreaMode?: FrvpLevelRenderMode
+  pocMode?: FrvpLevelRenderMode
   histogram: FrvpHistogramStylePatch[]
   levels: FrvpLevelStylePatch[]
 }
@@ -107,6 +117,8 @@ export function frvpSettingsDraftFromInstance(
     rowCount: instance.rowCount,
     valueAreaPercent: instance.valueAreaPercent,
     extendRight: instance.extendRight === true,
+    valueAreaMode: frvpInstanceValueAreaMode(instance),
+    pocMode: frvpInstancePocMode(instance),
     histogram,
     levels,
   }
@@ -166,6 +178,10 @@ export function sanitizeFrvpSettingsDraft(
       initial.valueAreaPercent,
     ),
     extendRight: draft.extendRight === true,
+    valueAreaMode: isFrvpLevelRenderMode(draft.valueAreaMode)
+      ? draft.valueAreaMode
+      : initial.valueAreaMode,
+    pocMode: isFrvpLevelRenderMode(draft.pocMode) ? draft.pocMode : initial.pocMode,
     histogram,
     levels,
   }
@@ -208,6 +224,8 @@ export function frvpSettingsDraftPatch(
     patch.valueAreaPercent = draft.valueAreaPercent
   }
   if (draft.extendRight !== initial.extendRight) patch.extendRight = draft.extendRight
+  if (draft.valueAreaMode !== initial.valueAreaMode) patch.valueAreaMode = draft.valueAreaMode
+  if (draft.pocMode !== initial.pocMode) patch.pocMode = draft.pocMode
   return patch
 }
 
@@ -216,6 +234,8 @@ export function isFrvpSettingsDraftPatchEmpty(patch: FrvpSettingsDraftPatch): bo
     patch.rowCount === undefined &&
     patch.valueAreaPercent === undefined &&
     patch.extendRight === undefined &&
+    patch.valueAreaMode === undefined &&
+    patch.pocMode === undefined &&
     patch.histogram.length === 0 &&
     patch.levels.length === 0
   )

@@ -5,7 +5,8 @@ import {
 } from '../api/fixedRangeVolumeProfileClient.ts'
 import { marketPriceTickSize } from './marketExchange.ts'
 import {
-  computeFixedRangeVolumeProfile,
+  computeFixedRangeVolumeProfileWithDeveloping,
+  type FixedRangeVolumeProfileDevelopingSample,
   type FixedRangeVolumeProfileResult,
 } from './fixedRangeVolumeProfile.ts'
 import {
@@ -27,6 +28,12 @@ export type FixedRangeVolumeProfilePipelineResult = {
   requestEndTime: number
   sourceInterval: FixedRangeVolumeProfileSourceInterval
   profile: FixedRangeVolumeProfileResult
+  /**
+   * Cumulative (developing) POC/VAH/VAL samples, one per candle in the profile
+   * range. Computed once per fetch from the same candles and row grid as
+   * `profile` — the optional step render mode only maps these to geometry.
+   */
+  developing: FixedRangeVolumeProfileDevelopingSample[]
   /** True when the requested range predates the provider's history window. */
   historyUnavailable: boolean
   /** Earliest candle open (unix seconds) the provider can serve, when limited. */
@@ -80,7 +87,7 @@ export async function runFixedRangeVolumeProfileDataPipeline(
     response.candles.length > 0
       ? response.candles[response.candles.length - 1].close
       : null
-  const profile = computeFixedRangeVolumeProfile({
+  const { profile, developing } = computeFixedRangeVolumeProfileWithDeveloping({
     candles: response.candles,
     fromTime: computationBounds.fromTime,
     toTime: computationBounds.toTime,
@@ -95,6 +102,7 @@ export async function runFixedRangeVolumeProfileDataPipeline(
     requestEndTime: requestBounds.requestEndTime,
     sourceInterval: response.source_interval,
     profile,
+    developing,
     historyUnavailable: response.history_unavailable === true,
     availableFrom: response.available_from ?? null,
   }

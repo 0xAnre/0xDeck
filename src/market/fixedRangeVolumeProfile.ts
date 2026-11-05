@@ -51,6 +51,25 @@ export type FixedRangeVolumeProfileResult = {
   valueAreaPercentAchieved: number
 }
 
+/**
+ * One bar of the optional *developing* value area / POC series: the levels a
+ * profile drawn from the range start through this candle would have. `null`
+ * means no volume has accumulated yet at that bar.
+ */
+export type FixedRangeVolumeProfileDevelopingSample = {
+  time: number
+  pocPrice: number | null
+  vah: number | null
+  val: number | null
+}
+
+type FixedRangeVolumeProfileLevels = {
+  pocPrice: number
+  pocVolume: number
+  vah: number | null
+  val: number | null
+}
+
 const VOLUME_RELATIVE_EPSILON = 1e-9
 const TICK_SNAP_RELATIVE_EPSILON = 1e-12
 
@@ -223,6 +242,26 @@ function intersectionLength(
   return overlapEnd - overlapStart
 }
 
+/** First row whose price range can overlap `[candleLow, candleHigh]`. */
+function firstRowOverlapping(
+  rows: readonly FixedRangeVolumeProfileRow[],
+  candleLow: number,
+): number {
+  let low = 0
+  let high = rows.length - 1
+  let result = rows.length
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    if (rows[mid].priceHigh > candleLow) {
+      result = mid
+      high = mid - 1
+    } else {
+      low = mid + 1
+    }
+  }
+  return result
+}
+
 function distributeCandleVolume(
   rows: FixedRangeVolumeProfileRow[],
   candle: FixedRangeVolumeProfileCandle,
@@ -248,8 +287,14 @@ function distributeCandleVolume(
   const candleRange = candleHigh - candleLow
   if (candleRange <= 0) return
 
-  for (let index = 0; index < rows.length; index += 1) {
+  // Rows are sorted and contiguous, so the walk can start at the first row that
+  // can intersect the candle and stop once a row starts at/above the candle
+  // high. Every skipped row would have computed a zero overlap, so the result
+  // (and the addition order) is identical to scanning all rows.
+  const startIndex = firstRowOverlapping(rows, candleLow)
+  for (let index = startIndex; index < rows.length; index += 1) {
     const row = rows[index]
+    if (!(row.priceLow < candleHigh)) break
     const overlap = intersectionLength(
       row.priceLow,
       row.priceHigh,
@@ -285,6 +330,26 @@ function selectPocIndex(rows: readonly FixedRangeVolumeProfileRow[]): number | n
     }
   }
   return bestIndex
+}
+
+function readValueAreaLevels(
+  rows: readonly FixedRangeVolumeProfileRow[],
+  pocRowIndex: number,
+): FixedRangeVolumeProfileLevels {
+  let val: number | null = null
+  let vah: number | null = null
+  for (const row of rows) {
+    if (!row.inValueArea) continue
+    val = val === null ? row.priceLow : Math.min(val, row.priceLow)
+    vah = vah === null ? row.priceHigh : Math.max(vah, row.priceHigh)
+  }
+  const pocRow = rows[pocRowIndex]
+  return {
+    pocPrice: (pocRow.priceLow + pocRow.priceHigh) / 2,
+    pocVolume: pocRow.totalVolume,
+    vah,
+    val,
+  }
 }
 
 function expandValueArea(
@@ -445,17 +510,7 @@ export function computeFixedRangeVolumeProfile(
 
   const targetValueAreaVolume = (totalVolume * valueAreaPercent) / 100
   const valueAreaVolume = expandValueArea(rows, pocRowIndex, targetValueAreaVolume)
-
-  const valueAreaRows = rows.filter((row) => row.inValueArea)
-  const val = valueAreaRows.length > 0
-    ? Math.min(...valueAreaRows.map((row) => row.priceLow))
-    : null
-  const vah = valueAreaRows.length > 0
-    ? Math.max(...valueAreaRows.map((row) => row.priceHigh))
-    : null
-
-  const pocRow = rows[pocRowIndex]
-  const pocPrice = (pocRow.priceLow + pocRow.priceHigh) / 2
+  const levels = readValueAreaLevels(rows, pocRowIndex)
 
   return {
     fromTime,
@@ -467,11 +522,116 @@ export function computeFixedRangeVolumeProfile(
     rows,
     totalVolume,
     pocRowIndex,
-    pocPrice,
-    pocVolume: pocRow.totalVolume,
-    vah,
-    val,
+    pocPrice: levels.pocPrice,
+    pocVolume: levels.pocVolume,
+    vah: levels.vah,
+    val: levels.val,
     valueAreaVolume,
     valueAreaPercentAchieved: totalVolume > 0 ? valueAreaVolume / totalVolume : 0,
+  }
+}
+
+/**
+ * Cumulative ("developing") value area and POC series for an already computed
+ * profile.
+ *
+ * One bar at a time, the candle is added to a cumulative copy of the profile's
+ * own price-row grid and the *existing* POC selection, value-area expansion and
+ * level derivation are re-run on it. Nothing here is a second VA algorithm:
+ * the grid comes from `profile.rows`, and `distributeCandleVolume`,
+ * `selectPocIndex`, `expandValueArea` and `readValueAreaLevels` are the same
+ * functions the full-range profile uses, so the last sample is by construction
+ * identical to the full-range profile's POC/VAH/VAL (same row grid, same
+ * accumulation order, same percent, same tie-breaks).
+ *
+ * Complexity: one walk over the `N` candles in the profile range, `O(rows)` per
+ * candle (volume distribution, flag reset, POC scan, value-area expansion and
+ * level read), i.e. `O(N · rows)` in total — bounded by the fetched profile
+ * range and executed once per profile fetch by the data pipeline, never on the
+ * per-frame render path.
+ *
+ * `valueAreaPercent` MUST be the value the profile was computed with; use
+ * `computeFixedRangeVolumeProfileWithDeveloping` instead of calling this on its
+ * own, because it resolves the percent once for both.
+ */
+function computeFixedRangeVolumeProfileDevelopingSeries(params: {
+  profile: FixedRangeVolumeProfileResult
+  candles: readonly FixedRangeVolumeProfileCandle[]
+  valueAreaPercent: number | undefined
+}): FixedRangeVolumeProfileDevelopingSample[] {
+  const { profile } = params
+  if (profile.rows.length === 0) return []
+
+  const valueAreaPercent = params.valueAreaPercent ?? DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT
+  if (!Number.isFinite(valueAreaPercent) || valueAreaPercent < 0 || valueAreaPercent > 100) {
+    return []
+  }
+
+  const selected = normalizeFixedRangeVolumeProfileCandles(params.candles).filter(
+    (candle) => candle.time >= profile.fromTime && candle.time <= profile.toTime,
+  )
+  if (selected.length === 0) return []
+
+  // Same grid as the full-range profile: `profile.rows` is the authoritative
+  // price-row layout and the developing walk only accumulates volume into it.
+  const cumulativeRows: FixedRangeVolumeProfileRow[] = profile.rows.map((row) => ({
+    priceLow: row.priceLow,
+    priceHigh: row.priceHigh,
+    upVolume: 0,
+    downVolume: 0,
+    totalVolume: 0,
+    inValueArea: false,
+  }))
+
+  const samples: FixedRangeVolumeProfileDevelopingSample[] = []
+  for (const candle of selected) {
+    distributeCandleVolume(cumulativeRows, candle)
+
+    let totalVolume = 0
+    for (const row of cumulativeRows) {
+      row.inValueArea = false
+      totalVolume += row.totalVolume
+    }
+
+    const pocRowIndex = totalVolume > 0 ? selectPocIndex(cumulativeRows) : null
+    if (pocRowIndex === null) {
+      samples.push({ time: candle.time, pocPrice: null, vah: null, val: null })
+      continue
+    }
+
+    expandValueArea(cumulativeRows, pocRowIndex, (totalVolume * valueAreaPercent) / 100)
+    const levels = readValueAreaLevels(cumulativeRows, pocRowIndex)
+    samples.push({
+      time: candle.time,
+      pocPrice: levels.pocPrice,
+      vah: levels.vah,
+      val: levels.val,
+    })
+  }
+  return samples
+}
+
+/**
+ * The full-range profile plus its developing (cumulative) series, resolved from
+ * the same parameters — the value-area percentage is applied once to both, so
+ * the last developing sample always equals the full-range POC/VAH/VAL.
+ *
+ * Used by the FRVP data pipeline; the optional step render mode never needs a
+ * second pass over the candles.
+ */
+export function computeFixedRangeVolumeProfileWithDeveloping(
+  params: FixedRangeVolumeProfileParams,
+): {
+  profile: FixedRangeVolumeProfileResult
+  developing: FixedRangeVolumeProfileDevelopingSample[]
+} {
+  const profile = computeFixedRangeVolumeProfile(params)
+  return {
+    profile,
+    developing: computeFixedRangeVolumeProfileDevelopingSeries({
+      profile,
+      candles: params.candles,
+      valueAreaPercent: params.valueAreaPercent,
+    }),
   }
 }

@@ -194,7 +194,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `data-table` | Parquet preview table, column picker, workspace defaults |
 | `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances, Aggregated Liquidations), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
-**`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline, Aggregated Liquidations event paging (`aggregatedLiquidationsHistory.ts`) and per-interval bucket requests (`aggregatedLiquidationsBuckets.ts`, `30m` and above; `15m` and below keep the events path), and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
+**`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline (including the optional developing VAH/VAL/POC step series), Aggregated Liquidations event paging (`aggregatedLiquidationsHistory.ts`) and per-interval bucket requests (`aggregatedLiquidationsBuckets.ts`, `30m` and above; `15m` and below keep the events path), and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
 ## Persistence keys (localStorage)
 
@@ -215,7 +215,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-liquidations-settings` | Per-instance Aggregated Liquidations source (`binance` only in V1) and pane position (`bottom` default / `top`) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |
-| `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp) |
+| `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp): range/rows/value area, per-group level render mode (`line` default / `step` / `both`), per-level and histogram styles |
 | `0xdeck-widget-rectangle-instances` | Rectangle/box drawing instances (BTC Perp) |
 | `0xdeck-widget-line-instances` | Line drawing instances (BTC Perp) |
 | `0xdeck-widget-anchored-vwap-instances` | Anchored VWAP drawing instances (BTC Perp) |

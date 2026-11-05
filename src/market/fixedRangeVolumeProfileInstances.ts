@@ -11,6 +11,7 @@ import {
   nextDisplaySequence,
 } from './chartObjectDisplaySequence.ts'
 import { setChartObjectLocked } from './chartObjectState.ts'
+import { isFrvpLevelRenderMode, type FrvpLevelRenderMode } from './frvpDevelopingMode.ts'
 import { sanitizeFrvpInstanceHistogramStyles } from './frvpHistogramStyles.ts'
 import { sanitizeFrvpInstanceLevelLineStyles } from './frvpInstanceLineStyles.ts'
 import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
@@ -48,6 +49,14 @@ export type FixedRangeVolumeProfileInstance = {
   valLineWidth?: LineChartStrokeWidth
   valLineStyle?: LineChartStrokeStyle
   valStrokeOpacityPercent?: number
+  /**
+   * Optional render mode for the value area group (`VAH` + `VAL`) and for the
+   * `POC`: `line` (flat full-range line, the default), `step` (developing step
+   * series only) or `both`. Missing fields resolve to `line`, so legacy records
+   * keep their previous appearance.
+   */
+  valueAreaMode?: FrvpLevelRenderMode
+  pocMode?: FrvpLevelRenderMode
   /**
    * Histogram bar styling: per-direction color + 0–100 configured opacity.
    * Missing fields resolve to the defaults (candle colors, 50% → 0.275/0.125 row alphas).
@@ -159,6 +168,12 @@ export function sanitizeFixedRangeVolumeProfileInstance(
   }
   if (record.locked === true) {
     instance.locked = true
+  }
+  if (isFrvpLevelRenderMode(record.valueAreaMode)) {
+    instance.valueAreaMode = record.valueAreaMode
+  }
+  if (isFrvpLevelRenderMode(record.pocMode)) {
+    instance.pocMode = record.pocMode
   }
   return sanitizeFrvpInstanceHistogramStyles(
     record,
