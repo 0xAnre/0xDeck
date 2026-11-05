@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  CANDLE_INTERVAL_DURATION_SECONDS,
   candleIntervalDurationSeconds,
   isCandleInterval,
 } from './candleIntervalDuration.ts'
@@ -32,6 +33,44 @@ describe('candleIntervalDurationSeconds', () => {
 
   it('returns 900 for 15m', () => {
     assert.equal(candleIntervalDurationSeconds('15m'), 900)
+  })
+})
+
+describe('interval tables stay in sync', () => {
+  it('covers exactly the intervals in CANDLE_INTERVALS', () => {
+    assert.deepEqual(
+      Object.keys(CANDLE_INTERVAL_DURATION_SECONDS).sort(),
+      [...CANDLE_INTERVALS].sort(),
+    )
+    assert.deepEqual(
+      Object.keys(BTC_USDM_KLINE_CHANNELS).sort(),
+      [...CANDLE_INTERVALS].sort(),
+    )
+  })
+
+  it('uses the documented duration for every interval', () => {
+    // Mirrors LIQUIDATION_BUCKET_INTERVAL_MS / INTERVAL_DURATION_MS on the
+    // backend; the liquidation bucket route and the chart must floor an event
+    // to the same candle open time.
+    const expected: Record<string, number> = {
+      '1m': 60,
+      '5m': 300,
+      '15m': 900,
+      '30m': 1800,
+      '1h': 3600,
+      '2h': 7200,
+      '4h': 14_400,
+      '1d': 86_400,
+      '1w': 604_800,
+    }
+
+    for (const interval of CANDLE_INTERVALS) {
+      assert.equal(
+        candleIntervalDurationSeconds(interval),
+        expected[interval],
+        `duration for ${interval}`,
+      )
+    }
   })
 })
 

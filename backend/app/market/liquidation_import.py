@@ -382,6 +382,10 @@ def count_duplicate_content_keys(db_path: Path) -> int:
 
     Runs over the whole table after an import so any drift (a future source
     layout, a manual edit) is reported instead of silently accumulating.
+
+    Only the "the database is not there yet" errors are swallowed, matching
+    ``stored_counts``: a transient lock must not be reported as "0 duplicates"
+    for a table that may well contain some.
     """
     if not db_path.exists():
         return 0
@@ -398,8 +402,11 @@ def count_duplicate_content_keys(db_path: Path) -> int:
                     """
                 ).fetchone()[0]
             )
-    except sqlite3.OperationalError:
-        return 0
+    except sqlite3.OperationalError as error:
+        message = str(error).lower()
+        if "no such table" in message or "no such column" in message:
+            return 0
+        raise
 
 
 def run_import(

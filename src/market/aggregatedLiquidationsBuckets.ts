@@ -21,7 +21,7 @@ import {
   type AggregatedLiquidationEvent,
 } from './aggregatedLiquidations.ts'
 import { candleIntervalDurationSeconds } from './candleIntervalDuration.ts'
-import type { CandleInterval } from './types.ts'
+import type { CandleInterval, MarketExchange } from './types.ts'
 
 export const AGGREGATED_LIQUIDATIONS_BUCKETS_PATH =
   '/market/binance/usdm/btcusdt/liquidations/buckets'
@@ -61,6 +61,22 @@ export type AggregatedLiquidationsBucketRequest = {
   /** True when the loaded range was narrowed to the newest bucket slots. */
   truncated: boolean
 }
+
+/** Everything a loaded bucket array belongs to. */
+export type AggregatedLiquidationsBucketQuery = {
+  exchange: MarketExchange
+  interval: CandleInterval
+  /** Epoch milliseconds, inclusive. */
+  from: number
+  /** Epoch milliseconds, exclusive. */
+  to: number
+}
+
+/** The last successfully loaded bucket array, stamped with its request. */
+export type AggregatedLiquidationsBucketsState =
+  AggregatedLiquidationsBucketQuery & {
+    buckets: AggregatedLiquidationBucket[]
+  }
 
 export class AggregatedLiquidationsBucketsClientError extends Error {
   status?: number
@@ -264,6 +280,44 @@ export function buildAggregatedLiquidationsBucketRequest(
   }
 
   return { from: oldestMs, to, truncated }
+}
+
+/**
+ * State after a failed bucket request.
+ *
+ * A transient failure (same exchange, interval and range) keeps the last array,
+ * so the pane is not blanked for up to one live-refresh period
+ * (`AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS`) while the error notice
+ * explains what happened. Anything else means the chart moved: those buckets
+ * describe another interval/exchange/range and must not be drawn, so the state
+ * is cleared and the next successful response repopulates it.
+ */
+export function nextAggregatedLiquidationsBucketsAfterError(
+  current: AggregatedLiquidationsBucketsState | null,
+  query: AggregatedLiquidationsBucketQuery,
+): AggregatedLiquidationsBucketsState {
+  if (
+    current &&
+    current.exchange === query.exchange &&
+    current.interval === query.interval &&
+    current.from === query.from &&
+    current.to === query.to
+  ) {
+    return current
+  }
+  return { ...query, buckets: [] }
+}
+
+/**
+ * The pane's notice for a failed bucket request. Kept next to the retention
+ * rule so "keep the old buckets" and "show why" stay one behaviour.
+ */
+export function describeAggregatedLiquidationsBucketError(
+  error: unknown,
+): string {
+  return error instanceof Error
+    ? `Could not load Aggregated Liquidations history: ${error.message}`
+    : 'Could not load Aggregated Liquidations history for the loaded chart range'
 }
 
 /** Deterministic UTC label (`2026-10-01 00:00 UTC`) for coverage notices. */
