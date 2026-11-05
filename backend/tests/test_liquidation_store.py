@@ -103,6 +103,55 @@ class LiquidationStoreTests(unittest.TestCase):
         page = self.store.read_history(limit=10)
         self.assertEqual([event["id"] for event in page.events], ["c", "b", "a"])
 
+    def test_before_id_walks_a_same_trade_time_group_without_loss(self) -> None:
+        for event_id in ("a", "b", "c"):
+            self.store.insert_event(
+                _event(event_id=event_id, trade_time=BASE_TIME_MS)
+            )
+
+        first = self.store.read_history(limit=1)
+        self.assertEqual([event["id"] for event in first.events], ["c"])
+        self.assertEqual(first.next_before, BASE_TIME_MS)
+        self.assertEqual(first.next_before_id, "c")
+
+        second = self.store.read_history(
+            before=first.next_before,
+            before_id=first.next_before_id,
+            limit=1,
+        )
+        self.assertEqual([event["id"] for event in second.events], ["b"])
+        self.assertEqual(second.next_before_id, "b")
+
+        third = self.store.read_history(
+            before=second.next_before,
+            before_id=second.next_before_id,
+            limit=1,
+        )
+        self.assertEqual([event["id"] for event in third.events], ["a"])
+        self.assertFalse(third.has_more)
+        self.assertIsNone(third.next_before)
+        self.assertIsNone(third.next_before_id)
+
+    def test_before_only_keeps_the_historical_timestamp_cursor(self) -> None:
+        for event_id in ("a", "b", "c"):
+            self.store.insert_event(
+                _event(event_id=event_id, trade_time=BASE_TIME_MS)
+            )
+
+        # Documented legacy behaviour: a timestamp-only cursor cannot page
+        # inside one group, which is exactly why `before_id` exists.
+        page = self.store.read_history(before=BASE_TIME_MS, limit=10)
+        self.assertEqual(page.events, [])
+
+    def test_next_before_id_is_none_without_a_further_page(self) -> None:
+        self.store.insert_event(_event(event_id="only"))
+
+        page = self.store.read_history(limit=10)
+
+        self.assertFalse(page.has_more)
+        self.assertIsNone(page.next_before)
+        self.assertIsNone(page.next_before_id)
+
     def test_reopening_the_database_file_keeps_rows(self) -> None:
         self.store.insert_event(
             _event(event_id="persisted", trade_time=BASE_TIME_MS + 123)
@@ -136,8 +185,19 @@ class LiquidationStoreTests(unittest.TestCase):
                 "exchange",
                 "symbol",
                 "created_at",
+                "source",
+                "order_price",
             },
         )
+
+    def test_live_rows_default_to_the_live_source(self) -> None:
+        self.store.insert_event(_event(event_id="live-row"))
+
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            row = connection.execute(
+                "SELECT source, order_price FROM liquidation_events"
+            ).fetchone()
+        self.assertEqual(tuple(row), ("live", None))
 
 
 if __name__ == "__main__":

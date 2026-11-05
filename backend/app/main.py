@@ -238,14 +238,38 @@ def _validate_liquidation_history_before(before: int | None) -> int | None:
     return before
 
 
+def _validate_liquidation_history_before_id(
+    before: int | None,
+    before_id: str | None,
+) -> str | None:
+    if before_id is None:
+        return None
+    if before is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'before_id' requires 'before'",
+        )
+    if before_id == "":
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'before_id' must not be empty",
+        )
+    return before_id
+
+
 def _binance_liquidation_history(
     before: int | None,
     limit: int,
+    before_id: str | None = None,
 ) -> dict[str, object]:
     safe_before = _validate_liquidation_history_before(before)
+    safe_before_id = _validate_liquidation_history_before_id(
+        safe_before, before_id
+    )
     safe_limit = _validate_liquidation_history_limit(limit)
     page = liquidation_store.read_liquidation_history(
         before=safe_before,
+        before_id=safe_before_id,
         limit=safe_limit,
     )
     return {
@@ -254,6 +278,7 @@ def _binance_liquidation_history(
         "events": page.events,
         "has_more": page.has_more,
         "next_before": page.next_before,
+        "next_before_id": page.next_before_id,
     }
 
 
@@ -311,9 +336,10 @@ def get_binance_usdm_btcusdt_klines_volume_profile(
 @app.get(LIQUIDATIONS_HISTORY_PATH)
 def get_binance_usdm_btcusdt_liquidations_history(
     before: int | None = None,
+    before_id: str | None = None,
     limit: int = liquidation_store.DEFAULT_HISTORY_LIMIT,
 ) -> dict[str, object]:
-    return _binance_liquidation_history(before, limit)
+    return _binance_liquidation_history(before, limit, before_id)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines")

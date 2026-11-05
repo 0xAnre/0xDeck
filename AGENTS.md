@@ -229,7 +229,7 @@ Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDe
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
 
-Backend persistence: normalized Binance USD-M liquidation history is stored in `backend/.liquidations.sqlite3` (gitignored, WAL mode; override with `OXDECK_LIQUIDATIONS_DB`). Collection runs continuously while the backend is started (not only while a chart is open) and serves `GET /api/market/binance/usdm/btcusdt/liquidations/history`; there is no backfill before collection starts. Tests disable the collector with `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`.
+Backend persistence: normalized Binance USD-M liquidation history is stored in `backend/.liquidations.sqlite3` (gitignored, WAL mode; override with `OXDECK_LIQUIDATIONS_DB`). Collection runs continuously while the backend is started (not only while a chart is open) and serves `GET /api/market/binance/usdm/btcusdt/liquidations/history`. Every row carries `source`: `live` for the collector, `import` for rows backfilled from historical force-order parquet by `backend/scripts/import_liquidation_parquet.py` (which stores the source's order price in `order_price` and uses `trade_time = event_time` as its documented fallback, because that recorder never persisted Binance's `o.T`). Schema changes are additive and idempotent, so an existing database keeps working and its live rows stay `source='live'`. There is no upstream backfill beyond the collector and that importer. Tests disable the collector with `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`.
 
 ## Run & build
 

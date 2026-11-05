@@ -137,6 +137,92 @@ class LiquidationHistoryRouteTests(unittest.TestCase):
         default_response = self.client.get(LIQUIDATIONS_HISTORY_PATH)
         self.assertEqual(len(default_response.json()["events"]), 3)
 
+    def test_next_before_id_is_returned_only_when_more_pages_exist(self) -> None:
+        for index in range(3):
+            self.store.insert_event(
+                _event(f"event-{index}", BASE_TIME_MS + index * 1_000)
+            )
+
+        first = self.client.get(
+            LIQUIDATIONS_HISTORY_PATH, params={"limit": 2}
+        ).json()
+        self.assertTrue(first["has_more"])
+        self.assertEqual(first["next_before_id"], "event-1")
+
+        second = self.client.get(
+            LIQUIDATIONS_HISTORY_PATH,
+            params={
+                "before": first["next_before"],
+                "before_id": first["next_before_id"],
+                "limit": 2,
+            },
+        ).json()
+        self.assertFalse(second["has_more"])
+        self.assertIsNone(second["next_before"])
+        self.assertIsNone(second["next_before_id"])
+        self.assertEqual(
+            [event["id"] for event in second["events"]], ["event-0"]
+        )
+
+    def test_before_only_paging_is_unchanged_for_existing_callers(self) -> None:
+        for index in range(3):
+            self.store.insert_event(
+                _event(f"event-{index}", BASE_TIME_MS + index * 1_000)
+            )
+
+        legacy = self.client.get(
+            LIQUIDATIONS_HISTORY_PATH,
+            params={"before": BASE_TIME_MS + 2_000, "limit": 10},
+        ).json()
+
+        self.assertEqual(
+            [event["id"] for event in legacy["events"]],
+            ["event-1", "event-0"],
+        )
+
+    def test_pages_a_same_trade_time_group_without_losing_its_tail(self) -> None:
+        # All five events share one trade_time, split across pages at limit 1
+        # and 2. Without `before_id` the cursor cannot move inside the group.
+        for index, suffix in enumerate(("a", "b", "c", "d", "e")):
+            self.store.insert_event(
+                _event(f"tie-{suffix}", BASE_TIME_MS)
+            )
+
+        for limit, expected_pages in ((1, 5), (2, 3)):
+            seen: list[str] = []
+            page = self.client.get(
+                LIQUIDATIONS_HISTORY_PATH, params={"limit": limit}
+            ).json()
+            pages = 1
+            while page["has_more"]:
+                seen.extend(event["id"] for event in page["events"])
+                page = self.client.get(
+                    LIQUIDATIONS_HISTORY_PATH,
+                    params={
+                        "before": page["next_before"],
+                        "before_id": page["next_before_id"],
+                        "limit": limit,
+                    },
+                ).json()
+                pages += 1
+            seen.extend(event["id"] for event in page["events"])
+
+            self.assertEqual(pages, expected_pages, f"limit={limit}")
+            self.assertEqual(len(seen), 5, f"limit={limit}")
+            self.assertEqual(sorted(seen), [f"tie-{s}" for s in "abcde"])
+
+    def test_before_id_requires_before(self) -> None:
+        response = self.client.get(
+            LIQUIDATIONS_HISTORY_PATH, params={"before_id": "x"}
+        )
+        self.assertEqual(response.status_code, 400, response.text)
+
+        empty = self.client.get(
+            LIQUIDATIONS_HISTORY_PATH,
+            params={"before": BASE_TIME_MS, "before_id": ""},
+        )
+        self.assertEqual(empty.status_code, 400, empty.text)
+
 
     def test_lifespan_gate_keeps_testclient_from_reaching_upstream(self) -> None:
         relay = binance_usdm_liquidations.binance_liquidations_relay

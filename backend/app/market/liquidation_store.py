@@ -12,8 +12,21 @@ The store is intentionally narrow:
   ``INSERT OR IGNORE``, so replaying the same snapshot cannot add a second row,
 * reads are newest-first pages keyed by an exclusive ``before`` timestamp.
 
-There is no REST backfill of history that predates the collector. Tests use a
-temporary database through ``OXDECK_LIQUIDATIONS_DB``.
+Historical backfill is *imported* through
+``app/market/liquidation_import.py`` (CLI:
+``backend/scripts/import_liquidation_parquet.py``). Imported rows share the
+table with live rows and are told apart by ``source``:
+
+* ``source = 'live'`` - written by the collector, ``id`` as published today.
+* ``source = 'import'`` - written by the parquet importer, ``order_price``
+  keeps the source's order price while ``price`` holds the fill price, and
+  ``trade_time`` falls back to ``event_time`` because the recorder never
+  persisted Binance's ``o.T`` trade time.
+
+Schema changes are additive and idempotent: ``_apply_additive_migrations``
+adds any column a pre-existing database is missing, so an old database keeps
+working and live rows keep ``source = 'live'``. Tests use a temporary database
+through ``OXDECK_LIQUIDATIONS_DB``.
 """
 
 from __future__ import annotations
@@ -21,10 +34,10 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 
 DEFAULT_DB_FILENAME = ".liquidations.sqlite3"
 LIQUIDATIONS_DB_ENV = "OXDECK_LIQUIDATIONS_DB"
@@ -47,14 +60,43 @@ CREATE TABLE IF NOT EXISTS liquidation_events (
     notional REAL NOT NULL,
     exchange TEXT NOT NULL,
     symbol TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    source TEXT NOT NULL DEFAULT 'live',
+    order_price REAL
 )
 """
+
+# Additive columns that older databases do not have yet. Each entry is
+# ``(column_name, ALTER TABLE statement)``; ``_apply_additive_migrations``
+# applies only the ones missing from ``PRAGMA table_info`` so the migration is
+# idempotent and can run on every store construction.
+ADDITIVE_COLUMNS: tuple[tuple[str, str], ...] = (
+    (
+        "source",
+        "ALTER TABLE liquidation_events "
+        "ADD COLUMN source TEXT NOT NULL DEFAULT 'live'",
+    ),
+    (
+        "order_price",
+        "ALTER TABLE liquidation_events ADD COLUMN order_price REAL",
+    ),
+)
+
+# Seeded by live collection or by the parquet importer.
+SOURCE_LIVE = "live"
+SOURCE_IMPORT = "import"
 
 INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_liquidation_events_trade_time_id
     ON liquidation_events (trade_time DESC, id DESC)
 """
+
+
+# ``(event_time, side, price, quantity)`` identifies the same market event
+# regardless of which collector recorded it. It is deliberately *not* a
+# database constraint: live and imported rows may legitimately repeat a
+# timestamp, and a global UNIQUE index would reject real live events.
+EventContentKey = tuple[int, str, float, float]
 
 
 def default_liquidation_db_path() -> Path:
@@ -73,11 +115,18 @@ def resolve_liquidation_db_path(path: str | Path | None = None) -> Path:
 
 @dataclass(frozen=True)
 class LiquidationHistoryPage:
-    """One newest-first page plus the cursor for the next (older) page."""
+    """One newest-first page plus the cursor for the next (older) page.
+
+    ``trade_time`` alone is not a total order: several events can share one
+    timestamp, and a page boundary that splits such a group would drop its
+    tail. ``next_before_id`` makes the cursor a keyset on
+    ``(trade_time, id)`` so callers can page without loss.
+    """
 
     events: list[dict[str, object]]
     has_more: bool
     next_before: int | None
+    next_before_id: str | None = None
 
 
 def _row_to_event(row: sqlite3.Row) -> dict[str, object]:
@@ -95,6 +144,41 @@ def _row_to_event(row: sqlite3.Row) -> dict[str, object]:
     }
 
 
+def _table_columns(connection: sqlite3.Connection) -> set[str]:
+    return {
+        str(row[1])
+        for row in connection.execute(
+            "PRAGMA table_info(liquidation_events)"
+        ).fetchall()
+    }
+
+
+def _apply_additive_migrations(connection: sqlite3.Connection) -> list[str]:
+    """Add any missing additive column. Returns the names that were added.
+
+    Existing rows pick up the declared defaults (``source = 'live'``,
+    ``order_price = NULL``), so live history is unchanged by the migration.
+
+    The columns are read outside the write lock, so two processes first-touching
+    the same legacy database can race between the check and the ``ALTER``. A
+    duplicate-column error therefore means another process already added it and
+    is not a failure.
+    """
+    existing = _table_columns(connection)
+    added: list[str] = []
+    for column, statement in ADDITIVE_COLUMNS:
+        if column in existing:
+            continue
+        try:
+            connection.execute(statement)
+        except sqlite3.OperationalError as error:
+            if "duplicate column name" not in str(error).lower():
+                raise
+            continue
+        added.append(column)
+    return added
+
+
 class LiquidationStore:
     """Small SQLite-backed event store.
 
@@ -110,6 +194,7 @@ class LiquidationStore:
         with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             connection.execute(SCHEMA_SQL)
+            _apply_additive_migrations(connection)
             connection.execute(INDEX_SQL)
             connection.commit()
 
@@ -157,13 +242,66 @@ class LiquidationStore:
             connection.commit()
             return connection.total_changes - before
 
+    def insert_import_events(self, events: Iterable[dict[str, object]]) -> int:
+        """Persist events produced by the parquet importer.
+
+        Imported rows carry ``source = 'import'`` and the source's order price
+        in ``order_price``; everything else keeps the live row shape. Inserts
+        stay ``INSERT OR IGNORE`` on the primary key, so a re-run inserts 0.
+        """
+        rows = [
+            (
+                str(event["id"]),
+                int(event["trade_time"]),  # type: ignore[arg-type]
+                int(event["event_time"]),  # type: ignore[arg-type]
+                str(event["side"]),
+                float(event["price"]),  # type: ignore[arg-type]
+                float(event["quantity"]),  # type: ignore[arg-type]
+                float(event["notional"]),  # type: ignore[arg-type]
+                str(event["exchange"]),
+                str(event["symbol"]),
+                int(time.time() * 1000),
+                SOURCE_IMPORT,
+                (
+                    None
+                    if event.get("order_price") is None
+                    else float(event["order_price"])  # type: ignore[arg-type]
+                ),
+            )
+            for event in events
+        ]
+        if not rows:
+            return 0
+
+        with closing(self._connect()) as connection:
+            before = connection.total_changes
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO liquidation_events (
+                    id, trade_time, event_time, side, price, quantity,
+                    notional, exchange, symbol, created_at, source, order_price
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+            connection.commit()
+            return connection.total_changes - before
+
     def read_history(
         self,
         *,
         before: int | None = None,
+        before_id: str | None = None,
         limit: int = DEFAULT_HISTORY_LIMIT,
     ) -> LiquidationHistoryPage:
-        """Read newest-first events, optionally older than an exclusive cursor."""
+        """Read newest-first events, optionally older than an exclusive cursor.
+
+        ``before`` alone keeps the historical behaviour (a ``trade_time``
+        cursor). Passing ``before_id`` as well switches to a ``(trade_time,
+        id)`` keyset so a group of rows sharing one timestamp survives a page
+        boundary intact; the existing ``(trade_time DESC, id DESC)`` index
+        serves both forms.
+        """
         safe_limit = max(MIN_HISTORY_LIMIT, min(int(limit), MAX_HISTORY_LIMIT))
         sql = """
             SELECT id, trade_time, event_time, side, price, quantity,
@@ -172,8 +310,15 @@ class LiquidationStore:
         """
         params: list[object] = []
         if before is not None:
-            sql += " WHERE trade_time < ?"
-            params.append(int(before))
+            if before_id is not None:
+                sql += (
+                    " WHERE trade_time < ?"
+                    " OR (trade_time = ? AND id < ?)"
+                )
+                params.extend((int(before), int(before), str(before_id)))
+            else:
+                sql += " WHERE trade_time < ?"
+                params.append(int(before))
         sql += " ORDER BY trade_time DESC, id DESC LIMIT ?"
         # One extra row distinguishes "exactly full page" from "more exist".
         params.append(safe_limit + 1)
@@ -184,17 +329,78 @@ class LiquidationStore:
         has_more = len(rows) > safe_limit
         page_rows = rows[:safe_limit]
         events = [_row_to_event(row) for row in page_rows]
-        next_before = (
-            int(page_rows[-1]["trade_time"]) if has_more and page_rows else None
-        )
+        next_before = None
+        next_before_id = None
+        if has_more and page_rows:
+            next_before = int(page_rows[-1]["trade_time"])
+            next_before_id = str(page_rows[-1]["id"])
         return LiquidationHistoryPage(
             events=events,
             has_more=has_more,
             next_before=next_before,
+            next_before_id=next_before_id,
         )
 
 
 _STORES: dict[Path, LiquidationStore] = {}
+
+
+@contextmanager
+def connect_read_only(
+    path: str | Path | None = None,
+) -> Iterator[sqlite3.Connection]:
+    """Open the database for reads without taking write locks.
+
+    ``mode=ro`` is tried first so a read-only caller cannot mutate the file.
+    When another process holds the database in WAL mode and the shared-memory
+    file cannot be attached, this falls back to a plain connection; every
+    caller only issues ``SELECT`` statements either way.
+    """
+    resolved = resolve_liquidation_db_path(path)
+    try:
+        connection = sqlite3.connect(
+            f"file:{resolved}?mode=ro", uri=True, timeout=5.0
+        )
+    except sqlite3.OperationalError:
+        connection = sqlite3.connect(resolved, timeout=5.0)
+    try:
+        connection.row_factory = sqlite3.Row
+        yield connection
+    finally:
+        connection.close()
+
+
+def read_existing_event_keys(
+    path: str | Path | None = None,
+    *,
+    start: int | None = None,
+    end: int | None = None,
+) -> set[EventContentKey]:
+    """Return ``(event_time, side, price, quantity)`` keys already stored.
+
+    Opens the database read-only, so a dry-run never mutates anything. A
+    missing file or a database without the table yields an empty set.
+    """
+    resolved = resolve_liquidation_db_path(path)
+    if not resolved.exists():
+        return set()
+
+    sql = "SELECT event_time, side, price, quantity FROM liquidation_events"
+    params: list[object] = []
+    if start is not None and end is not None:
+        sql += " WHERE event_time >= ? AND event_time <= ?"
+        params.extend((int(start), int(end)))
+
+    try:
+        with connect_read_only(resolved) as connection:
+            return {
+                (int(row[0]), str(row[1]), float(row[2]), float(row[3]))
+                for row in connection.execute(sql, params).fetchall()
+            }
+    except sqlite3.OperationalError as error:
+        if "no such table" in str(error):
+            return set()
+        raise
 
 
 def get_liquidation_store(path: str | Path | None = None) -> LiquidationStore:
@@ -222,10 +428,12 @@ def insert_liquidation_event(
 def read_liquidation_history(
     *,
     before: int | None = None,
+    before_id: str | None = None,
     limit: int = DEFAULT_HISTORY_LIMIT,
     store: LiquidationStore | None = None,
 ) -> LiquidationHistoryPage:
     return (store or get_liquidation_store()).read_history(
         before=before,
+        before_id=before_id,
         limit=limit,
     )

@@ -41,6 +41,8 @@ export type AggregatedLiquidationsHistoryPage = {
   events: AggregatedLiquidationEvent[]
   hasMore: boolean
   nextBefore: number | null
+  /** Keyset half of the cursor; see `fetchAggregatedLiquidationsHistory`. */
+  nextBeforeId: string | null
 }
 
 export type AggregatedLiquidationsHistory = {
@@ -69,11 +71,15 @@ function readPositiveInteger(value: unknown): number | null {
 
 export function aggregatedLiquidationsHistoryPath(params?: {
   before?: number | null
+  beforeId?: string | null
   limit?: number
 }): string {
   const search = new URLSearchParams()
   if (params?.before !== undefined && params.before !== null) {
     search.set('before', String(Math.trunc(params.before)))
+  }
+  if (params?.beforeId !== undefined && params.beforeId !== null) {
+    search.set('before_id', params.beforeId)
   }
   if (params?.limit !== undefined) {
     search.set('limit', String(Math.trunc(params.limit)))
@@ -135,6 +141,19 @@ export function parseAggregatedLiquidationsHistoryPage(
     )
   }
 
+  let nextBeforeId: string | null = null
+  if (record.next_before_id !== undefined && record.next_before_id !== null) {
+    if (
+      typeof record.next_before_id !== 'string' ||
+      record.next_before_id === ''
+    ) {
+      throw new AggregatedLiquidationsHistoryClientError(
+        'Liquidation history response next_before_id is invalid',
+      )
+    }
+    nextBeforeId = record.next_before_id
+  }
+
   const events: AggregatedLiquidationEvent[] = []
   for (const raw of record.events) {
     const event = parseAggregatedLiquidationEvent(raw)
@@ -147,6 +166,7 @@ export function parseAggregatedLiquidationsHistoryPage(
     events,
     hasMore: record.has_more,
     nextBefore,
+    nextBeforeId,
   }
 }
 
@@ -209,6 +229,7 @@ export function mergeAggregatedLiquidationEvents(
 
 export type FetchAggregatedLiquidationsHistoryPageParams = {
   before?: number | null
+  beforeId?: string | null
   limit?: number
   signal?: AbortSignal
   fetchImpl?: typeof fetch
@@ -219,6 +240,7 @@ export async function fetchAggregatedLiquidationsHistoryPage(
 ): Promise<AggregatedLiquidationsHistoryPage> {
   const {
     before = null,
+    beforeId = null,
     limit = AGGREGATED_LIQUIDATIONS_HISTORY_DEFAULT_LIMIT,
     signal,
     fetchImpl = fetch,
@@ -232,7 +254,7 @@ export async function fetchAggregatedLiquidationsHistoryPage(
     ),
   )
   const response = await fetchImpl(
-    `${API_BASE}${aggregatedLiquidationsHistoryPath({ before, limit: safeLimit })}`,
+    `${API_BASE}${aggregatedLiquidationsHistoryPath({ before, beforeId, limit: safeLimit })}`,
     {
       headers: { Accept: 'application/json' },
       signal,
@@ -263,9 +285,35 @@ export type FetchAggregatedLiquidationsHistoryParams = {
   fetchImpl?: typeof fetch
 }
 
+export type AggregatedLiquidationsHistoryCursor = {
+  before: number
+  beforeId: string | null
+}
+
+/**
+ * True when `next` is strictly older than `previous`.
+ *
+ * The cursor is a keyset on `(trade_time, id)`, so a page can end on the same
+ * `trade_time` as the previous one and still advance (through the id). Treating
+ * an equal timestamp as "not advancing" would truncate any group of events that
+ * shares one timestamp, which is exactly what this cursor exists to prevent.
+ */
+export function liquidationHistoryCursorAdvances(
+  previous: AggregatedLiquidationsHistoryCursor | null,
+  next: AggregatedLiquidationsHistoryCursor,
+): boolean {
+  if (previous === null) return true
+  if (next.before !== previous.before) return next.before < previous.before
+  if (previous.beforeId === null || next.beforeId === null) return false
+  return next.beforeId < previous.beforeId
+}
+
 /**
  * Walk newest-first pages until the loaded candle range is covered, the
  * database is exhausted, or the hard page cap is reached.
+ *
+ * Each page is requested with the full `(before, before_id)` cursor the server
+ * returned, so rows sharing one `trade_time` are never skipped at a boundary.
  */
 export async function fetchAggregatedLiquidationsHistory(
   params: FetchAggregatedLiquidationsHistoryParams = {},
@@ -279,14 +327,15 @@ export async function fetchAggregatedLiquidationsHistory(
   } = params
   const pageCap = Math.max(1, Math.trunc(maxPages))
 
-  let before: number | null = null
+  let cursor: AggregatedLiquidationsHistoryCursor | null = null
   let pages = 0
   let truncated = false
   const collected: AggregatedLiquidationEvent[] = []
 
   while (pages < pageCap) {
     const page = await fetchAggregatedLiquidationsHistoryPage({
-      before,
+      before: cursor?.before ?? null,
+      beforeId: cursor?.beforeId ?? null,
       limit,
       signal,
       fetchImpl,
@@ -295,10 +344,17 @@ export async function fetchAggregatedLiquidationsHistory(
     collected.push(...page.events)
 
     if (!page.hasMore || page.nextBefore === null) break
-    if (oldestTimeMs !== null && page.nextBefore <= oldestTimeMs) break
-    if (before !== null && page.nextBefore >= before) break
+    // `<` (not `<=`): rows at exactly this trade time can still be pending
+    // behind the keyset cursor.
+    if (oldestTimeMs !== null && page.nextBefore < oldestTimeMs) break
 
-    before = page.nextBefore
+    const nextCursor: AggregatedLiquidationsHistoryCursor = {
+      before: page.nextBefore,
+      beforeId: page.nextBeforeId,
+    }
+    if (!liquidationHistoryCursorAdvances(cursor, nextCursor)) break
+
+    cursor = nextCursor
     if (pages >= pageCap) {
       truncated = true
     }

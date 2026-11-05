@@ -10,6 +10,7 @@ import {
   aggregatedLiquidationsHistoryPath,
   AggregatedLiquidationsHistoryClientError,
   fetchAggregatedLiquidationsHistory,
+  liquidationHistoryCursorAdvances,
   mergeAggregatedLiquidationEvents,
   parseAggregatedLiquidationsHistoryPage,
 } from './aggregatedLiquidationsHistory.ts'
@@ -45,7 +46,11 @@ function parsed(id: string, tradeTime = BASE_TIME_MS): AggregatedLiquidationEven
 
 function page(
   events: unknown[],
-  options: { hasMore?: boolean; nextBefore?: number | null } = {},
+  options: {
+    hasMore?: boolean
+    nextBefore?: number | null
+    nextBeforeId?: string | null
+  } = {},
 ) {
   return {
     exchange: 'binance',
@@ -53,6 +58,7 @@ function page(
     events,
     has_more: options.hasMore ?? false,
     next_before: options.nextBefore ?? null,
+    next_before_id: options.nextBeforeId ?? null,
   }
 }
 
@@ -67,13 +73,29 @@ describe('aggregatedLiquidationsHistoryPath', () => {
       '/market/binance/usdm/btcusdt/liquidations/history?before=1792000000000&limit=250',
     )
   })
+
+  it('sends the keyset half of the cursor when present', () => {
+    assert.equal(
+      aggregatedLiquidationsHistoryPath({
+        before: 1_792_000_000_000,
+        beforeId: 'binance|BTCUSDT|SELL|1|2|0.5|80000',
+        limit: 10,
+      }),
+      '/market/binance/usdm/btcusdt/liquidations/history?before=1792000000000&before_id=binance%7CBTCUSDT%7CSELL%7C1%7C2%7C0.5%7C80000&limit=10',
+    )
+    // A legacy before-only call is byte-identical to the pre-keyset path.
+    assert.equal(
+      aggregatedLiquidationsHistoryPath({ before: 5, beforeId: null, limit: 10 }),
+      '/market/binance/usdm/btcusdt/liquidations/history?before=5&limit=10',
+    )
+  })
 })
 
 describe('parseAggregatedLiquidationsHistoryPage', () => {
   it('accepts a valid page with normalized events', () => {
     const body = page(
       [historyEvent('b', BASE_TIME_MS + MINUTE), historyEvent('a', BASE_TIME_MS)],
-      { hasMore: true, nextBefore: BASE_TIME_MS },
+      { hasMore: true, nextBefore: BASE_TIME_MS, nextBeforeId: 'a' },
     )
     const parsedPage = parseAggregatedLiquidationsHistoryPage(body)
 
@@ -85,6 +107,31 @@ describe('parseAggregatedLiquidationsHistoryPage', () => {
     )
     assert.equal(parsedPage.hasMore, true)
     assert.equal(parsedPage.nextBefore, BASE_TIME_MS)
+    assert.equal(parsedPage.nextBeforeId, 'a')
+  })
+
+  it('treats a missing next_before_id as null (legacy backend)', () => {
+    const parsedPage = parseAggregatedLiquidationsHistoryPage({
+      exchange: 'binance',
+      symbol: 'BTCUSDT',
+      events: [historyEvent('a', BASE_TIME_MS)],
+      has_more: false,
+      next_before: null,
+    })
+
+    assert.equal(parsedPage.nextBeforeId, null)
+  })
+
+  it('rejects an invalid next_before_id', () => {
+    for (const value of ['', 7, {}]) {
+      assert.throws(
+        () =>
+          parseAggregatedLiquidationsHistoryPage(
+            page([], { hasMore: true, nextBefore: BASE_TIME_MS, nextBeforeId: value as string }),
+          ),
+        AggregatedLiquidationsHistoryClientError,
+      )
+    }
   })
 
   it('rejects malformed event objects without rendering NaN', () => {
@@ -204,6 +251,44 @@ describe('mergeAggregatedLiquidationEvents', () => {
   })
 })
 
+describe('liquidationHistoryCursorAdvances', () => {
+  it('advances on an older time, on a smaller id, and only on those', () => {
+    const start = { before: 1_000, beforeId: 'm' }
+
+    assert.equal(liquidationHistoryCursorAdvances(null, start), true)
+    assert.equal(
+      liquidationHistoryCursorAdvances(start, { before: 999, beforeId: 'z' }),
+      true,
+    )
+    // Same timestamp is still progress when the id moves down.
+    assert.equal(
+      liquidationHistoryCursorAdvances(start, { before: 1_000, beforeId: 'a' }),
+      true,
+    )
+    // Same cursor, a newer time, or an id that does not move down: stop.
+    assert.equal(
+      liquidationHistoryCursorAdvances(start, { before: 1_000, beforeId: 'm' }),
+      false,
+    )
+    assert.equal(
+      liquidationHistoryCursorAdvances(start, { before: 1_001, beforeId: 'a' }),
+      false,
+    )
+    // Without both ids the keyset cannot advance inside a tie group.
+    assert.equal(
+      liquidationHistoryCursorAdvances(start, { before: 1_000, beforeId: null }),
+      false,
+    )
+    assert.equal(
+      liquidationHistoryCursorAdvances(
+        { before: 1_000, beforeId: null },
+        { before: 1_000, beforeId: 'a' },
+      ),
+      false,
+    )
+  })
+})
+
 function fakeFetch(pages: unknown[]) {
   const calls: string[] = []
   const fetchImpl = (async (input: RequestInfo | URL) => {
@@ -219,6 +304,155 @@ function fakeFetch(pages: unknown[]) {
   }) as typeof fetch
   return { fetchImpl, calls }
 }
+
+describe('fetchAggregatedLiquidationsHistory with a tie group', () => {
+  /**
+   * Stand-in for the backend page query: rows ordered by
+   * `(trade_time DESC, id DESC)`, filtered by the exclusive
+   * `(before, before_id)` keyset, limited to `limit`.
+   */
+  function fakeKeysetFetch(
+    rows: { id: string; tradeTime: number }[],
+    options: { emitIdCursor?: boolean } = {},
+  ) {
+    const emitIdCursor = options.emitIdCursor ?? true
+    const sorted = [...rows].sort(
+      (a, b) => b.tradeTime - a.tradeTime || b.id.localeCompare(a.id),
+    )
+    const calls: URLSearchParams[] = []
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost')
+      const params = url.searchParams
+      calls.push(params)
+      const beforeRaw = params.get('before')
+      const beforeId = params.get('before_id')
+      const limit = Number(params.get('limit') ?? '500')
+
+      let filtered = sorted
+      if (beforeRaw !== null) {
+        const before = Number(beforeRaw)
+        filtered = sorted.filter((row) => {
+          if (row.tradeTime !== before) return row.tradeTime < before
+          // A legacy backend cannot page inside a same-timestamp group.
+          if (beforeId === null) return false
+          return row.id < beforeId
+        })
+      }
+
+      const pageRows = filtered.slice(0, limit)
+      const hasMore = filtered.length > limit
+      const last = pageRows[pageRows.length - 1]
+      const body: Record<string, unknown> = {
+        exchange: 'binance',
+        symbol: 'BTCUSDT',
+        events: pageRows.map((row) => historyEvent(row.id, row.tradeTime)),
+        has_more: hasMore,
+        next_before: hasMore ? last.tradeTime : null,
+      }
+      if (emitIdCursor) {
+        body.next_before_id = hasMore ? last.id : null
+      }
+
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as typeof fetch
+    return { fetchImpl, calls }
+  }
+
+  const tieRows = ['t-e', 't-d', 't-c', 't-b', 't-a'].map((id) => ({
+    id,
+    tradeTime: BASE_TIME_MS,
+  }))
+
+  for (const limit of [1, 2]) {
+    it(`pages a 5-row tie group at limit ${limit} with zero loss and zero repeats`, async () => {
+      const { fetchImpl, calls } = fakeKeysetFetch(tieRows)
+
+      const result = await fetchAggregatedLiquidationsHistory({
+        limit,
+        maxPages: 20,
+        fetchImpl,
+      })
+
+      assert.deepEqual(
+        result.events.map((event) => event.id),
+        ['t-a', 't-b', 't-c', 't-d', 't-e'],
+      )
+      assert.equal(result.events.length, 5)
+      assert.equal(new Set(result.events.map((event) => event.id)).size, 5)
+      assert.equal(result.truncated, false)
+      assert.equal(calls.length, Math.ceil(5 / limit))
+      assert.equal(calls[0].get('before_id'), null)
+      // Every follow-up request carries the keyset, not just the timestamp.
+      for (const call of calls.slice(1)) {
+        assert.ok(call.get('before_id'))
+      }
+    })
+  }
+
+  it('loses the tie tail against a legacy before-only server', async () => {
+    // Documents why the id half of the cursor is required: without it the
+    // client cannot ask for "the same timestamp, older id".
+    const { fetchImpl } = fakeKeysetFetch(tieRows, { emitIdCursor: false })
+
+    const result = await fetchAggregatedLiquidationsHistory({
+      limit: 2,
+      maxPages: 20,
+      fetchImpl,
+    })
+
+    assert.equal(result.events.length, 2)
+  })
+
+  it('still pages a legacy before-only server when timestamps differ', async () => {
+    const rows = [3, 2, 1, 0].map((index) => ({
+      id: `e${index}`,
+      tradeTime: BASE_TIME_MS + index * MINUTE,
+    }))
+    const { fetchImpl, calls } = fakeKeysetFetch(rows, { emitIdCursor: false })
+
+    const result = await fetchAggregatedLiquidationsHistory({
+      limit: 1,
+      maxPages: 20,
+      fetchImpl,
+    })
+
+    assert.deepEqual(
+      result.events.map((event) => event.id),
+      ['e0', 'e1', 'e2', 'e3'],
+    )
+    assert.equal(calls.length, 4)
+    for (const call of calls) assert.equal(call.get('before_id'), null)
+  })
+
+  it('stops instead of looping when the server repeats its cursor', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls += 1
+      return new Response(
+        JSON.stringify(
+          page([historyEvent('stuck', BASE_TIME_MS)], {
+            hasMore: true,
+            nextBefore: BASE_TIME_MS,
+            nextBeforeId: 'stuck',
+          }),
+        ),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as typeof fetch
+
+    const result = await fetchAggregatedLiquidationsHistory({
+      limit: 1,
+      maxPages: 20,
+      fetchImpl,
+    })
+
+    assert.equal(calls, 2)
+    assert.equal(result.events.length, 1)
+  })
+})
 
 describe('fetchAggregatedLiquidationsHistory', () => {
   it('accumulates pages, dedupes, and stops when the database is exhausted', async () => {
@@ -257,7 +491,7 @@ describe('fetchAggregatedLiquidationsHistory', () => {
     const { fetchImpl, calls } = fakeFetch([
       page([historyEvent('recent', BASE_TIME_MS)], {
         hasMore: true,
-        nextBefore: oldestTimeMs,
+        nextBefore: oldestTimeMs - MINUTE,
       }),
     ])
 
@@ -268,6 +502,31 @@ describe('fetchAggregatedLiquidationsHistory', () => {
 
     assert.equal(calls.length, 1)
     assert.deepEqual(result.events.map((event) => event.id), ['recent'])
+  })
+
+  it('keeps paging when the cursor lands exactly on the oldest needed time', async () => {
+    // A tie group sitting on the range boundary must not be truncated, so the
+    // stop condition is `<`, not `<=`.
+    const oldestTimeMs = BASE_TIME_MS - MINUTE
+    const { fetchImpl, calls } = fakeFetch([
+      page([historyEvent('newer', BASE_TIME_MS)], {
+        hasMore: true,
+        nextBefore: oldestTimeMs,
+        nextBeforeId: 'newer',
+      }),
+      page([historyEvent('boundary', oldestTimeMs)]),
+    ])
+
+    const result = await fetchAggregatedLiquidationsHistory({
+      oldestTimeMs,
+      fetchImpl,
+    })
+
+    assert.equal(calls.length, 2)
+    assert.deepEqual(result.events.map((event) => event.id), [
+      'boundary',
+      'newer',
+    ])
   })
 
   it('honours the hard page cap for a long-running database', async () => {
