@@ -13,8 +13,11 @@ import {
   describeAggregatedLiquidationsEventNotice,
   fetchAggregatedLiquidationsBuckets,
   formatAggregatedLiquidationsCoverageTime,
+  describeAggregatedLiquidationsBucketError,
+  nextAggregatedLiquidationsBucketsAfterError,
   parseAggregatedLiquidationsBuckets,
   shouldUseAggregatedLiquidationBuckets,
+  type AggregatedLiquidationsBucketsState,
 } from './aggregatedLiquidationsBuckets.ts'
 import type { CandleInterval } from './types.ts'
 
@@ -274,6 +277,92 @@ describe('aggregated liquidation coverage notices', () => {
     const notice = describeAggregatedLiquidationsEventNotice([], true)
     assert.ok(notice)
     assert.match(notice, /truncated/)
+  })
+})
+
+describe('nextAggregatedLiquidationsBucketsAfterError', () => {
+  const query = {
+    exchange: 'binance' as const,
+    interval: '1h' as const,
+    from: BASE_TIME_MS,
+    to: BASE_TIME_MS + 6 * HOUR,
+  }
+  const loaded: AggregatedLiquidationsBucketsState = {
+    ...query,
+    buckets: [{ time: BASE_SECONDS, long: 40_000, short: 0 }],
+  }
+
+  it('keeps the last buckets when the same request fails again', () => {
+    // The 15 s live refresh re-issues the same request; a transient failure
+    // must not blank the pane.
+    const next = nextAggregatedLiquidationsBucketsAfterError(loaded, {
+      ...query,
+    })
+
+    assert.equal(next, loaded)
+    assert.deepEqual(next.buckets, loaded.buckets)
+  })
+
+  it('clears when the interval changed', () => {
+    const next = nextAggregatedLiquidationsBucketsAfterError(loaded, {
+      ...query,
+      interval: '4h',
+    })
+
+    assert.deepEqual(next.buckets, [])
+    assert.equal(next.interval, '4h')
+  })
+
+  it('clears when the exchange changed', () => {
+    const next = nextAggregatedLiquidationsBucketsAfterError(loaded, {
+      ...query,
+      exchange: 'hyperliquid',
+    })
+
+    assert.deepEqual(next.buckets, [])
+    assert.equal(next.exchange, 'hyperliquid')
+  })
+
+  it('clears when the loaded range changed', () => {
+    for (const changed of [
+      { ...query, from: query.from + HOUR },
+      { ...query, to: query.to + HOUR },
+    ]) {
+      const next = nextAggregatedLiquidationsBucketsAfterError(loaded, changed)
+      assert.deepEqual(next.buckets, [], JSON.stringify(changed))
+      assert.equal(next.from, changed.from)
+      assert.equal(next.to, changed.to)
+    }
+  })
+
+  it('starts empty when nothing was loaded yet', () => {
+    const next = nextAggregatedLiquidationsBucketsAfterError(null, query)
+
+    assert.deepEqual(next, { ...query, buckets: [] })
+  })
+
+  it('keeps the buckets and still explains a transient failure', () => {
+    // Both halves of the behaviour: the previously rendered array survives and
+    // the pane still gets a notice saying the refresh failed.
+    const next = nextAggregatedLiquidationsBucketsAfterError(loaded, {
+      ...query,
+    })
+    const notice = describeAggregatedLiquidationsBucketError(
+      new AggregatedLiquidationsBucketsClientError('HTTP 503', 503),
+    )
+
+    assert.equal(next.buckets.length, 1)
+    assert.match(notice, /Could not load Aggregated Liquidations history/)
+    assert.match(notice, /HTTP 503/)
+  })
+
+  it('describes a non-Error failure without leaking undefined', () => {
+    const notice = describeAggregatedLiquidationsBucketError('boom')
+
+    assert.equal(
+      notice,
+      'Could not load Aggregated Liquidations history for the loaded chart range',
+    )
   })
 })
 
