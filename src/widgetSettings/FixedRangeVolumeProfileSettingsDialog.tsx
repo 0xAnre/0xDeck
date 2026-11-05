@@ -306,21 +306,21 @@ function FixedRangeVolumeProfileSettingsDialogBody({
           <FieldGroup className="gap-3 border-t border-border pt-3">
             <p className="text-sm font-medium">Developing series</p>
             <FieldDescription>
-              The developing series recomputes the value area and POC from the range start through
-              each candle. Line is the flat full-range level (default), Step draws the developing
-              staircase only, Both draws the staircase and the full-range line. Step and Both reuse
-              each level&apos;s color, opacity, width and Line/Dot style below.
+              Value area and POC render as the flat full-range Line (default), the developing
+              Step staircase, or Both. Step and Both reuse the level&apos;s color, opacity, width
+              and Line/Dot below. Levels use the full-range price rows and the histogram always
+              shades the final value area, so mid-range a step can sit outside the shading.
             </FieldDescription>
             <RenderModeField
               id="frvp-value-area-mode"
-              label="Value area (VAH/VAL)"
-              description="Applies to VAH and VAL together."
+              label="Value area mode"
+              description="Applies to VAH and VAL."
               mode={draft.valueAreaMode}
               onChange={(mode) => setMode('valueAreaMode', mode)}
             />
             <RenderModeField
               id="frvp-poc-mode"
-              label="POC"
+              label="POC mode"
               description="Independent from the value area."
               mode={draft.pocMode}
               onChange={(mode) => setMode('pocMode', mode)}
@@ -380,9 +380,9 @@ function FixedRangeVolumeProfileSettingsDialogBody({
             Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows,{' '}
             {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on, red dotted
             POC and grey solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
-            {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity,{' '}
-            {FRVP_LEVEL_RENDER_MODE_LABELS[DEFAULT_FRVP_LEVEL_RENDER_MODE].toLowerCase()} level
-            rendering for both groups.
+            {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity and{' '}
+            {FRVP_LEVEL_RENDER_MODE_LABELS[DEFAULT_FRVP_LEVEL_RENDER_MODE]} level rendering for
+            both groups.
           </p>
         </FieldGroup>
       </div>

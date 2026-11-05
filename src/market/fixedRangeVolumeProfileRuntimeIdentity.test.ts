@@ -165,6 +165,29 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     )
   })
 
+  it('does not change the identity key when a level render mode changes', () => {
+    // Render modes are a draw-time choice: the developing samples come from the
+    // same profile fetch, so toggling a mode in the settings dialog must keep
+    // the ready profile instead of refetching (and blanking) it. This pin is
+    // what stops a future "identity serializes every instance field" change
+    // from silently turning every mode toggle into a per-instance refetch.
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(
+        instance({ valueAreaMode: 'step', pocMode: 'both' }),
+      ),
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance()),
+    )
+    // The request key (identity + effective Extend Right edge) stays invariant
+    // for the same reason.
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(
+        instance({ valueAreaMode: 'both', pocMode: 'step' }),
+        null,
+      ),
+      buildFixedRangeVolumeProfileRequestKey(instance(), null),
+    )
+  })
+
   it('advances the request key with the live edge only when Extend Right is on', () => {
     const off = instance({ extendRight: false })
     assert.equal(
