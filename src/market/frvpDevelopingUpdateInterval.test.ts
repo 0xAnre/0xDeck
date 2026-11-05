@@ -28,14 +28,15 @@ function instance(
 }
 
 describe('frvpDevelopingUpdateInterval', () => {
-  it('defaults to every bar with the documented allowed set', () => {
-    assert.equal(DEFAULT_FRVP_DEVELOPING_UPDATE_BARS, 1)
+  it('defaults to every 10 bars with the documented allowed set', () => {
+    assert.equal(DEFAULT_FRVP_DEVELOPING_UPDATE_BARS, 10)
     assert.deepEqual([...FRVP_DEVELOPING_UPDATE_BARS], [1, 3, 5, 10, 30, 60])
-    assert.equal(frvpInstanceDevelopingUpdateBars(instance()), 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance()), 10)
   })
 
   it('resolves a stored interval and rejects invalid values', () => {
-    assert.equal(frvpInstanceDevelopingUpdateBars(instance({ developingUpdateBars: 10 })), 10)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance({ developingUpdateBars: 1 })), 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance({ developingUpdateBars: 30 })), 30)
     assert.equal(isFrvpDevelopingUpdateBars(1), true)
     assert.equal(isFrvpDevelopingUpdateBars(60), true)
     assert.equal(isFrvpDevelopingUpdateBars(2), false)
@@ -45,23 +46,29 @@ describe('frvpDevelopingUpdateInterval', () => {
     assert.equal(sanitizeFrvpDevelopingUpdateBars(2), undefined)
     assert.equal(
       frvpInstanceDevelopingUpdateBars(instance({ developingUpdateBars: 2 as never })),
-      1,
+      10,
     )
     assert.equal(
       frvpInstanceDevelopingUpdateBars(instance({ developingUpdateBars: null as never })),
-      1,
+      10,
     )
   })
 
   it('stores a non-default interval and clears the field on reset', () => {
-    let next = setFrvpInstanceDevelopingUpdateBars(instance(), 10)
-    assert.equal(next.developingUpdateBars, 10)
-    assert.equal(frvpInstanceDevelopingUpdateBars(next), 10)
+    // Every bar (1) is a valid non-default stride.
+    let next = setFrvpInstanceDevelopingUpdateBars(instance(), 1)
+    assert.equal(next.developingUpdateBars, 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(next), 1)
 
-    next = setFrvpInstanceDevelopingUpdateBars(next, 1)
+    next = setFrvpInstanceDevelopingUpdateBars(next, 30)
+    assert.equal(next.developingUpdateBars, 30)
+    assert.equal(frvpInstanceDevelopingUpdateBars(next), 30)
+
+    // Reset to the product default (10) deletes the field.
+    next = setFrvpInstanceDevelopingUpdateBars(next, 10)
     assert.equal(next.developingUpdateBars, undefined)
     assert.equal('developingUpdateBars' in next, false)
-    assert.equal(frvpInstanceDevelopingUpdateBars(next), 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(next), 10)
   })
 
   it('ignores an invalid interval change', () => {
@@ -70,7 +77,8 @@ describe('frvpDevelopingUpdateInterval', () => {
   })
 
   it('labels the interval for the settings dialog', () => {
-    assert.equal(frvpDevelopingUpdateBarsLabel(1), 'Every bar (default)')
+    assert.equal(frvpDevelopingUpdateBarsLabel(10), 'Every 10 bars (default)')
+    assert.equal(frvpDevelopingUpdateBarsLabel(1), 'Every bar')
     assert.equal(frvpDevelopingUpdateBarsLabel(3), 'Every 3 bars')
     assert.equal(frvpDevelopingUpdateBarsLabel(60), 'Every 60 bars')
   })

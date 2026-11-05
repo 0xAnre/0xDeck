@@ -89,7 +89,7 @@ describe('computeFixedRangeVolumeProfileDevelopingSeries', () => {
 
   it('ends exactly on the full-range POC/VAH/VAL levels', () => {
     const candles = swingCandles()
-    for (const rowCount of [4, 8, 20, 68]) {
+    for (const rowCount of [4, 8, 20, 100]) {
       for (const valueAreaPercent of [0, 25, 68, 70, 100]) {
         const { profile, developing: samples } = combined(candles, 100, 220, {
           rowCount,
@@ -219,7 +219,7 @@ describe('computeFixedRangeVolumeProfileDevelopingSeries', () => {
     }
     const fromTime = candles[0].time
     const toTime = candles[candles.length - 1].time
-    const { profile, developing: samples } = combined(candles, fromTime, toTime, { rowCount: 68 })
+    const { profile, developing: samples } = combined(candles, fromTime, toTime, { rowCount: 100 })
 
     assert.equal(samples.length, candles.length)
     const last = samples[samples.length - 1]

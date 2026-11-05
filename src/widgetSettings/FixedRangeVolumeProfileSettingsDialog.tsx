@@ -42,6 +42,7 @@ import {
   type FrvpLevelRenderMode,
 } from '@/market/frvpDevelopingMode'
 import {
+  DEFAULT_FRVP_DEVELOPING_UPDATE_BARS,
   FRVP_DEVELOPING_UPDATE_BARS,
   frvpDevelopingUpdateBarsLabel,
   isFrvpDevelopingUpdateBars,
@@ -418,9 +419,10 @@ function FixedRangeVolumeProfileSettingsDialogBody({
             Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows,{' '}
             {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on, red dotted
             POC and grey solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
-            {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity and{' '}
+            {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity,{' '}
             {FRVP_LEVEL_RENDER_MODE_LABELS[DEFAULT_FRVP_LEVEL_RENDER_MODE]} level rendering for
-            both groups.
+            both groups and a {DEFAULT_FRVP_DEVELOPING_UPDATE_BARS}-bar developing update
+            interval.
           </p>
         </FieldGroup>
       </div>

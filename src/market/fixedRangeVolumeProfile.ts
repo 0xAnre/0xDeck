@@ -11,7 +11,7 @@ export type FixedRangeVolumeProfileCandle = {
  * Default histogram rows for a newly created profile. The single source of
  * truth: `fixedRangeVolumeProfileInstances.ts` re-exports it.
  */
-export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 68
+export const DEFAULT_FIXED_RANGE_VP_ROW_COUNT = 20
 /** Default Value-Area percentage for a newly created profile. */
 export const DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT = 68
 
@@ -554,11 +554,13 @@ export function computeFixedRangeVolumeProfile(
  * `computeFixedRangeVolumeProfileWithDeveloping` instead of calling this on its
  * own, because it resolves the percent once for both.
  *
- * `updateBars` is the developing update interval: `1` (default) recomputes the
- * levels on every bar. A larger stride recomputes them only on bars `0`, `N`,
- * `2N`, … and the last bar (always exact), and the level holds in between: the
- * sample list still has one sample per bar, so the values are identical to a
- * per-bar walk at the update bars and copies of the previous update in between.
+ * `updateBars` is the developing update interval: omit it (or pass 1) for the
+ * exact per-bar walk. A larger stride recomputes the levels only on bars `0`,
+ * `N`, `2N`, … and the last bar (always exact), and the level holds in between:
+ * the sample list still has one sample per bar, so the values are identical to
+ * a per-bar walk at the update bars and copies of the previous update in
+ * between. The FRVP data pipeline always passes the instance's resolved
+ * interval, whose product default is 10 bars.
  */
 function computeFixedRangeVolumeProfileDevelopingSeries(params: {
   profile: FixedRangeVolumeProfileResult
@@ -662,9 +664,11 @@ function computeFixedRangeVolumeProfileDevelopingSeries(params: {
 export function computeFixedRangeVolumeProfileWithDeveloping(
   params: FixedRangeVolumeProfileParams & {
     /**
-     * Developing update interval in bars (default 1 = every bar). The last bar
-     * is always recomputed exactly, so a range length that is not a multiple of
-     * the stride still ends on the full-range value.
+     * Developing update interval in bars. Omitted = the exact per-bar walk;
+     * the data pipeline passes `frvpInstanceDevelopingUpdateBars(instance)`
+     * (product default 10). The last bar is always recomputed exactly, so a
+     * range length that is not a multiple of the stride still ends on the
+     * full-range value.
      */
     developingUpdateBars?: number
   },

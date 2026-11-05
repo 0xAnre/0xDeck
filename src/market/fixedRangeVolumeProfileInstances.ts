@@ -63,8 +63,8 @@ export type FixedRangeVolumeProfileInstance = {
   pocMode?: FrvpLevelRenderMode
   /**
    * Recompute interval of the developing value area/POC series in bars:
-   * `1` (default, every bar) or 3/5/10/30/60. Between updates the last value
-   * holds; the last bar is always exact. Missing fields resolve to `1`.
+   * `10` (default) or 1/3/5/30/60. Between updates the last value holds; the
+   * last bar is always exact. Missing fields resolve to `10`.
    */
   developingUpdateBars?: FrvpDevelopingUpdateBars
   /**

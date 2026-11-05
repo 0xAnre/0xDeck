@@ -2,16 +2,16 @@
  * Update interval (stride) of the fixed-range volume profile's developing
  * value area and POC series.
  *
- * `1` is today's behaviour and the default: the cumulative value area and POC
- * are recomputed on every bar. A larger interval recomputes them only on every
- * Nth bar, so the value holds for those N bars and the developing staircase
- * shows the profile's development at that stride instead of every per-bar
- * wobble. The per-bar sample list is unchanged (one sample per bar, the held
- * value between updates) and the last bar is always recomputed exactly, so the
- * final sample still equals the full-range value.
+ * `10` is the default: the cumulative value area and POC are recomputed every
+ * tenth bar (and always on the last bar), so the value holds for those 10 bars
+ * and the developing staircase reads as a staircase at the default zoom
+ * instead of showing every per-bar wobble. `1` recomputes on every bar. The
+ * per-bar sample list is unchanged (one sample per bar, the held value between
+ * updates) and the last bar is always recomputed exactly, so the final sample
+ * still equals the full-range value.
  *
  * Stored per instance inside `0xdeck-widget-fixed-range-vp-instances`; absent or
- * invalid values resolve to `1` and are not written back.
+ * invalid values resolve to `10` and are not written back.
  */
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 
@@ -19,8 +19,8 @@ export const FRVP_DEVELOPING_UPDATE_BARS = [1, 3, 5, 10, 30, 60] as const
 
 export type FrvpDevelopingUpdateBars = (typeof FRVP_DEVELOPING_UPDATE_BARS)[number]
 
-/** Every bar (today's developing behaviour). */
-export const DEFAULT_FRVP_DEVELOPING_UPDATE_BARS: FrvpDevelopingUpdateBars = 1
+/** Recompute every 10 bars (the product default). */
+export const DEFAULT_FRVP_DEVELOPING_UPDATE_BARS: FrvpDevelopingUpdateBars = 10
 
 export function isFrvpDevelopingUpdateBars(value: unknown): value is FrvpDevelopingUpdateBars {
   return (
@@ -47,7 +47,8 @@ export function frvpInstanceDevelopingUpdateBars(
 
 /** Dialog label: the value is the number of bars between two recomputations. */
 export function frvpDevelopingUpdateBarsLabel(bars: FrvpDevelopingUpdateBars): string {
-  return bars === DEFAULT_FRVP_DEVELOPING_UPDATE_BARS ? 'Every bar (default)' : `Every ${bars} bars`
+  if (bars === DEFAULT_FRVP_DEVELOPING_UPDATE_BARS) return `Every ${bars} bars (default)`
+  return bars === 1 ? 'Every bar' : `Every ${bars} bars`
 }
 
 export function setFrvpInstanceDevelopingUpdateBars(

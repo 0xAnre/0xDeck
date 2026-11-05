@@ -240,21 +240,21 @@ describe('frvp render modes in the settings draft', () => {
 })
 
 describe('developing update interval in the settings draft', () => {
-  it('opens a legacy instance with the every-bar default', () => {
+  it('opens a legacy instance with the every-10-bars default', () => {
     const draft = frvpSettingsDraftFromInstance(frvpInstance())
-    assert.equal(draft.developingUpdateBars, 1)
+    assert.equal(draft.developingUpdateBars, 10)
   })
 
   it('mirrors a stored update interval', () => {
     const draft = frvpSettingsDraftFromInstance(
-      frvpInstance({ developingUpdateBars: 10 }),
+      frvpInstance({ developingUpdateBars: 1 }),
     )
-    assert.equal(draft.developingUpdateBars, 10)
+    assert.equal(draft.developingUpdateBars, 1)
   })
 
-  it('patches only a changed interval and resets back to 1', () => {
+  it('patches only a changed interval and resets back to the default 10', () => {
     const initial = frvpSettingsDraftFromInstance(
-      frvpInstance({ developingUpdateBars: 10 }),
+      frvpInstance({ developingUpdateBars: 1 }),
     )
     const changed = frvpSettingsDraftPatch(initial, {
       ...initial,
@@ -265,9 +265,9 @@ describe('developing update interval in the settings draft', () => {
 
     const reset = frvpSettingsDraftPatch(initial, {
       ...initial,
-      developingUpdateBars: 1,
+      developingUpdateBars: 10,
     })
-    assert.equal(reset.developingUpdateBars, 1)
+    assert.equal(reset.developingUpdateBars, 10)
   })
 
   it('keeps an invalid draft interval at the opened value when sanitizing', () => {

@@ -307,14 +307,14 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     assert.ok(instance!.toTime < 2_000_000_000)
   })
 
-  it('creates new profiles with 68 rows, 68% value area and Extend Right on', () => {
+  it('creates new profiles with 20 rows, 68% value area and Extend Right on', () => {
     const created = createFixedRangeVolumeProfileInstance({
       fromTime: 1_000,
       toTime: 2_000,
       selectionInterval: '1m',
     })
     assert.notEqual(created, null)
-    assert.equal(created!.rowCount, 68)
+    assert.equal(created!.rowCount, 20)
     assert.equal(created!.valueAreaPercent, 68)
     assert.equal(created!.extendRight, true)
     // One source of truth for the numeric defaults.
@@ -492,7 +492,7 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
     }
   })
 
-  it('loads a legacy instance without an update interval as every bar', () => {
+  it('loads a legacy instance without an update interval as every 10 bars', () => {
     const instance = sanitizeFixedRangeVolumeProfileInstances([
       {
         id: 'frvp-legacy-stride',
@@ -505,7 +505,7 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       },
     ])[0]
     assert.equal(instance.developingUpdateBars, undefined)
-    assert.equal(frvpInstanceDevelopingUpdateBars(instance), 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance), 10)
   })
 
   it('ignores an invalid stored update interval and resets to the default', () => {
@@ -522,12 +522,19 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       },
     ])[0]
     assert.equal(instance.developingUpdateBars, undefined)
-    assert.equal(frvpInstanceDevelopingUpdateBars(instance), 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance), 10)
 
-    const stored = setFrvpInstanceDevelopingUpdateBars(instance, 10)
-    assert.equal(stored.developingUpdateBars, 10)
-    const reset = setFrvpInstanceDevelopingUpdateBars(stored, 1)
+    // 1 (every bar) is a valid non-default stride and is stored explicitly.
+    const everyBar = setFrvpInstanceDevelopingUpdateBars(instance, 1)
+    assert.equal(everyBar.developingUpdateBars, 1)
+    assert.equal(frvpInstanceDevelopingUpdateBars(everyBar), 1)
+
+    // Reset to the product default (10) deletes the field.
+    const stored = setFrvpInstanceDevelopingUpdateBars(instance, 30)
+    assert.equal(stored.developingUpdateBars, 30)
+    const reset = setFrvpInstanceDevelopingUpdateBars(stored, 10)
     assert.equal('developingUpdateBars' in reset, false)
+    assert.equal(frvpInstanceDevelopingUpdateBars(reset), 10)
   })
 
   it('persists independent update intervals for two instances in one panel', () => {
@@ -570,7 +577,7 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       const loadedPerBar = loaded.find((item) => item.id === perBar.id)!
       assert.equal(frvpInstanceDevelopingUpdateBars(loadedStrided), 30)
       assert.equal(loadedStrided.developingUpdateBars, 30)
-      assert.equal(frvpInstanceDevelopingUpdateBars(loadedPerBar), 1)
+      assert.equal(frvpInstanceDevelopingUpdateBars(loadedPerBar), 10)
       assert.equal(loadedPerBar.developingUpdateBars, undefined)
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original })

@@ -194,18 +194,23 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     // but must advance the request key (one background refetch to rebuild them).
     assert.equal(
       buildFixedRangeVolumeProfileRequestIdentityKey(
-        instance({ developingUpdateBars: 10 }),
+        instance({ developingUpdateBars: 30 }),
       ),
       buildFixedRangeVolumeProfileRequestIdentityKey(instance()),
     )
     assert.notEqual(
-      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 10 }), null),
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 30 }), null),
+      buildFixedRangeVolumeProfileRequestKey(instance(), null),
+    )
+    // Every bar (1) is a valid non-default stride and refetches too.
+    assert.notEqual(
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 1 }), null),
       buildFixedRangeVolumeProfileRequestKey(instance(), null),
     )
     // Same interval → same request key.
     assert.equal(
-      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 10 }), null),
-      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 10 }), null),
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 30 }), null),
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 30 }), null),
     )
     // Extend Right keeps its effective-edge suffix alongside the interval.
     const on = instance({ extendRight: true })

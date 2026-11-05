@@ -95,10 +95,13 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
         },
       )
 
-    const perBar = await run()
+    const perBar = await run(1)
     const stride3 = await run(3)
+    // Omitted interval → the product default of 10 bars.
+    const defaultStride = await run()
     assert.equal(perBar.developing.length, candles.length)
     assert.equal(stride3.developing.length, candles.length)
+    assert.equal(defaultStride.developing.length, candles.length)
 
     // 3-bar stride: bars 1-2 hold the bar-0 levels, bar 3 is its own boundary,
     // and the last bar (4) is always recomputed exactly.
@@ -107,6 +110,14 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
     assert.equal(stride3.developing[3].pocPrice, perBar.developing[3].pocPrice)
     assert.equal(stride3.developing[4].pocPrice, perBar.developing[4].pocPrice)
     assert.equal(stride3.developing[4].pocPrice, stride3.profile.pocPrice)
+
+    // Default 10-bar stride on five candles: only bar 0 and the final bar are
+    // updates, so bars 1-3 hold the bar-0 levels and bar 4 is exact.
+    assert.equal(defaultStride.developing[1].pocPrice, perBar.developing[0].pocPrice)
+    assert.equal(defaultStride.developing[2].pocPrice, perBar.developing[0].pocPrice)
+    assert.equal(defaultStride.developing[3].pocPrice, perBar.developing[0].pocPrice)
+    assert.equal(defaultStride.developing[4].pocPrice, perBar.developing[4].pocPrice)
+    assert.equal(defaultStride.developing[4].pocPrice, defaultStride.profile.pocPrice)
   })
 
   it('includes sub-timeframe candles returned by the API', async () => {
