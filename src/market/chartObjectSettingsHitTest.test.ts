@@ -327,6 +327,24 @@ describe('hitTestChartObjectSettingsTarget', () => {
     assert.equal(hitTestChartObjectSettingsTarget(blocked), null)
   })
 
+  it('resolves the FRVP profile rectangle in step mode through the shared body region', () => {
+    const { chart, series } = createChartAndSeries()
+    const target = frvpInstance({ valueAreaMode: 'step', pocMode: 'step' })
+    const hit = hitTestChartObjectSettingsTarget(
+      buildContext({
+        chart,
+        series,
+        paneX: 150,
+        paneY: 50,
+        fixedRangeVolumeProfileInstances: [target],
+        fixedRangeVolumeProfileRuntime: frvpRuntime(target),
+      }),
+    )
+    // Step mode hides the flat lines; the profile rectangle still resolves the
+    // double-click target exactly like the click/selection path does.
+    assert.deepEqual(hit, { kind: 'fixed-range-volume-profile', instanceId: target.id })
+  })
+
   it('suppresses a stale FRVP profile after the committed range changes', () => {
     const { chart, series } = createChartAndSeries()
     const previous = frvpInstance({ fromTime: 100, toTime: 200 })

@@ -5,6 +5,7 @@ import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsType
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { FrvpLevelRenderMode } from '@/market/frvpDevelopingMode'
+import type { FrvpDevelopingUpdateBars } from '@/market/frvpDevelopingUpdateInterval'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { LineInstance } from '@/market/lineInstances'
@@ -54,6 +55,10 @@ type UseMarketWidgetSettingsArgs = {
   onFixedRangeVolumeProfilePocModeChange?: (
     instanceId: string,
     mode: FrvpLevelRenderMode,
+  ) => void
+  onFixedRangeVolumeProfileDevelopingUpdateBarsChange?: (
+    instanceId: string,
+    bars: FrvpDevelopingUpdateBars,
   ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
@@ -142,6 +147,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onFixedRangeVolumeProfileExtendRightChange,
     onFixedRangeVolumeProfileValueAreaModeChange,
     onFixedRangeVolumeProfilePocModeChange,
+    onFixedRangeVolumeProfileDevelopingUpdateBarsChange,
     onFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange,
     onFixedRangeVolumeProfileLevelLineStyleChange,
@@ -233,6 +239,10 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
         headerSettings.tools === true ? onFixedRangeVolumeProfileValueAreaModeChange : undefined,
       onFixedRangeVolumeProfilePocModeChange:
         headerSettings.tools === true ? onFixedRangeVolumeProfilePocModeChange : undefined,
+      onFixedRangeVolumeProfileDevelopingUpdateBarsChange:
+        headerSettings.tools === true
+          ? onFixedRangeVolumeProfileDevelopingUpdateBarsChange
+          : undefined,
       onFixedRangeVolumeProfileLevelStrokeColorChange:
         headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeColorChange : undefined,
       onFixedRangeVolumeProfileLevelLineWidthChange:
@@ -297,6 +307,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onFixedRangeVolumeProfileExtendRightChange,
       onFixedRangeVolumeProfileValueAreaModeChange,
       onFixedRangeVolumeProfilePocModeChange,
+      onFixedRangeVolumeProfileDevelopingUpdateBarsChange,
       onFixedRangeVolumeProfileLevelStrokeColorChange,
       onFixedRangeVolumeProfileLevelLineWidthChange,
       onFixedRangeVolumeProfileLevelLineStyleChange,

@@ -70,6 +70,45 @@ describe('fixedRangeVolumeProfileDataPipeline', () => {
     assert.equal(BINANCE_USDM_BTCUSDT_PERPETUAL_TICK_SIZE, 0.1)
   })
 
+  it('passes the instance update interval to the developing samples', async () => {
+    const candles = [100, 160, 220, 280, 340].map((time, index) => ({
+      time,
+      open: 100 + index,
+      high: 104 + index,
+      low: 99 + index,
+      close: 102 + index,
+      volume: 5 + index,
+      interval: '1m' as const,
+      closed: true,
+    }))
+    const run = (developingUpdateBars?: number) =>
+      runFixedRangeVolumeProfileDataPipeline(
+        { ...instance, fromTime: 100, toTime: 340, rowCount: 12, developingUpdateBars },
+        {
+          fetchKlines: async (startTime, endTime) => ({
+            symbol: 'BTCUSDT',
+            start_time: startTime,
+            end_time: endTime,
+            source_interval: '1m',
+            candles,
+          }),
+        },
+      )
+
+    const perBar = await run()
+    const stride3 = await run(3)
+    assert.equal(perBar.developing.length, candles.length)
+    assert.equal(stride3.developing.length, candles.length)
+
+    // 3-bar stride: bars 1-2 hold the bar-0 levels, bar 3 is its own boundary,
+    // and the last bar (4) is always recomputed exactly.
+    assert.equal(stride3.developing[1].pocPrice, perBar.developing[0].pocPrice)
+    assert.equal(stride3.developing[2].pocPrice, perBar.developing[0].pocPrice)
+    assert.equal(stride3.developing[3].pocPrice, perBar.developing[3].pocPrice)
+    assert.equal(stride3.developing[4].pocPrice, perBar.developing[4].pocPrice)
+    assert.equal(stride3.developing[4].pocPrice, stride3.profile.pocPrice)
+  })
+
   it('includes sub-timeframe candles returned by the API', async () => {
     const result = await runFixedRangeVolumeProfileDataPipeline(
       {

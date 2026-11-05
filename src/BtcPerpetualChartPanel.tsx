@@ -258,6 +258,10 @@ import {
   type FrvpLevelRenderMode,
 } from '@/market/frvpDevelopingMode'
 import {
+  setFrvpInstanceDevelopingUpdateBars,
+  type FrvpDevelopingUpdateBars,
+} from '@/market/frvpDevelopingUpdateInterval'
+import {
   setFrvpInstanceLevelLineStyle,
   setFrvpInstanceLevelLineWidth,
   setFrvpInstanceLevelStrokeColor,
@@ -1440,6 +1444,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileDevelopingUpdateBarsChange = useCallback(
+    (instanceId: string, bars: FrvpDevelopingUpdateBars) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceDevelopingUpdateBars(instance, bars),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleFixedRangeVolumeProfileLevelStrokeColorChange = useCallback(
     (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => {
       persistFixedRangeVolumeProfileInstances(
@@ -1941,6 +1958,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onFixedRangeVolumeProfileValueAreaModeChange:
       handleFixedRangeVolumeProfileValueAreaModeChange,
     onFixedRangeVolumeProfilePocModeChange: handleFixedRangeVolumeProfilePocModeChange,
+    onFixedRangeVolumeProfileDevelopingUpdateBarsChange:
+      handleFixedRangeVolumeProfileDevelopingUpdateBarsChange,
     onFixedRangeVolumeProfileLevelStrokeColorChange:
       handleFixedRangeVolumeProfileLevelStrokeColorChange,
     onFixedRangeVolumeProfileLevelLineWidthChange:

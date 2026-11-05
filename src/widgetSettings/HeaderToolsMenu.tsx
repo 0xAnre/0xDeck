@@ -38,6 +38,7 @@ import { RectangleFillStyleDialog } from '@/widgetSettings/RectangleFillStyleDia
 import { LineStyleDialog } from '@/widgetSettings/LineStyleDialog'
 import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
 import type { FrvpLevelRenderMode } from '@/market/frvpDevelopingMode'
+import type { FrvpDevelopingUpdateBars } from '@/market/frvpDevelopingUpdateInterval'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { FrvpLevelLineKind } from '@/market/frvpInstanceLineStyles'
@@ -64,6 +65,10 @@ type HeaderToolsMenuProps = {
   onFixedRangeVolumeProfilePocModeChange?: (
     instanceId: string,
     mode: FrvpLevelRenderMode,
+  ) => void
+  onFixedRangeVolumeProfileDevelopingUpdateBarsChange?: (
+    instanceId: string,
+    bars: FrvpDevelopingUpdateBars,
   ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
@@ -133,6 +138,7 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileExtendRightChange,
   onFixedRangeVolumeProfileValueAreaModeChange,
   onFixedRangeVolumeProfilePocModeChange,
+  onFixedRangeVolumeProfileDevelopingUpdateBarsChange,
   onFixedRangeVolumeProfileLevelStrokeColorChange,
   onFixedRangeVolumeProfileLevelLineWidthChange,
   onFixedRangeVolumeProfileLevelLineStyleChange,
@@ -413,6 +419,9 @@ export function HeaderToolsMenu({
         }}
         onPocModeChange={(instanceId, mode) => {
           onFixedRangeVolumeProfilePocModeChange?.(instanceId, mode)
+        }}
+        onDevelopingUpdateBarsChange={(instanceId, bars) => {
+          onFixedRangeVolumeProfileDevelopingUpdateBarsChange?.(instanceId, bars)
         }}
         onLevelStrokeColorChange={(instanceId, kind, strokeColor) => {
           onFixedRangeVolumeProfileLevelStrokeColorChange?.(instanceId, kind, strokeColor)

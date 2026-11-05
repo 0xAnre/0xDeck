@@ -188,6 +188,33 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     )
   })
 
+  it('keeps the rendered identity under an update-interval change but refetches the samples', () => {
+    // The update interval changes the developing samples, not the profile, so it
+    // must not enter the rendered identity (the ready profile keeps rendering)
+    // but must advance the request key (one background refetch to rebuild them).
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(
+        instance({ developingUpdateBars: 10 }),
+      ),
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance()),
+    )
+    assert.notEqual(
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 10 }), null),
+      buildFixedRangeVolumeProfileRequestKey(instance(), null),
+    )
+    // Same interval → same request key.
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 10 }), null),
+      buildFixedRangeVolumeProfileRequestKey(instance({ developingUpdateBars: 10 }), null),
+    )
+    // Extend Right keeps its effective-edge suffix alongside the interval.
+    const on = instance({ extendRight: true })
+    assert.notEqual(
+      buildFixedRangeVolumeProfileRequestKey({ ...on, developingUpdateBars: 30 }, 500),
+      buildFixedRangeVolumeProfileRequestKey(on, 500),
+    )
+  })
+
   it('advances the request key with the live edge only when Extend Right is on', () => {
     const off = instance({ extendRight: false })
     assert.equal(

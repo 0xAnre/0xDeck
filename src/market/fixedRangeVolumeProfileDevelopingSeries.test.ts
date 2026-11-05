@@ -28,7 +28,7 @@ function combined(
   candles: readonly FixedRangeVolumeProfileCandle[],
   fromTime: number,
   toTime: number,
-  options: { rowCount?: number; valueAreaPercent?: number } = {},
+  options: { rowCount?: number; valueAreaPercent?: number; developingUpdateBars?: number } = {},
 ): {
   profile: FixedRangeVolumeProfileResult
   developing: FixedRangeVolumeProfileDevelopingSample[]
@@ -40,6 +40,7 @@ function combined(
     rowCount: options.rowCount ?? 20,
     valueAreaPercent: options.valueAreaPercent ?? DEFAULT_TEST_VALUE_AREA_PERCENT,
     tickSize: TICK,
+    developingUpdateBars: options.developingUpdateBars,
   })
 }
 
@@ -225,5 +226,120 @@ describe('computeFixedRangeVolumeProfileDevelopingSeries', () => {
     assert.equal(last.pocPrice, profile.pocPrice)
     assert.equal(last.vah, profile.vah)
     assert.equal(last.val, profile.val)
+  })
+})
+
+describe('developing update interval (every N bars)', () => {
+  /** 40 one-minute candles with a moving price and varied volume. */
+  function seriesCandles(count: number): FixedRangeVolumeProfileCandle[] {
+    const candles: FixedRangeVolumeProfileCandle[] = []
+    let price = 100
+    for (let index = 0; index < count; index += 1) {
+      price += index % 5 < 2 ? 1.5 : -0.5
+      candles.push(
+        candle({
+          time: 100 + index * 60,
+          low: price - 1,
+          high: price + 1,
+          open: price,
+          close: price + 0.5,
+          volume: 2 + (index % 7),
+        }),
+      )
+    }
+    return candles
+  }
+
+  function sameLevels(
+    actual: FixedRangeVolumeProfileDevelopingSample,
+    expected: FixedRangeVolumeProfileDevelopingSample,
+  ): void {
+    assert.equal(actual.pocPrice, expected.pocPrice)
+    assert.equal(actual.vah, expected.vah)
+    assert.equal(actual.val, expected.val)
+  }
+
+  it('keeps stride 1 identical to the default per-bar series', () => {
+    const candles = seriesCandles(40)
+    const explicit = combined(candles, 100, 100 + 39 * 60, { developingUpdateBars: 1 })
+    const implicit = combined(candles, 100, 100 + 39 * 60)
+    assert.deepEqual(explicit, implicit)
+  })
+
+  it('holds the last update value between boundaries', () => {
+    const candles = seriesCandles(40)
+    const from = 100
+    const to = 100 + 39 * 60
+    const exact = combined(candles, from, to, { developingUpdateBars: 1 }).developing
+    const strided = combined(candles, from, to, { developingUpdateBars: 5 }).developing
+
+    assert.equal(strided.length, exact.length)
+    assert.deepEqual(
+      strided.map((sample) => sample.time),
+      exact.map((sample) => sample.time),
+    )
+    // Bars 0..4 hold the bar-0 levels, 5..9 the bar-5 levels, and so on.
+    for (let index = 0; index < strided.length - 1; index += 1) {
+      sameLevels(strided[index], exact[Math.floor(index / 5) * 5])
+    }
+    // The last bar is always recomputed exactly.
+    sameLevels(strided[strided.length - 1], exact[exact.length - 1])
+  })
+
+  it('ends on the full-range value for every allowed interval', () => {
+    const candles = seriesCandles(200)
+    const from = 100
+    const to = 100 + 199 * 60
+    for (const developingUpdateBars of [1, 3, 5, 10, 30, 60]) {
+      const { profile, developing } = combined(candles, from, to, {
+        developingUpdateBars,
+      })
+      assert.equal(developing.length, candles.length)
+      const last = developing[developing.length - 1]
+      assert.equal(last.pocPrice, profile.pocPrice, `POC bars=${developingUpdateBars}`)
+      assert.equal(last.vah, profile.vah, `VAH bars=${developingUpdateBars}`)
+      assert.equal(last.val, profile.val, `VAL bars=${developingUpdateBars}`)
+    }
+  })
+
+  it('closes a final partial block on the exact full-range value', () => {
+    // 12 bars with a 5-bar interval: updates at 0, 5, 10 and the extra final bar 11.
+    const candles = seriesCandles(12)
+    const from = 100
+    const to = 100 + 11 * 60
+    const exact = combined(candles, from, to, { developingUpdateBars: 1 }).developing
+    const { profile, developing } = combined(candles, from, to, {
+      developingUpdateBars: 5,
+    })
+
+    assert.equal(developing.length, 12)
+    for (const boundary of [0, 5, 10]) {
+      sameLevels(developing[boundary], exact[boundary])
+    }
+    for (const held of [6, 7, 8, 9]) {
+      sameLevels(developing[held], exact[5])
+    }
+    // The final bar (index 11) is not a multiple of 5, but is always exact.
+    sameLevels(developing[11], exact[11])
+    assert.equal(developing[11].pocPrice, profile.pocPrice)
+    assert.equal(developing[11].vah, profile.vah)
+    assert.equal(developing[11].val, profile.val)
+  })
+
+  it('ignores invalid intervals by falling back to every bar', () => {
+    const candles = seriesCandles(12)
+    const from = 100
+    const to = 100 + 11 * 60
+    const exact = combined(candles, from, to, { developingUpdateBars: 1 })
+    for (const invalid of [0, -5, Number.NaN, 2.7]) {
+      const result = combined(candles, from, to, { developingUpdateBars: invalid })
+      // 2.7 floors to a 2-bar stride; the others fall back to 1. The important
+      // part is that nothing throws and the full-range end stays exact.
+      const last = result.developing[result.developing.length - 1]
+      assert.equal(last.pocPrice, result.profile.pocPrice)
+      if (!(invalid > 1)) {
+        assert.deepEqual(result, exact)
+      }
+    }
   })
 })

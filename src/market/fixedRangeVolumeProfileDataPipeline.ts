@@ -14,6 +14,7 @@ import {
   computeFixedRangeVolumeProfileRequestBounds,
 } from './fixedRangeVolumeProfileRequestBounds.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
+import { frvpInstanceDevelopingUpdateBars } from './frvpDevelopingUpdateInterval.ts'
 import type { MarketExchange } from './types.ts'
 export class FixedRangeVolumeProfilePipelineError extends Error {
   constructor(message: string) {
@@ -94,6 +95,7 @@ export async function runFixedRangeVolumeProfileDataPipeline(
     rowCount: instance.rowCount,
     valueAreaPercent: instance.valueAreaPercent,
     tickSize: marketPriceTickSize(exchange, referencePrice),
+    developingUpdateBars: frvpInstanceDevelopingUpdateBars(instance),
   })
 
   return {

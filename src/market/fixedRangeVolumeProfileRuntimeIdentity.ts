@@ -1,4 +1,5 @@
 import type { FixedRangeVolumeProfileDevelopingSample } from './fixedRangeVolumeProfile.ts'
+import { frvpInstanceDevelopingUpdateBars } from './frvpDevelopingUpdateInterval.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
 import type { FixedRangeVolumeProfileInteractionState } from './fixedRangeVolumeProfileInteraction.ts'
 import { resolveFixedRangeVolumeProfileEffectiveToTime } from './fixedRangeVolumeProfileRequestBounds.ts'
@@ -48,7 +49,10 @@ export function buildFixedRangeVolumeProfileRequestIdentityKey(
  * boundary so a live candle advancing past `toTime` starts exactly one new
  * request, while the stored/render identity stays the selection identity (the
  * previous profile keeps rendering until the extended one arrives, avoiding a
- * per-candle flicker).
+ * per-candle flicker). The developing update interval is appended too: it does
+ * not change the profile, but the developing samples are produced by the same
+ * fetch, so a stride change needs one background refetch. Because it stays out
+ * of the rendered identity, the ready profile keeps rendering during it.
  */
 export function buildFixedRangeVolumeProfileRequestKey(
   instance: FixedRangeVolumeProfileInstance,
@@ -56,12 +60,13 @@ export function buildFixedRangeVolumeProfileRequestKey(
   identityTimes: FixedRangeVolumeProfileIdentityTimes | null = null,
 ): string {
   const identityKey = buildFixedRangeVolumeProfileRequestIdentityKey(instance, identityTimes)
-  if (instance.extendRight !== true) return identityKey
+  const developingUpdateBars = frvpInstanceDevelopingUpdateBars(instance)
+  if (instance.extendRight !== true) return `${identityKey}:${developingUpdateBars}`
   const effectiveToTime = resolveFixedRangeVolumeProfileEffectiveToTime(
     { toTime: identityTimes?.toTime ?? instance.toTime, extendRight: true },
     liveRightEdge,
   )
-  return `${identityKey}:${effectiveToTime}`
+  return `${identityKey}:${developingUpdateBars}:${effectiveToTime}`
 }
 
 /**

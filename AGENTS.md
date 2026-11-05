@@ -215,7 +215,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-liquidations-settings` | Per-instance Aggregated Liquidations source (`binance` only in V1) and pane position (`bottom` default / `top`) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |
-| `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp): range/rows/value area, per-group level render mode (`line` default / `step` / `both`), per-level and histogram styles |
+| `0xdeck-widget-fixed-range-vp-instances` | Fixed-range volume profile instances (BTC Perp): range/rows/value area, per-group level render mode (`line` default / `step` / `both`), developing update interval in bars (`1` default / 3 / 5 / 10 / 30 / 60), per-level and histogram styles |
 | `0xdeck-widget-rectangle-instances` | Rectangle/box drawing instances (BTC Perp) |
 | `0xdeck-widget-line-instances` | Line drawing instances (BTC Perp) |
 | `0xdeck-widget-anchored-vwap-instances` | Anchored VWAP drawing instances (BTC Perp) |

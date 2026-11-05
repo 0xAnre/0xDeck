@@ -12,6 +12,10 @@ import {
 } from './chartObjectDisplaySequence.ts'
 import { setChartObjectLocked } from './chartObjectState.ts'
 import { isFrvpLevelRenderMode, type FrvpLevelRenderMode } from './frvpDevelopingMode.ts'
+import {
+  isFrvpDevelopingUpdateBars,
+  type FrvpDevelopingUpdateBars,
+} from './frvpDevelopingUpdateInterval.ts'
 import { sanitizeFrvpInstanceHistogramStyles } from './frvpHistogramStyles.ts'
 import { sanitizeFrvpInstanceLevelLineStyles } from './frvpInstanceLineStyles.ts'
 import { DEFAULT_CANDLE_INTERVAL, type CandleInterval } from './types.ts'
@@ -57,6 +61,12 @@ export type FixedRangeVolumeProfileInstance = {
    */
   valueAreaMode?: FrvpLevelRenderMode
   pocMode?: FrvpLevelRenderMode
+  /**
+   * Recompute interval of the developing value area/POC series in bars:
+   * `1` (default, every bar) or 3/5/10/30/60. Between updates the last value
+   * holds; the last bar is always exact. Missing fields resolve to `1`.
+   */
+  developingUpdateBars?: FrvpDevelopingUpdateBars
   /**
    * Histogram bar styling: per-direction color + 0–100 configured opacity.
    * Missing fields resolve to the defaults (candle colors, 50% → 0.275/0.125 row alphas).
@@ -174,6 +184,9 @@ export function sanitizeFixedRangeVolumeProfileInstance(
   }
   if (isFrvpLevelRenderMode(record.pocMode)) {
     instance.pocMode = record.pocMode
+  }
+  if (isFrvpDevelopingUpdateBars(record.developingUpdateBars)) {
+    instance.developingUpdateBars = record.developingUpdateBars
   }
   return sanitizeFrvpInstanceHistogramStyles(
     record,

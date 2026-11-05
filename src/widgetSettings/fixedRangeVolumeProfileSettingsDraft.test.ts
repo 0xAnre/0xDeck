@@ -238,3 +238,46 @@ describe('frvp render modes in the settings draft', () => {
     assert.equal(sanitized.pocMode, 'step')
   })
 })
+
+describe('developing update interval in the settings draft', () => {
+  it('opens a legacy instance with the every-bar default', () => {
+    const draft = frvpSettingsDraftFromInstance(frvpInstance())
+    assert.equal(draft.developingUpdateBars, 1)
+  })
+
+  it('mirrors a stored update interval', () => {
+    const draft = frvpSettingsDraftFromInstance(
+      frvpInstance({ developingUpdateBars: 10 }),
+    )
+    assert.equal(draft.developingUpdateBars, 10)
+  })
+
+  it('patches only a changed interval and resets back to 1', () => {
+    const initial = frvpSettingsDraftFromInstance(
+      frvpInstance({ developingUpdateBars: 10 }),
+    )
+    const changed = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      developingUpdateBars: 30,
+    })
+    assert.equal(changed.developingUpdateBars, 30)
+    assert.equal(isFrvpSettingsDraftPatchEmpty(changed), false)
+
+    const reset = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      developingUpdateBars: 1,
+    })
+    assert.equal(reset.developingUpdateBars, 1)
+  })
+
+  it('keeps an invalid draft interval at the opened value when sanitizing', () => {
+    const initial = frvpSettingsDraftFromInstance(
+      frvpInstance({ developingUpdateBars: 5 }),
+    )
+    const sanitized = sanitizeFrvpSettingsDraft(initial, {
+      ...initial,
+      developingUpdateBars: 7,
+    })
+    assert.equal(sanitized.developingUpdateBars, 5)
+  })
+})

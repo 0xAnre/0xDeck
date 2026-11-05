@@ -41,6 +41,12 @@ import {
   FRVP_LEVEL_RENDER_MODES,
   type FrvpLevelRenderMode,
 } from '@/market/frvpDevelopingMode'
+import {
+  FRVP_DEVELOPING_UPDATE_BARS,
+  frvpDevelopingUpdateBarsLabel,
+  isFrvpDevelopingUpdateBars,
+  type FrvpDevelopingUpdateBars,
+} from '@/market/frvpDevelopingUpdateInterval'
 import { LineChartStrokeSelectFields } from '@/widgetSettings/LineChartStrokeSelectFields'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
@@ -67,6 +73,10 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
   onExtendRightChange: (instanceId: string, extendRight: boolean) => void
   onValueAreaModeChange: (instanceId: string, mode: FrvpLevelRenderMode) => void
   onPocModeChange: (instanceId: string, mode: FrvpLevelRenderMode) => void
+  onDevelopingUpdateBarsChange: (
+    instanceId: string,
+    bars: FrvpDevelopingUpdateBars,
+  ) => void
   onHistogramColorChange: (
     instanceId: string,
     direction: FrvpHistogramDirection,
@@ -325,6 +335,34 @@ function FixedRangeVolumeProfileSettingsDialogBody({
               mode={draft.pocMode}
               onChange={(mode) => setMode('pocMode', mode)}
             />
+            <Field>
+              <FieldLabel htmlFor="frvp-developing-update-bars">Update interval</FieldLabel>
+              <FieldDescription>
+                Recompute the developing value area and POC every N bars; between updates the
+                last value holds. The last bar always uses the full-range value.
+              </FieldDescription>
+              <Select
+                value={String(draft.developingUpdateBars)}
+                onValueChange={(value) => {
+                  const bars = Number(value)
+                  if (!isFrvpDevelopingUpdateBars(bars)) return
+                  setDraft((current) => ({ ...current, developingUpdateBars: bars }))
+                }}
+              >
+                <SelectTrigger id="frvp-developing-update-bars" className="w-full" size="default">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {FRVP_DEVELOPING_UPDATE_BARS.map((bars) => (
+                      <SelectItem key={bars} value={String(bars)}>
+                        {frvpDevelopingUpdateBarsLabel(bars)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
           </FieldGroup>
           <FieldGroup className="gap-3 border-t border-border pt-3">
             <p className="text-sm font-medium">Histogram</p>
@@ -416,6 +454,7 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onExtendRightChange,
   onValueAreaModeChange,
   onPocModeChange,
+  onDevelopingUpdateBarsChange,
   onHistogramColorChange,
   onHistogramOpacityChange,
   onLevelStrokeColorChange,
@@ -433,6 +472,9 @@ export function FixedRangeVolumeProfileSettingsDialog({
       onValueAreaModeChange(instanceId, patch.valueAreaMode)
     }
     if (patch.pocMode !== undefined) onPocModeChange(instanceId, patch.pocMode)
+    if (patch.developingUpdateBars !== undefined) {
+      onDevelopingUpdateBarsChange(instanceId, patch.developingUpdateBars)
+    }
     for (const level of patch.levels) {
       if (level.strokeColor !== undefined) {
         onLevelStrokeColorChange(instanceId, level.kind, level.strokeColor)

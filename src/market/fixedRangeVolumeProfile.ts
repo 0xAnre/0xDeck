@@ -553,11 +553,18 @@ export function computeFixedRangeVolumeProfile(
  * `valueAreaPercent` MUST be the value the profile was computed with; use
  * `computeFixedRangeVolumeProfileWithDeveloping` instead of calling this on its
  * own, because it resolves the percent once for both.
+ *
+ * `updateBars` is the developing update interval: `1` (default) recomputes the
+ * levels on every bar. A larger stride recomputes them only on bars `0`, `N`,
+ * `2N`, … and the last bar (always exact), and the level holds in between: the
+ * sample list still has one sample per bar, so the values are identical to a
+ * per-bar walk at the update bars and copies of the previous update in between.
  */
 function computeFixedRangeVolumeProfileDevelopingSeries(params: {
   profile: FixedRangeVolumeProfileResult
   candles: readonly FixedRangeVolumeProfileCandle[]
   valueAreaPercent: number | undefined
+  updateBars?: number
 }): FixedRangeVolumeProfileDevelopingSample[] {
   const { profile } = params
   if (profile.rows.length === 0) return []
@@ -566,6 +573,12 @@ function computeFixedRangeVolumeProfileDevelopingSeries(params: {
   if (!Number.isFinite(valueAreaPercent) || valueAreaPercent < 0 || valueAreaPercent > 100) {
     return []
   }
+
+  const rawUpdateBars = params.updateBars ?? 1
+  const updateBars =
+    Number.isFinite(rawUpdateBars) && rawUpdateBars >= 1
+      ? Math.max(1, Math.floor(rawUpdateBars))
+      : 1
 
   const selected = normalizeFixedRangeVolumeProfileCandles(params.candles).filter(
     (candle) => candle.time >= profile.fromTime && candle.time <= profile.toTime,
@@ -584,8 +597,29 @@ function computeFixedRangeVolumeProfileDevelopingSeries(params: {
   }))
 
   const samples: FixedRangeVolumeProfileDevelopingSample[] = []
-  for (const candle of selected) {
+  const lastIndex = selected.length - 1
+  // Levels from the most recent update; index 0 is always an update, so a held
+  // sample never precedes the first computation.
+  let heldPocPrice: number | null = null
+  let heldVah: number | null = null
+  let heldVal: number | null = null
+
+  for (let index = 0; index <= lastIndex; index += 1) {
+    const candle = selected[index]
     distributeCandleVolume(cumulativeRows, candle)
+
+    const isUpdate = index % updateBars === 0 || index === lastIndex
+    if (!isUpdate) {
+      // Hold the last update's levels across the stride; the bar still gets a
+      // sample so the step geometry draws one plateau over the interval.
+      samples.push({
+        time: candle.time,
+        pocPrice: heldPocPrice,
+        vah: heldVah,
+        val: heldVal,
+      })
+      continue
+    }
 
     let totalVolume = 0
     for (const row of cumulativeRows) {
@@ -595,17 +629,23 @@ function computeFixedRangeVolumeProfileDevelopingSeries(params: {
 
     const pocRowIndex = totalVolume > 0 ? selectPocIndex(cumulativeRows) : null
     if (pocRowIndex === null) {
+      heldPocPrice = null
+      heldVah = null
+      heldVal = null
       samples.push({ time: candle.time, pocPrice: null, vah: null, val: null })
       continue
     }
 
     expandValueArea(cumulativeRows, pocRowIndex, (totalVolume * valueAreaPercent) / 100)
     const levels = readValueAreaLevels(cumulativeRows, pocRowIndex)
+    heldPocPrice = levels.pocPrice
+    heldVah = levels.vah
+    heldVal = levels.val
     samples.push({
       time: candle.time,
-      pocPrice: levels.pocPrice,
-      vah: levels.vah,
-      val: levels.val,
+      pocPrice: heldPocPrice,
+      vah: heldVah,
+      val: heldVal,
     })
   }
   return samples
@@ -620,7 +660,14 @@ function computeFixedRangeVolumeProfileDevelopingSeries(params: {
  * second pass over the candles.
  */
 export function computeFixedRangeVolumeProfileWithDeveloping(
-  params: FixedRangeVolumeProfileParams,
+  params: FixedRangeVolumeProfileParams & {
+    /**
+     * Developing update interval in bars (default 1 = every bar). The last bar
+     * is always recomputed exactly, so a range length that is not a multiple of
+     * the stride still ends on the full-range value.
+     */
+    developingUpdateBars?: number
+  },
 ): {
   profile: FixedRangeVolumeProfileResult
   developing: FixedRangeVolumeProfileDevelopingSample[]
@@ -632,6 +679,7 @@ export function computeFixedRangeVolumeProfileWithDeveloping(
       profile,
       candles: params.candles,
       valueAreaPercent: params.valueAreaPercent,
+      updateBars: params.developingUpdateBars,
     }),
   }
 }

@@ -43,6 +43,10 @@ import {
   setFrvpInstancePocMode,
   setFrvpInstanceValueAreaMode,
 } from './frvpDevelopingMode.ts'
+import {
+  frvpInstanceDevelopingUpdateBars,
+  setFrvpInstanceDevelopingUpdateBars,
+} from './frvpDevelopingUpdateInterval.ts'
 import { MARKET_STYLE_PALETTE } from './marketStylePalette.ts'
 
 describe('fixedRangeVolumeProfileInstances storage', () => {
@@ -482,6 +486,92 @@ describe('fixedRangeVolumeProfileInstances storage', () => {
       assert.equal(frvpInstancePocMode(loadedSecond), 'both')
       assert.equal(frvpInstanceValueAreaMode(loadedSecond), 'both')
       assert.equal(loadedFirst.pocMode, undefined)
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original })
+      memory.delete(WIDGET_FIXED_RANGE_VP_INSTANCES_STORAGE_KEY)
+    }
+  })
+
+  it('loads a legacy instance without an update interval as every bar', () => {
+    const instance = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-legacy-stride',
+        fromTime: 1_000,
+        toTime: 2_000,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+      },
+    ])[0]
+    assert.equal(instance.developingUpdateBars, undefined)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance), 1)
+  })
+
+  it('ignores an invalid stored update interval and resets to the default', () => {
+    const instance = sanitizeFixedRangeVolumeProfileInstances([
+      {
+        id: 'frvp-invalid-stride',
+        fromTime: 1_000,
+        toTime: 2_000,
+        selectionInterval: '1m',
+        rowCount: 24,
+        valueAreaPercent: 70,
+        enabled: true,
+        developingUpdateBars: 7,
+      },
+    ])[0]
+    assert.equal(instance.developingUpdateBars, undefined)
+    assert.equal(frvpInstanceDevelopingUpdateBars(instance), 1)
+
+    const stored = setFrvpInstanceDevelopingUpdateBars(instance, 10)
+    assert.equal(stored.developingUpdateBars, 10)
+    const reset = setFrvpInstanceDevelopingUpdateBars(stored, 1)
+    assert.equal('developingUpdateBars' in reset, false)
+  })
+
+  it('persists independent update intervals for two instances in one panel', () => {
+    const memory = new Map<string, string>()
+    const original = globalThis.localStorage
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          memory.set(key, value)
+        },
+        removeItem: (key: string) => {
+          memory.delete(key)
+        },
+      },
+    })
+
+    try {
+      const strided = setFrvpInstanceDevelopingUpdateBars(
+        createFixedRangeVolumeProfileInstance({
+          fromTime: 10,
+          toTime: 20,
+          selectionInterval: '1m',
+        })!,
+        30,
+      )
+      const perBar = createFixedRangeVolumeProfileInstance({
+        fromTime: 30,
+        toTime: 40,
+        selectionInterval: '5m',
+        existingIds: new Set([strided.id]),
+      })!
+      saveWidgetFixedRangeVolumeProfileInstances(panelA, [strided, perBar])
+
+      const loaded = loadWidgetFixedRangeVolumeProfileInstances(panelA, {
+        selectionIntervalFallback: '1m',
+      })
+      const loadedStrided = loaded.find((item) => item.id === strided.id)!
+      const loadedPerBar = loaded.find((item) => item.id === perBar.id)!
+      assert.equal(frvpInstanceDevelopingUpdateBars(loadedStrided), 30)
+      assert.equal(loadedStrided.developingUpdateBars, 30)
+      assert.equal(frvpInstanceDevelopingUpdateBars(loadedPerBar), 1)
+      assert.equal(loadedPerBar.developingUpdateBars, undefined)
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original })
       memory.delete(WIDGET_FIXED_RANGE_VP_INSTANCES_STORAGE_KEY)

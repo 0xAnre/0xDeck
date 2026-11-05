@@ -1,13 +1,11 @@
 import type { IChartApi, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
-import {
-  buildFixedRangeVolumeProfileDrawModels,
-  type FixedRangeVolumeProfileInstanceDrawModel,
-} from './fixedRangeVolumeProfileRenderGeometry.ts'
+import { buildFixedRangeVolumeProfileDrawModels } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import { buildFixedRangeVolumeProfileTimeCoordinateResolvers } from './fixedRangeVolumeProfileTimeCoordinates.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import type { ChartPaneElementRole } from './chartPaneRoles.ts'
 import { hitTestLineSeriesAtPane } from './chartObjectSeriesLineHit.ts'
+import { hitTestFixedRangeVolumeProfileBody } from './fixedRangeVolumeProfileHitTest.ts'
 import {
   isIndicatorSupportedOnInterval,
   MARKET_INDICATOR_IDS,
@@ -80,34 +78,6 @@ function chartObjectSettingsHitTestBlocked(ctx: ChartObjectSettingsHitTestContex
   return false
 }
 
-function hitTestFixedRangeVolumeProfileModel(
-  model: FixedRangeVolumeProfileInstanceDrawModel,
-  paneX: number,
-  paneY: number,
-  tolerancePx: number,
-): boolean {
-  if (paneX < model.rangeLeft - tolerancePx || paneX > model.rangeRight + tolerancePx) {
-    return false
-  }
-
-  for (const row of model.rows) {
-    if (paneY < row.top - tolerancePx || paneY > row.bottom + tolerancePx) continue
-    const barRight = row.left + row.totalWidth
-    if (paneX >= row.left - tolerancePx && paneX <= barRight + tolerancePx) {
-      return true
-    }
-  }
-
-  for (const line of model.lines) {
-    if (Math.abs(paneY - line.y) > tolerancePx) continue
-    if (paneX >= line.x1 - tolerancePx && paneX <= line.x2 + tolerancePx) {
-      return true
-    }
-  }
-
-  return false
-}
-
 function hitTestFixedRangeVolumeProfiles(
   ctx: ChartObjectSettingsHitTestContext,
 ): ChartObjectSettingsTarget | null {
@@ -145,7 +115,7 @@ function hitTestFixedRangeVolumeProfiles(
 
   for (let index = models.length - 1; index >= 0; index -= 1) {
     const model = models[index]
-    if (hitTestFixedRangeVolumeProfileModel(model, ctx.paneX, ctx.paneY, FRVP_HIT_TOLERANCE_PX)) {
+    if (hitTestFixedRangeVolumeProfileBody(model, ctx.paneX, ctx.paneY, FRVP_HIT_TOLERANCE_PX)) {
       return { kind: 'fixed-range-volume-profile', instanceId: model.instanceId }
     }
   }

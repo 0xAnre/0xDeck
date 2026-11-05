@@ -34,7 +34,20 @@ function hitEndpoint(
   return distanceSq(paneX, paneY, x, y) <= radiusSq
 }
 
-function hitTestFixedRangeVolumeProfileBody(
+/**
+ * Body hit region of one fixed-range volume profile.
+ *
+ * The region is the profile's own rectangle — the full `rangeLeft .. rangeRight`
+ * span across the price extent of its histogram rows — plus the existing row and
+ * level-line regions. The rectangle makes selection independent of the level
+ * render mode: `step` hides a group's flat line and the developing staircase is
+ * deliberately not a hit target, but the rectangle still covers the whole
+ * profile, so a profile is equally selectable in `line`, `step` and `both`.
+ *
+ * Shared by the FRVP pointer path (selection, cursor) and the chart-object
+ * settings hit test (double click), so both resolve the same body.
+ */
+export function hitTestFixedRangeVolumeProfileBody(
   model: FixedRangeVolumeProfileInstanceDrawModel,
   paneX: number,
   paneY: number,
@@ -44,7 +57,11 @@ function hitTestFixedRangeVolumeProfileBody(
     return false
   }
 
+  let profileTop = Number.POSITIVE_INFINITY
+  let profileBottom = Number.NEGATIVE_INFINITY
   for (const row of model.rows) {
+    if (row.top < profileTop) profileTop = row.top
+    if (row.bottom > profileBottom) profileBottom = row.bottom
     if (paneY < row.top - tolerancePx || paneY > row.bottom + tolerancePx) continue
     const barRight = row.left + row.totalWidth
     if (paneX >= row.left - tolerancePx && paneX <= barRight + tolerancePx) {
@@ -57,6 +74,17 @@ function hitTestFixedRangeVolumeProfileBody(
     if (paneX >= line.x1 - tolerancePx && paneX <= line.x2 + tolerancePx) {
       return true
     }
+  }
+
+  // The profile rectangle: any point over the profile's time span and price
+  // extent selects it, no matter which level groups render as lines or steps.
+  if (
+    Number.isFinite(profileTop) &&
+    Number.isFinite(profileBottom) &&
+    paneY >= profileTop - tolerancePx &&
+    paneY <= profileBottom + tolerancePx
+  ) {
+    return true
   }
 
   return false

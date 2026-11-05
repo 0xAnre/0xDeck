@@ -23,6 +23,11 @@ import {
   type FrvpLevelRenderMode,
 } from '../market/frvpDevelopingMode.ts'
 import {
+  frvpInstanceDevelopingUpdateBars,
+  isFrvpDevelopingUpdateBars,
+  type FrvpDevelopingUpdateBars,
+} from '../market/frvpDevelopingUpdateInterval.ts'
+import {
   MAX_FIXED_RANGE_VP_ROW_COUNT,
   type FixedRangeVolumeProfileInstance,
 } from '../market/fixedRangeVolumeProfileInstances.ts'
@@ -61,6 +66,7 @@ export type FrvpSettingsDraft = {
   extendRight: boolean
   valueAreaMode: FrvpLevelRenderMode
   pocMode: FrvpLevelRenderMode
+  developingUpdateBars: FrvpDevelopingUpdateBars
   histogram: Record<FrvpHistogramDirection, FrvpHistogramStyleDraft>
   levels: Record<FrvpLevelLineKind, FrvpLevelStyleDraft>
 }
@@ -86,6 +92,7 @@ export type FrvpSettingsDraftPatch = {
   extendRight?: boolean
   valueAreaMode?: FrvpLevelRenderMode
   pocMode?: FrvpLevelRenderMode
+  developingUpdateBars?: FrvpDevelopingUpdateBars
   histogram: FrvpHistogramStylePatch[]
   levels: FrvpLevelStylePatch[]
 }
@@ -119,6 +126,7 @@ export function frvpSettingsDraftFromInstance(
     extendRight: instance.extendRight === true,
     valueAreaMode: frvpInstanceValueAreaMode(instance),
     pocMode: frvpInstancePocMode(instance),
+    developingUpdateBars: frvpInstanceDevelopingUpdateBars(instance),
     histogram,
     levels,
   }
@@ -182,6 +190,9 @@ export function sanitizeFrvpSettingsDraft(
       ? draft.valueAreaMode
       : initial.valueAreaMode,
     pocMode: isFrvpLevelRenderMode(draft.pocMode) ? draft.pocMode : initial.pocMode,
+    developingUpdateBars: isFrvpDevelopingUpdateBars(draft.developingUpdateBars)
+      ? draft.developingUpdateBars
+      : initial.developingUpdateBars,
     histogram,
     levels,
   }
@@ -226,6 +237,9 @@ export function frvpSettingsDraftPatch(
   if (draft.extendRight !== initial.extendRight) patch.extendRight = draft.extendRight
   if (draft.valueAreaMode !== initial.valueAreaMode) patch.valueAreaMode = draft.valueAreaMode
   if (draft.pocMode !== initial.pocMode) patch.pocMode = draft.pocMode
+  if (draft.developingUpdateBars !== initial.developingUpdateBars) {
+    patch.developingUpdateBars = draft.developingUpdateBars
+  }
   return patch
 }
 
@@ -236,6 +250,7 @@ export function isFrvpSettingsDraftPatchEmpty(patch: FrvpSettingsDraftPatch): bo
     patch.extendRight === undefined &&
     patch.valueAreaMode === undefined &&
     patch.pocMode === undefined &&
+    patch.developingUpdateBars === undefined &&
     patch.histogram.length === 0 &&
     patch.levels.length === 0
   )

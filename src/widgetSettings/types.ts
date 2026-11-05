@@ -4,6 +4,7 @@ import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { FrvpLevelRenderMode } from '@/market/frvpDevelopingMode'
+import type { FrvpDevelopingUpdateBars } from '@/market/frvpDevelopingUpdateInterval'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
@@ -76,6 +77,10 @@ export type WidgetSettingsRegistration = {
   onFixedRangeVolumeProfilePocModeChange?: (
     instanceId: string,
     mode: FrvpLevelRenderMode,
+  ) => void
+  onFixedRangeVolumeProfileDevelopingUpdateBarsChange?: (
+    instanceId: string,
+    bars: FrvpDevelopingUpdateBars,
   ) => void
   onFixedRangeVolumeProfileLevelStrokeColorChange?: (
     instanceId: string,
