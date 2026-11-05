@@ -3,6 +3,7 @@ import {
   type FixedRangeVolumeProfileInstance,
   type SanitizeFixedRangeVolumeProfileOptions,
 } from './market/fixedRangeVolumeProfileInstances.ts'
+import { migrateLegacyFixedRangeVolumeProfileRowCount } from './market/fixedRangeVolumeProfileInstanceMigrations.ts'
 
 export const WIDGET_FIXED_RANGE_VP_INSTANCES_STORAGE_KEY =
   '0xdeck-widget-fixed-range-vp-instances'
@@ -25,7 +26,11 @@ export function loadWidgetFixedRangeVolumeProfileInstances(
 ): FixedRangeVolumeProfileInstance[] {
   const map = loadWidgetFixedRangeVolumeProfileInstancesMap()
   if (!Object.hasOwn(map, panelId)) return []
-  return sanitizeFixedRangeVolumeProfileInstances(map[panelId], options)
+  // Load-time migration only: the save path keeps an explicitly chosen 68 so
+  // the dialog value survives the session; the next load migrates it.
+  return migrateLegacyFixedRangeVolumeProfileRowCount(
+    sanitizeFixedRangeVolumeProfileInstances(map[panelId], options),
+  )
 }
 
 export function saveWidgetFixedRangeVolumeProfileInstances(
