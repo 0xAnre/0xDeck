@@ -10,6 +10,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import LIQUIDATIONS_BUCKETS_PATH, LIQUIDATIONS_HISTORY_PATH, app
+from app.market.common import INTERVAL_DURATION_MS, SUPPORTED_INTERVALS
 from app.market.liquidation_store import (
     LIQUIDATIONS_DB_ENV,
     LIQUIDATION_BUCKET_INTERVAL_MS,
@@ -388,6 +389,32 @@ class LiquidationBucketsRouteTests(unittest.TestCase):
             cursor = page.next_before
             cursor_id = page.next_before_id
         return collected
+
+
+
+class LiquidationBucketIntervalContractTests(unittest.TestCase):
+    """Pin the two interval tables to each other.
+
+    The bucket route accepts a chart interval and looks up its duration here,
+    while the request validator accepts anything in ``SUPPORTED_INTERVALS``. If
+    a future interval lands in only one of them, the route answers 500 for a
+    valid request instead of failing at test time.
+    """
+
+    def test_bucket_intervals_match_the_supported_interval_set(self) -> None:
+        self.assertEqual(
+            set(LIQUIDATION_BUCKET_INTERVAL_MS),
+            set(SUPPORTED_INTERVALS),
+            "LIQUIDATION_BUCKET_INTERVAL_MS and SUPPORTED_INTERVALS diverged",
+        )
+
+    def test_bucket_durations_match_the_candle_interval_durations(self) -> None:
+        for interval in SUPPORTED_INTERVALS:
+            self.assertEqual(
+                LIQUIDATION_BUCKET_INTERVAL_MS[interval],
+                INTERVAL_DURATION_MS[interval],
+                f"bucket duration for {interval} differs from its candle",
+            )
 
 
 if __name__ == "__main__":
