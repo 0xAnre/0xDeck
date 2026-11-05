@@ -312,6 +312,7 @@ import {
   bucketAggregatedLiquidationEvents,
   filterAggregatedLiquidationBucketsToCandles,
   parseAggregatedLiquidationEvent,
+  type AggregatedLiquidationBucket,
   type AggregatedLiquidationEvent,
 } from '@/market/aggregatedLiquidations'
 import {
@@ -320,6 +321,14 @@ import {
   fetchAggregatedLiquidationsHistory,
   mergeAggregatedLiquidationEvents,
 } from '@/market/aggregatedLiquidationsHistory'
+import {
+  AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS,
+  buildAggregatedLiquidationsBucketRequest,
+  describeAggregatedLiquidationsBucketNotice,
+  describeAggregatedLiquidationsEventNotice,
+  fetchAggregatedLiquidationsBuckets,
+  shouldUseAggregatedLiquidationBuckets,
+} from '@/market/aggregatedLiquidationsBuckets'
 import {
   createAggregatedLiquidationsChartOverlay,
   type AggregatedLiquidationsChartOverlay,
@@ -524,7 +533,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [liquidationsSettingsOpen, setLiquidationsSettingsOpen] = useState(false)
   const [liquidationEvents, setLiquidationEvents] = useState<AggregatedLiquidationEvent[]>([])
+  const [liquidationBuckets, setLiquidationBuckets] = useState<{
+    interval: CandleInterval
+    buckets: AggregatedLiquidationBucket[]
+  } | null>(null)
+  // Stamp the notice with the interval that produced it so a notice from the
+  // events path can never be shown next to buckets for another interval.
+  const [liquidationCoverageNotice, setLiquidationCoverageNotice] = useState<{
+    interval: CandleInterval
+    message: string | null
+  } | null>(null)
   const [liquidationHistoryRevision, setLiquidationHistoryRevision] = useState(0)
+  const [liquidationBucketsRevision, setLiquidationBucketsRevision] = useState(0)
   const [hoveredAccountFills, setHoveredAccountFills] = useState<
     BucketedHyperliquidFill[]
   >([])
@@ -2490,6 +2510,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   useEffect(() => {
     if (!liquidationsEnabled || !chartReady || !historyReadyRef.current) return
+    // >= 30m intervals read backend buckets; the paged events walk would only
+    // reach their newest ~12k events and silently leave the rest of the range
+    // empty (Issue #210).
+    if (shouldUseAggregatedLiquidationBuckets(interval)) return
     const candleTimes = candlesRef.current.map((candle) => candle.time)
     if (candleTimes.length === 0) return
 
@@ -2508,6 +2532,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (controller.signal.aborted) return
         if (generation !== loadGenerationRef.current) return
         mergeLiquidationEventsIntoBuffer(history.events)
+        // Replaces the previously dropped `truncated` flag: a page-capped
+        // event walk is surfaced with the range it actually covers.
+        setLiquidationCoverageNotice({
+          interval,
+          message: describeAggregatedLiquidationsEventNotice(
+            history.events,
+            history.truncated,
+          ),
+        })
       } catch {
         // History is additive evidence, not a prerequisite: a failed read
         // leaves the existing live-only buffer untouched.
@@ -2523,6 +2556,69 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     liquidationHistoryRevision,
     liquidationsEnabled,
     mergeLiquidationEventsIntoBuffer,
+  ])
+
+  // The bucket query replaces its whole array, so refreshing the live edge
+  // cannot double-count. A fixed interval (rather than a per-event debounce)
+  // keeps the current bucket fresh during a liquidation cascade, where events
+  // can arrive faster than any debounce would fire.
+  useEffect(() => {
+    if (!liquidationsEnabled) return
+    if (!shouldUseAggregatedLiquidationBuckets(interval)) return
+    const timer = window.setInterval(() => {
+      setLiquidationBucketsRevision((revision) => revision + 1)
+    }, AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [interval, liquidationsEnabled])
+
+  useEffect(() => {
+    if (!liquidationsEnabled || !chartReady || !historyReadyRef.current) return
+    if (!shouldUseAggregatedLiquidationBuckets(interval)) return
+    const candleTimes = candlesRef.current.map((candle) => candle.time)
+    const request = buildAggregatedLiquidationsBucketRequest(candleTimes, interval)
+    if (!request) return
+
+    const generation = loadGenerationRef.current
+    const controller = new AbortController()
+
+    void (async () => {
+      try {
+        const response = await fetchAggregatedLiquidationsBuckets({
+          interval,
+          from: request.from,
+          to: request.to,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        if (generation !== loadGenerationRef.current) return
+        setLiquidationBuckets({ interval, buckets: response.buckets })
+        setLiquidationCoverageNotice({
+          interval,
+          message: describeAggregatedLiquidationsBucketNotice(request, response),
+        })
+      } catch (error) {
+        if (controller.signal.aborted) return
+        if (generation !== loadGenerationRef.current) return
+        setLiquidationBuckets({ interval, buckets: [] })
+        setLiquidationCoverageNotice({
+          interval,
+          message:
+            error instanceof Error
+              ? `Could not load Aggregated Liquidations history: ${error.message}`
+              : 'Could not load Aggregated Liquidations history for the loaded chart range',
+        })
+      }
+    })()
+
+    return () => controller.abort()
+  }, [
+    candleRangeRevision,
+    chartReady,
+    exchange,
+    interval,
+    liquidationBucketsRevision,
+    liquidationHistoryRevision,
+    liquidationsEnabled,
   ])
 
   useEffect(() => {
@@ -2555,12 +2651,25 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [overlayIndicatorSelection, chartReady, liquidationsEnabled])
 
   useEffect(() => {
+    // Buckets are stamped with the interval they were bucketed for, so a
+    // response for the previous interval can never be drawn on new candles.
+    const intervalBuckets =
+      liquidationBuckets?.interval === interval ? liquidationBuckets.buckets : []
     const buckets = filterAggregatedLiquidationBucketsToCandles(
-      bucketAggregatedLiquidationEvents(liquidationEvents, interval),
+      shouldUseAggregatedLiquidationBuckets(interval)
+        ? intervalBuckets
+        : bucketAggregatedLiquidationEvents(liquidationEvents, interval),
       candlesRef.current.map((candle) => candle.time),
     )
     liquidationOverlayRef.current?.setBuckets(buckets)
-  }, [candleRangeRevision, chartReady, interval, liquidationEvents, liquidationsEnabled])
+  }, [
+    candleRangeRevision,
+    chartReady,
+    interval,
+    liquidationBuckets,
+    liquidationEvents,
+    liquidationsEnabled,
+  ])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -3429,10 +3538,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     fixedRangeVolumeProfileRuntimeById,
     exchange,
   )
+  const activeLiquidationCoverageNotice =
+    liquidationsEnabled &&
+    liquidationCoverageNotice !== null &&
+    liquidationCoverageNotice.interval === interval
+      ? liquidationCoverageNotice.message
+      : null
   const historyNotices = [
     ...indicatorHistoryNotices,
     ...frvpAvailabilityNotices,
     ...(accountFillsNotice === null ? [] : [accountFillsNotice]),
+    ...(activeLiquidationCoverageNotice === null
+      ? []
+      : [activeLiquidationCoverageNotice]),
   ]
 
   // Both VWAP dialogs are per-instance, so their descriptions name the instance

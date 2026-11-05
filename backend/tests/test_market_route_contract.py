@@ -113,10 +113,12 @@ MARKET_KLINES_BASE_PATHS = {
 HYPERLIQUID_ACCOUNT_PATH = "/market/hyperliquid/account/{address}"
 HYPERLIQUID_ACCOUNT_SUFFIXES = ("/position", "/fills", "/fills/by-time")
 
-# Persistent liquidation history. Mirrored by
-# `src/market/aggregatedLiquidationsHistory.test.ts`, which asserts the path the
+# Persistent liquidation history and pre-aggregated buckets. Mirrored by
+# `src/market/aggregatedLiquidationsHistory.test.ts` and
+# `src/market/aggregatedLiquidationsBuckets.test.ts`, which assert the paths the
 # browser client builds.
 LIQUIDATIONS_HISTORY_PATH = "/market/binance/usdm/btcusdt/liquidations/history"
+LIQUIDATIONS_BUCKETS_PATH = "/market/binance/usdm/btcusdt/liquidations/buckets"
 
 CHART_INTERVALS = ("1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w")
 
@@ -172,6 +174,7 @@ def expected_market_paths() -> set[str]:
         for suffix in HYPERLIQUID_ACCOUNT_SUFFIXES
     )
     paths.add(f"{API_PREFIX}{LIQUIDATIONS_HISTORY_PATH}")
+    paths.add(f"{API_PREFIX}{LIQUIDATIONS_BUCKETS_PATH}")
     return paths
 
 
@@ -196,6 +199,12 @@ class MarketRouteContractTests(unittest.TestCase):
     def test_liquidation_history_route_is_registered(self) -> None:
         self.assertIn(
             f"{API_PREFIX}{LIQUIDATIONS_HISTORY_PATH}",
+            registered_market_paths(),
+        )
+
+    def test_liquidation_buckets_route_is_registered(self) -> None:
+        self.assertIn(
+            f"{API_PREFIX}{LIQUIDATIONS_BUCKETS_PATH}",
             registered_market_paths(),
         )
 
