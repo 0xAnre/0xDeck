@@ -5,7 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from . import APP_VERSION, config, datasets
@@ -209,6 +209,9 @@ def _binance_volume_profile(start_time: int, end_time: int) -> dict[str, object]
 LIQUIDATIONS_HISTORY_PATH = (
     "/api/market/binance/usdm/btcusdt/liquidations/history"
 )
+LIQUIDATIONS_BUCKETS_PATH = (
+    "/api/market/binance/usdm/btcusdt/liquidations/buckets"
+)
 
 
 def _validate_liquidation_history_limit(limit: int) -> int:
@@ -282,6 +285,78 @@ def _binance_liquidation_history(
     }
 
 
+def _validate_liquidation_bucket_range(
+    interval: str,
+    start_ms: int,
+    end_ms: int,
+) -> tuple[str, int, int]:
+    """Validate the half-open ``[start_ms, end_ms)`` bucket request.
+
+    The bucket fan-out is rejected rather than truncated: a client that gets a
+    200 must be able to assume the returned buckets cover the whole range.
+    """
+    safe_interval = validate_interval(interval)
+    if start_ms <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameter 'from' must be a positive epoch timestamp "
+                "in milliseconds"
+            ),
+        )
+    if end_ms <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameter 'to' must be a positive epoch timestamp "
+                "in milliseconds"
+            ),
+        )
+    if end_ms <= start_ms:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'to' must be greater than 'from'",
+        )
+    bucket_count = liquidation_store.liquidation_bucket_slot_count(
+        start_ms, end_ms, safe_interval
+    )
+    if bucket_count > liquidation_store.MAX_BUCKET_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Requested range spans {bucket_count} {safe_interval} buckets; "
+                f"the maximum is {liquidation_store.MAX_BUCKET_COUNT}. "
+                "Request a smaller range."
+            ),
+        )
+    return safe_interval, start_ms, end_ms
+
+
+def _binance_liquidation_buckets(
+    interval: str,
+    start_ms: int,
+    end_ms: int,
+) -> dict[str, object]:
+    safe_interval, safe_start, safe_end = _validate_liquidation_bucket_range(
+        interval, start_ms, end_ms
+    )
+    buckets = liquidation_store.read_liquidation_buckets(
+        interval=safe_interval,
+        start_ms=safe_start,
+        end_ms=safe_end,
+    )
+    return {
+        "exchange": liquidation_store.LIQUIDATIONS_EXCHANGE,
+        "symbol": liquidation_store.LIQUIDATIONS_SYMBOL,
+        "interval": safe_interval,
+        "buckets": buckets,
+        # Validation caps the fan-out at MAX_BUCKET_COUNT, so a successful
+        # response always covers the full requested range. The field stays in
+        # the contract so a future looser cap can signal a partial response.
+        "truncated": False,
+    }
+
+
 @app.get("/api/market/binance/usdm/btcusdt/klines/history")
 def get_binance_usdm_btcusdt_klines_history(
     before: int,
@@ -340,6 +415,15 @@ def get_binance_usdm_btcusdt_liquidations_history(
     limit: int = liquidation_store.DEFAULT_HISTORY_LIMIT,
 ) -> dict[str, object]:
     return _binance_liquidation_history(before, limit, before_id)
+
+
+@app.get(LIQUIDATIONS_BUCKETS_PATH)
+def get_binance_usdm_btcusdt_liquidations_buckets(
+    interval: str,
+    from_ms: int = Query(alias="from"),
+    to_ms: int = Query(alias="to"),
+) -> dict[str, object]:
+    return _binance_liquidation_buckets(interval, from_ms, to_ms)
 
 
 @app.get("/api/market/binance/usdm/btcusdt/klines")

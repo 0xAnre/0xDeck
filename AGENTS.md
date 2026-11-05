@@ -43,7 +43,7 @@ App.tsx                    → header, theme/widget menus, grid shell; renders r
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract + client (BTC Perp relay channels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts, account markers)
-market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, Aggregated Liquidations pane, FRVP, rectangle/line tools, exchange routing/tick/history limits, Hyperliquid account fill grouping/markers
+market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, Aggregated Liquidations pane (per-interval backend buckets at 30m+, event paging at 15m and below), FRVP, rectangle/line tools, exchange routing/tick/history limits, Hyperliquid account fill grouping/markers
 screenNavigationShortcuts.ts → Workspace screen jumps (`m` then `1`–`9`) + Screen Lock alignment helpers
 api/client.ts              → Parquet datasets: preview, series, kpi
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
@@ -194,7 +194,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `data-table` | Parquet preview table, column picker, workspace defaults |
 | `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances, Aggregated Liquidations), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
 
-**`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline, and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
+**`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline, Aggregated Liquidations event paging (`aggregatedLiquidationsHistory.ts`) and per-interval bucket requests (`aggregatedLiquidationsBuckets.ts`, `30m` and above; `15m` and below keep the events path), and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
 ## Persistence keys (localStorage)
 
@@ -229,7 +229,7 @@ Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDe
 
 Backend state: `backend/.canvas-state.json` (parquet folder path, gitignored).
 
-Backend persistence: normalized Binance USD-M liquidation history is stored in `backend/.liquidations.sqlite3` (gitignored, WAL mode; override with `OXDECK_LIQUIDATIONS_DB`). Collection runs continuously while the backend is started (not only while a chart is open) and serves `GET /api/market/binance/usdm/btcusdt/liquidations/history`. Every row carries `source`: `live` for the collector, `import` for rows backfilled from historical force-order parquet by `backend/scripts/import_liquidation_parquet.py` (which stores the source's order price in `order_price` and uses `trade_time = event_time` as its documented fallback, because that recorder never persisted Binance's `o.T`). Schema changes are additive and idempotent, so an existing database keeps working and its live rows stay `source='live'`. There is no upstream backfill beyond the collector and that importer. Tests disable the collector with `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`.
+Backend persistence: normalized Binance USD-M liquidation history is stored in `backend/.liquidations.sqlite3` (gitignored, WAL mode; override with `OXDECK_LIQUIDATIONS_DB`). Collection runs continuously while the backend is started (not only while a chart is open) and serves `GET /api/market/binance/usdm/btcusdt/liquidations/history` (newest-first event pages) and `GET /api/market/binance/usdm/btcusdt/liquidations/buckets` (one SQL `GROUP BY` per chart interval over `[from, to)`, no bucket table or schema change; `time` is the bucket open in seconds and `long`/`short` are summed notionals). The chart uses buckets for `30m` and above and the event pages for `15m` and below; a truncated event walk or a client-side bucket-cap narrowing shows an explicit coverage notice. Every row carries `source`: `live` for the collector, `import` for rows backfilled from historical force-order parquet by `backend/scripts/import_liquidation_parquet.py` (which stores the source's order price in `order_price` and uses `trade_time = event_time` as its documented fallback, because that recorder never persisted Binance's `o.T`). Schema changes are additive and idempotent, so an existing database keeps working and its live rows stay `source='live'`. There is no upstream backfill beyond the collector and that importer. Tests disable the collector with `OXDECK_DISABLE_LIQUIDATION_COLLECTOR=1`.
 
 ## Run & build
 

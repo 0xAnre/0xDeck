@@ -8,6 +8,7 @@ import {
 } from './indicators.ts'
 import { marketApiBasePath, marketKlinesPath } from './marketExchange.ts'
 import { aggregatedLiquidationsHistoryPath } from './aggregatedLiquidationsHistory.ts'
+import { aggregatedLiquidationsBucketsPath } from './aggregatedLiquidationsBuckets.ts'
 import {
   hyperliquidAccountFillsByTimePath,
   hyperliquidAccountFillsPath,
@@ -110,6 +111,17 @@ describe('persistent liquidation history route contract', () => {
         limit: 1000,
       })}`,
       '/api/market/binance/usdm/btcusdt/liquidations/history?before=1792000000000&limit=1000',
+    )
+  })
+
+  it('builds the bucket path the backend registers', () => {
+    assert.equal(
+      `${API_BASE}${aggregatedLiquidationsBucketsPath({
+        interval: '1h',
+        from: 1_792_000_000_000,
+        to: 1_792_003_600_000,
+      })}`,
+      '/api/market/binance/usdm/btcusdt/liquidations/buckets?interval=1h&from=1792000000000&to=1792003600000',
     )
   })
 })
