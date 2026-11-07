@@ -52,11 +52,16 @@ import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
 import {
   createScreenNavigationSequenceHandler,
   createWorkspaceScreenNavigationIntent,
+  readStoredWorkspaceScreenIndex,
   resolveLockedWorkspaceScreenScrollTop,
+  resolveNearestWorkspaceScreenIndex,
   resolveScreenLockAlignmentScreenIndex,
   resolveWorkspaceScreenExtentHeight,
   resolveWorkspaceScreenScrollTop,
+  resolveWorkspaceScreenStorage,
+  saveWorkspaceScreenIndex,
   scrollToWorkspaceScreenAtIndex,
+  WORKSPACE_SCREEN_PERSIST_DEBOUNCE_MS,
   type WorkspaceScreenNavigationIntent,
 } from './screenNavigationShortcuts'
 
@@ -126,6 +131,12 @@ function App() {
   const activeScreenIndexRef = useRef(0)
   const pendingScreenNavigationRef = useRef<WorkspaceScreenNavigationIntent | null>(null)
   const lockedScrollTopRef = useRef(0)
+  // Screen this tab was on before the refresh, read once; `null` on a first visit or a bad value.
+  const [initialScreenIndex] = useState(() =>
+    readStoredWorkspaceScreenIndex(resolveWorkspaceScreenStorage()),
+  )
+  const screenRestorePendingRef = useRef(true)
+  const lastPersistedScreenIndexRef = useRef<number | null>(initialScreenIndex)
 
   const activeWorkspaceId = workspaces.activeWorkspaceId
   // `loadWorkspaces` and every store mutation keep at least one workspace.
@@ -196,6 +207,66 @@ function App() {
     return () => observer.disconnect()
   }, [containerRef])
 
+  // Stores the active screen index of this tab. `lastPersistedScreenIndexRef` is updated even when
+  // storage refuses the write so the scroll listener does not retry on every settle.
+  const persistScreenIndex = useCallback((screenIndex: number) => {
+    lastPersistedScreenIndexRef.current = screenIndex
+    saveWorkspaceScreenIndex(resolveWorkspaceScreenStorage(), screenIndex)
+  }, [])
+
+  // Restore the screen this tab was on before the refresh, exactly once and after the viewport
+  // measurement produced the virtual 9-screen extent: the scroller must already be tall enough to
+  // hold the target, otherwise the browser clamps the offset to 0 and the screen would be lost. A
+  // pending `m` + digit jump outranks the stored screen, so a restore never overwrites one.
+  useEffect(() => {
+    if (!screenRestorePendingRef.current) return
+    if (workspaceViewportHeight <= 0) return
+    const container = containerRef.current
+    if (!container) return
+
+    screenRestorePendingRef.current = false
+    if (initialScreenIndex === null) return
+    if (pendingScreenNavigationRef.current !== null) return
+
+    const targetTop = resolveLockedWorkspaceScreenScrollTop(container, initialScreenIndex)
+    if (targetTop === null) return
+
+    // The index must follow the restored offset, or toggling Screen Lock ON afterwards would align
+    // to Screen 1 instead of the restored screen.
+    activeScreenIndexRef.current = initialScreenIndex
+    lockedScrollTopRef.current = targetTop
+    if (Math.abs(container.scrollTop - targetTop) <= WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX) return
+    container.scrollTop = targetTop
+  }, [containerRef, initialScreenIndex, workspaceViewportHeight])
+
+  // Manual scrolling (wheel, trackpad, scrollbar, keyboard), the tail of an `m` + digit smooth jump
+  // and a Screen Lock re-alignment all end on a screen: store the nearest one so a refresh reopens
+  // the tab there. The write is debounced and skipped when the index did not change, so switching
+  // workspaces — which keeps the current offset — never rewrites the key.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const storeSettledScreen = () => {
+      timeoutId = null
+      const screenIndex = resolveNearestWorkspaceScreenIndex(container, container.scrollTop)
+      if (screenIndex === lastPersistedScreenIndexRef.current) return
+      persistScreenIndex(screenIndex)
+    }
+
+    const handleScroll = () => {
+      if (timeoutId !== null) clearTimeout(timeoutId)
+      timeoutId = setTimeout(storeSettledScreen, WORKSPACE_SCREEN_PERSIST_DEBOUNCE_MS)
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      if (timeoutId !== null) clearTimeout(timeoutId)
+    }
+  }, [containerRef, persistScreenIndex])
+
   const alignLockedWorkspace = useCallback(
     (screenIndex: number) => {
       const container = containerRef.current
@@ -248,10 +319,11 @@ function App() {
         pendingScreenNavigationRef.current = null
         activeScreenIndexRef.current = activeIndex
         alignLockedWorkspace(activeIndex)
+        persistScreenIndex(activeIndex)
       }
     }
     setScreenLock((prev) => !prev)
-  }, [alignLockedWorkspace, containerRef, screenLock])
+  }, [alignLockedWorkspace, containerRef, persistScreenIndex, screenLock])
 
   const workspaceExtentHeight = resolveWorkspaceScreenExtentHeight(workspaceViewportHeight)
 
@@ -405,6 +477,7 @@ function App() {
         activeScreenIndexRef.current = screenIndex
         pendingScreenNavigationRef.current = null
         alignLockedWorkspace(screenIndex)
+        persistScreenIndex(screenIndex)
         return
       }
 
@@ -418,6 +491,9 @@ function App() {
         screenIndex,
         Date.now(),
       )
+      // Stored immediately, not only when the smooth scroll settles: a refresh during the ~300-500 ms
+      // animation must reopen on the requested screen, not an intermediate offset.
+      persistScreenIndex(screenIndex)
       scrollToWorkspaceScreenAtIndex(container, screenIndex)
     }
 
@@ -426,7 +502,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       sequence.dispose()
     }
-  }, [alignLockedWorkspace, containerRef, screenLock])
+  }, [alignLockedWorkspace, containerRef, persistScreenIndex, screenLock])
 
   return (
     <ParquetDataProvider>

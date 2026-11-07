@@ -179,6 +179,76 @@ export function scrollToWorkspaceScreenAtIndex(
   container.scrollTo({ top: targetTop, behavior: options.behavior ?? 'smooth' })
 }
 
+/**
+ * `sessionStorage` key holding the active workspace screen index of **this tab** (0…8). The screen is
+ * shared by every workspace in the tab, so the key is deliberately not workspace-scoped: a refresh
+ * reopens the tab on the screen it was on, while another tab still opens on Screen 1.
+ */
+export const WORKSPACE_SCREEN_STORAGE_KEY = '0xdeck-workspace-screen'
+
+/**
+ * Delay between the last workspace scroll event and the screen-index write. Long enough for wheel
+ * momentum, a scrollbar drag and the tail of an `m` + digit smooth jump to settle on one screen, so
+ * the stored index is the screen the user actually stopped on.
+ */
+export const WORKSPACE_SCREEN_PERSIST_DEBOUNCE_MS = 150
+
+/** Minimal `Storage` surface, so the screen-index helpers stay testable without a DOM. */
+export type WorkspaceScreenStorage = {
+  getItem: (key: string) => string | null
+  setItem: (key: string, value: string) => void
+}
+
+/**
+ * Parse a stored screen index. Anything but a plain decimal integer in 0…8 is rejected (`null`), so a
+ * stale or hand-edited key falls back to Screen 1 instead of throwing or clamping unexpectedly.
+ */
+export function parseStoredWorkspaceScreenIndex(raw: string | null): number | null {
+  // Exactly one digit 0…8: rejects out-of-range values, "03", "3.0", "1e1", signed and padded values.
+  if (raw === null || !/^[0-8]$/.test(raw)) return null
+  return Number.parseInt(raw, 10)
+}
+
+/**
+ * Stored screen index of this tab, or `null` when the key is missing/invalid or storage is
+ * unavailable (blocked cookies, sandboxed frame). Never throws.
+ */
+export function readStoredWorkspaceScreenIndex(
+  storage: WorkspaceScreenStorage | null | undefined,
+): number | null {
+  if (!storage) return null
+  try {
+    return parseStoredWorkspaceScreenIndex(storage.getItem(WORKSPACE_SCREEN_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+/** Stores the active screen index; ignores unreachable indexes and storage that refuses writes. */
+export function saveWorkspaceScreenIndex(
+  storage: WorkspaceScreenStorage | null | undefined,
+  screenIndex: number,
+): void {
+  if (!storage || !isValidScreenIndex(screenIndex)) return
+  try {
+    storage.setItem(WORKSPACE_SCREEN_STORAGE_KEY, String(screenIndex))
+  } catch {
+    // Storage is unavailable or full: the screen simply is not remembered after a refresh.
+  }
+}
+
+/**
+ * `sessionStorage` of this tab, or `null` where the browser blocks storage access (accessing
+ * `window.sessionStorage` itself throws in that case, so it is read inside the guard).
+ */
+export function resolveWorkspaceScreenStorage(): WorkspaceScreenStorage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
 export type ScreenNavigationSequenceHandler = {
   handleKeyDown: (event: ScreenNavigationKeyEvent) => number | null
   dispose: () => void

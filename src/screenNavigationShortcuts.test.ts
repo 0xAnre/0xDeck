@@ -4,14 +4,18 @@ import {
   createScreenNavigationSequenceHandler,
   createWorkspaceScreenNavigationIntent,
   isEditableKeyboardTarget,
+  parseStoredWorkspaceScreenIndex,
+  readStoredWorkspaceScreenIndex,
   resolveLockedWorkspaceScreenScrollTop,
   resolveNearestWorkspaceScreenIndex,
   resolveScreenLockAlignmentScreenIndex,
   resolveWorkspaceScreenExtentHeight,
   resolveWorkspaceScreenScrollTop,
+  saveWorkspaceScreenIndex,
   scrollToWorkspaceScreenAtIndex,
   WORKSPACE_SCREEN_COUNT,
   WORKSPACE_SCREEN_NAVIGATION_SETTLE_WINDOW_MS,
+  WORKSPACE_SCREEN_STORAGE_KEY,
   type ScreenNavigationKeyEvent,
 } from './screenNavigationShortcuts.ts'
 
@@ -683,5 +687,91 @@ describe('isEditableKeyboardTarget', () => {
   it('returns false for non-element targets', () => {
     assert.equal(isEditableKeyboardTarget(null), false)
     assert.equal(isEditableKeyboardTarget({}), false)
+  })
+})
+
+describe('parseStoredWorkspaceScreenIndex', () => {
+  it('accepts every reachable screen index', () => {
+    for (let index = 0; index < WORKSPACE_SCREEN_COUNT; index += 1) {
+      assert.equal(parseStoredWorkspaceScreenIndex(String(index)), index)
+    }
+  })
+
+  it('rejects out-of-range values', () => {
+    for (const raw of ['9', '42', '99', '-1']) {
+      assert.equal(parseStoredWorkspaceScreenIndex(raw), null)
+    }
+  })
+
+  it('rejects non-integer notation', () => {
+    for (const raw of ['3.5', '3.0', '1e1', '+3', '03', ' 4', '4 ']) {
+      assert.equal(parseStoredWorkspaceScreenIndex(raw), null)
+    }
+  })
+
+  it('rejects garbage and a missing value', () => {
+    for (const raw of ['', ' ', 'abc', 'NaN', 'undefined', 'null']) {
+      assert.equal(parseStoredWorkspaceScreenIndex(raw), null)
+    }
+    assert.equal(parseStoredWorkspaceScreenIndex(null), null)
+  })
+})
+
+describe('readStoredWorkspaceScreenIndex / saveWorkspaceScreenIndex', () => {
+  function memoryStorage(initial: Record<string, string> = {}) {
+    const data = new Map(Object.entries(initial))
+    return {
+      data,
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        data.set(key, value)
+      },
+    }
+  }
+
+  it('round-trips a saved screen index through the key', () => {
+    const storage = memoryStorage()
+    saveWorkspaceScreenIndex(storage, 4)
+    assert.deepEqual([...storage.data.entries()], [[WORKSPACE_SCREEN_STORAGE_KEY, '4']])
+    assert.equal(readStoredWorkspaceScreenIndex(storage), 4)
+  })
+
+  it('reads null for a missing key and for a stored value that is not a screen index', () => {
+    assert.equal(readStoredWorkspaceScreenIndex(memoryStorage()), null)
+    for (const stored of ['42', 'abc', '', '3.0']) {
+      assert.equal(
+        readStoredWorkspaceScreenIndex(memoryStorage({ [WORKSPACE_SCREEN_STORAGE_KEY]: stored })),
+        null,
+      )
+    }
+  })
+
+  it('ignores writes for values that are not reachable screen indexes', () => {
+    const storage = memoryStorage()
+    for (const index of [-1, 9, 42, 2.5, Number.NaN]) {
+      saveWorkspaceScreenIndex(storage, index)
+    }
+    assert.equal(storage.data.size, 0)
+  })
+
+  it('never throws when storage is unavailable or fails', () => {
+    const throwingRead = {
+      getItem: () => {
+        throw new Error('SecurityError')
+      },
+      setItem: () => undefined,
+    }
+    const throwingWrite = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('QuotaExceededError')
+      },
+    }
+
+    assert.equal(readStoredWorkspaceScreenIndex(null), null)
+    assert.equal(readStoredWorkspaceScreenIndex(undefined), null)
+    assert.equal(readStoredWorkspaceScreenIndex(throwingRead), null)
+    assert.doesNotThrow(() => saveWorkspaceScreenIndex(throwingWrite, 3))
+    assert.doesNotThrow(() => saveWorkspaceScreenIndex(null, 3))
   })
 })

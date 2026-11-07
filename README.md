@@ -128,7 +128,7 @@ Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
 
 The outer workspace (`main.workspace-scroller` in `App.tsx`) scrolls vertically when panels extend below the viewport. Scrollbars are hidden for `.workspace-scroller` and `.panel-body` in `App.css` (content still scrolls).
 
-**Screen shortcuts:** press `m`, then `1`–`9` within ~500ms to jump to workspace screen positions 1–9 (scroll offsets 0…8 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`.
+**Screen shortcuts:** press `m`, then `1`–`9` within ~500ms to jump to workspace screen positions 1–9 (scroll offsets 0…8 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`. The active screen index is remembered per tab (`sessionStorage` key `0xdeck-workspace-screen`), so a refresh reopens the screen the tab was on; a new tab still starts on Screen 1.
 
 **Screens 1–9 always exist:** a wrapper inside `main.workspace-scroller` reserves a virtual 9-viewport scroll extent (`resolveWorkspaceScreenExtentHeight`), so empty screens below the last panel are still reachable. Widget positions and sizes are unchanged by screen navigation; the persisted `0xdeck-workspace` payload now holds one lg layout per workspace ([AGENTS.md](AGENTS.md) persistence keys).
 
