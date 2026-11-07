@@ -83,6 +83,13 @@ async function expectScreen(page: Page, screenIndex: number): Promise<void> {
   await expect.poll(() => currentScreenIndex(page)).toBe(screenIndex)
 }
 
+/** Waits until the app's debounced write landed, so a reload cannot race the stored value. */
+async function expectStoredScreenIndex(page: Page, screenIndex: number): Promise<void> {
+  await expect
+    .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), SCREEN_STORAGE_KEY))
+    .toBe(String(screenIndex))
+}
+
 /**
  * Seeds the workspace payload once per browser context. `addInitScript` runs on every navigation,
  * so an existing key is left untouched: a reload must observe what the app itself persisted.
@@ -109,9 +116,7 @@ test('reopens on the screen the tab was on after a refresh', async ({ page }) =>
   await page.keyboard.press('m')
   await page.keyboard.press('5')
   await expectScreen(page, 4)
-  await expect
-    .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), SCREEN_STORAGE_KEY))
-    .toBe('4')
+  await expectStoredScreenIndex(page, 4)
 
   await page.reload()
   await expectWorkspaceScreensReady(page)
@@ -126,6 +131,27 @@ test('reopens on the screen the tab was on after a refresh', async ({ page }) =>
   expect(metrics?.scrollTop).toBe((metrics?.clientHeight ?? 0) * 4)
 })
 
+test('restores the screen for a refresh that happens while Screen Lock is ON', async ({ page }) => {
+  await openWorkspace(page)
+  await page.keyboard.press('m')
+  await page.keyboard.press('4')
+  await expectScreen(page, 3)
+
+  const screenLockButton = page.getByRole('button', { name: /Screen Lock/ })
+  await screenLockButton.click()
+  await expect(screenLockButton).toHaveAttribute('aria-pressed', 'true')
+  await expectScreen(page, 3)
+  await expectStoredScreenIndex(page, 3)
+
+  await page.reload()
+  await expectWorkspaceScreensReady(page)
+  // The lock itself is in-memory (unchanged, documented), but the locked screen is restored.
+  await expect(screenLockButton).toHaveAttribute('aria-pressed', 'false')
+  await expectScreen(page, 3)
+  const metrics = await readScreenMetrics(page)
+  expect(metrics?.scrollTop).toBe((metrics?.clientHeight ?? 0) * 3)
+})
+
 test('reopens on a screen that was reached by manual wheel scrolling', async ({ page }) => {
   await openWorkspace(page)
   await expectScreen(page, 0)
@@ -138,6 +164,10 @@ test('reopens on a screen that was reached by manual wheel scrolling', async ({ 
   await expect.poll(() => currentScreenIndex(page)).not.toBe(0)
   const scrolledScreenIndex = await currentScreenIndex(page)
   expect(scrolledScreenIndex).not.toBeNull()
+
+  // The index is written 150 ms after the last scroll event; reloading sooner would restore the
+  // previous screen, so wait for the app's own debounced write instead of sleeping.
+  await expectStoredScreenIndex(page, scrolledScreenIndex!)
 
   await page.reload()
   await expectWorkspaceScreensReady(page)
@@ -177,6 +207,9 @@ test('falls back to Screen 1 for an invalid stored screen index without an uncau
     await page.reload()
     await expectWorkspaceScreensReady(page)
     await expectScreen(page, 0)
+    // Screen 1 means the exact top of the workspace, not merely an offset that rounds to it.
+    const metrics = await readScreenMetrics(page)
+    expect(metrics?.scrollTop).toBe(0)
   }
 
   expect(pageErrors).toEqual([])
