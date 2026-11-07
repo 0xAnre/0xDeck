@@ -179,7 +179,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `mauve` | Mauve |
 | `taupe` | Taupe |
 | `olive` | Olive |
-| `black` | Black (Neutral-derived palette, `#0F0F0F` background) |
+| `black` | Black (Neutral-derived palette, `#000000` background) |
 
 ## Widgets
 

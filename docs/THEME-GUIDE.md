@@ -30,7 +30,7 @@ Theme is applied via `document.documentElement.dataset.theme` and `.dark` class.
 | `mauve` | Mauve | `b6ZjlcKFk` |
 | `taupe` | Taupe | `blTaKtCok` |
 | `olive` | Olive | `b6t6ENHec` |
-| `black` | Black | Neutral-derived custom palette (`#0F0F0F` background) |
+| `black` | Black | Neutral-derived custom palette (`#000000` background) |
 
 ### Core variables
 
