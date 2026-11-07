@@ -29,7 +29,7 @@ Most market tools force a fixed workflow. 0xDeck gives you a surface you can res
 | **Reusable widgets** | Register a template once in `src/widgets/registry/definitions.tsx`; add many instances; each keeps its own config |
 | **Custom widgets** | Add your own panels through `WIDGET_REGISTRY` (`src/widgets/registry/`) |
 | **Data binding** | Per-widget dataset, columns, time range (`15m`–`7d`), KPI metric + aggregation |
-| **Themes** | 6 built-in palettes — Neutral, Stone, Mauve, Taupe, Olive, Black (`#0F0F0F` background; Neutral-derived) |
+| **Themes** | 6 built-in palettes — Neutral, Stone, Mauve, Taupe, Olive, Black (`#000000` background; Neutral-derived) |
 | **Persistence** | Workspace layout + widget config in `localStorage` (`0xdeck-*` keys) |
 
 **Stack:** Vite · React 19 · TypeScript · Tailwind v4 · shadcn/ui · [react-grid-layout](https://github.com/react-grid-layout/react-grid-layout) v2 · FastAPI · DuckDB
