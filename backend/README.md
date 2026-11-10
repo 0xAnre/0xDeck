@@ -71,6 +71,27 @@ Folder path is stored in `backend/.canvas-state.json` (gitignored).
 | GET | `/api/market/hyperliquid/account/{address}/fills/by-time` | `userFillsByTime` for `start_time` / `end_time` (epoch **milliseconds**), paged forward through the window. `truncated: true` means the 2000-per-response cap or page budget stopped the window early |
 | WS | `/api/ws/{channel}` | WebSocket transport; Binance relays on `binance.usdm.btcusdt.kline.{interval}` and `binance.usdm.btcusdt.liquidations`, Hyperliquid relays on `hyperliquid.btc.kline.{interval}` and `hyperliquid.account.{address}.userfills` |
 
+### Klines response cache (5 s)
+
+`app/market/klines_cache.py` keeps a small in-process TTL cache in front of the exchange klines reads for both providers. Requests that repeat the same shape inside the TTL share one upstream round trip instead of paying it again.
+
+- **Key:** exchange, symbol, endpoint variant, plus what the route received — `interval`, `limit`, the `before` history cursor, or the explicit `start_time` / `end_time` of a volume profile. A `*-context` window is derived from the current time, so it is deliberately **not** keyed; the TTL bounds its staleness instead of making every request a miss.
+- **Only successful responses are stored.** An upstream failure returns exactly what it returned before (e.g. `502`) and leaves no entry, so the next request retries.
+- **Concurrent same-key requests** wait for one in-flight upstream call instead of stampeding the exchange; different keys still fetch in parallel.
+- **Live data is untouched.** `/api/ws/...` relay candles never go through the cache; only the REST klines paths do.
+- **Cached candle lists are shared, not copied.** Treat them as read-only; every current caller only serializes them.
+- Measured on the VPS (2 vCPU, high host load) for `GET /api/market/binance/usdm/btcusdt/klines?interval=1m&limit=500`: cold **287–589 ms**, hot **2.6–3.4 ms** (p50 2.8 ms over 20 back-to-back requests), byte-identical body. A large context payload (2 MB weekly window) is still ~100 ms on a hit because response serialization dominates, not the cache.
+
+Tune or disable it through the environment (read once at startup):
+
+```bash
+OXDECK_KLINES_CACHE_TTL_SECONDS=15 uvicorn app.main:app ...   # longer TTL
+OXDECK_KLINES_CACHE_TTL_SECONDS=0  uvicorn app.main:app ...   # disabled
+OXDECK_DISABLE_KLINES_CACHE=1      uvicorn app.main:app ...   # disabled
+```
+
+The default TTL lives in `DEFAULT_KLINES_CACHE_TTL_SECONDS` (`app/market/klines_cache.py`). A query parameter, a header or a frontend switch to disable it per request does not exist by design: the cache is a backend performance detail, not part of the API contract.
+
 ### WebSocket (`/api/ws/{channel}`)
 
 Channel names: letters, digits, `.`, `_`, `-` (1–96 chars). Generic channels accept `ping` / `pong` only.
