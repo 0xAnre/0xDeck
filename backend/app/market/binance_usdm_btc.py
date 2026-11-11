@@ -62,6 +62,7 @@ from .common import (
     weekly_context_window_ms,
     yearly_context_window_ms,
 )
+from .klines_cache import ttl_cached
 
 BINANCE_USDM_REST_BASE = "https://fapi.binance.com"
 BINANCE_USDM_KLINES_PATH = "/fapi/v1/klines"
@@ -72,6 +73,45 @@ BINANCE_KLINE_MAX_REQUEST_SPAN_MS = 200 * 86_400_000
 
 SYMBOL = "BTCUSDT"
 SYMBOL_LOWER = "btcusdt"
+
+# Klines response cache keys: the request shape only, never the wall clock. A
+# `*-context` window is derived from `now`, so it is bounded by the cache TTL
+# instead of being keyed (keying it would make every request a miss).
+BINANCE_CACHE_NAMESPACE = ("binance", SYMBOL)
+
+
+def _klines_cache_key(interval: str, limit: int) -> tuple[object, ...]:
+    return (*BINANCE_CACHE_NAMESPACE, "klines", interval, clamp_limit(limit))
+
+
+def _history_cache_key(
+    interval: str,
+    before_epoch_seconds: int,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> tuple[object, ...]:
+    return (*BINANCE_CACHE_NAMESPACE, "history", interval, before_epoch_seconds)
+
+
+def _context_cache_key(level: str) -> Callable[..., tuple[object, ...]]:
+    def build(
+        interval: str,
+        now_ms: int | None = None,
+        http_get: Callable[..., httpx.Response] | None = None,
+    ) -> tuple[object, ...]:
+        return (*BINANCE_CACHE_NAMESPACE, "context", level, interval)
+
+    return build
+
+
+def _volume_profile_cache_key(
+    start_time: int,
+    end_time: int,
+    *,
+    now_ms: int | None = None,
+    http_get: Callable[..., httpx.Response] | None = None,
+) -> tuple[object, ...]:
+    return (*BINANCE_CACHE_NAMESPACE, "volume-profile", start_time, end_time)
 
 
 CHANNEL_PREFIX = "binance.usdm.btcusdt.kline."
@@ -181,6 +221,7 @@ def volume_profile_kline_request_windows_ms(
     return windows
 
 
+@ttl_cached(_volume_profile_cache_key)
 def fetch_volume_profile_source_klines_sync(
     start_time: int,
     end_time: int,
@@ -210,6 +251,7 @@ def fetch_volume_profile_source_klines_sync(
     return source_interval, [by_time[key] for key in sorted(by_time)]
 
 
+@ttl_cached(_history_cache_key)
 def fetch_klines_history_before_sync(
     interval: str,
     before_epoch_seconds: int,
@@ -357,6 +399,7 @@ def fetch_klines_paginated_sync(
     return [by_time[key] for key in sorted(by_time)]
 
 
+@ttl_cached(_context_cache_key("daily"))
 def fetch_klines_daily_context_sync(
     interval: str,
     now_ms: int | None = None,
@@ -374,6 +417,7 @@ def fetch_klines_daily_context_sync(
     )
 
 
+@ttl_cached(_context_cache_key("weekly"))
 def fetch_klines_weekly_context_sync(
     interval: str,
     now_ms: int | None = None,
@@ -391,6 +435,7 @@ def fetch_klines_weekly_context_sync(
     )
 
 
+@ttl_cached(_context_cache_key("monthly"))
 def fetch_klines_monthly_context_sync(
     interval: str,
     now_ms: int | None = None,
@@ -409,6 +454,7 @@ def fetch_klines_monthly_context_sync(
     )
 
 
+@ttl_cached(_context_cache_key("quarterly"))
 def fetch_klines_quarterly_context_sync(
     interval: str,
     now_ms: int | None = None,
@@ -427,6 +473,7 @@ def fetch_klines_quarterly_context_sync(
     )
 
 
+@ttl_cached(_context_cache_key("yearly"))
 def fetch_klines_yearly_context_sync(
     interval: str,
     now_ms: int | None = None,
@@ -445,6 +492,7 @@ def fetch_klines_yearly_context_sync(
     )
 
 
+@ttl_cached(_klines_cache_key)
 def fetch_klines_sync(interval: str, limit: int) -> list[NormalizedCandle]:
     params = {"symbol": SYMBOL, "interval": interval, "limit": clamp_limit(limit)}
     rows = _fetch_binance_klines_rows(params)
