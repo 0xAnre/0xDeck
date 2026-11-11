@@ -16,7 +16,7 @@ import {
 } from './hyperliquidAccountApi.ts'
 
 const ADDRESS = '0xaf68caebaa151dd592112a07e2344b3950e13561'
-const DEFAULT_LOWER = '0x01567befc20aa7d5d1a8eb2107efae633ff090f5'
+const DEFAULT_LOWER = '0xe8c1a8c7a94ac89b138fc8b2bd8a09bfa2e1acde'
 
 describe('Hyperliquid account address', () => {
   it('accepts exactly 0x + 40 hex chars and lower-cases the value', () => {

@@ -6,7 +6,7 @@
  * this constant; API/validation paths normalize to lower-case.
  */
 export const DEFAULT_HYPERLIQUID_ACCOUNT_ADDRESS =
-  '0x01567bEFc20Aa7D5D1a8EB2107efae633fF090f5'
+  '0xE8c1a8c7A94AC89b138FC8B2Bd8A09bfA2E1AcDe'
 
 export const HYPERLIQUID_ACCOUNT_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/
 
