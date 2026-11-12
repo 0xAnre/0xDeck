@@ -530,7 +530,7 @@ function App() {
         <div className="flex min-w-0 grow shrink basis-auto items-center gap-2 pl-[5ch]">
           <img
             className="block h-7 w-7 shrink-0"
-            src="/favicon.png"
+            src={`${import.meta.env.BASE_URL}favicon.png`}
             alt=""
             width={28}
             height={28}

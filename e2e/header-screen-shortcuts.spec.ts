@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// The tooltip sweep exercises 18 focus/hover tooltips; the file needs more than
+// Playwright's 30 s default on slower hosts.
+test.describe.configure({ timeout: 90_000 })
+
 const WORKSPACE_STORAGE_KEY = '0xdeck-workspace'
 const SCREEN_COUNT = 9
 
