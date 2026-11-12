@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatCellValue } from '@/lib/formatCellValue'
 import { cn } from '@/lib/utils'
 
@@ -117,12 +118,16 @@ export function DataSourceDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" aria-label="Data source">
-          <DatabaseIcon data-icon="inline-start" />
-          Data source
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="icon-sm" aria-label="Data source">
+              <DatabaseIcon />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Configure data source</TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Data source</DialogTitle>

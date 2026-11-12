@@ -457,6 +457,8 @@ test('many workspaces keep the right-side header controls reachable', async ({ p
 
   // `+` and the right-side controls stay inside the viewport instead of being pushed out.
   await expect(addWorkspaceButton(page)).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Go to Screen 1' })).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Go to Screen 5' })).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Widget ekle' })).toBeInViewport()
   await expect(page.getByRole('button', { name: /Screen Lock/ })).toBeInViewport()
 
@@ -498,6 +500,9 @@ for (const width of [375, 600]) {
     const widgetsButton = page.getByRole('button', { name: 'Widget ekle' })
     const dataSourceButton = page.getByRole('button', { name: 'Data source' })
     const screenLockButton = page.getByRole('button', { name: /Screen Lock/ })
+    const screenButtons = Array.from({ length: 5 }, (_, index) =>
+      page.getByRole('button', { name: `Go to Screen ${index + 1}` }),
+    )
 
     // Nothing is clipped: all controls, the workspace icons and `+` are inside the viewport.
     for (const control of [
@@ -505,6 +510,7 @@ for (const width of [375, 600]) {
       workspaceButton(page, 2),
       addWorkspaceButton(page),
       themeButton,
+      ...screenButtons,
       widgetsButton,
       dataSourceButton,
       screenLockButton,
@@ -512,6 +518,10 @@ for (const width of [375, 600]) {
       await expectFullyInViewport(control, width)
     }
 
+    await screenButtons[4].click()
+    await expect(screenButtons[4]).toHaveAttribute('aria-pressed', 'true')
+    await screenButtons[0].click()
+    await expect(screenButtons[0]).toHaveAttribute('aria-pressed', 'true')
     // … and every one of them reacts to a click.
     await themeButton.click()
     await expect(page.getByRole('menuitemradio').first()).toBeVisible()

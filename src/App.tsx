@@ -12,6 +12,7 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './App.css'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import {
   Card,
   CardAction,
@@ -19,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PanelHeaderControls } from './PanelHeaderControls'
 import { BREAKPOINTS, COLS, ROW_HEIGHT, breakpointFromWidth } from './breakpoints'
 import {
@@ -69,9 +71,11 @@ import {
 const WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX = 0.5
 
 const SCREEN_LOCK_LABELS = {
-  off: 'Screen Lock OFF — ekran kilidi kapalı, serbest kaydırma. Etkin ekrana kilitlemek için tıkla',
-  on: 'Screen Lock ON — ekran kilidi açık, çalışma alanı etkin ekrana sabitlendi. Kilidi açmak için tıkla',
+  off: 'Screen Lock off — lock workspace scrolling to the active screen',
+  on: 'Screen Lock on — unlock workspace scrolling',
 } as const
+
+const HEADER_SCREEN_INDEXES = [0, 1, 2, 3, 4] as const
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const
 const OVERLAP_COMPACTOR = getCompactor(null, true)
@@ -128,13 +132,14 @@ function App() {
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [screenLock, setScreenLock] = useState(false)
   const [workspaceViewportHeight, setWorkspaceViewportHeight] = useState(0)
-  const activeScreenIndexRef = useRef(0)
-  const pendingScreenNavigationRef = useRef<WorkspaceScreenNavigationIntent | null>(null)
-  const lockedScrollTopRef = useRef(0)
   // Screen this tab was on before the refresh, read once; `null` on a first visit or a bad value.
   const [initialScreenIndex] = useState(() =>
     readStoredWorkspaceScreenIndex(resolveWorkspaceScreenStorage()),
   )
+  const [activeScreenIndex, setActiveScreenIndex] = useState(initialScreenIndex ?? 0)
+  const activeScreenIndexRef = useRef(initialScreenIndex ?? 0)
+  const pendingScreenNavigationRef = useRef<WorkspaceScreenNavigationIntent | null>(null)
+  const lockedScrollTopRef = useRef(0)
   const screenRestorePendingRef = useRef(true)
   const lastPersistedScreenIndexRef = useRef<number | null>(initialScreenIndex)
 
@@ -234,6 +239,7 @@ function App() {
     // The index must follow the restored offset, or toggling Screen Lock ON afterwards would align
     // to Screen 1 instead of the restored screen.
     activeScreenIndexRef.current = initialScreenIndex
+    setActiveScreenIndex(initialScreenIndex)
     lockedScrollTopRef.current = targetTop
     if (Math.abs(container.scrollTop - targetTop) <= WORKSPACE_LOCK_ALIGNMENT_TOLERANCE_PX) return
     container.scrollTop = targetTop
@@ -251,6 +257,8 @@ function App() {
     const storeSettledScreen = () => {
       timeoutId = null
       const screenIndex = resolveNearestWorkspaceScreenIndex(container, container.scrollTop)
+      activeScreenIndexRef.current = screenIndex
+      setActiveScreenIndex(screenIndex)
       if (screenIndex === lastPersistedScreenIndexRef.current) return
       persistScreenIndex(screenIndex)
     }
@@ -318,6 +326,7 @@ function App() {
         })
         pendingScreenNavigationRef.current = null
         activeScreenIndexRef.current = activeIndex
+        setActiveScreenIndex(activeIndex)
         alignLockedWorkspace(activeIndex)
         persistScreenIndex(activeIndex)
       }
@@ -462,31 +471,27 @@ function App() {
     setTheme(next)
   }, [])
 
-  useEffect(() => {
-    const sequence = createScreenNavigationSequenceHandler()
-    const onKeyDown = (event: KeyboardEvent) => {
-      const screenIndex = sequence.handleKeyDown(event)
-      if (screenIndex === null) return
-
+  const navigateToScreen = useCallback(
+    (screenIndex: number) => {
       const container = containerRef.current
-      if (!container) return
+      if (!container) return false
 
       if (screenLock) {
         // Screen Lock ON: jump to the exact screen top with no animation and hold it there.
-        event.preventDefault()
         activeScreenIndexRef.current = screenIndex
+        setActiveScreenIndex(screenIndex)
         pendingScreenNavigationRef.current = null
         alignLockedWorkspace(screenIndex)
         persistScreenIndex(screenIndex)
-        return
+        return true
       }
 
-      if (resolveWorkspaceScreenScrollTop(container, screenIndex) === null) return
+      if (resolveWorkspaceScreenScrollTop(container, screenIndex) === null) return false
 
-      event.preventDefault()
       // Record the requested screen in both modes: the smooth scroll takes ~300-500 ms, and toggling
       // Screen Lock ON in that window must align to the intended screen, not the intermediate offset.
       activeScreenIndexRef.current = screenIndex
+      setActiveScreenIndex(screenIndex)
       pendingScreenNavigationRef.current = createWorkspaceScreenNavigationIntent(
         screenIndex,
         Date.now(),
@@ -495,6 +500,18 @@ function App() {
       // animation must reopen on the requested screen, not an intermediate offset.
       persistScreenIndex(screenIndex)
       scrollToWorkspaceScreenAtIndex(container, screenIndex)
+      return true
+    },
+    [alignLockedWorkspace, containerRef, persistScreenIndex, screenLock],
+  )
+
+  useEffect(() => {
+    const sequence = createScreenNavigationSequenceHandler()
+    const onKeyDown = (event: KeyboardEvent) => {
+      const screenIndex = sequence.handleKeyDown(event)
+      if (screenIndex === null) return
+      if (!navigateToScreen(screenIndex)) return
+      event.preventDefault()
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -502,7 +519,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       sequence.dispose()
     }
-  }, [alignLockedWorkspace, containerRef, persistScreenIndex, screenLock])
+  }, [navigateToScreen])
 
   return (
     <ParquetDataProvider>
@@ -513,7 +530,7 @@ function App() {
         <div className="flex min-w-0 grow shrink basis-auto items-center gap-2 pl-[5ch]">
           <img
             className="block h-7 w-7 shrink-0"
-            src="/favicon.png"
+            src={`${import.meta.env.BASE_URL}favicon.png`}
             alt=""
             width={28}
             height={28}
@@ -530,26 +547,49 @@ function App() {
         </div>
 
         <div className="ml-auto flex min-w-0 shrink flex-wrap items-center justify-end gap-2 md:shrink-0">
+          <ButtonGroup aria-label="Screen navigation" className="shrink-0">
+            {HEADER_SCREEN_INDEXES.map((screenIndex) => {
+              const screenNumber = screenIndex + 1
+              const isActive = activeScreenIndex === screenIndex
+
+              return (
+                <Tooltip key={screenIndex}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant={isActive ? 'secondary' : 'outline'}
+                      aria-label={`Go to Screen ${screenNumber}`}
+                      aria-pressed={isActive}
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => navigateToScreen(screenIndex)}
+                    >
+                      <span aria-hidden="true">{screenNumber}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Go to Screen {screenNumber}</TooltipContent>
+                </Tooltip>
+              )
+            })}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant={screenLock ? 'secondary' : 'outline'}
+                  aria-pressed={screenLock}
+                  aria-label={SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}
+                  onClick={handleToggleScreenLock}
+                >
+                  {screenLock ? <LockIcon /> : <LockOpenIcon />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
           <ThemeSelect value={theme} onChange={handleThemeChange} />
           <WidgetSelect panelCount={visiblePanels.length} onAdd={handleAddPanel} />
           <DataSourceDialog />
-          <Button
-            type="button"
-            size="sm"
-            variant={screenLock ? 'default' : 'outline'}
-            aria-pressed={screenLock}
-            aria-label={SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}
-            title={SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}
-            onClick={handleToggleScreenLock}
-          >
-            {screenLock ? (
-              <LockIcon data-icon="inline-start" />
-            ) : (
-              <LockOpenIcon data-icon="inline-start" />
-            )}
-            Screen Lock
-            <span className="font-semibold">{screenLock ? 'ON' : 'OFF'}</span>
-          </Button>
         </div>
       </header>
 

@@ -27,11 +27,14 @@ export type NotesWorkspace = {
   openIds: string[]
 }
 
+const bundledNotePath = (name: string) =>
+  `${import.meta.env?.BASE_URL ?? '/'}notes/${name}`
+
 export const SEED_NOTES: NoteFile[] = [
-  { id: 'daily', name: 'daily.md', source: 'bundled', path: '/notes/daily.md' },
-  { id: 'ideas', name: 'ideas.md', source: 'bundled', path: '/notes/ideas.md' },
-  { id: 'trades', name: 'trades.md', source: 'bundled', path: '/notes/trades.md' },
-  { id: 'research', name: 'research.md', source: 'bundled', path: '/notes/research.md' },
+  { id: 'daily', name: 'daily.md', source: 'bundled', path: bundledNotePath('daily.md') },
+  { id: 'ideas', name: 'ideas.md', source: 'bundled', path: bundledNotePath('ideas.md') },
+  { id: 'trades', name: 'trades.md', source: 'bundled', path: bundledNotePath('trades.md') },
+  { id: 'research', name: 'research.md', source: 'bundled', path: bundledNotePath('research.md') },
 ]
 
 export function saveNotesWorkspace(
