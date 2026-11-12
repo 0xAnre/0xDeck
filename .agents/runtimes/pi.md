@@ -36,12 +36,51 @@ Its documented agent locations are project `.pi/agents/` and global `~/.pi/agent
 
 The package supports a global `PI_ORCHESTRATOR_MODE=1`, but it removes ordinary read/bash/write tools and permits only delegation tools. **Do not enable it for this workflow by default:** our Orchestrator must still inspect and update GitHub Issues and PR state. Revisit only if GitHub updates are handled by a separately controlled tool/worker.
 
+## Model and provider split (decided 2026-11-12)
+
+**Only the Orchestrator runs on Codex.** Coder, Reviewer and Principal Engineer run on a fixed non-Codex model. This is a user decision, not a runtime default: the Codex usage limit that killed orchestrator turns was also spent by Coder/Reviewer runs that had silently inherited the Orchestrator's provider and account.
+
+### Why inheritance is rejected
+
+The three role definitions carried no `model:` key. Per the installed package reference (`README.md:163` — "When unset, the child inherits the parent's model") and its launch resolver (`src/launch/child-launch-plan.ts:185` — `params.model ?? agentDefs?.model ?? options.parentModelRef`), a Coder launched from a Codex Orchestrator ran **on Codex, on the same account and the same quota**. The child was never asked which provider to use; it copied the parent's. Pinning the model in the definition removes the coupling in both directions: role work no longer depends on the Orchestrator's provider, and the Orchestrator's provider choice cannot leak into role work. Inheritance is rejected because it makes a role's cost and availability an accident of whoever launched it.
+
+| Role | Provider / model | `thinking` | Launched by | Notes |
+| --- | --- | --- | --- | --- |
+| Orchestrator | user's choice (Codex when the user selects it) | user's choice | user | **Not pinned here.** The only role expected to spend Codex quota. |
+| Coder | `opencode-go/deepseek-v4.1-flash` | `high` | Orchestrator | Implementation, commits and PR updates on its assigned branch. |
+| Reviewer | `opencode-go/deepseek-v4.1-flash` | `high` | Orchestrator | Independent review of the actual diff; no write mandate. |
+| Principal Engineer | `opencode-go/deepseek-v4.1-flash` | `max` | **user only** | On-demand; no automatic trigger and no automatic participation in PRs. |
+
+`thinking` uses Pi's own level keys (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; see Pi's `docs/models.md`). Pi clamps a level the selected model does not support. `high` is the working level for implementation and review; `max` is reserved for the on-demand Principal Engineer, whose runs are rare and hardest.
+
+### Hard pin, not a suggestion
+
+Each of the three definitions also sets `allow-model-override: false` (`README.md:165`; enforced at `src/launch/policy.ts:182`, which drops a launch-time `model`/`thinking` whenever `allowModelOverride === false`). Without it, a launch could still name another model and put role work back on the Orchestrator's provider. With it, the model written in the file is the model that runs for every new launch, and a resume cannot be re-pointed at another model: it reuses the model persisted when the child was launched (`src/runtime/resume-service.ts:143`). A child started before the pin therefore keeps its old provider until it is finished or replaced by a fresh launch — restart, do not resume, when a role must move onto the pinned model. Re-enabling per-task model choice for a role is a deliberate user decision, not an Orchestrator convenience, and must be recorded rather than assumed.
+
+### Provider limit or outage
+
+A pinned model is a hard dependency, and that is the intended trade-off.
+
+- If the pinned provider or model is unavailable, rate-limited, or the account is out of quota: **stop and report**. Name the role, the pinned model, the failing check and the error text.
+- **Never silently switch provider or model** — not to Codex, not to the Orchestrator's provider, not to a "similar" model — and never edit another role's definition to route around an outage. A silent fallback is indistinguishable from a working pin and reintroduces exactly the quota coupling this split removes.
+- Changing a pinned model is a user decision recorded on the Issue/PR, not an in-flight workaround. A provider problem never authorizes an automatic escalation to the Principal Engineer; that role stays strictly user-invoked.
+
+### Where the definitions live
+
+The three definitions live **outside the repository**, in Pi's global agent directory (`getAgentConfigDir()`, `src/agents/definitions.ts:82` — `PI_CODING_AGENT_DIR`, else `~/.pi/agent`), as `agents/{coder,reviewer,principal-engineer}.md`. They are runtime state, not repository state:
+
+- They are not versioned with 0xDeck, and merging a documentation change here modifies no machine.
+- A change to them is recorded as **evidence in the PR** — before/after frontmatter and the package parser's resolved output — not as a diff in this repository. Do not describe a repo diff as having "pinned" the models.
+- A new machine, or one whose definitions were reset, must have the same frontmatter applied locally before it behaves as this adapter describes.
+
+This section describes the **Pi subagent path only**. The VPS deployment below launches roles through `deck-role` and per-role prompts under `/root/.config/0xdeck-agent-app/roles/`, a separate launcher; pinning the Pi definitions does not change the VPS slots, and changing a VPS role prompt does not change these definitions.
+
 ## Target ownership: shared contract vs Pi adapter
 
 | Shared, versioned in the 0xDeck repo | Specific to this Mac / Pi |
 | --- | --- |
 | `AGENTS.md` — technical project context | `~/pi-0xdeck-team/AGENTS.md` — top-level Pi bootstrap |
-| `.agents/WORKFLOW.md` — state transitions & handoffs | Pi child definitions in `~/pi-0xdeck-team/.pi/agents/` |
+| `.agents/WORKFLOW.md` — state transitions & handoffs | Pi child definitions in `~/.pi/agent/agents/` (the historical team workspace used `~/pi-0xdeck-team/.pi/agents/`) |
 | `.agents/roles/orchestrator.md` | Parent Pi session model/tools/launcher |
 | `.agents/roles/coder.md` | Coder slot CWDs and agent launch metadata (all configured slots; paths stay in the adapter) |
 | `.agents/roles/reviewer.md` | Reviewer CWD and appropriately scoped review tools |
@@ -57,7 +96,7 @@ No copying of long workflow or role prompts into child definitions. The adapter 
 4. **Top-level Orchestrator:** simplify the local `~/pi-0xdeck-team/AGENTS.md` into a small Pi bootstrap that explicitly points to the repo's `AGENTS.md`, `.agents/WORKFLOW.md`, and `.agents/roles/orchestrator.md`. Replace obsolete local policy copies rather than retaining them as conflicting instructions.
 5. **Coders:** preserve the existing child names and separate worktree CWDs. Prefer `no-context-files: false` so each child loads the **new shared repo `AGENTS.md`** from its own CWD. Explicitly supply or instruct the child to read `.agents/WORKFLOW.md` and `.agents/roles/coder.md` at startup. Using `flags: --append-system-prompt <file>` is one supported option, provided the file exists at that exact worktree path when invoked. Add another Coder child only after its own clean worktree, role prompt and credentials are verified; a directory alone is not a slot.
 6. **Reviewer:** preserve its dedicated child name and `cwd` on the main/reviewer repo. Load the repo `AGENTS.md`, workflow and shared Reviewer contract. Use a fresh child context; review only the actual Issue/PR/diff/test evidence. Limit tool capability as far as the chosen review mechanism permits; a generic `bash` tool with full `gh` credentials is **not** hard read-only enforcement.
-7. **Principal Engineer:** do not create an automatic Pi or GitHub trigger. The user explicitly chooses whether and when to consult Codex (or a replacement agent).
+7. **Principal Engineer:** do not create an automatic Pi or GitHub trigger. The user explicitly chooses whether and when to consult the Principal Engineer; its pinned model is in the [model and provider split](#model-and-provider-split-decided-2026-11-12).
 8. **Smoke test:** in a non-mutating task, confirm the top-level Pi sees the new workflow, every configured Coder definition is discoverable (the VPS deployment below has three), and Reviewer has the expected shared contract; do not create Issues/PRs or start coding. Then test the full pipeline on one low-risk implementation task and document the result in the migration Issue.
 
 ## Minimal child adapter shape (illustrative only)
