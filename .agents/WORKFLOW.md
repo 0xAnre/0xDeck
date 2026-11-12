@@ -23,12 +23,12 @@ The roles are specified in [roles/](roles/). The current runtime-to-role mapping
 
 ## Default lifecycle
 
-1. **Request and scope:** The user requests a development change. Orchestrator prepares a GitHub Issue for implementation tasks, including context, scope, out-of-scope, acceptance criteria and verification expectations. Research-only discussion need not create an implementation Issue. Before scoping a new task, the Orchestrator performs the post-merge housekeeping below.
+1. **Request and scope:** The user requests a development change. Orchestrator prepares a GitHub Issue for implementation tasks, including context, scope, out-of-scope, acceptance criteria, verification expectations and whether a browser preview is required. Research-only discussion need not create an implementation Issue. Before scoping a new task, the Orchestrator performs the post-merge housekeeping below.
 2. **Assign:** Orchestrator chooses an available Coder context and, when applicable, a clean worktree. A task starts from current `main`; dependencies on unmerged work are surfaced instead of silently stacking branches.
-3. **Implement:** Coder follows the Issue, reads relevant 0xDeck technical docs and skills, writes/updates tests, and commits to **its assigned task branch**. Coder opens **one active PR for the task**, targeting `main`. The PR description must include `Closes #<issue-number>` for the task Issue it implements.
-4. **Review:** A separate Reviewer context independently reads the Issue, PR diff, call sites, tests and claimed verification. Findings must be actionable; style preferences alone should not generate unnecessary implementation churn.
+3. **Implement:** Coder follows the Issue, reads relevant 0xDeck technical docs and skills, writes/updates tests, and commits to **its assigned task branch**. Coder opens **one active PR for the task**, targeting `main`. The PR description must include `Closes #<issue-number>` for the task Issue it implements. For browser-visible work, the Coder also publishes and verifies the isolated preview defined below.
+4. **Review:** A separate Reviewer context independently reads the Issue, PR diff, call sites, tests and claimed verification. For browser-visible work, the Reviewer also verifies the preview at the reviewed head as defined below. Findings must be actionable; style preferences alone should not generate unnecessary implementation churn.
 5. **Fix and re-review:** Coder addresses accepted findings on the **same branch and PR**; Reviewer assesses the updated diff. On an unresolved technical disagreement or repeated unsuccessful iterations, Orchestrator raises a blocker and asks the user to decide. Do not silently create replacement PRs or an unbounded review loop.
-6. **Ready for user decision:** Orchestrator summarizes acceptance criteria, tests actually run, unverified areas, Reviewer verdict and remaining risks. The user alone decides whether and when to merge.
+6. **Ready for user decision:** Orchestrator reports the user-testable preview URL when required, summarizes acceptance criteria, tests actually run, unverified areas, Reviewer verdict and remaining risks, and states exactly one conclusion: **MERGE-READY** or **NOT MERGE-READY**. The Orchestrator may report MERGE-READY only when the required automated checks, preview evidence and independent review all pass for the same head. The user alone decides whether and when to merge.
 7. **Close or cancel:** After an externally verified user merge, Orchestrator may clean up the assigned worktree and task branch as permitted. Cancellation stops all further dispatch and pushes for that task; reopen/restart only on explicit user instruction.
 
 **One Issue / one PR** is the default for a concrete implementation task; splitting major tasks requires a clearly recorded decision. Every implementation PR must include `Closes #<issue-number>` in its description for the task Issue, so that merging closes that Issue; use `Refs #<issue-number>` only for tracking/reference Issues that must stay open. Never close a tracking/migration Issue by using `Closes #...` in an intermediate PR.
@@ -37,15 +37,33 @@ The roles are specified in [roles/](roles/). The current runtime-to-role mapping
 
 **Orchestrator → Coder:** Issue link/number; objective; scope and exclusions; acceptance criteria; expected checks; branch/worktree assignment; dependencies; stop conditions.
 
-**Coder → Orchestrator:** Issue and PR links; head branch/commit; implementation summary; exact checks run and results; tests added; unresolved risks; blockers.
+**Coder → Orchestrator:** Issue and PR links; head branch/commit; implementation summary; exact checks run and results; tests added; unresolved risks; blockers. For browser-visible work, also include the user-testable preview URL, deployed head SHA, exact preview verification, and preview retention/cleanup/expiry owner. For an N/A preview, include the concrete non-browser reason.
 
-**Orchestrator → Reviewer:** Issue link, PR link and head SHA; acceptance criteria; testing claims. Provide a fresh reviewer context rather than the Coder's private reasoning or conversation history.
+**Orchestrator → Reviewer:** Issue link, PR link and head SHA; acceptance criteria; testing claims; and, for browser-visible work, preview URL, claimed deployed SHA and lifecycle owner. Provide a fresh reviewer context rather than the Coder's private reasoning or conversation history.
 
-**Reviewer → Orchestrator and PR:** Verdict and evidence. For each defect include severity, file/line or precise location, user impact, and suggested correction; distinguish proven problems from questions or unverified risks. Approval never substitutes for the user's merge decision.
+**Reviewer → Orchestrator and PR:** Verdict and evidence. For browser-visible work, include preview/head correspondence, acceptance criteria exercised through the preview and limitations. For each defect include severity, file/line or precise location, user impact, and suggested correction; distinguish proven problems from questions or unverified risks. Approval never substitutes for the user's merge decision.
 
-**Orchestrator → User:** PR link, review verdict, test evidence, unresolved risks and the exact user action needed.
+**Orchestrator → User:** PR link, verified user-testable preview URL when required, review verdict, test evidence, unresolved risks, exactly one **MERGE-READY** or **NOT MERGE-READY** conclusion, and the exact user action needed. A missing, unavailable, stale or unverified required preview always means NOT MERGE-READY.
 
 Use plain GitHub PR reviews/comments for durable findings. Any machine-readable markers, labels or webhooks are runtime **implementations**, not an implicit part of the role contract; activate them only after verified routing and cancellation tests.
+
+## Preview and merge-readiness contract
+
+A task is **browser-visible** when it changes rendered UI, browser interaction, client-side behavior, browser routes or browser-delivered assets. A browser-visible PR requires a real URL the user can open before it may be called merge-ready. A screenshot, localhost URL, build log or textual claim is not a user-testable preview.
+
+The preview mechanism is runtime-specific, but every implementation must satisfy these shared outcomes:
+
+- Build and serve artifacts outside the canonical `main` deployment output. Never replace or mutate the canonical build to create a PR preview.
+- Tie the preview to the PR and exact head SHA. After every push, redeploy and re-verify before handing off; evidence from an older head is stale.
+- Keep the URL user-openable under the environment's existing access controls. Do not put passwords, tokens, cookies or other credentials in URLs, committed files, logs or handoffs, and do not weaken an existing access gate for preview convenience.
+- Keep the verified preview available until the user chooses merge, hold or cancel. Record who owns retention and cleanup; cleanup happens only after that user decision or an explicitly recorded expiry approved by the user.
+- Record on the PR the preview URL, deployed head SHA, exact checks performed against the URL, result, verification time or run reference, and lifecycle owner. Deployment success alone is not preview verification.
+
+The Coder verifies that the URL loads the deployed head and exercises the browser-relevant acceptance criteria it can test. The independent Reviewer opens the same URL, verifies the deployment evidence corresponds to the reviewed head, exercises the relevant acceptance criteria, and records limitations. The Orchestrator verifies that the required automated checks pass and that Coder and Reviewer evidence all refer to the same current head before reporting MERGE-READY.
+
+If a required preview cannot be published, opened, matched to the reviewed head or verified, record the blocker and report NOT MERGE-READY. Do not substitute the canonical deployment. Docs-only and other non-browser tasks may mark preview **N/A** only with a concrete reason explaining why no rendered browser behavior or asset changes; "not needed" alone is insufficient.
+
+Runtime adapters may define artifact paths, host routing, deployment commands and cleanup procedures. They must preserve the outcomes above and must not redefine role ownership or the user-only merge policy. See [runtimes/hostinger-pargali.md](runtimes/hostinger-pargali.md) for the current VPS convention.
 
 ## Concurrent work
 
