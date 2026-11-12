@@ -69,7 +69,9 @@ Runtime adapters may define artifact paths, host routing, deployment commands an
 ## Concurrent work
 
 - Prefer distinct task branches and Git worktrees for parallel implementers, and avoid assigning overlapping files/tasks without coordination.
+- The runtime adapter defines how many Coder slots exist and where they live; this workflow assumes no fixed slot count and hard-codes no runtime path.
 - A worktree slot may have only one active task/PR at a time; role-specific operating locations are set by the runtime adapter.
+- Before assigning a slot, verify that its worktree is clean, its branch carries no unmerged work that is not the new task, ownership is clear, and the launcher, role loading and credentials work. A worktree existing is not proof of a usable agent; a dirty, unmerged or unclear slot is a stop condition, not a cleanup target.
 - Never modify another agent's worktree or a branch owned by another task.
 - Task branches always target `main` unless the user explicitly approves a different approach.
 
@@ -81,7 +83,7 @@ Before starting a new task, the Orchestrator performs post-merge housekeeping so
 
 1. **Detect previously merged work.** Identify pull requests that have already been merged and any local task branches already contained in `origin/main`, including worktrees still checked out on those branches.
 2. **Synchronize canonical `main`.** Bring the canonical `main` up to date with `origin/main` using fast-forward only. Never force or rewrite history; if `main` cannot fast-forward, stop and report instead of resolving it.
-3. **Prepare both Coder worktrees.** Reset and prepare both Coder worktrees from the latest `main`. Both slots are reset and no task branch is carried over from a previous task.
+3. **Prepare every configured Coder worktree.** The runtime adapter defines the Coder slot inventory and its paths. Prepare each configured worktree from the latest `main` only when it is clean and its branch ownership is clear; never reset a worktree with uncommitted or unmerged work. A slot that is dirty, carries unmerged work that is not the new task, or has unclear ownership is a stop condition, not a cleanup target.
 4. **Remove obsolete merged local branches.** Delete a local branch only after verifying it is merged into `origin/main` and is not checked out in any worktree.
 
 Remote head-branch deletion is controlled by GitHub's `delete_branch_on_merge` repository setting, not by agents. Agents remove only local branches they have verified and must not delete unmerged or unverified remote work.
