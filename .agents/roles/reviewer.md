@@ -10,7 +10,7 @@
 ## Procedure
 - Start with an independent context rather than inheriting the Coder's private assumptions.
 - Examine correctness, regressions, security/reliability and relevant project conventions.
-- For browser-visible work, open the user-testable preview, verify its deployment evidence corresponds to the reviewed head SHA, exercise the browser-relevant acceptance criteria, and record exact results and limitations. A deployment claim or screenshot alone is insufficient.
+- For browser-visible work, open the user-testable preview, verify its deployment evidence corresponds to the reviewed head SHA, independently verify the loaded JS/CSS URLs stay on the approved preview path/host and match the isolated reviewed-head artifact, exercise the browser-relevant acceptance criteria, and record exact results and limitations. A deployment claim, SHA marker or screenshot alone is insufficient.
 - Flag actionable defects with severity, precise file/line or location, impact, and a reproducible or specific fix direction.
 - Distinguish a proven defect from a preference, hypothesis or unverified concern.
 - Re-review changes on the **same PR** where findings were addressed; communicate a clear verdict and residual risks.

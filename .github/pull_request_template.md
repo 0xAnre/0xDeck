@@ -38,6 +38,8 @@ For docs-only PRs, mark application tests NOT RUN (docs-only). -->
 - **N/A reason:** <!-- Required when N/A; identify why no rendered browser behavior or asset changes. -->
 - **Preview URL:**
 - **Deployed head SHA:**
+- **Asset isolation strategy:** Same-host preview prefix with matching build base / Dedicated protected preview host / N/A
+- **Loaded JS/CSS origin/integrity verification:** <!-- Approved preview path/host, requested URLs, and proof responses match exact-head artifacts. -->
 - **Coder verification:** <!-- Exact browser checks/results plus verification time or run reference. -->
 - **Retention/cleanup/expiry owner:** <!-- Keep available until the user chooses merge, hold or cancel. -->
 
@@ -59,6 +61,7 @@ Per defect: severity, file/line or location, user impact, suggested correction. 
 - **Reviewer verdict:** Pending / Changes requested / Approved for user decision
 - **Reviewed head SHA:**
 - **Preview/head correspondence:** Pending / PASS / FAIL / N/A with concrete reason
+- **Reviewer asset-origin/integrity verification:** Pending / PASS / FAIL / N/A with concrete reason
 - **Preview acceptance checks and limitations:**
 - **Summary:**
 
@@ -70,7 +73,7 @@ Per defect: severity, file/line or location, user impact, suggested correction. 
 - [ ] PR targets the approved base (normally `main`) from the assigned task branch.
 - [ ] Implementation stays within the linked Issue and avoids unrelated changes.
 - [ ] Relevant verification evidence is recorded above.
-- [ ] Required preview is verified against the current head, or preview N/A has a concrete non-browser reason.
+- [ ] Required preview and its loaded JS/CSS origin/integrity are verified against the current head, or preview N/A has a concrete non-browser reason.
 - [ ] Independent Reviewer evaluated the actual PR diff and acceptance criteria. A review exception is invalid for browser-visible work; any user-approved exception for non-browser work is documented with approver and rationale.
 - [ ] Orchestrator has reported the preview URL when required, verdict, blockers, residual risks and exactly one merge-ready/not-ready conclusion to the user.
 

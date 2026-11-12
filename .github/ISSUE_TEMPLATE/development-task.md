@@ -30,6 +30,8 @@ Mark manual UI checks separately; never claim they ran unless they did. -->
 ## Preview requirement
 - **Applicability:** Required for browser-visible work / N/A
 - **N/A reason:** <!-- Required when N/A; identify why no rendered browser behavior or asset changes. -->
+- **Asset isolation strategy:** Same-host preview prefix with matching build base / Dedicated protected preview host / N/A
+- **Expected asset-origin/integrity verification:** <!-- How loaded JS/CSS will be proven to come from the exact-head preview artifact. -->
 - **Expected browser acceptance checks:**
 
 <!-- A required preview must be isolated from canonical main output, tied to the PR/head SHA,
@@ -54,6 +56,7 @@ user-openable under existing access controls, and retained until the user choose
 - **Preview URL:** Pending / N/A with reason above
 - **Preview head SHA:** Pending / N/A
 - **Preview verification:** Pending / N/A
+- **Loaded asset origin/integrity verification:** Pending / N/A
 - **Preview retention/cleanup/expiry owner:** Pending / N/A
 - **Review verdict:** Pending
 - **Merge readiness:** NOT MERGE-READY

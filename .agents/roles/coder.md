@@ -8,7 +8,7 @@
 - Use the assigned task branch and worktree; do not touch unrelated worktrees or branches.
 - Make focused changes, add/update appropriate tests, run required checks and report exact results.
 - Open/update the task's single PR targeting the agreed base (normally `main`).
-- For browser-visible work, publish an isolated user-testable preview tied to the PR and exact head SHA. After every push, refresh it and record the URL, deployed SHA, exact browser checks/results, verification time or run reference, and retention/cleanup/expiry owner on the PR.
+- For browser-visible work, publish an isolated user-testable preview tied to the PR and exact head SHA. After every push, refresh it and record the URL, deployed SHA, exact browser checks/results, loaded JS/CSS origin and integrity evidence, verification time or run reference, and retention/cleanup/expiry owner on the PR.
 - Keep a required preview available until the user chooses merge, hold or cancel. If the task is docs-only or otherwise non-browser, record a concrete reason for preview N/A.
 - Address valid Reviewer findings on the same branch/PR. Explain discrepancies and blockers rather than hiding them.
 - Report commit SHA, PR link, tests/evidence, what remains unverified and risks.
