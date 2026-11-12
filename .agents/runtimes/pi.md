@@ -55,7 +55,7 @@ The three role definitions carried no `model:` key. Per the installed package re
 
 ### Hard pin, not a suggestion
 
-Each of the three definitions also sets `allow-model-override: false` (`README.md:165`; enforced at `src/launch/policy.ts:182`, which drops a launch-time `model`/`thinking` whenever `allowModelOverride === false`). Without it, a launch could still name another model and put role work back on the Orchestrator's provider. With it, the model written in the file is the model that runs, including on resume. Re-enabling per-task model choice for a role is a deliberate user decision, not an Orchestrator convenience, and must be recorded rather than assumed.
+Each of the three definitions also sets `allow-model-override: false` (`README.md:165`; enforced at `src/launch/policy.ts:182`, which drops a launch-time `model`/`thinking` whenever `allowModelOverride === false`). Without it, a launch could still name another model and put role work back on the Orchestrator's provider. With it, the model written in the file is the model that runs for every new launch, and a resume cannot be re-pointed at another model: it reuses the model persisted when the child was launched (`src/runtime/resume-service.ts:143`). A child started before the pin therefore keeps its old provider until it is finished or replaced by a fresh launch — restart, do not resume, when a role must move onto the pinned model. Re-enabling per-task model choice for a role is a deliberate user decision, not an Orchestrator convenience, and must be recorded rather than assumed.
 
 ### Provider limit or outage
 
