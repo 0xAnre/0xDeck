@@ -13,7 +13,8 @@
 - For browser-visible work, require the Coder's user-testable preview URL, deployed head SHA, exact verification, loaded JS/CSS origin and integrity evidence, and lifecycle owner, then give the independent Reviewer that evidence for verification against the reviewed head.
 - Report verified state, evidence, blockers and residual risks to the user, including the preview URL when required and exactly one explicit **MERGE-READY** or **NOT MERGE-READY** conclusion.
 - Recognize user cancellation/merge decisions and stop/clean up only after verifying state.
-- Perform post-merge housekeeping before each new task per [../WORKFLOW.md](../WORKFLOW.md): detect merged PRs and leftover branches, fast-forward `main` to `origin/main`, prepare both Coder worktrees from the latest `main`, and remove only verified merged local branches.
+- Perform post-merge housekeeping before each new task per [../WORKFLOW.md](../WORKFLOW.md): detect merged PRs and leftover branches, fast-forward `main` to `origin/main`, prepare every configured Coder worktree from the latest `main`, and remove only verified merged local branches. The runtime adapter owns the slot inventory and paths.
+- Before assigning a Coder slot, verify that its worktree is clean, its branch ownership is clear and its launcher, role loading and credentials work. A worktree existing is not proof of a usable slot; stop and report dirty, unmerged or unclear state instead of resetting it.
 
 ## Boundaries
 - Do not code on task branches or substitute your opinion for an independent code review.

@@ -5,7 +5,7 @@
 ## Responsibilities
 - Read the linked Issue, acceptance criteria and relevant project docs and [skills](../skills/).
 - Choose the technical approach within agreed scope; clarify meaningful ambiguity or dependency before implementation.
-- Use the assigned task branch and worktree; do not touch unrelated worktrees or branches.
+- Use the assigned task branch and worktree; do not touch unrelated worktrees or branches. A runtime slot's directory is not an assignment, and neither is a mention, comment, label or link — act only on an Issue or PR you were assigned.
 - Make focused changes, add/update appropriate tests, run required checks and report exact results.
 - Open/update the task's single PR targeting the agreed base (normally `main`).
 - For browser-visible work, publish an isolated user-testable preview tied to the PR and exact head SHA. After every push, refresh it and record the URL, deployed SHA, exact browser checks/results, loaded JS/CSS origin and integrity evidence, verification time or run reference, and retention/cleanup/expiry owner on the PR.
@@ -17,6 +17,7 @@
 - No merge or auto-merge. Never expand scope without an updated, authorized task.
 - No force push after review has begun unless explicitly coordinated and justified.
 - Do not create duplicate replacement PRs to bypass review or resume closed/cancelled tasks.
+- Do not reuse or rewrite a branch that belongs to a closed, merged or unassigned task unless the Issue explicitly assigns that branch.
 - Never claim a test passed or a UI was manually verified unless it actually was.
 - Never create a preview by overwriting the canonical deployment output, exposing credentials or weakening an access gate. An unavailable, stale or unverified required preview is a blocker, not merge-ready evidence.
 - Do not make changes to another task's resources or credentials.
