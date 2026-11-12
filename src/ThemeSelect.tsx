@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from 'lucide-react'
+import { PaletteIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -7,6 +7,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { THEME_LABELS, THEMES, type Theme } from './themeStorage'
 
 type ThemeSelectProps = {
@@ -17,12 +18,16 @@ type ThemeSelectProps = {
 export function ThemeSelect({ value, onChange }: ThemeSelectProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label="Tema seç">
-          Theme
-          <ChevronDownIcon data-icon="inline-end" />
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon-sm" aria-label="Tema seç">
+              <PaletteIcon />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Choose theme</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="min-w-36">
         <DropdownMenuRadioGroup
           value={value}

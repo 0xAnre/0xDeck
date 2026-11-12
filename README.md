@@ -128,11 +128,11 @@ Requires the backend on port **57342** (Vite proxies `/api` from **57341**).
 
 The outer workspace (`main.workspace-scroller` in `App.tsx`) scrolls vertically when panels extend below the viewport. Scrollbars are hidden for `.workspace-scroller` and `.panel-body` in `App.css` (content still scrolls).
 
-**Screen shortcuts:** press `m`, then `1`–`9` within ~500ms to jump to workspace screen positions 1–9 (scroll offsets 0…8 viewport heights). Ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`. The active screen index is remembered per tab (`sessionStorage` key `0xdeck-workspace-screen`), so a refresh reopens the screen the tab was on; a new tab still starts on Screen 1.
+**Screen shortcuts:** use the compact header controls for Screens 1–5, or press `m`, then `1`–`9` within ~500ms to jump to workspace screen positions 1–9 (scroll offsets 0…8 viewport heights). Both paths reuse the same smooth/locked alignment and persistence behavior; the active header control exposes the current screen. Keyboard shortcuts are ignored while focus is in an editable field. Implementation: `src/screenNavigationShortcuts.ts`. The active screen index is remembered per tab (`sessionStorage` key `0xdeck-workspace-screen`), so a refresh reopens the screen the tab was on; a new tab still starts on Screen 1.
 
 **Screens 1–9 always exist:** a wrapper inside `main.workspace-scroller` reserves a virtual 9-viewport scroll extent (`resolveWorkspaceScreenExtentHeight`), so empty screens below the last panel are still reachable. Widget positions and sizes are unchanged by screen navigation; the persisted `0xdeck-workspace` payload now holds one lg layout per workspace ([AGENTS.md](AGENTS.md) persistence keys).
 
-**Screen Lock:** the header **Screen Lock** toggle (in-memory, not persisted) pins the workspace to the active screen.
+**Screen Lock:** the icon-only header toggle is grouped with Screens 1–5 and pins the workspace to the active screen (in-memory, not persisted). Hover or focus any compact header control for its tooltip; every icon-only trigger also has an accessible name.
 
 - **OFF** — free vertical workspace scrolling, exactly as before.
 - **ON** — wheel, trackpad, keyboard and focus scrolling cannot leave the active screen; any offset is returned to that screen's exact top, so the workspace never rests between two screens. `m` then `1`–`9` still jumps to the requested screen's top (instant, no animation). Turning the lock ON from an arbitrary offset aligns to the nearest screen, or to the destination of an `m` + digit jump that is still animating; resizing the viewport re-aligns to the active screen at the new height.
