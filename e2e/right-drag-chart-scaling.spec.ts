@@ -115,7 +115,13 @@ async function openBtcPerpChart(page: Page, seed: StoredViewport) {
       }),
     }),
   )
-  await page.goto('/')
+  // `/` resolves to the origin root, which on a path-prefixed preview would
+  // load the canonical build instead of the preview artifact. Set
+  // OXDECK_E2E_URL to the full target (including its trailing slash) to run
+  // the committed spec against the deployed preview, e.g.
+  //   OXDECK_E2E_URL=https://deck.72-61-140-74.sslip.io/previews/pr-237/ \
+  //     npx playwright test e2e/right-drag-chart-scaling.spec.ts
+  await page.goto(process.env.OXDECK_E2E_URL ?? '/')
   const container = page.locator('[data-testid="btc-perp-chart"]')
   await expect(container).toBeVisible()
   await expect(container).toHaveAttribute('aria-hidden', 'false')
@@ -136,6 +142,24 @@ async function openBtcPerpChart(page: Page, seed: StoredViewport) {
       return
     }
   }
+}
+
+const CHART_OBJECT_STORAGE_KEYS = [
+  '0xdeck-widget-fixed-range-vp-instances',
+  '0xdeck-widget-rectangle-instances',
+  '0xdeck-widget-line-instances',
+  '0xdeck-widget-anchored-vwap-instances',
+] as const
+
+/** Raw persisted chart-object payloads, keyed by their localStorage key. */
+async function readChartObjectStorage(
+  page: Page,
+): Promise<Record<string, string | null>> {
+  return page.evaluate(
+    (keys) =>
+      Object.fromEntries(keys.map((key) => [key, window.localStorage.getItem(key)])),
+    CHART_OBJECT_STORAGE_KEYS,
+  )
 }
 
 async function readStoredViewport(page: Page): Promise<StoredViewport | null> {
@@ -467,7 +491,81 @@ test.describe('BTC Perp candle-pane right-drag scaling (#236)', () => {
     expect(restored.priceRange).not.toBeNull()
     expect(restored.priceRange!.from).toBeCloseTo(scaled.priceRange!.from, 6)
     expect(restored.priceRange!.to).toBeCloseTo(scaled.priceRange!.to, 6)
-    expect(restored.visibleLogicalRange).toEqual(scaled.visibleLogicalRange)
+    // A restore can shift by about one bar while the price scale gains its
+    // final width, so bound both endpoints (same ±5-bar band as the seeded
+    // baseline above) instead of asserting exact bar indices.
+    expect(
+      Math.abs(restored.visibleLogicalRange.from - scaled.visibleLogicalRange.from),
+    ).toBeLessThan(5)
+    expect(
+      Math.abs(restored.visibleLogicalRange.to - scaled.visibleLogicalRange.to),
+    ).toBeLessThan(5)
+  })
+
+  test('armed Fixed Range Volume Profile blocks right-drag scaling through the panel wiring', async ({
+    page,
+  }) => {
+    await openBtcPerpChart(page, MANUAL_SEED)
+    const baseline = await settleViewport(page)
+    const storageBefore = await readChartObjectStorage(page)
+    expect(storageBefore).toEqual({
+      '0xdeck-widget-fixed-range-vp-instances': null,
+      '0xdeck-widget-rectangle-instances': null,
+      '0xdeck-widget-line-instances': null,
+      '0xdeck-widget-anchored-vwap-instances': null,
+    })
+
+    const tools = page.getByRole('button', { name: 'Tools' })
+    await expect(tools).toBeEnabled()
+    await tools.click()
+    await page.getByRole('menuitem', { name: 'Fixed Range Volume Profile' }).click()
+    await expect(page.getByRole('menu')).toHaveCount(0)
+
+    // Positive control: the armed tool really locks chart navigation, so a
+    // left drag cannot pan. (Its pointer-up also starts the tool's preview.)
+    const box = await plotBox(page)
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5)
+    await page.mouse.down({ button: 'left' })
+    await page.mouse.move(box.x + box.width * 0.5 + 80, box.y + box.height * 0.5, {
+      steps: 8,
+    })
+    await page.mouse.up({ button: 'left' })
+    await page.waitForTimeout(500)
+    expect((await captureOnce(page)).visibleLogicalRange).toEqual(
+      baseline.visibleLogicalRange,
+    )
+
+    // Re-arm so the gesture below runs in the `armed` phase itself (the phase
+    // a `preview || resizing` regression would not cover).
+    await tools.click()
+    await page.getByRole('menuitem', { name: 'Fixed Range Volume Profile' }).click()
+    await expect(page.getByRole('menu')).toHaveCount(0)
+
+    await rightDrag(page, 120, 0)
+
+    const blocked = await captureOnce(page)
+    expect(blocked.visibleLogicalRange).toEqual(baseline.visibleLogicalRange)
+    expect(blocked.visibleTimeRange).toEqual(baseline.visibleTimeRange)
+    expect(blocked.priceRange).toEqual(baseline.priceRange)
+    expect(blocked.autoScale).toBe(false)
+    expect(await readChartObjectStorage(page)).toEqual(storageBefore)
+    expect(await page.getByRole('dialog').count()).toBe(0)
+
+    // Disarm: the same right drag now scales, so the block is conditional.
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    await rightDrag(page, 120, 0)
+    const scaled = await waitForViewport(
+      page,
+      (viewport) =>
+        span(viewport.visibleLogicalRange) < span(baseline.visibleLogicalRange),
+      'right drag scales after disarming the profile tool',
+    )
+    expect(span(scaled.visibleLogicalRange)).toBeLessThan(
+      span(baseline.visibleLogicalRange) * 0.8,
+    )
+    expect(scaled.priceRange).toEqual(baseline.priceRange)
+    expect(await readChartObjectStorage(page)).toEqual(storageBefore)
   })
 
   test('a plain right click changes no range and creates no chart object', async ({
@@ -487,18 +585,12 @@ test.describe('BTC Perp candle-pane right-drag scaling (#236)', () => {
     expect(afterClick!.autoScale).toBe(baseline.autoScale)
 
     expect(await page.getByRole('dialog').count()).toBe(0)
-    expect(
-      await page.evaluate(() => ({
-        rectangles: window.localStorage.getItem('0xdeck-widget-rectangle-instances'),
-        lines: window.localStorage.getItem('0xdeck-widget-line-instances'),
-        frvp: window.localStorage.getItem(
-          '0xdeck-widget-fixed-range-vp-instances',
-        ),
-        anchoredVwap: window.localStorage.getItem(
-          '0xdeck-widget-anchored-vwap-instances',
-        ),
-      })),
-    ).toEqual({ rectangles: null, lines: null, frvp: null, anchoredVwap: null })
+    expect(await readChartObjectStorage(page)).toEqual({
+      '0xdeck-widget-fixed-range-vp-instances': null,
+      '0xdeck-widget-rectangle-instances': null,
+      '0xdeck-widget-line-instances': null,
+      '0xdeck-widget-anchored-vwap-instances': null,
+    })
   })
 
   test('a drag never lets the context menu interrupt it, and a left pan still works afterwards', async ({
