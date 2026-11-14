@@ -47,11 +47,11 @@ The three role definitions carried no `model:` key. Per the installed package re
 | Role | Provider / model | `thinking` | Launched by | Notes |
 | --- | --- | --- | --- | --- |
 | Orchestrator | user's choice (Codex when the user selects it) | user's choice | user | **Not pinned here.** The only role expected to spend Codex quota. |
-| Coder | `opencode-go/deepseek-v4.1-flash` | `high` | Orchestrator | Implementation, commits and PR updates on its assigned branch. |
-| Reviewer | `opencode-go/deepseek-v4.1-flash` | `high` | Orchestrator | Independent review of the actual diff; no write mandate. |
+| Coder | `opencode-go/deepseek-v4.1-flash` | `max` | Orchestrator | Implementation, commits and PR updates on its assigned branch. Covers every Coder slot (`coder-1`, `coder-2`, `coder-3`). |
+| Reviewer | `opencode-go/deepseek-v4.1-flash` | `max` | Orchestrator | Independent review of the actual diff; no write mandate. |
 | Principal Engineer | `opencode-go/deepseek-v4.1-flash` | `max` | **user only** | On-demand; no automatic trigger and no automatic participation in PRs. |
 
-`thinking` uses Pi's own level keys (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; see Pi's `docs/models.md`). Pi clamps a level the selected model does not support. `high` is the working level for implementation and review; `max` is reserved for the on-demand Principal Engineer, whose runs are rare and hardest.
+`thinking` uses Pi's own level keys (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; see Pi's `docs/models.md`). Pi clamps a level the selected model does not support. **Every delegated role — Coder, Reviewer and Principal Engineer — runs at `max`** (user decision, 2026-11-14). `max` is therefore not reserved for the Principal Engineer, and `high` is no longer a working level for Coder or Reviewer: all three delegated roles are deliberately configured identically, and the Principal Engineer stays distinguished by being user-invoked only, not by its thinking level. The Orchestrator's model and level remain user-selected and are not pinned here.
 
 ### Hard pin, not a suggestion
 
@@ -74,6 +74,8 @@ The three definitions live **outside the repository**, in Pi's global agent dire
 - A new machine, or one whose definitions were reset, must have the same frontmatter applied locally before it behaves as this adapter describes.
 
 This section describes the **Pi subagent path only**. The VPS deployment below launches roles through `deck-role` and per-role prompts under `/root/.config/0xdeck-agent-app/roles/`, a separate launcher; pinning the Pi definitions does not change the VPS slots, and changing a VPS role prompt does not change these definitions.
+
+Both runtime paths are expected to carry the same provider, model and level. `deck-role` pins them as explicit Pi CLI arguments rather than in a child definition, so a VPS role must not run on another provider, on an inherited default, or at a lower level while this table says otherwise. See [Launcher and role loading](#launcher-and-role-loading).
 
 ## Target ownership: shared contract vs Pi adapter
 
@@ -157,7 +159,8 @@ All three slots load the same project context and shared contract: `AGENTS.md`, 
 
 - `/usr/local/bin/deck-role <role>` (755, 2026-11-03 03:26) maps `orchestrator|reviewer|principal-engineer` → `/srv/0xdeck` and `coder-1|coder-2|coder-3` → `/srv/0xdeck-wt1|wt2|wt3`; an unknown role exits 2.
 - It fast-forwards the worktree to `origin/main` only when `git status --porcelain` is empty **and** `HEAD` is an ancestor of `origin/main` (`sync_worktree`). A dirty tree or an unmerged branch is reported and left untouched. Observed on launch: `worktree(coder-3) = 08e027d (origin/main)`.
-- It starts `hc run --bg --name <role> --cwd <worktree> -- bash -lc ". <role>/env.sh; exec pi --append-system-prompt <role>/role.md"`. Observed coder-3 terminal argv: `bash -lc . '/root/.config/0xdeck-agent-app/roles/coder-3/env.sh'; exec pi --append-system-prompt '/root/.config/0xdeck-agent-app/roles/coder-3/role.md'`, cwd `/srv/0xdeck-wt3`.
+- It starts `hc run --bg --name <role> --cwd <worktree> -- bash -lc ". <role>/env.sh; exec pi <model args> --append-system-prompt <role>/role.md"`. Since 2026-11-14 (Issue #234) `<model args>` is `--provider opencode-go --model deepseek-v4.1-flash --thinking max` for `coder-1|coder-2|coder-3|reviewer|principal-engineer` and empty for `orchestrator`, which therefore keeps running on the user's own Pi selection. Observed coder-3 terminal argv from the 2026-11-12 audit, i.e. *before* that correction: `bash -lc . '/root/.config/0xdeck-agent-app/roles/coder-3/env.sh'; exec pi --append-system-prompt '/root/.config/0xdeck-agent-app/roles/coder-3/role.md'`, cwd `/srv/0xdeck-wt3`.
+- Delegated-role model pinning lives in the launcher's `# ---- model / thinking per role ----` case block, not in the role prompts. The drift Issue #234 fixed: that block pinned only `reviewer|principal-engineer` to `opencode-go/glm-5.3-flash` at `max`, while `coder-1|coder-2|coder-3` fell into the empty `*)` branch and inherited whatever the environment selected. The block is now the single mapping for all six names; the observable evidence is the launched terminal's argv (`hc ls --json`, `hc get <addr> --json`) or a stubbed `git`/`hc` resolution run of `deck-role` itself. An already-live terminal keeps the model it was started with until relaunched with `deck-role <role> --fresh`.
 - `pi` starts in the worktree, so its project-context discovery loads that worktree's `AGENTS.md`; `--append-system-prompt` loads the role prompt, which points at the canonical `/srv/0xdeck/AGENTS.md`, `.agents/WORKFLOW.md` and `.agents/roles/coder.md`.
 - `/usr/local/bin/deck-team` loops `coder-1 coder-2 coder-3 reviewer`; both launchers are idempotent per role.
 - Cosmetic inconsistency, not a functional gap: the usage comment on line 2 of `deck-role` still lists `orchestrator|coder-1|coder-2|reviewer` while the `case` accepts `coder-3` and `principal-engineer`.
@@ -231,6 +234,10 @@ After the run: `git -C /srv/0xdeck-wt3 status --porcelain` empty, HEAD unchanged
 ### Runtime change recorded by this audit (outside the repo)
 
 The coder-3 role prompt previously named `team/wt3` as the slot's permanent branch. Because that branch is the closed PR #215 record, the runtime prompt was corrected on 2026-11-12T06:09:46Z to require an Issue-assigned branch from current `origin/main` and to leave `origin/team/wt3` untouched. Backup: `/root/backups/coder-3-role.md.20261112T060946Z`. This change is runtime-specific, is not part of the repository diff, and is recorded here and on the PR so the decision stays auditable.
+
+### Runtime model pin recorded by Issue #234 (outside the repo)
+
+The launcher's `reviewer|principal-engineer` case previously pinned `opencode-go/glm-5.3-flash` at `max` while all three Coder names had no model arguments at all, which is why a delegated role could run on an inherited provider or a model this adapter does not record. `/usr/local/bin/deck-role` was corrected on 2026-11-14T03:44:07Z so that `coder-1|coder-2|coder-3|reviewer|principal-engineer` all start Pi with `--provider opencode-go --model deepseek-v4.1-flash --thinking max`; `orchestrator` keeps the empty branch. Backup: `/root/backups/deck-role.20261114T034401Z` (previous sha256 `93c687fc93ccadc54d02bf82b71f23f12f922f1f5e18065bf8b4e883647d7616`, applied sha256 `98bddcbe322a27b9dbeb4298cee72f5d581e25f372228f28955aa9227bf20c2a`). Verified with `bash -n`, an exact diff against the backup, and a stubbed `git`/`hc` resolution run for all six role names (no terminal started, no credentials read). Live terminals launched earlier keep the old model until restarted with `--fresh`. This change is runtime-specific and is not part of the repository diff; it is recorded here and on PR/Issue #234.
 
 ### Decision
 
