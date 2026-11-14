@@ -95,13 +95,25 @@ export function attachRightDragChartScaling(
     series: ISeriesApi<SeriesType, Time>,
     paneHeight: number,
   ): RightDragChartRange | null => {
-    const direct = toFiniteRange(resolvePriceScale().getVisibleRange())
+    const priceScale = resolvePriceScale()
+    const direct = toFiniteRange(priceScale.getVisibleRange())
     if (direct) return direct
     // Autoscaled scales may not report a range before a layout pass; derive it
     // from the pane coordinates instead of guessing from the series data.
     if (!Number.isFinite(paneHeight) || paneHeight <= 0) return null
-    const top = series.coordinateToPrice(0)
-    const bottom = series.coordinateToPrice(paneHeight)
+    // `coordinateToPrice` covers the whole pane, while `setVisibleRange` maps the
+    // range to the inner height between `scaleMargins`. Deriving from the full
+    // height would make the first vertical drag drift the anchor by the margin
+    // band, so read the inner edges instead.
+    const { top: rawTop, bottom: rawBottom } = priceScale.options().scaleMargins
+    const topMargin = Number.isFinite(rawTop) ? Math.min(1, Math.max(0, rawTop)) : 0
+    const bottomMargin = Number.isFinite(rawBottom)
+      ? Math.min(1, Math.max(0, rawBottom))
+      : 0
+    const innerHeight = Math.max(0, 1 - topMargin - bottomMargin)
+    if (innerHeight <= 0) return null
+    const top = series.coordinateToPrice(paneHeight * topMargin)
+    const bottom = series.coordinateToPrice(paneHeight * (topMargin + innerHeight))
     if (top === null || bottom === null) return null
     const derived = { from: Number(bottom), to: Number(top) }
     return isValidRightDragRange(derived) ? derived : null
@@ -230,6 +242,9 @@ export function attachRightDragChartScaling(
   const onPointerMove = (event: PointerEvent) => {
     const active = gesture
     if (!active || event.pointerId !== active.pointerId) return
+    // A move without the right button held (a release that never reached us)
+    // must not keep scaling; the window-level end listeners still clean up.
+    if ((event.buttons & 2) === 0) return
     if (!active.dragged) {
       if (
         pointerMovementWithinClickTolerance(

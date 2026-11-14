@@ -5,7 +5,10 @@ import {
   INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   startAnchoredVwapAnchorDrag,
 } from './anchoredVwapDrawingInteraction.ts'
-import { INITIAL_FIXED_RANGE_VP_INTERACTION_STATE } from './fixedRangeVolumeProfileInteraction.ts'
+import {
+  INITIAL_FIXED_RANGE_VP_INTERACTION_STATE,
+  armFixedRangeVolumeProfileTool,
+} from './fixedRangeVolumeProfileInteraction.ts'
 import { INITIAL_LINE_INTERACTION_STATE } from './lineInteraction.ts'
 import { INITIAL_RECTANGLE_INTERACTION_STATE } from './rectangleInteraction.ts'
 
@@ -33,5 +36,22 @@ describe('chartDrawingInteractionMode', () => {
     )
     assert.equal(options[0]?.handleScroll.pressedMouseMove, true)
     assert.equal(options[1]?.handleScroll.pressedMouseMove, false)
+  })
+
+  it('locks chart navigation while a Fixed Range Volume Profile is armed', () => {
+    const options: Array<{ handleScroll: { pressedMouseMove: boolean } }> = []
+    const chart = {
+      applyOptions: (value: { handleScroll: { pressedMouseMove: boolean } }) => {
+        options.push(value)
+      },
+    }
+    applyChartDrawingInteractionMode(
+      chart as never,
+      INITIAL_RECTANGLE_INTERACTION_STATE,
+      INITIAL_LINE_INTERACTION_STATE,
+      armFixedRangeVolumeProfileTool(),
+      INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
+    )
+    assert.equal(options[0]?.handleScroll.pressedMouseMove, false)
   })
 })

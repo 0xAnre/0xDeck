@@ -298,7 +298,12 @@ test.describe('BTC Perp candle-pane right-drag scaling (#236)', () => {
   }) => {
     await openBtcPerpChart(page, AUTOSCALE_SEED)
     const baseline = await settleViewport(page)
-    expect(baseline.visibleLogicalRange).toEqual({ from: 100, to: 200 })
+    // The restored seed can shift by a few bars while the price scale gains its
+    // final width (and when the Aggregated Liquidations pane changes height), so
+    // assert the seeded band instead of exact bar indices. The gesture checks
+    // below compare against this captured baseline.
+    expect(Math.abs(baseline.visibleLogicalRange.from - 100)).toBeLessThan(5)
+    expect(Math.abs(baseline.visibleLogicalRange.to - 200)).toBeLessThan(5)
     expect(baseline.autoScale).toBe(true)
     expect(baseline.priceRange).toBeNull()
 

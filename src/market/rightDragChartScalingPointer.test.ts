@@ -10,6 +10,8 @@ import {
   attachRightDragChartScaling,
 } from './rightDragChartScalingPointer.ts'
 import { anchorFractionOfRange } from './rightDragChartScaling.ts'
+import { isFixedRangeVolumeProfileChartInteractionLocked } from './fixedRangeVolumeProfileChartTool.ts'
+import { armFixedRangeVolumeProfileTool } from './fixedRangeVolumeProfileInteraction.ts'
 
 type FakeElement = {
   listeners: Map<string, Set<EventListener>>
@@ -78,12 +80,15 @@ type PointerEventLike = PointerEvent & {
 
 function pointerEvent(props: {
   button?: number
+  buttons?: number
   pointerId?: number
   clientX?: number
   clientY?: number
 }): PointerEventLike {
+  const button = props.button ?? 0
   const event = {
-    button: props.button ?? 0,
+    button,
+    buttons: props.buttons ?? (button === 2 || button === -1 ? 2 : 0),
     pointerId: props.pointerId ?? 1,
     clientX: props.clientX ?? 0,
     clientY: props.clientY ?? 0,
@@ -113,7 +118,12 @@ function mouseEvent(): MouseEvent & { prevented: boolean; stopped: boolean } {
   return event as unknown as MouseEvent & { prevented: boolean; stopped: boolean }
 }
 
-function createHarness(options: { priceRange?: { from: number; to: number } | null } = {}) {
+function createHarness(
+  options: {
+    priceRange?: { from: number; to: number } | null
+    scaleMargins?: { top: number; bottom: number }
+  } = {},
+) {
   const candleElement = createFakeElement(0)
   const rsiElement = createFakeElement(200)
   const liquidationElement = createFakeElement(300)
@@ -144,7 +154,9 @@ function createHarness(options: { priceRange?: { from: number; to: number } | nu
     coordinateToLogical: (x: number) => 100 + (x / 400) * 200,
   }
 
+  const scaleMargins = options.scaleMargins ?? { top: 0.1, bottom: 0.1 }
   const priceScale = {
+    options: () => ({ scaleMargins: { ...scaleMargins } }),
     getVisibleRange: () => (priceRange ? { ...priceRange } : null),
     setVisibleRange: (range: { from: number; to: number }) => {
       priceSets.push({ ...range })
@@ -533,8 +545,30 @@ describe('rightDragChartScalingPointer', () => {
     controller.dispose()
   })
 
-  it('derives the price range from pane coordinates when the scale reports none', () => {
-    const harness = createHarness({ priceRange: null })
+  it('does not mutate any range while a Fixed Range Volume Profile is armed', () => {
+    const harness = createHarness()
+    const frvp = armFixedRangeVolumeProfileTool()
+    assert.equal(isFixedRangeVolumeProfileChartInteractionLocked(frvp), true)
+    const controller = harness.attach({
+      isBlocked: () => isFixedRangeVolumeProfileChartInteractionLocked(frvp),
+    })
+    harness.candleElement.fire(
+      'pointerdown',
+      pointerEvent({ button: 2, clientX: 200, clientY: 100 }),
+    )
+    harness.candleElement.fire(
+      'pointermove',
+      pointerEvent({ button: -1, clientX: 320, clientY: 40 }),
+    )
+    assert.equal(harness.timeSets.length, 0)
+    assert.equal(harness.priceSets.length, 0)
+    assert.equal(harness.autoScaleCalls.length, 0)
+    assert.equal(harness.candleElement.capturedPointerIds.size, 0)
+    controller.dispose()
+  })
+
+  it('ignores moves once the right button is no longer held', () => {
+    const harness = createHarness()
     const controller = harness.attach()
     harness.candleElement.fire(
       'pointerdown',
@@ -542,12 +576,35 @@ describe('rightDragChartScalingPointer', () => {
     )
     harness.candleElement.fire(
       'pointermove',
-      pointerEvent({ button: -1, clientX: 200, clientY: 40 }),
+      pointerEvent({ button: -1, buttons: 0, clientX: 320, clientY: 40 }),
+    )
+    assert.equal(harness.timeSets.length, 0)
+    assert.equal(harness.priceSets.length, 0)
+    assert.equal(harness.autoScaleCalls.length, 0)
+    controller.dispose()
+  })
+
+  it('derives the inner price range from pane coordinates when the scale reports none', () => {
+    const harness = createHarness({ priceRange: null })
+    const controller = harness.attach()
+    // Press at y=130 (0.65 of the 200 px pane) → price 29 700. With 10 % top and
+    // bottom margins the visible range is 29 200 … 30 800 (inner y=20 … 180),
+    // so the pressed price sits 0.3125 of the way up from the range floor.
+    harness.candleElement.fire(
+      'pointerdown',
+      pointerEvent({ button: 2, clientX: 200, clientY: 130 }),
+    )
+    harness.candleElement.fire(
+      'pointermove',
+      pointerEvent({ button: -1, clientX: 200, clientY: 70 }),
     )
     assert.equal(harness.priceSets.length, 1)
     assert.ok(Number.isFinite(harness.priceSets[0].from))
     assert.ok(Number.isFinite(harness.priceSets[0].to))
     assert.ok(harness.priceSets[0].from < harness.priceSets[0].to)
+    const anchorFraction = anchorFractionOfRange(harness.priceSets[0], 29_700)
+    assert.ok(anchorFraction !== null)
+    assert.ok(Math.abs(anchorFraction - 0.3125) < 1e-9)
     controller.dispose()
   })
 

@@ -2327,8 +2327,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         ) {
           return true
         }
-        const frvp = fixedRangeVolumeProfileInteractionRef.current
-        return frvp.phase === 'preview' || frvp.phase === 'resizing'
+        return isFixedRangeVolumeProfileChartInteractionLocked(
+          fixedRangeVolumeProfileInteractionRef.current,
+        )
       },
       onGestureEnd: scheduleMarketChartViewportPersist,
     })
