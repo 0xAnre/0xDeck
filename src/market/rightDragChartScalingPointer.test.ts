@@ -116,9 +116,14 @@ function mouseEvent(): MouseEvent & { prevented: boolean; stopped: boolean } {
 function createHarness(options: { priceRange?: { from: number; to: number } | null } = {}) {
   const candleElement = createFakeElement(0)
   const rsiElement = createFakeElement(200)
+  const liquidationElement = createFakeElement(300)
   const candlePane: FakePane = { paneIndex: () => 0, getHTMLElement: () => candleElement }
   const rsiPane: FakePane = { paneIndex: () => 1, getHTMLElement: () => rsiElement }
-  const panes = [candlePane, rsiPane]
+  const liquidationPane: FakePane = {
+    paneIndex: () => 2,
+    getHTMLElement: () => liquidationElement,
+  }
+  const panes = [candlePane, rsiPane, liquidationPane]
 
   const timeRange = { from: 100, to: 300 }
   const priceRange =
@@ -171,8 +176,10 @@ function createHarness(options: { priceRange?: { from: number; to: number } | nu
     chart,
     candleElement,
     rsiElement,
+    liquidationElement,
     candlePane,
     rsiPane,
+    liquidationPane,
     series,
     createSeries,
     timeRange,
@@ -484,20 +491,26 @@ describe('rightDragChartScalingPointer', () => {
   it('never binds to the RSI or Aggregated Liquidations panes', () => {
     const harness = createHarness()
     registerChartPaneRoleSeries(harness.chart as never, 'rsi', harness.createSeries(harness.rsiPane))
+    registerChartPaneRoleSeries(
+      harness.chart as never,
+      'aggregated-liquidations',
+      harness.createSeries(harness.liquidationPane),
+    )
     const controller = harness.attach()
 
-    assert.equal(harness.rsiElement.hasListener('pointerdown'), false)
-    assert.equal(harness.rsiElement.hasListener('pointermove'), false)
-    assert.equal(harness.rsiElement.hasListener('contextmenu'), false)
-
-    harness.rsiElement.fire(
-      'pointerdown',
-      pointerEvent({ button: 2, clientX: 200, clientY: 300 }),
-    )
-    harness.rsiElement.fire(
-      'pointermove',
-      pointerEvent({ button: -1, clientX: 320, clientY: 240 }),
-    )
+    for (const element of [harness.rsiElement, harness.liquidationElement]) {
+      assert.equal(element.hasListener('pointerdown'), false)
+      assert.equal(element.hasListener('pointermove'), false)
+      assert.equal(element.hasListener('contextmenu'), false)
+      element.fire(
+        'pointerdown',
+        pointerEvent({ button: 2, clientX: 200, clientY: 300 }),
+      )
+      element.fire(
+        'pointermove',
+        pointerEvent({ button: -1, clientX: 320, clientY: 240 }),
+      )
+    }
     assert.equal(harness.timeSets.length, 0)
     assert.equal(harness.priceSets.length, 0)
     controller.dispose()
