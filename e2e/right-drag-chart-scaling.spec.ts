@@ -86,10 +86,15 @@ async function openBtcPerpChart(page: Page, seed: StoredViewport) {
         workspaceKey,
         JSON.stringify({ activePanels: [panelId], layout: [], gridVersion: 3 }),
       )
-      window.localStorage.setItem(
-        viewportKey,
-        JSON.stringify({ [panelId]: { [interval]: viewport } }),
-      )
+      // Seed the viewport once per browser context: a reload must restore what
+      // the app captured after the drag, not overwrite it with the seed.
+      if (window.sessionStorage.getItem('oxdeck-e2e-viewport-seeded') === null) {
+        window.localStorage.setItem(
+          viewportKey,
+          JSON.stringify({ [panelId]: { [interval]: viewport } }),
+        )
+        window.sessionStorage.setItem('oxdeck-e2e-viewport-seeded', '1')
+      }
     },
     [WORKSPACE_KEY, VIEWPORT_KEY, PANEL_ID, INTERVAL, seed] as const,
   )
@@ -430,6 +435,34 @@ test.describe('BTC Perp candle-pane right-drag scaling (#236)', () => {
     expect(
       Math.abs(fractionAt(scaled.priceRange!, anchorPrice) - anchorDomainFraction),
     ).toBeLessThan(0.02)
+  })
+
+  test('a vertical drag price range survives a reload for the same interval', async ({
+    page,
+  }) => {
+    await openBtcPerpChart(page, AUTOSCALE_SEED)
+    await settleViewport(page)
+    await rightDrag(page, 0, -60, { startFractionY: 0.5 })
+
+    const scaled = await waitForViewport(
+      page,
+      (viewport) => viewport.autoScale === false && viewport.priceRange !== null,
+      'manual price range captured',
+    )
+
+    await page.reload()
+    const container = page.locator('[data-testid="btc-perp-chart"]')
+    await expect(container).toBeVisible()
+    await expect(container).toHaveAttribute('aria-hidden', 'false')
+    await expect(container.locator('canvas').first()).toBeVisible()
+    await page.waitForTimeout(1_200)
+
+    const restored = await settleViewport(page)
+    expect(restored.autoScale).toBe(false)
+    expect(restored.priceRange).not.toBeNull()
+    expect(restored.priceRange!.from).toBeCloseTo(scaled.priceRange!.from, 6)
+    expect(restored.priceRange!.to).toBeCloseTo(scaled.priceRange!.to, 6)
+    expect(restored.visibleLogicalRange).toEqual(scaled.visibleLogicalRange)
   })
 
   test('a plain right click changes no range and creates no chart object', async ({
