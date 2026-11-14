@@ -266,6 +266,8 @@ import {
 } from '@/market/frvpHistogramStyles'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
 import { attachChartObjectSettingsPanePointer } from '@/market/chartObjectSettingsPanePointer'
+import { isAnyChartDrawingNavigationLocked } from '@/market/chartDrawingInteractionMode'
+import { attachRightDragChartScaling } from '@/market/rightDragChartScalingPointer'
 import { attachDrawingPaneDeselect } from '@/market/drawingPaneDeselect'
 import {
   applyOverlayIndicatorSelection,
@@ -2300,6 +2302,42 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       controller.dispose()
     }
   }, [chartReady, openChartObjectSettings, clearOverlayIndicatorSelection])
+
+  /**
+   * Right-button press-and-hold on the candle pane scales time and price around
+   * the pressed chart point (Issue #236). The controller binds to the pane that
+   * owns the registered candle series, so it follows pane reorder/resize and
+   * never touches the RSI or Aggregated Liquidations panes. It stays idle while
+   * a drawing is being created/moved/resized, and a finished drag reuses the
+   * existing viewport capture so a manual price range survives reload.
+   */
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const controller = attachRightDragChartScaling(chart, {
+      getSeries: () => seriesRef.current?.candle ?? null,
+      isBlocked: () => {
+        if (
+          isAnyChartDrawingNavigationLocked(
+            rectangleInteractionRef.current,
+            lineInteractionRef.current,
+            anchoredVwapInteractionRef.current,
+          )
+        ) {
+          return true
+        }
+        return isFixedRangeVolumeProfileChartInteractionLocked(
+          fixedRangeVolumeProfileInteractionRef.current,
+        )
+      },
+      onGestureEnd: scheduleMarketChartViewportPersist,
+    })
+
+    return () => {
+      controller.dispose()
+    }
+  }, [chartReady, scheduleMarketChartViewportPersist])
 
   useEffect(() => {
     const chart = chartRef.current
