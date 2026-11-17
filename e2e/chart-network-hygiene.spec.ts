@@ -5,9 +5,10 @@ import { expect, test } from '@playwright/test'
  *
  * Measured on `main` before this spec existed: two panels on the same symbol +
  * interval opened two `kline` and two `liquidations` sockets, requested the same
- * `daily-context` twice, and every pan/zoom restarted the 12-page
+ * `daily-context` twice, and every pan/zoom restarted the
  * `liquidations/history` walk from the newest cursor (38 requests for one page
- * load with a handful of pans).
+ * load with a handful of pans, with the real 12-page cap; the three-page fixture
+ * below produces proportionally fewer).
  *
  * The backend is mocked so the assertions are about the browser's request
  * behaviour, never about collected data.
@@ -221,7 +222,12 @@ test('one subscription and one history walk per page', async ({ page }) => {
   )
   const cursored = historyUrls.filter((url) => url.includes('before_id='))
   const uniqueCursored = new Set(cursored)
-  // A restarted walk re-requests the identical cursor pages; a resumed one never does.
+  // A restarted walk re-requests the identical cursor pages; a resumed one does
+  // not. That holds inside the page cache TTL only
+  // (`AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS` in
+  // `src/market/aggregatedLiquidationsHistory.ts`, 30 s): the pans above have to
+  // finish well within it, so a machine slow enough to stretch this block past
+  // 30 s can legitimately re-read a cursor page and fail here.
   expect(cursored.length).toBe(uniqueCursored.size)
 
   // Nothing above multiplied the request rate while the user panned.
