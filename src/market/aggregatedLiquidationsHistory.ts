@@ -11,6 +11,7 @@
  * pages so the chart panel can never hang on it.
  */
 import { API_BASE } from '../api/apiBase.ts'
+import { createRequestCache } from '../lib/requestCache.ts'
 import {
   AGGREGATED_LIQUIDATIONS_EXCHANGE,
   AGGREGATED_LIQUIDATIONS_SYMBOL,
@@ -27,6 +28,32 @@ export const AGGREGATED_LIQUIDATIONS_HISTORY_DEFAULT_LIMIT = 500
 export const AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT = 1000
 /** Hard cap for history pagination; a long-running DB must not hang the panel. */
 export const AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES = 12
+
+/**
+ * Historical pages shared by every walk of the same cursor.
+ *
+ * A walk is requested once per loaded candle-window change (initial load, an
+ * older-history page, a VWAP merge). Each walk restarts at the newest cursor, so
+ * without sharing, the identical `(before, before_id)` pages were re-requested
+ * for the whole 12-page cap — Issue #238 measured 38 `liquidations/history`
+ * requests for one page load with two pans. Rows below a keyset cursor are
+ * immutable (the collector only appends newer events), so a reused page is
+ * exact, not approximate. The uncursored newest page keeps a zero window: it is
+ * the live-edge gap fill and must always be read fresh.
+ */
+const AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS = 30_000
+const liquidationHistoryPageCache = createRequestCache()
+
+/**
+ * A completed walk is shared by every panel that asks for the same range.
+ *
+ * The walk is range-derived (no cursor), so two panels on one symbol and
+ * interval ask the identical question at load. Sharing the answer keeps a
+ * four-panel page at one walk instead of four (Issue #238). Short window: the
+ * walk result is a snapshot, and the live socket covers everything after it.
+ */
+export const AGGREGATED_LIQUIDATIONS_WALK_CACHE_TTL_MS = 15_000
+const liquidationWalkCache = createRequestCache()
 /**
  * Bounded retention for the merged buffer. Events are first scoped to the
  * loaded candle range, so interval changes can rebucket everything the chart
@@ -253,13 +280,25 @@ export async function fetchAggregatedLiquidationsHistoryPage(
       AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
     ),
   )
-  const response = await fetchImpl(
-    `${API_BASE}${aggregatedLiquidationsHistoryPath({ before, beforeId, limit: safeLimit })}`,
-    {
+  const path = aggregatedLiquidationsHistoryPath({ before, beforeId, limit: safeLimit })
+  const readPage = (requestSignal: AbortSignal | undefined) => () =>
+    fetchImpl(`${API_BASE}${path}`, {
       headers: { Accept: 'application/json' },
-      signal,
-    },
-  )
+      signal: requestSignal,
+    })
+  // Injected fetches (unit tests) bypass the shared cache and keep the caller's
+  // signal. The shared read is signal-free on purpose: one walk aborting must
+  // not reject a page another walk is waiting for; `fetchAggregatedLiquidationsHistory`
+  // stops between pages instead. The live-edge page (no cursor) is always read
+  // fresh and only deduped while in flight.
+  const response =
+    fetchImpl === fetch
+      ? await liquidationHistoryPageCache.share(
+          path,
+          before === null ? 0 : AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS,
+          readPage(undefined),
+        )
+      : await readPage(signal)()
 
   if (!response.ok) {
     let detail = response.statusText
@@ -333,6 +372,9 @@ export async function fetchAggregatedLiquidationsHistory(
   const collected: AggregatedLiquidationEvent[] = []
 
   while (pages < pageCap) {
+    // A cancelled walk stops before starting another page: pages are requested
+    // without the caller's signal so concurrent walks can share them.
+    if (signal?.aborted) break
     const page = await fetchAggregatedLiquidationsHistoryPage({
       before: cursor?.before ?? null,
       beforeId: cursor?.beforeId ?? null,
@@ -341,6 +383,7 @@ export async function fetchAggregatedLiquidationsHistory(
       fetchImpl,
     })
     pages += 1
+    if (signal?.aborted) break
     collected.push(...page.events)
 
     if (!page.hasMore || page.nextBefore === null) break
@@ -365,4 +408,34 @@ export async function fetchAggregatedLiquidationsHistory(
     pages,
     truncated,
   }
+}
+
+/**
+ * Same walk, shared by every caller with the same request signature.
+ *
+ * Used by the chart's candle-window walk. A caller that must see the newest
+ * stored events (the live-socket gap fill) calls
+ * `fetchAggregatedLiquidationsHistory` directly with a bounded `maxPages`.
+ */
+export async function fetchAggregatedLiquidationsHistoryShared(
+  params: FetchAggregatedLiquidationsHistoryParams = {},
+): Promise<AggregatedLiquidationsHistory> {
+  const {
+    oldestTimeMs = null,
+    limit = AGGREGATED_LIQUIDATIONS_HISTORY_DEFAULT_LIMIT,
+    maxPages = AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
+    fetchImpl,
+  } = params
+
+  // Injected fetches (unit tests) never touch the shared cache.
+  if (fetchImpl) return fetchAggregatedLiquidationsHistory(params)
+
+  const key = [oldestTimeMs ?? 'newest', limit, Math.max(1, Math.trunc(maxPages))].join('|')
+  return liquidationWalkCache.share(
+    key,
+    AGGREGATED_LIQUIDATIONS_WALK_CACHE_TTL_MS,
+    // Shared across panels, so no caller's AbortSignal may cancel it; the
+    // panel drops a late result through its own generation guard.
+    () => fetchAggregatedLiquidationsHistory({ ...params, signal: undefined }),
+  ) as Promise<AggregatedLiquidationsHistory>
 }

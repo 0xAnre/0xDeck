@@ -14,6 +14,7 @@
  * backend mirrors `liquidationBucketTime` from `aggregatedLiquidations.ts`.
  */
 import { API_BASE } from '../api/apiBase.ts'
+import { createRequestCache } from '../lib/requestCache.ts'
 import {
   AGGREGATED_LIQUIDATIONS_EXCHANGE,
   AGGREGATED_LIQUIDATIONS_SYMBOL,
@@ -39,6 +40,19 @@ export const AGGREGATED_LIQUIDATIONS_BUCKETS_MIN_INTERVAL_SECONDS = 1800
 
 /** Refresh period for the live-edge bucket window while the pane is enabled. */
 export const AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS = 15_000
+
+/**
+ * One bucket window is one request, however many panels ask for it.
+ *
+ * The live refresh intentionally re-reads the same `[from, to)` window every
+ * `AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS`, so with two panels on the
+ * same range the page paid two identical requests per period (Issue #238
+ * measured 14 identical bucket URLs in 60 s and 3685 in two days). Sharing for
+ * exactly one refresh period keeps every panel's data at most one period old,
+ * which is the freshness the live refresh already accepts, and halves the
+ * requests. Query results are replaced wholesale, never mutated in place.
+ */
+const liquidationBucketsCache = createRequestCache()
 
 /** Monday 1970-01-05T00:00:00Z; mirrors `MONDAY_EPOCH_OFFSET_MS` on the backend. */
 const MONDAY_EPOCH_OFFSET_MS = 4 * 86_400_000
@@ -218,13 +232,23 @@ export async function fetchAggregatedLiquidationsBuckets(
   params: FetchAggregatedLiquidationsBucketsParams,
 ): Promise<AggregatedLiquidationsBuckets> {
   const { interval, from, to, signal, fetchImpl = fetch } = params
-  const response = await fetchImpl(
-    `${API_BASE}${aggregatedLiquidationsBucketsPath({ interval, from, to })}`,
-    {
+  const path = aggregatedLiquidationsBucketsPath({ interval, from, to })
+  const readWindow = (requestSignal: AbortSignal | undefined) => () =>
+    fetchImpl(`${API_BASE}${path}`, {
       headers: { Accept: 'application/json' },
-      signal,
-    },
-  )
+      signal: requestSignal,
+    })
+  // A shared window is signal-free: one panel changing range must not reject
+  // the window another panel is waiting for. Callers drop a late response
+  // through their own abort/generation guard.
+  const response =
+    fetchImpl === fetch
+      ? await liquidationBucketsCache.share(
+          path,
+          AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS,
+          readWindow(undefined),
+        )
+      : await readWindow(signal)()
 
   if (!response.ok) {
     let detail = response.statusText
