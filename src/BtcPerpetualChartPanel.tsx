@@ -12,6 +12,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
+import { nextLiveRefreshDelayMs } from '@/lib/liveRefresh'
 import { cn } from '@/lib/utils'
 import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
@@ -2694,10 +2695,25 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     if (!liquidationsEnabled) return
     if (!shouldUseAggregatedLiquidationBuckets(interval)) return
-    const timer = window.setInterval(() => {
+    const tick = () =>
       setLiquidationBucketsRevision((revision) => revision + 1)
-    }, AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS)
-    return () => window.clearInterval(timer)
+    // The first tick is anchored to a wall-clock period boundary and the fixed
+    // interval then keeps that phase, so every panel reads the same window at
+    // the same moment and the shared request cache sees one caller rather than
+    // one per panel. The period itself is unchanged: one live refresh per
+    // `AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS`.
+    let repeatTimer: number | null = null
+    const firstTimer = window.setTimeout(() => {
+      tick()
+      repeatTimer = window.setInterval(
+        tick,
+        AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS,
+      )
+    }, nextLiveRefreshDelayMs(Date.now(), AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS))
+    return () => {
+      window.clearTimeout(firstTimer)
+      if (repeatTimer !== null) window.clearInterval(repeatTimer)
+    }
   }, [interval, liquidationsEnabled])
 
   useEffect(() => {

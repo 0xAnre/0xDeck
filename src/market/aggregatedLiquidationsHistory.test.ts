@@ -10,6 +10,7 @@ import {
   aggregatedLiquidationsHistoryPath,
   AggregatedLiquidationsHistoryClientError,
   fetchAggregatedLiquidationsHistory,
+  fetchAggregatedLiquidationsHistoryPage,
   liquidationHistoryCursorAdvances,
   mergeAggregatedLiquidationEvents,
   parseAggregatedLiquidationsHistoryPage,
@@ -566,5 +567,48 @@ describe('fetchAggregatedLiquidationsHistory', () => {
         error.status === 400 &&
         error.message === 'bad params',
     )
+  })
+})
+
+describe('shared liquidation history pages', () => {
+  // Regression guard for the Issue #239 review: the page cache used to store the
+  // `Response`, whose body can be read once, so the second walk sharing a page
+  // threw "Body has already been read" and silently kept no history. The cache
+  // now stores the parsed page.
+  it('serves one cursored page to two walks without re-reading the body', async () => {
+    const realFetch = globalThis.fetch
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input))
+      return new Response(
+        JSON.stringify(
+          page([historyEvent(`shared-${calls.length}`, BASE_TIME_MS)], {
+            hasMore: true,
+            nextBefore: BASE_TIME_MS - MINUTE,
+            nextBeforeId: `shared-${calls.length}`,
+          }),
+        ),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as typeof fetch
+
+    const params = {
+      before: BASE_TIME_MS,
+      beforeId: 'shared-cursor-test',
+      limit: 3,
+    }
+    try {
+      const first = await fetchAggregatedLiquidationsHistoryPage(params)
+      const second = await fetchAggregatedLiquidationsHistoryPage(params)
+
+      assert.equal(calls.length, 1)
+      assert.deepEqual(
+        second.events.map((event) => event.id),
+        first.events.map((event) => event.id),
+      )
+      assert.deepEqual(first.events.map((event) => event.id), ['shared-1'])
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 })

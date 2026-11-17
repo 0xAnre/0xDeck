@@ -17,7 +17,14 @@
  *   means "dedupe in flight only", which is what a live edge read needs.
  *
  * Cached values are shared by reference, so callers must treat a response as
- * immutable (the market clients only read and re-merge into new arrays).
+ * immutable (the market clients only read and re-merge into new arrays). Cache
+ * the **parsed payload**, never a `Response`: a body can be read once, so a
+ * second caller reusing a cached `Response` would throw "Body has already been
+ * read" instead of being served.
+ *
+ * A TTL that reaches the caller's own refresh period defeats itself: the window
+ * starts when the response settles, so `ttlMs = period` makes the next tick a
+ * hit. Keep it well below the period.
  *
  * Pure and dependency-free so `node --experimental-strip-types` can execute
  * `requestCache.test.ts` (`npm run test:ui`).

@@ -40,6 +40,11 @@ export const AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES = 12
  * immutable (the collector only appends newer events), so a reused page is
  * exact, not approximate. The uncursored newest page keeps a zero window: it is
  * the live-edge gap fill and must always be read fresh.
+ *
+ * The 30 s window is a sharing window, not a promise that a cursor page is
+ * requested once in a session: a walk that starts more than 30 s after a page
+ * settled reads that page again (the rows are still exact — it is one more
+ * request, not stale data).
  */
 const AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS = 30_000
 const liquidationHistoryPageCache = createRequestCache()
@@ -281,38 +286,39 @@ export async function fetchAggregatedLiquidationsHistoryPage(
     ),
   )
   const path = aggregatedLiquidationsHistoryPath({ before, beforeId, limit: safeLimit })
-  const readPage = (requestSignal: AbortSignal | undefined) => () =>
-    fetchImpl(`${API_BASE}${path}`, {
+  // The shared value is the parsed page, never the `Response`: a body can be
+  // read once, so a second walk reusing a cached `Response` would throw "Body
+  // has already been read" and silently lose its history.
+  const readPage = (requestSignal: AbortSignal | undefined) => async () => {
+    const response = await fetchImpl(`${API_BASE}${path}`, {
       headers: { Accept: 'application/json' },
       signal: requestSignal,
     })
+    if (!response.ok) {
+      let detail = response.statusText
+      try {
+        const errorBody = (await response.json()) as { detail?: string }
+        if (errorBody.detail) detail = errorBody.detail
+      } catch {
+        // ignore parse errors
+      }
+      throw new AggregatedLiquidationsHistoryClientError(detail, response.status)
+    }
+    const json = (await response.json()) as unknown
+    return parseAggregatedLiquidationsHistoryPage(json)
+  }
   // Injected fetches (unit tests) bypass the shared cache and keep the caller's
   // signal. The shared read is signal-free on purpose: one walk aborting must
   // not reject a page another walk is waiting for; `fetchAggregatedLiquidationsHistory`
   // stops between pages instead. The live-edge page (no cursor) is always read
   // fresh and only deduped while in flight.
-  const response =
-    fetchImpl === fetch
-      ? await liquidationHistoryPageCache.share(
-          path,
-          before === null ? 0 : AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS,
-          readPage(undefined),
-        )
-      : await readPage(signal)()
-
-  if (!response.ok) {
-    let detail = response.statusText
-    try {
-      const errorBody = (await response.json()) as { detail?: string }
-      if (errorBody.detail) detail = errorBody.detail
-    } catch {
-      // ignore parse errors
-    }
-    throw new AggregatedLiquidationsHistoryClientError(detail, response.status)
-  }
-
-  const json = (await response.json()) as unknown
-  return parseAggregatedLiquidationsHistoryPage(json)
+  return fetchImpl === fetch
+    ? await liquidationHistoryPageCache.share(
+        path,
+        before === null ? 0 : AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS,
+        readPage(undefined),
+      )
+    : await readPage(signal)()
 }
 
 export type FetchAggregatedLiquidationsHistoryParams = {

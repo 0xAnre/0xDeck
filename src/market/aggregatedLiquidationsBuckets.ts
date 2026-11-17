@@ -42,15 +42,32 @@ export const AGGREGATED_LIQUIDATIONS_BUCKETS_MIN_INTERVAL_SECONDS = 1800
 export const AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS = 15_000
 
 /**
+ * How long a settled bucket window is reused, in ms.
+ *
+ * Deliberately a fraction of `AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS`
+ * and never equal to it: `createRequestCache` measures its window from the
+ * moment a response **settles** (tick + latency), so a TTL equal to the refresh
+ * period makes the very next tick a hit
+ * (`tick - settledAt = period - latency < period`) and the pane quietly refreshes
+ * once per two periods. Measured on this branch before the fix: 29 297 / 30 000 ms
+ * between requests instead of ~15 000 ms. At 5 s the next tick is always a miss,
+ * so the live cadence stays exactly one period, while panels whose ticks land
+ * inside one share window (ticks are wall-clock aligned, `nextLiveRefreshDelayMs`)
+ * still pay for a single request.
+ */
+export const AGGREGATED_LIQUIDATIONS_BUCKETS_SHARE_TTL_MS = 5_000
+
+/**
  * One bucket window is one request, however many panels ask for it.
  *
  * The live refresh intentionally re-reads the same `[from, to)` window every
  * `AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS`, so with two panels on the
  * same range the page paid two identical requests per period (Issue #238
- * measured 14 identical bucket URLs in 60 s and 3685 in two days). Sharing for
- * exactly one refresh period keeps every panel's data at most one period old,
- * which is the freshness the live refresh already accepts, and halves the
- * requests. Query results are replaced wholesale, never mutated in place.
+ * measured 14 identical bucket URLs in 60 s and 3685 in two days). In-flight
+ * reads always join; a settled window is reused for
+ * `AGGREGATED_LIQUIDATIONS_BUCKETS_SHARE_TTL_MS` — a fraction of the period, so
+ * reuse can never swallow the next tick. Query results are replaced wholesale,
+ * never mutated in place.
  */
 const liquidationBucketsCache = createRequestCache()
 
@@ -233,36 +250,38 @@ export async function fetchAggregatedLiquidationsBuckets(
 ): Promise<AggregatedLiquidationsBuckets> {
   const { interval, from, to, signal, fetchImpl = fetch } = params
   const path = aggregatedLiquidationsBucketsPath({ interval, from, to })
-  const readWindow = (requestSignal: AbortSignal | undefined) => () =>
-    fetchImpl(`${API_BASE}${path}`, {
+  // The shared value is the parsed window, never the `Response`: a body can be
+  // read once, so a second caller reusing a cached `Response` would throw
+  // "Body has already been read" — sharing the request would have broken the
+  // second panel instead of serving it.
+  const readWindow = (requestSignal: AbortSignal | undefined) => async () => {
+    const response = await fetchImpl(`${API_BASE}${path}`, {
       headers: { Accept: 'application/json' },
       signal: requestSignal,
     })
+    if (!response.ok) {
+      let detail = response.statusText
+      try {
+        const errorBody = (await response.json()) as { detail?: string }
+        if (errorBody.detail) detail = errorBody.detail
+      } catch {
+        // ignore parse errors
+      }
+      throw new AggregatedLiquidationsBucketsClientError(detail, response.status)
+    }
+    const json = (await response.json()) as unknown
+    return parseAggregatedLiquidationsBuckets(json, interval)
+  }
   // A shared window is signal-free: one panel changing range must not reject
   // the window another panel is waiting for. Callers drop a late response
   // through their own abort/generation guard.
-  const response =
-    fetchImpl === fetch
-      ? await liquidationBucketsCache.share(
-          path,
-          AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS,
-          readWindow(undefined),
-        )
-      : await readWindow(signal)()
-
-  if (!response.ok) {
-    let detail = response.statusText
-    try {
-      const errorBody = (await response.json()) as { detail?: string }
-      if (errorBody.detail) detail = errorBody.detail
-    } catch {
-      // ignore parse errors
-    }
-    throw new AggregatedLiquidationsBucketsClientError(detail, response.status)
-  }
-
-  const json = (await response.json()) as unknown
-  return parseAggregatedLiquidationsBuckets(json, interval)
+  return fetchImpl === fetch
+    ? await liquidationBucketsCache.share(
+        path,
+        AGGREGATED_LIQUIDATIONS_BUCKETS_SHARE_TTL_MS,
+        readWindow(undefined),
+      )
+    : await readWindow(signal)()
 }
 
 /**
