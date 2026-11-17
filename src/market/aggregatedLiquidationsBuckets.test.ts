@@ -6,6 +6,8 @@ import {
   type AggregatedLiquidationEvent,
 } from './aggregatedLiquidations.ts'
 import {
+  AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS,
+  AGGREGATED_LIQUIDATIONS_BUCKETS_SHARE_TTL_MS,
   aggregatedLiquidationsBucketsPath,
   AggregatedLiquidationsBucketsClientError,
   buildAggregatedLiquidationsBucketRequest,
@@ -384,5 +386,62 @@ describe('<= 15m path regression', () => {
 
   it('never routes 15m to the bucket request path', () => {
     assert.equal(shouldUseAggregatedLiquidationBuckets('15m'), false)
+  })
+})
+
+describe('live refresh cadence', () => {
+  // Regression guard for the Issue #239 review: a share TTL equal to the
+  // refresh period made every second tick a cache hit, so the pane refreshed
+  // every other period instead (measured 29 297 / 30 000 ms between requests
+  // on 30m). Four ticks must therefore be four reads, not two.
+  it('reads one bucket window once per live refresh period', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: 0 })
+    const period = AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS
+    const from = BASE_TIME_MS + 6 * HOUR
+    const to = BASE_TIME_MS + 7 * HOUR
+    const reads: number[] = []
+    const realFetch = globalThis.fetch
+    const latencyMs = 250
+    globalThis.fetch = (async () => {
+      reads.push(Date.now())
+      // Model a network round trip: the cache window starts when the response
+      // settles, not when the tick fired. That offset is what a period-sized TTL
+      // turned into a free hit on the next tick.
+      t.mock.timers.setTime(Date.now() + latencyMs)
+      return new Response(JSON.stringify(bucketPayload({ interval: '1h' })), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as typeof fetch
+
+    const readWindow = () =>
+      fetchAggregatedLiquidationsBuckets({ interval: '1h', from, to })
+
+    try {
+      // One wall-clock tick per period, each followed 100 ms later by a second
+      // panel's read of the same window: the shared read must collapse, the next
+      // tick must not.
+      for (let tick = 0; tick < 4; tick += 1) {
+        t.mock.timers.setTime(tick * period)
+        await readWindow()
+        t.mock.timers.setTime(tick * period + 100)
+        await readWindow()
+      }
+    } finally {
+      globalThis.fetch = realFetch
+    }
+
+    assert.equal(reads.length, 4, `requests at ${JSON.stringify(reads)}`)
+    assert.deepEqual(
+      reads.map((at, index) => (index === 0 ? 0 : at - reads[index - 1])),
+      [0, period, period, period],
+    )
+  })
+
+  it('shares a settled window for less than one live refresh period', () => {
+    assert.ok(
+      AGGREGATED_LIQUIDATIONS_BUCKETS_SHARE_TTL_MS <
+        AGGREGATED_LIQUIDATIONS_BUCKETS_LIVE_REFRESH_MS,
+    )
   })
 })

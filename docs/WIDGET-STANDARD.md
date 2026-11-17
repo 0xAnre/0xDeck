@@ -77,7 +77,7 @@ Every template is one entry in `src/widgets/registry/definitions.tsx` with these
 - `kpi` — KPI endpoint
 - `candles` — Binance BTC perpetual klines (`/api/market/binance/usdm/btcusdt/klines`)
 
-**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). **BTC Perpetual** (`btc-perpetual-chart`) uses `query-and-stream`: REST klines + context endpoints for VWAP, fixed-range volume profile source (`/klines/volume-profile`), and one WebSocket relay channel per interval (`binance.usdm.btcusdt.kline.{interval}`). Indicator availability is timeframe-specific (see README BTC Perpetual section). Instance interval, indicators, rolling VWAP, and drawing tools persist via the `0xdeck-widget-market-*` and related keys in [AGENTS.md](../AGENTS.md).
+**Stream:** `channel` or `channels` must match `/api/ws/{channel}` (see `src/widgets/stream/`). **BTC Perpetual** (`btc-perpetual-chart`) uses `query-and-stream`: REST klines + context endpoints for VWAP, fixed-range volume profile source (`/klines/volume-profile`), and one WebSocket relay channel per interval (`binance.usdm.btcusdt.kline.{interval}`), shared by every instance that renders it (one live connection per channel, never one per panel). Indicator availability is timeframe-specific (see README BTC Perpetual section). Instance interval, indicators, rolling VWAP, and drawing tools persist via the `0xdeck-widget-market-*` and related keys in [AGENTS.md](../AGENTS.md).
 
 ---
 

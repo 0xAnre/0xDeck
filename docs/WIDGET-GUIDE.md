@@ -132,6 +132,10 @@ Parquet-backed panels use `WidgetDataStateView` (`src/widgets/components/WidgetD
 
 Registry `data` kinds `stream` and `query-and-stream` carry `channel` or `channels` for live feeds. Shared transport lives in `src/widgets/stream/` (`WidgetStreamClient`, message types). The client connects to same-origin `/api/ws/{channel}` (Vite proxies WebSocket to the backend on port 57342).
 
+Subscribe with `subscribeWidgetStream(channel, handlers)` from `@/widgets/stream/sharedClient`, **not** with a fresh `WidgetStreamClient` per widget: the channel name is the subscription identity, so a ref-counted hub (`src/lib/streamSubscriptionRegistry.ts`) keeps exactly one socket per channel while any panel needs it, fans messages and connection state out to every subscriber, and closes it with the last unsubscribe (Issue #238 measured two panels dialing two identical sockets). Use `WidgetStreamClient` directly only for a deliberately unshared connection.
+
+Identical reads are shared too: `createRequestCache` (`src/lib/requestCache.ts`) joins in-flight requests and reuses a settled response for a short TTL, which is what the market klines/context/history, liquidation page and bucket clients use. A widget that would otherwise re-request the same payload on a remount or a sibling panel should route through the same helper.
+
 **BTC Perpetual** is the built-in live widget: it loads history via REST (`candles` query → `/api/market/binance/usdm/btcusdt/klines` and VWAP context routes) and subscribes to `binance.usdm.btcusdt.kline.{interval}` for candle updates. Parquet-backed widgets continue to use REST hooks only.
 
 ---

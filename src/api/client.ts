@@ -20,8 +20,25 @@ import type { TimeRange } from '@/timeRangeStorage'
 
 import { MARKET_CHART_MIN_INITIAL_HISTORY_BARS } from '../market/chartInitialVisibleRange.ts'
 import { API_BASE } from './apiBase.ts'
+import { createRequestCache } from '../lib/requestCache.ts'
 
 const DEFAULT_BINANCE_KLINES_LIMIT = MARKET_CHART_MIN_INITIAL_HISTORY_BARS
+
+/**
+ * Market reads shared across panes (Issue #238).
+ *
+ * Two panels on the same symbol and interval used to fire two identical
+ * `daily-context` requests at once, and a remount re-requested the same page
+ * again. Historical candles are immutable and the live edge arrives over the
+ * WebSocket, so a short reuse window only removes duplicates.
+ *
+ * Requests are deliberately **not** bound to a caller's `AbortSignal`: the
+ * response is shared, and one panel changing interval must not reject the read
+ * another panel is still waiting for. Every call site already drops a late
+ * response through its own generation/abort guard.
+ */
+const MARKET_READ_CACHE_TTL_MS = 30_000
+const marketReadCache = createRequestCache()
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -138,9 +155,13 @@ export async function fetchMarketKlinesContext(
   signal?: AbortSignal,
 ): Promise<MarketKlinesResponse> {
   const params = new URLSearchParams({ interval })
-  return request<MarketKlinesResponse>(
-    `${marketKlinesPath(exchange, `/${level}-context`)}?${params}`,
-    { signal },
+  // Shared reads cannot be aborted per caller; a caller that already gave up
+  // is rejected before joining, and a late response is dropped by its own
+  // generation guard.
+  signal?.throwIfAborted()
+  const path = `${marketKlinesPath(exchange, `/${level}-context`)}?${params}`
+  return marketReadCache.share(path, MARKET_READ_CACHE_TTL_MS, () =>
+    request<MarketKlinesResponse>(path),
   )
 }
 
@@ -154,9 +175,12 @@ export async function fetchMarketKlinesHistory(
     interval,
     before: String(beforeEpochSeconds),
   })
-  return request<MarketKlinesResponse>(
-    `${marketKlinesPath(exchange, '/history')}?${params}`,
-    { signal },
+  // A page anchored at a fixed `before` cursor can never change, so identical
+  // viewport/preload reads share one response instead of refetching it (#238).
+  signal?.throwIfAborted()
+  const path = `${marketKlinesPath(exchange, '/history')}?${params}`
+  return marketReadCache.share(path, MARKET_READ_CACHE_TTL_MS, () =>
+    request<MarketKlinesResponse>(path),
   )
 }
 

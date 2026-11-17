@@ -1,4 +1,10 @@
 export {
+  subscribeWidgetStream,
+  widgetStreamConnectionCount,
+  widgetStreamSubscriberCount,
+  type WidgetStreamSubscription,
+} from '@/widgets/stream/sharedClient'
+export {
   WidgetStreamClient,
   buildWidgetStreamWebSocketUrl,
   type WidgetStreamClientOptions,
