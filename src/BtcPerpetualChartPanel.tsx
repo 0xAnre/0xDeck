@@ -320,6 +320,7 @@ import {
   AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
   AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
   fetchAggregatedLiquidationsHistory,
+  fetchAggregatedLiquidationsHistoryShared,
   mergeAggregatedLiquidationEvents,
 } from '@/market/aggregatedLiquidationsHistory'
 import {
@@ -372,13 +373,21 @@ import {
   loadWidgetMarketInterval,
   saveWidgetMarketInterval,
 } from '@/marketIntervalStorage'
+import {
+  EMPTY_CANDLE_WINDOW,
+  candleWindowEqual,
+  candleWindowOf,
+  type CandleWindow,
+} from '@/market/candleWindow.ts'
+import {
+  shouldStartLiquidationsWalk,
+  type LiquidationsWalkCoverage,
+} from '@/market/liquidationsCoverage.ts'
 import { WidgetDataStateView } from '@/widgets/components/WidgetDataStateView'
 import type { WidgetDataNotReadyState } from '@/widgets/data/types'
 import type { WidgetInstanceProps } from '@/widgets/registry/types'
-import {
-  WidgetStreamClient,
-  type WidgetStreamConnectionState,
-} from '@/widgets/stream/client'
+import type { WidgetStreamConnectionState } from '@/widgets/stream/client'
+import { subscribeWidgetStream } from '@/widgets/stream/sharedClient'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
 import { resolveCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
 import {
@@ -551,6 +560,22 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     BucketedHyperliquidFill[]
   >([])
   const [candleRangeRevision, setCandleRangeRevision] = useState(0)
+  /**
+   * Window last published through `candleRangeRevision`. The revision exists to
+   * tell range-scoped reads (liquidation walk, buckets, account fills) that the
+   * loaded range moved; it must not fire for a notice re-render (#238).
+   */
+  const candleWindowRef = useRef<CandleWindow>(EMPTY_CANDLE_WINDOW)
+  /**
+   * Range already covered by a completed liquidation walk. Kept per interval so
+   * a new candle or an unchanged window never re-walks the same pages, and an
+   * interval change does (#238).
+   */
+  const liquidationWalkCoverageRef = useRef<LiquidationsWalkCoverage | null>(null)
+  /** Last live-socket revision this panel has already gap-filled. */
+  const liquidationSocketRevisionRef = useRef(0)
+  /** Newest liquidation event already in the buffer, for the handshake gap fill. */
+  const newestLiquidationTradeTimeRef = useRef<number | null>(null)
 
   const liquidationsEnabled = activeIndicators.includes('aggregated-liquidations')
 
@@ -562,7 +587,17 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const candlesRef = useRef<MarketCandle[]>([])
   const loadGenerationRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
-  const streamRef = useRef<WidgetStreamClient | null>(null)
+  /**
+   * Releases this panel's subscription to the shared kline channel. The socket
+   * itself is owned by `subscribeWidgetStream`, so another panel on the same
+   * symbol and interval keeps the feed alive while this one reloads (Issue #238:
+   * two panels on one interval used to dial two identical sockets).
+   */
+  const streamUnsubscribeRef = useRef<(() => void) | null>(null)
+  const stopKlineStream = useCallback(() => {
+    streamUnsubscribeRef.current?.()
+    streamUnsubscribeRef.current = null
+  }, [])
   const activeExchangeRef = useRef<MarketExchange>(exchange)
   const activeIntervalRef = useRef<CandleInterval>(interval)
   const providerHistoryAvailableFromRef = useRef<number | null>(null)
@@ -665,9 +700,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     // Candle windows change on initial load, older-history pages and VWAP
     // context merges. Account fills are scoped to those windows, so they must
     // refresh with the chart instead of staying on a stale range.
-    setCandleRangeRevision((revision) => revision + 1)
+    //
+    // Only a *changed* window may bump the revision. This function is also the
+    // display-notice refresher, called for notice-only updates (a preload step,
+    // a repeated merge); bumping unconditionally restarted the full liquidation
+    // walk (`liquidations/history` x12) from the newest cursor on every call,
+    // which is the duplicate paging Issue #238 measured.
+    const nextWindow = candleWindowOf(candlesRef.current)
+    if (!candleWindowEqual(candleWindowRef.current, nextWindow)) {
+      candleWindowRef.current = nextWindow
+      setCandleRangeRevision((revision) => revision + 1)
+    }
     if (!historyReadyRef.current) {
-      setIndicatorHistoryNotices([])
+      setIndicatorHistoryNotices((current) => (current.length === 0 ? current : []))
       return
     }
     const plan = resolveIndicatorHistoryPlan({
@@ -695,7 +740,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (limitNotice !== null && !notices.includes(limitNotice)) {
       notices.push(limitNotice)
     }
-    setIndicatorHistoryNotices(notices)
+    // Keep the array identity when nothing changed: a new array re-rendered the
+    // panel (and every child) on each notice refresh for no visible change.
+    setIndicatorHistoryNotices((current) =>
+      current.length === notices.length &&
+      current.every((notice, index) => notice === notices[index])
+        ? current
+        : notices,
+    )
   }, [])
 
   const scheduleMarketChartViewportPersist = useCallback(() => {
@@ -1853,8 +1905,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       indicatorHistoryAbortRef.current = null
       abortRef.current?.abort()
       abortRef.current = null
-      streamRef.current?.disconnect()
-      streamRef.current = null
+      stopKlineStream()
 
       setDataState({ status: 'loading' })
       setChartReady(false)
@@ -1866,7 +1917,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setHoveredAccountFills([])
       setExchange(next)
     },
-    [panelId],
+    [panelId, stopKlineStream],
   )
 
   const handlePositionMarkersChange = useCallback(
@@ -2508,6 +2559,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     syncRsiPane,
   ])
 
+  useEffect(() => {
+    newestLiquidationTradeTimeRef.current =
+      liquidationEvents.length === 0
+        ? null
+        : liquidationEvents[liquidationEvents.length - 1].tradeTime
+  }, [liquidationEvents])
+
   const mergeLiquidationEventsIntoBuffer = useCallback(
     (incoming: AggregatedLiquidationEvent[]) => {
       if (incoming.length === 0) return
@@ -2524,8 +2582,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     if (!liquidationsEnabled) return
 
-    const client = new WidgetStreamClient({
-      channel: AGGREGATED_LIQUIDATIONS_CHANNEL,
+    // One shared `liquidations` socket for the page: every panel with the pane
+    // enabled subscribes here instead of dialing its own relay connection.
+    return subscribeWidgetStream(AGGREGATED_LIQUIDATIONS_CHANNEL, {
       onStateChange: (state) => {
         // Once the live socket is open, refresh the stored window so events
         // collected between page load and the socket handshake are included.
@@ -2542,8 +2601,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         mergeLiquidationEventsIntoBuffer([event])
       },
     })
-    client.connect()
-    return () => client.disconnect()
   }, [liquidationsEnabled, mergeLiquidationEventsIntoBuffer])
 
   useEffect(() => {
@@ -2556,12 +2613,41 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     if (candleTimes.length === 0) return
 
     const generation = loadGenerationRef.current
-    const controller = new AbortController()
     const oldestTimeMs = Math.min(...candleTimes) * 1000
+    const socketOpened =
+      liquidationHistoryRevision !== liquidationSocketRevisionRef.current
+    liquidationSocketRevisionRef.current = liquidationHistoryRevision
+    // The buffer is additive, so the walk is only needed when it has to reach
+    // further back than the previous completed walk (Issue #238: every
+    // notice-only refresh used to restart it from the newest cursor).
+    const needsWalk = shouldStartLiquidationsWalk({
+      coverage: liquidationWalkCoverageRef.current,
+      interval,
+      requestedOldestTimeMs: oldestTimeMs,
+    })
+    if (!socketOpened && !needsWalk) return
+    const controller = new AbortController()
 
     void (async () => {
       try {
-        const history = await fetchAggregatedLiquidationsHistory({
+        // A freshly opened socket only has to fill the handshake gap: the
+        // newest page is enough and is always read fresh, never from a walk
+        // another panel completed a moment ago.
+        if (socketOpened) {
+          const gapFill = await fetchAggregatedLiquidationsHistory({
+            oldestTimeMs: newestLiquidationTradeTimeRef.current,
+            limit: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
+            maxPages: 1,
+            signal: controller.signal,
+          })
+          if (controller.signal.aborted) return
+          if (generation !== loadGenerationRef.current) return
+          mergeLiquidationEventsIntoBuffer(gapFill.events)
+        }
+
+        if (!needsWalk) return
+
+        const history = await fetchAggregatedLiquidationsHistoryShared({
           oldestTimeMs,
           limit: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
           maxPages: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
@@ -2570,6 +2656,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (controller.signal.aborted) return
         if (generation !== loadGenerationRef.current) return
         mergeLiquidationEventsIntoBuffer(history.events)
+        // A page-capped walk does not cover the requested range, so the next
+        // window change must be allowed to walk again from the newest cursor.
+        liquidationWalkCoverageRef.current = history.truncated
+          ? null
+          : { interval, oldestTimeMs }
         // Replaces the previously dropped `truncated` flag: a page-capped
         // event walk is surfaced with the range it actually covers.
         setLiquidationCoverageNotice({
@@ -2807,8 +2898,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled)) return
     const channel = hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS)
-    const client = new WidgetStreamClient({
-      channel,
+    // Shared per account channel: two panels with position markers on must not
+    // open two identical fill sockets.
+    return subscribeWidgetStream(channel, {
       onMessage: (message) => {
         if (message.type !== 'event') return
         const payload = message.payload
@@ -2822,8 +2914,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         setAccountFills((current) => mergeHyperliquidFills(current, parsed))
       },
     })
-    client.connect()
-    return () => client.disconnect()
   }, [exchange, positionMarkersEnabled])
 
   useEffect(() => {
@@ -3095,8 +3185,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       flushMarketChartViewportPersist()
       detachInfiniteHistoryListener()
       resizeObserver.disconnect()
-      streamRef.current?.disconnect()
-      streamRef.current = null
+      stopKlineStream()
       abortRef.current?.abort()
       abortRef.current = null
       accountMarkersRef.current?.detach()
@@ -3108,7 +3197,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       candlesRef.current = []
       historyReadyRef.current = false
     }
-  }, [flushMarketChartViewportPersist, panelId, refreshIndicatorHistoryNotices, scheduleMarketChartViewportPersist])
+  }, [
+    flushMarketChartViewportPersist,
+    panelId,
+    refreshIndicatorHistoryNotices,
+    scheduleMarketChartViewportPersist,
+    stopKlineStream,
+  ])
 
   useEffect(() => {
     const intervalLeaving = activeIntervalRef.current
@@ -3134,8 +3229,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     resetInfiniteHistoryState(infiniteHistoryRef.current, generation)
 
     abortRef.current?.abort()
-    streamRef.current?.disconnect()
-    streamRef.current = null
+    stopKlineStream()
     candlesRef.current = []
     syncFixedRangeVolumeProfileLiveRightEdge()
 
@@ -3164,13 +3258,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const initialContextLevel = requiredVwapContextLevel(activeIndicatorsRef.current, interval)
 
     const teardownStream = () => {
-      streamRef.current?.disconnect()
-      streamRef.current = null
+      stopKlineStream()
       streamBuffer.clear()
     }
 
-    const client = new WidgetStreamClient({
-      channel,
+    const unsubscribe = subscribeWidgetStream(channel, {
       onStateChange: (state) => {
         if (generation !== loadGenerationRef.current) return
         setStreamState(state)
@@ -3206,8 +3298,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         syncFixedRangeVolumeProfileLiveRightEdge()
       },
     })
-    streamRef.current = client
-    client.connect()
+    streamUnsubscribeRef.current = unsubscribe
 
     const applyInitialSeries = (
       candles: MarketCandle[],
@@ -3411,10 +3502,18 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       historyReady = false
       historyReadyRef.current = false
       streamBuffer.clear()
-      streamRef.current?.disconnect()
-      streamRef.current = null
+      stopKlineStream()
     }
-  }, [exchange, flushMarketChartViewportPersist, interval, panelId, syncAllVwapVisibility, liveVwapContext, syncFixedRangeVolumeProfileLiveRightEdge])
+  }, [
+    exchange,
+    flushMarketChartViewportPersist,
+    interval,
+    liveVwapContext,
+    panelId,
+    stopKlineStream,
+    syncAllVwapVisibility,
+    syncFixedRangeVolumeProfileLiveRightEdge,
+  ])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) return
