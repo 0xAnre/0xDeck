@@ -4,8 +4,11 @@
  * The chart keeps every liquidation event the walk already merged, so a walk is
  * only needed when the pane has *less* coverage than the chart needs: the first
  * load, an exchange/interval change, or a viewport that reached further back.
- * A freshly opened live socket is not a walk trigger: it gap-fills one newest
- * page instead (`fetchAggregatedLiquidationsHistory`, `maxPages: 1`).
+ * A freshly opened live socket is not a walk trigger: it gap-fills the range
+ * between the newest stored event and the newest buffered one instead
+ * (`fillAggregatedLiquidationsGap`, bounded by
+ * `AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES` so a long disconnect is filled
+ * rather than cut at one page).
  *
  * Without this, every candle-window change restarted the newest-to-oldest walk
  * (Issue #238: 38 `liquidations/history` requests for one page load, the same

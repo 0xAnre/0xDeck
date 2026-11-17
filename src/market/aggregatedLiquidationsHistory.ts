@@ -416,12 +416,65 @@ export async function fetchAggregatedLiquidationsHistory(
   }
 }
 
+export type FillAggregatedLiquidationsGapParams = {
+  /**
+   * Newest event the caller already holds, in epoch milliseconds: the walk stops
+   * as soon as it has reached it. `null` when the buffer is empty.
+   */
+  sinceTradeTimeMs?: number | null
+  limit?: number
+  signal?: AbortSignal
+  fetchImpl?: typeof fetch
+}
+
+/**
+ * Fill the range a live socket missed while it was closed.
+ *
+ * The walk is bounded by the newest buffered event, so it reads only what is
+ * missing and never re-reads the loaded candle range. It is still a *walk*: a
+ * disconnect that spans a liquidation cascade stores far more than one page, and
+ * stopping after the newest page left the middle of the pane permanently empty
+ * (Issue #239 review, MINOR-A). `AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES` is
+ * the bound the pre-Issue-#238 socket-open walk already had, so a long
+ * disconnect is covered exactly as it was before.
+ *
+ * An empty buffer has no gap to bridge, so it reads one newest page: the
+ * candle-window walk owns the full range there, and a cold page load must not
+ * pay for a 12-page walk. The newest page is always read fresh (never from the
+ * walk cache), so a gap fill sees events another panel's walk just settled on.
+ */
+export async function fillAggregatedLiquidationsGap(
+  params: FillAggregatedLiquidationsGapParams = {},
+): Promise<AggregatedLiquidationsHistory> {
+  const {
+    sinceTradeTimeMs = null,
+    limit = AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
+    signal,
+    fetchImpl,
+  } = params
+  const fill = await fetchAggregatedLiquidationsHistory({
+    oldestTimeMs: sinceTradeTimeMs,
+    limit,
+    // No buffered edge means no gap: one page is enough and keeps a cold page
+    // load at one request.
+    maxPages:
+      sinceTradeTimeMs === null ? 1 : AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
+    signal,
+    fetchImpl,
+  })
+  // `truncated` describes the *gap*: the deliberate single page of an empty
+  // buffer has nothing behind it to leave incomplete, so it never reports one.
+  // The caller drops its coverage record only for a real, page-capped gap.
+  return sinceTradeTimeMs === null ? { ...fill, truncated: false } : fill
+}
+
 /**
  * Same walk, shared by every caller with the same request signature.
  *
  * Used by the chart's candle-window walk. A caller that must see the newest
  * stored events (the live-socket gap fill) calls
- * `fetchAggregatedLiquidationsHistory` directly with a bounded `maxPages`.
+ * `fillAggregatedLiquidationsGap` instead, which never goes through the walk
+ * cache.
  */
 export async function fetchAggregatedLiquidationsHistoryShared(
   params: FetchAggregatedLiquidationsHistoryParams = {},

@@ -7,10 +7,12 @@ import {
   type AggregatedLiquidationEvent,
 } from './aggregatedLiquidations.ts'
 import {
+  AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
   aggregatedLiquidationsHistoryPath,
   AggregatedLiquidationsHistoryClientError,
   fetchAggregatedLiquidationsHistory,
   fetchAggregatedLiquidationsHistoryPage,
+  fillAggregatedLiquidationsGap,
   liquidationHistoryCursorAdvances,
   mergeAggregatedLiquidationEvents,
   parseAggregatedLiquidationsHistoryPage,
@@ -567,6 +569,135 @@ describe('fetchAggregatedLiquidationsHistory', () => {
         error.status === 400 &&
         error.message === 'bad params',
     )
+  })
+})
+
+describe('fillAggregatedLiquidationsGap', () => {
+  const SECOND = 1_000
+  /** Newest event the panel already holds; everything newer is the gap. */
+  const bufferedEdgeMs = BASE_TIME_MS - 30 * MINUTE
+
+  /** Backend pages for `missed` events, newest-first, `limit` per page. */
+  function gapPages(missed: number, limit = 1_000) {
+    const newestFirst = Array.from({ length: missed }, (_, index) => ({
+      id: `gap-${missed - index}`,
+      tradeTime: bufferedEdgeMs + (missed - index) * SECOND,
+    }))
+    const pages: unknown[] = []
+    for (let offset = 0; offset < newestFirst.length; offset += limit) {
+      const slice = newestFirst.slice(offset, offset + limit)
+      const oldest = slice[slice.length - 1]
+      const hasMore = offset + limit < newestFirst.length
+      pages.push(
+        page(
+          slice.map((row) => historyEvent(row.id, row.tradeTime)),
+          hasMore
+            ? {
+                hasMore: true,
+                nextBefore: oldest.tradeTime,
+                nextBeforeId: oldest.id,
+              }
+            : {},
+        ),
+      )
+    }
+    return pages
+  }
+
+  // Issue #239 review (MINOR-A): the socket-open gap fill read one page only, so
+  // a disconnect that stored more than 1,000 liquidations left the middle of the
+  // pane permanently empty while `shouldStartLiquidationsWalk` reported the
+  // range as covered.
+  it('fills a disconnect gap longer than one page without leaving a hole', async () => {
+    const missed = 2_700
+    const { fetchImpl, calls } = fakeFetch(gapPages(missed))
+
+    const result = await fillAggregatedLiquidationsGap({
+      sinceTradeTimeMs: bufferedEdgeMs,
+      limit: 1_000,
+      fetchImpl,
+    })
+
+    // Three pages, because the newest page (1,000 events) is not the gap.
+    assert.equal(calls.length, 3)
+    assert.equal(result.truncated, false)
+    // Every missed event is there and the fill is contiguous with the edge the
+    // panel already held, so no interval is skipped.
+    assert.equal(result.events.length, missed)
+    assert.equal(result.events[0].tradeTime, bufferedEdgeMs + SECOND)
+    assert.equal(
+      result.events[missed - 1].tradeTime,
+      bufferedEdgeMs + missed * SECOND,
+    )
+    const steps = new Set<number>()
+    for (let index = 0; index < result.events.length; index += 1) {
+      const previous =
+        index === 0 ? bufferedEdgeMs : result.events[index - 1].tradeTime
+      steps.add(result.events[index].tradeTime - previous)
+    }
+    assert.deepEqual([...steps], [SECOND])
+  })
+
+  it('reports a gap wider than the page cap instead of claiming coverage', async () => {
+    const { fetchImpl, calls } = fakeFetch(gapPages(12_500))
+
+    const result = await fillAggregatedLiquidationsGap({
+      sinceTradeTimeMs: bufferedEdgeMs,
+      limit: 1_000,
+      fetchImpl,
+    })
+
+    // The cap still bounds a very long disconnect, and the caller learns the
+    // pane is incomplete (it drops its coverage record) instead of assuming it.
+    assert.equal(calls.length, AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES)
+    assert.equal(result.pages, AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES)
+    assert.equal(result.truncated, true)
+    assert.equal(result.events.length, 12_000)
+  })
+
+  it('reads one page when the newest page already reaches the buffered edge', async () => {
+    // Short reconnect: the page that crosses the edge is the last one the walk
+    // needs, so it stops there instead of paging further back.
+    const { fetchImpl, calls } = fakeFetch([
+      page(
+        [
+          historyEvent('newest', bufferedEdgeMs + MINUTE),
+          historyEvent('older', bufferedEdgeMs - MINUTE),
+        ],
+        {
+          hasMore: true,
+          nextBefore: bufferedEdgeMs - MINUTE,
+          nextBeforeId: 'older',
+        },
+      ),
+    ])
+
+    const result = await fillAggregatedLiquidationsGap({
+      sinceTradeTimeMs: bufferedEdgeMs,
+      limit: 1_000,
+      fetchImpl,
+    })
+
+    assert.equal(calls.length, 1)
+    assert.equal(result.truncated, false)
+  })
+
+  it('reads one page for an empty buffer instead of a full walk', async () => {
+    // Cold load: the candle-window walk owns the range, so the gap fill must not
+    // pay for the 12-page cap.
+    const { fetchImpl, calls } = fakeFetch([
+      page([historyEvent('newest', BASE_TIME_MS)], {
+        hasMore: true,
+        nextBefore: BASE_TIME_MS - MINUTE,
+        nextBeforeId: 'newest',
+      }),
+    ])
+
+    const result = await fillAggregatedLiquidationsGap({ limit: 1_000, fetchImpl })
+
+    assert.equal(calls.length, 1)
+    assert.equal(result.truncated, false)
+    assert.equal(result.events.length, 1)
   })
 })
 

@@ -320,8 +320,8 @@ import {
 import {
   AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
   AGGREGATED_LIQUIDATIONS_HISTORY_MAX_PAGES,
-  fetchAggregatedLiquidationsHistory,
   fetchAggregatedLiquidationsHistoryShared,
+  fillAggregatedLiquidationsGap,
   mergeAggregatedLiquidationEvents,
 } from '@/market/aggregatedLiquidationsHistory'
 import {
@@ -2631,19 +2631,27 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
     void (async () => {
       try {
-        // A freshly opened socket only has to fill the handshake gap: the
-        // newest page is enough and is always read fresh, never from a walk
-        // another panel completed a moment ago.
+        // A freshly opened socket has to fill everything stored while it was
+        // closed, not only the newest page: a disconnect that spans a cascade
+        // leaves more than `AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT` events
+        // behind, and a one-page fill left that range permanently empty (Issue
+        // #239 review, MINOR-A). The newest buffered event is the stop
+        // condition, so this never re-reads the loaded candle range, and the
+        // fill reads its pages fresh, never from a walk another panel completed
+        // a moment ago.
         if (socketOpened) {
-          const gapFill = await fetchAggregatedLiquidationsHistory({
-            oldestTimeMs: newestLiquidationTradeTimeRef.current,
+          const gapFill = await fillAggregatedLiquidationsGap({
+            sinceTradeTimeMs: newestLiquidationTradeTimeRef.current,
             limit: AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT,
-            maxPages: 1,
             signal: controller.signal,
           })
           if (controller.signal.aborted) return
           if (generation !== loadGenerationRef.current) return
           mergeLiquidationEventsIntoBuffer(gapFill.events)
+          // A gap wider than the page cap is still incomplete: forget the
+          // covered range so the next window change walks again instead of
+          // treating the pane as complete.
+          if (gapFill.truncated) liquidationWalkCoverageRef.current = null
         }
 
         if (!needsWalk) return
