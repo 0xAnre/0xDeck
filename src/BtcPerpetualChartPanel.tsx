@@ -381,6 +381,7 @@ import {
   type CandleWindow,
 } from '@/market/candleWindow.ts'
 import {
+  applyLiquidationsGapFill,
   shouldStartLiquidationsWalk,
   type LiquidationsWalkCoverage,
 } from '@/market/liquidationsCoverage.ts'
@@ -2636,9 +2637,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         // leaves more than `AGGREGATED_LIQUIDATIONS_HISTORY_MAX_LIMIT` events
         // behind, and a one-page fill left that range permanently empty (Issue
         // #239 review, MINOR-A). The newest buffered event is the stop
-        // condition, so this never re-reads the loaded candle range, and the
-        // fill reads its pages fresh, never from a walk another panel completed
-        // a moment ago.
+        // condition, so this never re-reads the loaded candle range. Only the
+        // uncursored newest page is read fresh; the cursored pages behind it
+        // come from `liquidationHistoryPageCache`, so a page a fill or walk
+        // already read within `AGGREGATED_LIQUIDATIONS_PAGE_CACHE_TTL_MS`
+        // (30 s) is reused rather than re-requested.
         if (socketOpened) {
           const gapFill = await fillAggregatedLiquidationsGap({
             sinceTradeTimeMs: newestLiquidationTradeTimeRef.current,
@@ -2650,8 +2653,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           mergeLiquidationEventsIntoBuffer(gapFill.events)
           // A gap wider than the page cap is still incomplete: forget the
           // covered range so the next window change walks again instead of
-          // treating the pane as complete.
-          if (gapFill.truncated) liquidationWalkCoverageRef.current = null
+          // treating the pane as complete, and report the gap so the hole is
+          // not silently discovered on the next pan (#239 review, NIT-1).
+          const afterGapFill = applyLiquidationsGapFill({
+            interval,
+            coverage: liquidationWalkCoverageRef.current,
+            fill: gapFill,
+          })
+          liquidationWalkCoverageRef.current = afterGapFill.coverage
+          if (afterGapFill.notice) setLiquidationCoverageNotice(afterGapFill.notice)
         }
 
         if (!needsWalk) return
