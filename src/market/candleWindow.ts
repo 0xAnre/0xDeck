@@ -26,8 +26,11 @@ export const EMPTY_CANDLE_WINDOW: CandleWindow = { oldest: null, newest: null }
 export function candleWindowOf(candles: readonly { time: number }[]): CandleWindow {
   if (candles.length === 0) return EMPTY_CANDLE_WINDOW
 
-  // Candles are kept ascending; scanning both ends keeps this O(1)-ish for the
-  // hot path (live ticks) while staying correct for a merged page.
+  // Candles are kept ascending, but a merged history page and a live update are
+  // not guaranteed to leave both ends right, so this scans the whole window
+  // rather than trusting `candles[0]` and the last entry. It runs once per
+  // published candle window (load, older page, VWAP context merge), never on the
+  // live-tick path, so the linear scan is not on a hot path.
   let oldest = candles[0].time
   let newest = candles[0].time
   for (const candle of candles) {

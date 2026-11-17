@@ -59,9 +59,6 @@ describe('createRequestCache', () => {
       return Promise.resolve(runs)
     }
 
-    const shared = deferred<void>()
-    void shared
-
     assert.equal(await cache.share('key', 0, run), 1)
     now = 1
     assert.equal(await cache.share('key', 0, run), 2)
