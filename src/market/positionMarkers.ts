@@ -17,7 +17,7 @@ export const POSITION_MARKER_SELL_COLOR = MARKET_SEMANTIC_NEGATIVE_COLOR
 export const POSITION_MARKER_SIZE_MIN = 0.5
 export const POSITION_MARKER_SIZE_MAX = 3
 export const POSITION_MARKER_SIZE_STEP = 0.25
-export const POSITION_MARKER_SIZE_DEFAULT = 1.25
+export const POSITION_MARKER_SIZE_DEFAULT = 1
 
 /** Per-widget Position Markers state: visibility plus the presentation-only size. */
 export type PositionMarkerSettings = {

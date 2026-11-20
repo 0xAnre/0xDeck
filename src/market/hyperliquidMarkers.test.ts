@@ -64,11 +64,11 @@ describe('Hyperliquid side-only marker mapping', () => {
     })
   })
 
-  it('defaults the arrow size to 1.25x instead of the fixed 1.5 from #241', () => {
-    assert.equal(POSITION_MARKER_SIZE_DEFAULT, 1.25)
-    assert.equal(hyperliquidFillMarkerStyle('B').size, 1.25)
-    assert.equal(hyperliquidFillMarkerStyle('A').size, 1.25)
-    assert.equal(hyperliquidFillGroupMarker(group('A'), COLORS).size, 1.25)
+  it('defaults the arrow size to 1x instead of the fixed 1.5 from #241', () => {
+    assert.equal(POSITION_MARKER_SIZE_DEFAULT, 1)
+    assert.equal(hyperliquidFillMarkerStyle('B').size, 1)
+    assert.equal(hyperliquidFillMarkerStyle('A').size, 1)
+    assert.equal(hyperliquidFillGroupMarker(group('A'), COLORS).size, 1)
   })
 
   it('carries the user size to both sides without changing anything else', () => {
@@ -117,7 +117,7 @@ describe('Hyperliquid side-only marker mapping', () => {
   it('clamps an invalid size instead of rendering it', () => {
     assert.equal(hyperliquidFillMarkerStyle('B', 99).size, 3)
     assert.equal(hyperliquidFillMarkerStyle('A', 0.1).size, 0.5)
-    assert.equal(hyperliquidFillMarkerStyle('B', Number.NaN).size, 1.25)
+    assert.equal(hyperliquidFillMarkerStyle('B', Number.NaN).size, 1)
     assert.equal(hyperliquidFillGroupsToMarkers([group('B')], COLORS, 1.3)[0]?.size, 1.25)
   })
 
