@@ -14,6 +14,7 @@ import {
   POSITION_MARKER_SIZE_MAX,
   POSITION_MARKER_SIZE_MIN,
   POSITION_MARKER_SIZE_STEP,
+  positionMarkerSizeFieldIds,
   positionMarkerSizeLabel,
   sanitizePositionMarkerSize,
   type PositionMarkerSettings,
@@ -24,10 +25,9 @@ import {
   CHART_SETTINGS_DIALOG_OVERLAY_CLASS,
 } from '@/widgetSettings/chartSettingsDialogLayout'
 
-const MARKER_SIZE_LABEL_ID = 'position-marker-size-label'
-
 type MarketPositionMarkerSettingsDialogProps = {
   open: boolean
+  panelId: string
   settings: PositionMarkerSettings
   returnFocusId: string
   onOpenChange: (open: boolean) => void
@@ -43,14 +43,18 @@ type MarketPositionMarkerSettingsDialogProps = {
  * visibility toggle stays in the Indicators menu row.
  */
 function MarketPositionMarkerSettingsDialogBody({
+  panelId,
   settings,
   onCancel,
   onSubmit,
 }: {
+  panelId: string
   settings: PositionMarkerSettings
   onCancel: () => void
   onSubmit: (size: number) => void
 }) {
+  // Panel-scoped ids: `labelId`/`sliderId` can never collide with another panel.
+  const { labelId, sliderId } = positionMarkerSizeFieldIds(panelId)
   const [initial] = useState<number>(() => sanitizePositionMarkerSize(settings.size))
   const [draft, setDraft] = useState<number>(initial)
 
@@ -60,14 +64,14 @@ function MarketPositionMarkerSettingsDialogBody({
         <FieldGroup>
           <Field>
             <div className="flex items-center justify-between gap-2">
-              <FieldLabel id={MARKER_SIZE_LABEL_ID}>Marker Size</FieldLabel>
+              <FieldLabel id={labelId}>Marker Size</FieldLabel>
               <span className="text-xs tabular-nums text-muted-foreground">
                 {positionMarkerSizeLabel(draft)}
               </span>
             </div>
             <Slider
-              id="position-marker-size"
-              aria-labelledby={MARKER_SIZE_LABEL_ID}
+              id={sliderId}
+              aria-labelledby={labelId}
               min={POSITION_MARKER_SIZE_MIN}
               max={POSITION_MARKER_SIZE_MAX}
               step={POSITION_MARKER_SIZE_STEP}
@@ -100,6 +104,7 @@ function MarketPositionMarkerSettingsDialogBody({
 
 export function MarketPositionMarkerSettingsDialog({
   open,
+  panelId,
   settings,
   returnFocusId,
   onOpenChange,
@@ -131,6 +136,7 @@ export function MarketPositionMarkerSettingsDialog({
         </DialogHeader>
         {open ? (
           <MarketPositionMarkerSettingsDialogBody
+            panelId={panelId}
             settings={settings}
             onCancel={() => onOpenChange(false)}
             onSubmit={handleSave}

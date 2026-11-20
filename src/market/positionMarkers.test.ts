@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import {
   loadWidgetMarketPositionMarkerSettings,
@@ -14,6 +16,7 @@ import {
   POSITION_MARKER_SIZE_MAX,
   POSITION_MARKER_SIZE_MIN,
   POSITION_MARKER_SIZE_STEP,
+  positionMarkerSizeFieldIds,
   positionMarkerSizeLabel,
   sanitizePositionMarkerSettings,
   sanitizePositionMarkerSize,
@@ -273,5 +276,209 @@ describe('Position Markers meaning', () => {
     assert.equal(shouldShowPositionMarkers('hyperliquid', false), false)
     assert.equal(shouldShowPositionMarkers('binance', true), false)
     assert.equal(shouldShowPositionMarkers('binance', false), false)
+  })
+})
+
+describe('Position Markers dialog field ids', () => {
+  it('derives the label and slider ids from the panel id', () => {
+    assert.deepEqual(positionMarkerSizeFieldIds('btc-perpetual-chart-e2e'), {
+      labelId: 'btc-perpetual-chart-e2e-position-marker-size-label',
+      sliderId: 'btc-perpetual-chart-e2e-position-marker-size',
+    })
+  })
+
+  it('never shares ids between two panels', () => {
+    const first = positionMarkerSizeFieldIds('btc-perpetual-chart-aaa111')
+    const second = positionMarkerSizeFieldIds('btc-perpetual-chart-bbb222')
+
+    assert.notEqual(first.sliderId, second.sliderId)
+    assert.notEqual(first.labelId, second.labelId)
+    // `htmlFor`/`aria-labelledby` must never resolve to the slider itself.
+    assert.notEqual(first.labelId, first.sliderId)
+  })
+})
+
+/**
+ * Static wiring guard for the two silent regressions a review proved with all
+ * gates green (#242 follow-up, finding F2):
+ *
+ * - `hyperliquidFillGroupsToMarkers(...)` called without the stored size →
+ *   lint clean, every `node:test` green, the slider is simply inert;
+ * - `positionMarkerSettings.size` dropped from the markers effect dependency
+ *   array → only an `eslint` warning, so `npm run lint` still exits 0 and the
+ *   chart keeps the old arrow size until something else repaints it.
+ *
+ * Storage and the chart live in different modules, so no unit test can see the
+ * omission; the panel source is the only place the two are joined. These
+ * assertions fail on the mutation instead of trusting the type checker.
+ */
+const PANEL_SOURCE_PATH = path.resolve(
+  import.meta.dirname,
+  '../BtcPerpetualChartPanel.tsx',
+)
+
+const MARKER_MAPPING_CALL = 'hyperliquidFillGroupsToMarkers('
+
+/** Index of the bracket that closes the one at `start`, ignoring quoted text. */
+function matchingBracketIndex(
+  source: string,
+  start: number,
+  open: string,
+  close: string,
+): number {
+  let depth = 0
+  let quote: string | null = null
+
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index]
+
+    if (quote !== null) {
+      if (character === '\\') index += 1
+      else if (character === quote) quote = null
+      continue
+    }
+
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character
+    } else if (character === open) {
+      depth += 1
+    } else if (character === close) {
+      depth -= 1
+      if (depth === 0) return index
+    }
+  }
+
+  return -1
+}
+
+/** Splits a call/array body on the commas that are not nested in brackets. */
+function splitTopLevelEntries(body: string): string[] {
+  const entries: string[] = []
+  let depth = 0
+  let quote: string | null = null
+  let current = ''
+
+  for (let index = 0; index < body.length; index += 1) {
+    const character = body[index]
+
+    if (quote !== null) {
+      current += character
+      if (character === '\\') {
+        index += 1
+        current += body[index] ?? ''
+      } else if (character === quote) {
+        quote = null
+      }
+      continue
+    }
+
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character
+    } else if (character === '(' || character === '[' || character === '{') {
+      depth += 1
+    } else if (character === ')' || character === ']' || character === '}') {
+      depth -= 1
+    }
+
+    if (character === ',' && depth === 0) {
+      entries.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += character
+  }
+
+  const last = current.trim()
+  if (last !== '') entries.push(last)
+  return entries
+}
+
+/** Top-level arguments of the first `name(...)` call in `source`. */
+function callArguments(source: string, name: string): string[] {
+  const start = source.indexOf(name)
+  assert.notEqual(start, -1, `${name} is not called in the panel source`)
+
+  const open = source.indexOf('(', start + name.length - 1)
+  assert.notEqual(open, -1, `unterminated ${name} call`)
+
+  const close = matchingBracketIndex(source, open, '(', ')')
+  assert.notEqual(close, -1, `unterminated ${name} argument list`)
+
+  return splitTopLevelEntries(source.slice(open + 1, close))
+}
+
+/** Dependency array of the effect that owns the mapping call at `callIndex`. */
+function effectDependencies(source: string, callIndex: number): string[] {
+  const bodyEnd = source.indexOf('}, [', callIndex)
+  assert.notEqual(
+    bodyEnd,
+    -1,
+    'the markers effect that maps fills has no dependency array',
+  )
+
+  const open = source.indexOf('[', bodyEnd)
+  assert.notEqual(open, -1, 'the markers effect dependency array is empty or malformed')
+
+  const close = matchingBracketIndex(source, open, '[', ']')
+  assert.notEqual(close, -1, 'unterminated markers effect dependency array')
+
+  return splitTopLevelEntries(source.slice(open + 1, close))
+}
+
+describe('Position Markers chart wiring', () => {
+  const panelSource = readFileSync(PANEL_SOURCE_PATH, 'utf8')
+
+  it('passes the stored size into the marker mapping', () => {
+    const args = callArguments(panelSource, MARKER_MAPPING_CALL)
+
+    assert.equal(
+      args.length,
+      3,
+      `hyperliquidFillGroupsToMarkers must receive (groups, colors, size): ${args.join(' | ')}`,
+    )
+    assert.equal(args.at(-1), 'positionMarkerSettings.size')
+  })
+
+  it('repaints the markers when the stored size changes', () => {
+    const callIndex = panelSource.indexOf(MARKER_MAPPING_CALL)
+    const dependencies = effectDependencies(panelSource, callIndex)
+
+    assert.ok(
+      dependencies.includes('positionMarkerSettings.size'),
+      `markers effect must depend on positionMarkerSettings.size: ${dependencies.join(', ')}`,
+    )
+  })
+
+  it('detects both proven mutations instead of passing silently', () => {
+    // Mutation D: the size argument is dropped from the mapping call.
+    const withoutSizeArgument = `
+      markers.setMarkers(
+        hyperliquidFillGroupsToMarkers(
+          groupHyperliquidFillMarkers(visible),
+          HYPERLIQUID_MARKER_COLORS,
+        ),
+      )
+      accountMarkersByBucketRef.current = byBucket
+    }, [
+      accountFills,
+      positionMarkerSettings.size,
+      positionMarkersEnabled,
+    ])
+    `
+    const mutatedArgs = callArguments(withoutSizeArgument, MARKER_MAPPING_CALL)
+    assert.notEqual(mutatedArgs.at(-1), 'positionMarkerSettings.size')
+    assert.equal(mutatedArgs.length, 2)
+
+    // Mutation E: the size is dropped from the effect dependency array.
+    const withoutSizeDependency = withoutSizeArgument.replace(
+      /\n\s+positionMarkerSettings\.size,/,
+      '',
+    )
+    const mutatedDependencies = effectDependencies(
+      withoutSizeDependency,
+      withoutSizeDependency.indexOf(MARKER_MAPPING_CALL),
+    )
+    assert.ok(!mutatedDependencies.includes('positionMarkerSettings.size'))
   })
 })

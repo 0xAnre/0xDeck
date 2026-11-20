@@ -54,6 +54,20 @@ export function positionMarkerSizeLabel(size: unknown): string {
 }
 
 /**
+ * Panel-scoped DOM ids for the settings dialog's `Marker Size` label and its
+ * slider. Deriving them from the panel (not from a literal) is what keeps two
+ * chart panels, or a cloned widget, from sharing one `id`/`htmlFor`/
+ * `aria-labelledby` triple across two dialogs.
+ */
+export function positionMarkerSizeFieldIds(panelId: string): {
+  labelId: string
+  sliderId: string
+} {
+  const sliderId = `${panelId}-position-marker-size`
+  return { labelId: `${sliderId}-label`, sliderId }
+}
+
+/**
  * Storage contract for `0xdeck-widget-market-position-markers`. The legacy
  * record was a bare boolean (the toggle only): it migrates to the default size.
  * Anything unreadable falls back to OFF at the default size instead of failing

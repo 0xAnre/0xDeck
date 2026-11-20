@@ -3912,6 +3912,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       />
       <MarketPositionMarkerSettingsDialog
         open={positionMarkerSettingsOpen}
+        panelId={panelId}
         settings={positionMarkerSettings}
         returnFocusId={`${panelId}-indicators`}
         onOpenChange={setPositionMarkerSettingsOpen}
