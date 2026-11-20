@@ -110,7 +110,7 @@ test.describe('position markers size setting', () => {
     )
     // Nothing is stored before the first Save; the dialog shows the default.
     expect(await readStoredSettings(page)).toBeNull()
-    await expect(sizeSlider(page)).toHaveAttribute('aria-valuenow', '1.25')
+    await expect(sizeSlider(page)).toHaveAttribute('aria-valuenow', '1')
 
     // Move the draft to 2× and commit it.
     await stepSizeSlider(page, STEP_PRESSES_TO_2)

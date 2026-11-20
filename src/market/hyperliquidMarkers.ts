@@ -3,7 +3,7 @@
  *
  * Visuals are side-only: buys are green/up-token upward arrows below the bar,
  * sells are red/down-token downward arrows above the bar. Both sides share one
- * user-adjustable arrow size (default 1.25×, `POSITION_MARKER_SIZE_DEFAULT`).
+ * user-adjustable arrow size (default 1×, `POSITION_MARKER_SIZE_DEFAULT`).
  * At most one buy and one sell marker are rendered per candle bucket.
  */
 import type { SeriesMarker, SeriesMarkerShape, UTCTimestamp } from 'lightweight-charts'

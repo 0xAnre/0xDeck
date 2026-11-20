@@ -64,10 +64,10 @@ describe('Position Markers size bounds', () => {
     assert.equal(POSITION_MARKER_SIZE_MIN, 0.5)
     assert.equal(POSITION_MARKER_SIZE_MAX, 3)
     assert.equal(POSITION_MARKER_SIZE_STEP, 0.25)
-    assert.equal(POSITION_MARKER_SIZE_DEFAULT, 1.25)
+    assert.equal(POSITION_MARKER_SIZE_DEFAULT, 1)
     // #241's fixed 1.5 multiplier is no longer the default.
     assert.notEqual(POSITION_MARKER_SIZE_DEFAULT, 1.5)
-    assert.deepEqual(DEFAULT_POSITION_MARKER_SETTINGS, { enabled: false, size: 1.25 })
+    assert.deepEqual(DEFAULT_POSITION_MARKER_SETTINGS, { enabled: false, size: 1 })
   })
 
   it('clamps values outside the range to the nearest bound', () => {
@@ -106,7 +106,7 @@ describe('Position Markers size bounds', () => {
       [],
       true,
     ]) {
-      assert.equal(sanitizePositionMarkerSize(value), 1.25)
+      assert.equal(sanitizePositionMarkerSize(value), 1)
     }
   })
 
@@ -115,14 +115,14 @@ describe('Position Markers size bounds', () => {
     assert.equal(positionMarkerSizeLabel(0.5), '0.5×')
     assert.equal(positionMarkerSizeLabel(1), '1×')
     assert.equal(positionMarkerSizeLabel(3), '3×')
-    assert.equal(positionMarkerSizeLabel('nope'), '1.25×')
+    assert.equal(positionMarkerSizeLabel('nope'), '1×')
   })
 })
 
 describe('Position Markers settings record', () => {
   it('migrates a legacy boolean to enabled + default size', () => {
-    assert.deepEqual(sanitizePositionMarkerSettings(true), { enabled: true, size: 1.25 })
-    assert.deepEqual(sanitizePositionMarkerSettings(false), { enabled: false, size: 1.25 })
+    assert.deepEqual(sanitizePositionMarkerSettings(true), { enabled: true, size: 1 })
+    assert.deepEqual(sanitizePositionMarkerSettings(false), { enabled: false, size: 1 })
   })
 
   it('sanitizes the object form and keeps a valid size', () => {
@@ -142,7 +142,7 @@ describe('Position Markers settings record', () => {
     // A missing/invalid size falls back to the default, not to OFF.
     assert.deepEqual(sanitizePositionMarkerSettings({ enabled: true }), {
       enabled: true,
-      size: 1.25,
+      size: 1,
     })
   })
 
@@ -150,12 +150,12 @@ describe('Position Markers settings record', () => {
     for (const value of [undefined, null, 1, 'yes', [], {}]) {
       assert.deepEqual(sanitizePositionMarkerSettings(value), {
         enabled: false,
-        size: 1.25,
+        size: 1,
       })
     }
     assert.deepEqual(sanitizePositionMarkerSettings({ enabled: 'true', size: '2' }), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
   })
 })
@@ -164,7 +164,7 @@ describe('Position Markers storage', () => {
   it('defaults to OFF at the default size when unset', () => {
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-a'), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
   })
 
@@ -181,7 +181,7 @@ describe('Position Markers storage', () => {
     })
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-c'), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
 
     saveWidgetMarketPositionMarkerSettings('panel-a', { enabled: false, size: 3 })
@@ -199,11 +199,11 @@ describe('Position Markers storage', () => {
     )
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-a'), {
       enabled: true,
-      size: 1.25,
+      size: 1,
     })
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-b'), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
   })
 
@@ -215,7 +215,7 @@ describe('Position Markers storage', () => {
     saveWidgetMarketPositionMarkerSettings('panel-b', { enabled: true, size: 1.75 })
 
     assert.deepEqual(storedMap(), {
-      'panel-a': { enabled: true, size: 1.25 },
+      'panel-a': { enabled: true, size: 1 },
       'panel-b': { enabled: true, size: 1.75 },
     })
   })
@@ -239,25 +239,25 @@ describe('Position Markers storage', () => {
     )
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-a'), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-b'), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-c'), {
       enabled: true,
-      size: 1.25,
+      size: 1,
     })
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-d'), {
       enabled: true,
-      size: 1.25,
+      size: 1,
     })
 
     memory.set(WIDGET_MARKET_POSITION_MARKERS_STORAGE_KEY, '{not-json')
     assert.deepEqual(loadWidgetMarketPositionMarkerSettings('panel-a'), {
       enabled: false,
-      size: 1.25,
+      size: 1,
     })
   })
 })

@@ -9,7 +9,7 @@ export const WIDGET_MARKET_POSITION_MARKERS_STORAGE_KEY =
 
 /**
  * Read the whole per-panel map through the sanitizer, so a legacy boolean entry
- * (`true` / `false`) becomes `{ enabled, size: 1.25 }` on read and every other
+ * (`true` / `false`) becomes `{ enabled, size: 1 }` on read and every other
  * entry becomes a valid settings object. The next save writes the whole map in
  * the current shape.
  */
