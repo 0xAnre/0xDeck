@@ -1,9 +1,10 @@
 /**
  * Marker mapping for Hyperliquid account fills.
  *
- * Visuals are side-only and stay small: buys are green/up-token upward arrows
- * below the bar, sells are red/down-token downward arrows above the bar. At
- * most one buy and one sell marker are rendered per candle bucket.
+ * Visuals are side-only and share one enlarged arrow size: buys are
+ * green/up-token upward arrows below the bar, sells are red/down-token downward
+ * arrows above the bar. At most one buy and one sell marker are rendered per
+ * candle bucket.
  */
 import type { SeriesMarker, SeriesMarkerShape, UTCTimestamp } from 'lightweight-charts'
 import type { HyperliquidFillMarkerGroup } from './hyperliquidFills.ts'
@@ -20,13 +21,19 @@ export type HyperliquidMarkerStyle = {
   colorKey: keyof HyperliquidMarkerColors
 }
 
+/**
+ * Arrow size for every position marker, as a multiple of the lightweight-charts
+ * default (`SeriesMarker.size` defaults to 1): 1.5 is 50% larger than default.
+ */
+export const POSITION_MARKER_SIZE = 1.5
+
 /** Pure side → shape/position/color mapping, shared by the chart and tests. */
 export function hyperliquidFillMarkerStyle(
   side: HyperliquidFillMarkerGroup['side'],
 ): HyperliquidMarkerStyle {
   return side === 'B'
-    ? { shape: 'arrowUp', position: 'belowBar', size: 1, colorKey: 'buy' }
-    : { shape: 'arrowDown', position: 'aboveBar', size: 1, colorKey: 'sell' }
+    ? { shape: 'arrowUp', position: 'belowBar', size: POSITION_MARKER_SIZE, colorKey: 'buy' }
+    : { shape: 'arrowDown', position: 'aboveBar', size: POSITION_MARKER_SIZE, colorKey: 'sell' }
 }
 
 export function hyperliquidFillGroupMarker(
