@@ -25,7 +25,7 @@ export type HyperliquidMarkerStyle = {
  * Arrow size for every position marker, as a multiple of the lightweight-charts
  * default (`SeriesMarker.size` defaults to 1): 1.5 is 50% larger than default.
  */
-export const POSITION_MARKER_SIZE = 1.5
+const POSITION_MARKER_SIZE = 1.5
 
 /** Pure side → shape/position/color mapping, shared by the chart and tests. */
 export function hyperliquidFillMarkerStyle(

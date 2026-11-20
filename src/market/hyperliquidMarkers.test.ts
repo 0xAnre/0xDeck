@@ -84,7 +84,8 @@ describe('Hyperliquid side-only marker mapping', () => {
     const groups = groupHyperliquidFillMarkers(bucketHyperliquidFills(fills, '1m'))
     const markers = hyperliquidFillGroupsToMarkers(groups, COLORS)
     assert.equal(markers.length, 2)
-    assert.ok(markers.every((marker) => marker.size === 1.5))
+    const expectedSize = hyperliquidFillMarkerStyle('B').size
+    assert.ok(markers.every((marker) => marker.size === expectedSize))
     assert.deepEqual(markers.map((marker) => marker.shape), ['arrowUp', 'arrowDown'])
     assert.equal(new Set(markers.map((marker) => marker.id)).size, 2)
   })
