@@ -118,6 +118,7 @@ import {
   type SessionVwapSeriesStyleInputs,
 } from '@/market/marketIndicatorSeriesColors'
 import { MarketIndicatorStyleDialog } from '@/widgetSettings/MarketIndicatorStyleDialog'
+import { MarketPositionMarkerSettingsDialog } from '@/widgetSettings/MarketPositionMarkerSettingsDialog'
 import { createDefaultRollingVwapSettings } from '@/market/rollingVwapSettings'
 import { saveWidgetRollingVwapInstances } from '@/rollingVwapInstancesStorage'
 import {
@@ -358,13 +359,15 @@ import {
 import { fixedRangeVolumeProfileAvailabilityNotices } from '@/market/frvpHistoryAvailability'
 import { saveWidgetMarketIndicators } from '@/marketIndicatorStorage'
 import {
-  loadWidgetMarketPositionMarkers,
-  saveWidgetMarketPositionMarkers,
+  loadWidgetMarketPositionMarkerSettings,
+  saveWidgetMarketPositionMarkerSettings,
 } from '@/marketPositionMarkersStorage'
 import {
   POSITION_MARKER_BUY_COLOR,
   POSITION_MARKER_SELL_COLOR,
+  sanitizePositionMarkerSettings,
   shouldShowPositionMarkers,
+  type PositionMarkerSettings,
 } from '@/market/positionMarkers'
 import {
   loadWidgetMarketExchange,
@@ -540,9 +543,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const [accountFills, setAccountFills] = useState<HyperliquidFill[]>([])
   const [accountFillsNotice, setAccountFillsNotice] = useState<string | null>(null)
-  const [positionMarkersEnabled, setPositionMarkersEnabled] = useState(() =>
-    loadWidgetMarketPositionMarkers(panelId),
-  )
+  const [positionMarkerSettings, setPositionMarkerSettings] =
+    useState<PositionMarkerSettings>(() => loadWidgetMarketPositionMarkerSettings(panelId))
+  const [positionMarkerSettingsOpen, setPositionMarkerSettingsOpen] = useState(false)
+  /** Marker size only changes rendering; it never changes what a marker means. */
+  const positionMarkersEnabled = positionMarkerSettings.enabled
   const [liquidationSettings, setLiquidationSettings] = useState<AggregatedLiquidationsSettings>(
     () => loadWidgetLiquidationsSettings(panelId),
   )
@@ -619,6 +624,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const vwapContextAbortRef = useRef<AbortController | null>(null)
   const vwapContextLatestRequestIdRef = useRef(0)
   const rollingVwapInstancesRef = useRef(rollingVwapInstances)
+  const positionMarkerSettingsRef = useRef(positionMarkerSettings)
   const fixedRangeVolumeProfileInstancesRef = useRef(fixedRangeVolumeProfileInstances)
   const fixedRangeVolumeProfileInteractionRef = useRef(fixedRangeVolumeProfileInteraction)
   const fixedRangeVolumeProfileToolControllerRef =
@@ -1922,11 +1928,14 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [panelId, stopKlineStream],
   )
 
-  const handlePositionMarkersChange = useCallback(
-    (enabled: boolean) => {
-      saveWidgetMarketPositionMarkers(panelId, enabled)
-      setPositionMarkersEnabled(enabled)
-      if (enabled) return
+  const persistPositionMarkerSettings = useCallback(
+    (next: PositionMarkerSettings) => {
+      const sanitized = sanitizePositionMarkerSettings(next)
+      positionMarkerSettingsRef.current = sanitized
+      saveWidgetMarketPositionMarkerSettings(panelId, sanitized)
+      setPositionMarkerSettings(sanitized)
+      if (sanitized.enabled) return
+      // Markers are OFF: drop the fills that only exist to render them.
       accountFillsRangeRef.current = null
       setAccountFills([])
       setAccountFillsNotice(null)
@@ -1934,6 +1943,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     },
     [panelId],
   )
+
+  const handlePositionMarkersChange = useCallback(
+    (enabled: boolean) => {
+      persistPositionMarkerSettings({ ...positionMarkerSettingsRef.current, enabled })
+    },
+    [persistPositionMarkerSettings],
+  )
+
+  const handlePositionMarkerSettingsChange = useCallback(
+    (next: PositionMarkerSettings) => {
+      persistPositionMarkerSettings(next)
+    },
+    [persistPositionMarkerSettings],
+  )
+
+  const handlePositionMarkersSettingsClick = useCallback(() => {
+    setPositionMarkerSettingsOpen(true)
+  }, [])
 
   useMarketWidgetSettings({
     headerSettings,
@@ -1946,6 +1973,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onMarketIndicatorsChange: handleMarketIndicatorsChange,
     marketPositionMarkersEnabled: positionMarkersEnabled,
     onMarketPositionMarkersChange: handlePositionMarkersChange,
+    onMarketPositionMarkersSettingsClick: handlePositionMarkersSettingsClick,
     rollingVwapInstances,
     onRollingVwapAdd: handleRollingVwapAdd,
     onRollingVwapToggle: handleRollingVwapToggle,
@@ -2974,6 +3002,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       hyperliquidFillGroupsToMarkers(
         groupHyperliquidFillMarkers(visible),
         HYPERLIQUID_MARKER_COLORS,
+        positionMarkerSettings.size,
       ),
     )
     accountMarkersByBucketRef.current = byBucket
@@ -2983,6 +3012,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     chartReady,
     exchange,
     interval,
+    positionMarkerSettings.size,
     positionMarkersEnabled,
   ])
 
@@ -3879,6 +3909,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           if (!open) setChartObjectSettingsTarget(null)
         }}
         onSettingsChange={handleLiquidationSettingsChange}
+      />
+      <MarketPositionMarkerSettingsDialog
+        open={positionMarkerSettingsOpen}
+        settings={positionMarkerSettings}
+        returnFocusId={`${panelId}-indicators`}
+        onOpenChange={setPositionMarkerSettingsOpen}
+        onSettingsChange={handlePositionMarkerSettingsChange}
       />
       <MarketIndicatorStyleDialog
         indicatorId={editingMarketIndicatorId}

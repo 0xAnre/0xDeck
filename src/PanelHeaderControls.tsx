@@ -156,6 +156,9 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             showPositionMarkers={settings.marketExchange === 'hyperliquid'}
             positionMarkersEnabled={settings.marketPositionMarkersEnabled === true}
             onPositionMarkersChange={settings.onMarketPositionMarkersChange}
+            onPositionMarkersSettingsClick={
+              settings.onMarketPositionMarkersSettingsClick
+            }
             marketInterval={settings.marketInterval}
             rollingVwapInstances={settings.rollingVwapInstances}
             onRollingVwapAdd={settings.onRollingVwapAdd}

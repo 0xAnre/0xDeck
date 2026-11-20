@@ -28,6 +28,7 @@ type UseMarketWidgetSettingsArgs = {
   onMarketIndicatorsChange: (indicators: MarketIndicatorId[]) => void
   marketPositionMarkersEnabled: boolean
   onMarketPositionMarkersChange: (enabled: boolean) => void
+  onMarketPositionMarkersSettingsClick?: () => void
   rollingVwapInstances: RollingVwapInstance[]
   onRollingVwapAdd: () => void
   onRollingVwapToggle: (instanceId: string, enabled: boolean) => void
@@ -116,6 +117,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onMarketIndicatorsChange,
     marketPositionMarkersEnabled,
     onMarketPositionMarkersChange,
+    onMarketPositionMarkersSettingsClick,
     rollingVwapInstances,
     onRollingVwapAdd,
     onRollingVwapToggle,
@@ -190,6 +192,9 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
         headerSettings.indicators ? marketPositionMarkersEnabled : undefined,
       onMarketPositionMarkersChange:
         headerSettings.indicators ? onMarketPositionMarkersChange : undefined,
+      onMarketPositionMarkersSettingsClick: headerSettings.indicators
+        ? onMarketPositionMarkersSettingsClick
+        : undefined,
       rollingVwapInstances: headerSettings.indicators ? rollingVwapInstances : undefined,
       onRollingVwapAdd: headerSettings.indicators ? onRollingVwapAdd : undefined,
       onRollingVwapToggle: headerSettings.indicators ? onRollingVwapToggle : undefined,
@@ -306,6 +311,7 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onAnchoredVwapVisibilityToggle,
       onMarketIndicatorsChange,
       onMarketPositionMarkersChange,
+      onMarketPositionMarkersSettingsClick,
       onRollingVwapAdd,
       onRollingVwapDelete,
       onRollingVwapSettingsClick,
