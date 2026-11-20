@@ -17,6 +17,7 @@ import { ChartObjectListRow } from '@/widgetSettings/ChartObjectListRow'
 import { marketIndicatorIcon, numberedChartObjectIcon } from '@/widgetSettings/chartObjectIcons'
 import {
   runIndicatorSettingsGearClick,
+  runMenuSettingsClick,
   toggleMarketIndicatorSelection,
 } from '@/widgetSettings/headerIndicatorMenuActions'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
@@ -36,6 +37,7 @@ type HeaderIndicatorsMenuProps = {
   showPositionMarkers?: boolean
   positionMarkersEnabled?: boolean
   onPositionMarkersChange?: (enabled: boolean) => void
+  onPositionMarkersSettingsClick?: () => void
   marketInterval?: CandleInterval
   rollingVwapInstances?: RollingVwapInstance[]
   onRollingVwapAdd?: () => void
@@ -55,6 +57,7 @@ export function HeaderIndicatorsMenu({
   showPositionMarkers = false,
   positionMarkersEnabled = false,
   onPositionMarkersChange,
+  onPositionMarkersSettingsClick,
   marketInterval = '1m',
   rollingVwapInstances = [],
   onRollingVwapAdd,
@@ -138,6 +141,15 @@ export function HeaderIndicatorsMenu({
             disabled={disabled}
             onToggleHidden={() =>
               onPositionMarkersChange(!positionMarkersEnabled)
+            }
+            onSettings={
+              onPositionMarkersSettingsClick
+                ? () =>
+                    runMenuSettingsClick({
+                      closeDropdown: () => setMenuOpen(false),
+                      onSettingsClick: onPositionMarkersSettingsClick,
+                    })
+                : undefined
             }
           />
         )}

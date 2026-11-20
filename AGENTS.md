@@ -211,7 +211,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
 | `0xdeck-widget-market-rsi-settings` | Per-instance RSI period and overbought/oversold levels (BTC Perp) |
-| `0xdeck-widget-market-position-markers` | Per-instance Hyperliquid Position Markers toggle (default OFF) |
+| `0xdeck-widget-market-position-markers` | Per-instance Hyperliquid Position Markers `{ enabled, size }` — toggle (default OFF) plus marker arrow size (`0.5×`–`3×`, step `0.25`, default `1.25×`). A legacy boolean record migrates on read (toggle kept, size ⇒ default); invalid values fall back to OFF at the default size |
 | `0xdeck-widget-liquidations-settings` | Per-instance Aggregated Liquidations source (`binance` only in V1) and pane position (`bottom` default / `top`) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |

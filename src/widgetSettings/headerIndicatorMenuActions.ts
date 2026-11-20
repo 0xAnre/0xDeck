@@ -12,11 +12,26 @@ export function toggleMarketIndicatorSelection(
   return activeIndicators.filter((item) => item !== indicatorId)
 }
 
+/**
+ * Shared gear-click sequence for every header menu row: close the dropdown
+ * first, then open the settings surface it belongs to, so the dialog never
+ * fights the menu for focus and `Esc`.
+ */
+export function runMenuSettingsClick(params: {
+  closeDropdown: () => void
+  onSettingsClick?: () => void
+}): void {
+  params.closeDropdown()
+  params.onSettingsClick?.()
+}
+
 export function runIndicatorSettingsGearClick(params: {
   indicatorId: MarketIndicatorId
   closeDropdown: () => void
   onIndicatorSettingsClick?: (indicatorId: MarketIndicatorId) => void
 }): void {
-  params.closeDropdown()
-  params.onIndicatorSettingsClick?.(params.indicatorId)
+  runMenuSettingsClick({
+    closeDropdown: params.closeDropdown,
+    onSettingsClick: () => params.onIndicatorSettingsClick?.(params.indicatorId),
+  })
 }

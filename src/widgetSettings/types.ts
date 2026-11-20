@@ -47,6 +47,7 @@ export type WidgetSettingsRegistration = {
   marketIndicators?: MarketIndicatorId[]
   marketPositionMarkersEnabled?: boolean
   onMarketPositionMarkersChange?: (enabled: boolean) => void
+  onMarketPositionMarkersSettingsClick?: () => void
   marketIndicatorOptions?: {
     value: MarketIndicatorId
     label: string
