@@ -400,7 +400,7 @@ import type { WidgetInstanceProps } from '@/widgets/registry/types'
 import type { WidgetStreamConnectionState } from '@/widgets/stream/client'
 import { subscribeWidgetStream } from '@/widgets/stream/sharedClient'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveThemeCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
 import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
@@ -427,11 +427,35 @@ import { formatSeriesLabel } from '@/lib/formatTime'
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
   return {
-    background: 'transparent',
-    text: resolveCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
+    // Shared theme token: dark palettes keep the previous transparent canvas (card shows through);
+    // Cream paints a distinctly darker cream chart pane than the page. No per-widget override.
+    background: resolveThemeCssColor(style.getPropertyValue('--chart-background'), 'transparent'),
+    text: resolveThemeCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
     ema: MARKET_STYLE_MULTI_LINE_SHADES,
     ema100: MARKET_STYLE_DUAL_LINE_SHADES[0],
     ema200: MARKET_STYLE_DUAL_LINE_SHADES[1],
+  }
+}
+
+/**
+ * Theme-derived chart chrome only: text/background, pane separators and crosshair. It is shared by
+ * chart creation and the in-session theme refresh so both always apply the same chrome options.
+ * Series/candle/indicator colors are deliberately not part of this object.
+ */
+function themeChartOptions(colors: ReturnType<typeof readThemeColors>) {
+  return {
+    layout: {
+      background: { type: ColorType.Solid, color: colors.background },
+      textColor: colors.text,
+      // Native pane separators: a faint theme-derived hairline instead of the
+      // library's high-contrast default. `enableResize` keeps resize behaviour.
+      panes: {
+        enableResize: true,
+        separatorColor: rgbaFromResolvedCssColor(colors.text, 0.12),
+        separatorHoverColor: rgbaFromResolvedCssColor(colors.text, 0.24),
+      },
+    },
+    crosshair: btcPerpetualCrosshairOptions(colors.text),
   }
 }
 
@@ -3167,7 +3191,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const container = containerRef.current
     if (!container) return
 
-    const colors = readThemeColors()
     let chart: IChartApi | null = null
     let historyListenerChart: IChartApi | null = null
 
@@ -3220,25 +3243,21 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const height = container.clientHeight
       if (width < 2 || height < 2) return null
 
+      // Read at creation, not when the effect mounted: a deferred first layout
+      // must not create the chart with a palette the user already switched away from.
+      const colors = readThemeColors()
+      const chromeOptions = themeChartOptions(colors)
+
       chart = createChart(container, {
+        ...chromeOptions,
         layout: {
-          background: { type: ColorType.Solid, color: colors.background },
-          textColor: colors.text,
+          ...chromeOptions.layout,
           attributionLogo: false,
-          // Native pane separators: a faint theme-derived hairline instead of
-          // the library's high-contrast default. `enableResize` keeps the
-          // existing drag-to-resize pane behaviour.
-          panes: {
-            enableResize: true,
-            separatorColor: rgbaFromResolvedCssColor(colors.text, 0.12),
-            separatorHoverColor: rgbaFromResolvedCssColor(colors.text, 0.24),
-          },
         },
         grid: {
           vertLines: { visible: false },
           horzLines: { visible: false },
         },
-        crosshair: btcPerpetualCrosshairOptions(colors.text),
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
         handleScroll: {
@@ -3386,6 +3405,35 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     scheduleMarketChartViewportPersist,
     stopKlineStream,
   ])
+
+  /**
+   * Re-apply theme-derived chrome when the palette changes while this chart is mounted.
+   * `applyOptions` repaints the existing chart instance: no re-creation, no history refetch,
+   * no viewport reset and no series/candle/indicator color changes. Only chart chrome follows the
+   * theme (text, background, pane separators, crosshair).
+   */
+  useEffect(() => {
+    const root = document.documentElement
+    let appliedTheme = root.dataset.theme
+    const applyThemeToChart = () => {
+      const chart = chartRef.current
+      if (!chart) return
+      const colors = readThemeColors()
+      chart.applyOptions(themeChartOptions(colors))
+      // Current-price line/label is series-level chrome derived from the same text token.
+      // Only the price-line keys are applied; candle colors and every other series option stay.
+      seriesRef.current?.candle.applyOptions(btcPerpetualCurrentPriceLineOptions(colors.text))
+    }
+    const observer = new MutationObserver(() => {
+      if (root.dataset.theme === appliedTheme) return
+      appliedTheme = root.dataset.theme
+      applyThemeToChart()
+    })
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const intervalLeaving = activeIntervalRef.current
