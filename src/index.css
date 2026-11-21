@@ -60,6 +60,7 @@ body,
   --long: oklch(0.87 0 0);
   --short: oklch(0.704 0.191 22.216);
   --chart-glow: oklch(0.87 0 0 / 12%);
+  --chart-background: transparent;
   --font-sans: 'Inter Variable', sans-serif;
 }
 
@@ -324,6 +325,7 @@ body,
   --long: oklch(0.5 0.11 152);
   --short: oklch(0.48 0.185 27.5);
   --chart-glow: oklch(0.36 0.05 55 / 12%);
+  --chart-background: #f2e6ce;
   --font-sans: 'Inter Variable', sans-serif;
 }
 

@@ -427,7 +427,9 @@ import { formatSeriesLabel } from '@/lib/formatTime'
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
   return {
-    background: 'transparent',
+    // Shared theme token: dark palettes keep the previous transparent canvas (card shows through);
+    // Cream paints a distinctly darker cream chart pane than the page. No per-widget override.
+    background: resolveThemeCssColor(style.getPropertyValue('--chart-background'), 'transparent'),
     text: resolveThemeCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
     ema: MARKET_STYLE_MULTI_LINE_SHADES,
     ema100: MARKET_STYLE_DUAL_LINE_SHADES[0],

@@ -31,7 +31,7 @@ Theme is applied via `document.documentElement.dataset.theme`. Every built-in pa
 | `taupe` | Taupe | `blTaKtCok` |
 | `olive` | Olive | `b6t6ENHec` |
 | `black` | Black | Neutral-derived custom palette (`#000000` background) |
-| `cream` | Cream | Warm light palette, reference base `#FDF6E4` (only light theme) |
+| `cream` | Cream | Warm light palette, page reference base `#FDF6E4`, chart canvas `#F2E6CE` (only light theme) |
 
 ### Light vs dark palettes
 
@@ -48,6 +48,7 @@ A theme is either dark or light, and `THEME_APPEARANCES` in `src/themeStorage.ts
 | `--border` / `--input` / `--ring` | Borders and focus |
 | `--bid`, `--ask`, `--up`, `--down`, `--long`, `--short` | Market semantics |
 | `--chart-glow` | Chart placeholder gradient |
+| `--chart-background` | Chart canvas/pane background (`transparent` by default so the card shows through; Cream paints `#F2E6CE`) |
 
 Full token blocks: `src/index.css`.
 
