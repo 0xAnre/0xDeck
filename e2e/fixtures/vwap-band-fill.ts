@@ -129,6 +129,7 @@ type HarnessState = {
   priceConversions: number
   requestUpdates: number
   viewUpdates: number
+  primitives: SessionVwapBandSeriesPrimitive[]
   extraAttachments: SessionVwapBandSeriesAttachment[]
 }
 
@@ -146,6 +147,7 @@ const state: HarnessState = {
   priceConversions: 0,
   requestUpdates: 0,
   viewUpdates: 0,
+  primitives: [],
   extraAttachments: [],
 }
 
@@ -173,6 +175,7 @@ SessionVwapBandSeriesPrimitive.prototype.attached = function (
   param: AttachParam,
 ): void {
   if (state.primitive === null) state.primitive = this
+  state.primitives.push(this)
   originalAttached.call(this, {
     ...param,
     requestUpdate: () => {
@@ -328,6 +331,7 @@ function destroyChart(): void {
   state.extraAttachments = []
   state.attachment = null
   state.primitive = null
+  state.primitives = []
   state.series = null
   state.rawPoints = []
   state.trackedPoints = []
@@ -474,6 +478,11 @@ async function clearData(): Promise<void> {
 function forceViews(): void {
   state.primitive?.updateAllViews()
 }
+
+function forceAllViews(): void {
+  for (const primitive of state.primitives) primitive.updateAllViews()
+}
+
 
 async function attachSecondFill(fillStyle: string): Promise<void> {
   if (!state.series) throw new Error('chart is not ready')
@@ -702,6 +711,14 @@ async function runRollingConsumer(): Promise<Record<string, unknown>> {
   resetCounters()
   const chart = createChartInContainer(1000, 520)
   state.chart = chart
+  const timeScale = chart.timeScale() as unknown as {
+    timeToCoordinate: (time: UTCTimestamp) => number | null
+  }
+  const timeToCoordinate = timeScale.timeToCoordinate.bind(timeScale)
+  timeScale.timeToCoordinate = (time: UTCTimestamp): number | null => {
+    state.timeConversions += 1
+    return timeToCoordinate(time)
+  }
   const candles = makeCandles(5_000, 60, '1m')
   const settings: RollingVwapSettings = createDefaultRollingVwapSettings()
   settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 3 }
@@ -799,6 +816,85 @@ async function runRollingConsumer(): Promise<Record<string, unknown>> {
   }
 }
 
+async function runThreeRollingInstances(): Promise<Record<string, unknown>> {
+  installRecorder()
+  destroyChart()
+  resetCounters()
+  const chart = createChartInContainer(1000, 520)
+  state.chart = chart
+  const timeScale = chart.timeScale() as unknown as {
+    timeToCoordinate: (time: UTCTimestamp) => number | null
+  }
+  const timeToCoordinate = timeScale.timeToCoordinate.bind(timeScale)
+  timeScale.timeToCoordinate = (time: UTCTimestamp): number | null => {
+    state.timeConversions += 1
+    return timeToCoordinate(time)
+  }
+  const candles = makeCandles(5_000, 60, '1m')
+  const settings: RollingVwapSettings = createDefaultRollingVwapSettings()
+  settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 3 }
+  const points = computeRollingVwapPointsForSettings(candles, '1m', settings)
+  const bundles: RollingVwapChartSeriesBundle[] = []
+  const fills: string[] = []
+  for (let instance = 0; instance < 3; instance += 1) {
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings, {
+      title: `RV ${instance + 1}`,
+    })
+    const priced = bundle.center as unknown as {
+      priceToCoordinate: (price: number) => number | null
+    }
+    const priceToCoordinate = priced.priceToCoordinate.bind(bundle.center)
+    priced.priceToCoordinate = (price: number): number | null => {
+      state.priceConversions += 1
+      return priceToCoordinate(price)
+    }
+    for (const band of ['band1', 'band2', 'band3'] as const) {
+      const style = `rgba(${10 + instance * 30}, ${20 + instance * 20}, ${30 + instance * 10}, 0.5)`
+      bundle.bandFills?.[band].setFillStyle(style)
+      fills.push(style)
+    }
+    setRollingVwapChartSeriesData(bundle, points)
+    setRollingVwapInstanceSeriesVisibility(
+      bundle,
+      { id: `rv${instance + 1}`, enabled: true, settings, displaySequence: instance + 1 },
+      '1m',
+    )
+    bundles.push(bundle)
+  }
+  chart.timeScale().setVisibleLogicalRange({ from: points.length - 120, to: points.length - 1 })
+  await nextFrames(4)
+
+  const shown = stats()
+  const shownByStyle = Object.fromEntries(
+    fills.map((style) => [
+      style,
+      shown.lastFrameFills.filter((fill) => fill.fillStyle === style).length,
+    ]),
+  )
+  resetCounters()
+  forceAllViews()
+  const direct = stats()
+
+  for (const bundle of bundles) {
+    setRollingVwapInstanceSeriesVisibility(
+      bundle,
+      { id: 'shared', enabled: false, settings, displaySequence: 1 },
+      '1m',
+    )
+  }
+  await nextFrames(3)
+  resetCounters()
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  const hidden = stats()
+
+  return {
+    fills,
+    shownByStyle,
+    direct,
+    hidden,
+  }
+}
+
 function sessionPointCounts(): Record<string, unknown> | null {
   return sessionPoints
 }
@@ -826,6 +922,7 @@ export type VwapHarnessApi = {
   resetCounters: () => void
   runSessionConsumers: () => Promise<Record<string, unknown>>
   runRollingConsumer: () => Promise<Record<string, unknown>>
+  runThreeRollingInstances: () => Promise<Record<string, unknown>>
   sessionPointCounts: () => Record<string, unknown> | null
   rollingPointCount: () => number
   PriceScaleMode: typeof PriceScaleMode
@@ -856,6 +953,7 @@ window.__vwapHarness = {
   resetCounters,
   runSessionConsumers,
   runRollingConsumer,
+  runThreeRollingInstances,
   sessionPointCounts,
   rollingPointCount,
   PriceScaleMode,

@@ -447,6 +447,35 @@ test.describe('session VWAP band fill geometry', () => {
     expect(result.dataEqual).toBe(true)
   })
 
+  test('three Rolling VWAP instances sharing one pane stay bounded and settle when disabled', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    await openHarness(page)
+    const result = await page.evaluate(async () => {
+      const harness = window.__vwapHarness
+      return (await harness.runThreeRollingInstances()) as {
+        fills: string[]
+        shownByStyle: Record<string, number>
+        direct: Stats
+        hidden: Stats
+      }
+    })
+
+    for (const style of result.fills) {
+      expect(result.shownByStyle[style], `${style} fill drawn`).toBeGreaterThan(0)
+    }
+    expect(result.direct.requestUpdates).toBe(0)
+    expect(result.direct.viewUpdates).toBe(9)
+    const perFillConversions = result.direct.timeConversions / 9
+    expect(perFillConversions).toBeGreaterThanOrEqual(118)
+    expect(perFillConversions).toBeLessThanOrEqual(124)
+    expect(result.hidden.fills).toEqual([])
+    expect(result.hidden.requestUpdates).toBe(0)
+    expect(result.hidden.viewUpdates).toBe(0)
+    expect(result.hidden.clears).toBe(0)
+  })
+
   test('rolling VWAP keeps three independent band pairs, shared fills and hide/re-enable data', async ({
     page,
   }) => {
