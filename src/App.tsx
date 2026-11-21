@@ -38,6 +38,7 @@ import {
   type WorkspaceStore,
 } from './layoutStorage'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
+import { PositionWalletControl } from './PositionWalletControl'
 import { panelDisplayTitle, resolvePanelInstance } from './panels'
 import {
   getWidgetDefinitionForInstance,
@@ -544,6 +545,7 @@ function App() {
             onSelect={handleSelectWorkspace}
             onCreate={handleCreateWorkspace}
           />
+          <PositionWalletControl />
         </div>
 
         <div className="ml-auto flex min-w-0 shrink flex-wrap items-center justify-end gap-2 md:shrink-0">

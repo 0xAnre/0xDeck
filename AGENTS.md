@@ -30,7 +30,7 @@ A **market research workspace canvas** with a **reusable widget model** — not 
 - Trade execution UI
 - Bot monitoring and control panels
 
-**Included:** draggable/resizable widget grid, layout persistence, 6 built-in color themes (including `black`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` and Hyperliquid `BTC` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`), plus a built-in read-only Hyperliquid account and automatic Entry/Close markers on the existing candle series.
+**Included:** draggable/resizable widget grid, layout persistence, 6 built-in color themes (including `black`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` and Hyperliquid `BTC` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`), plus a global read-only Position Markers wallet (Hyperliquid built-in default, or any Hyperliquid/Lighter address) and automatic Entry/Close markers on the existing candle series.
 
 **Not included:** auth, generic multi-exchange connectors, trade execution APIs. Parquet widgets do not use live feeds; **BTC Perp** is the live market widget (see `src/widgets/stream/`, `/api/ws/{channel}`, `backend/app/market/`).
 
@@ -43,7 +43,7 @@ App.tsx                    → header, theme/widget menus, grid shell; renders r
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract, client, and `subscribeWidgetStream` (one shared relay connection per channel, ref-counted across panels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts, account markers)
-market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, Aggregated Liquidations pane (per-interval backend buckets at 30m+, event paging at 15m and below), FRVP, rectangle/line tools, exchange routing/tick/history limits, Hyperliquid account fill grouping/markers
+market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, Aggregated Liquidations pane (per-interval backend buckets at 30m+, event paging at 15m and below), FRVP, rectangle/line tools, exchange routing/tick/history limits, account-fill grouping/markers (`positionWallet.ts` global wallet, `lighterAccount.ts`/`lighterFills.ts` Lighter trades)
 screenNavigationShortcuts.ts → Workspace screen jumps (`m` then `1`–`9`) + Screen Lock alignment helpers
 api/client.ts              → Parquet datasets: preview, series, kpi; market klines reads share one response per request key
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
@@ -211,7 +211,8 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-market-intervals` | Per-instance BTC Perp candle interval |
 | `0xdeck-widget-market-indicators` | Per-instance enabled market indicators |
 | `0xdeck-widget-market-rsi-settings` | Per-instance RSI period and overbought/oversold levels (BTC Perp) |
-| `0xdeck-widget-market-position-markers` | Per-instance Hyperliquid Position Markers `{ enabled, size }` — toggle (default OFF) plus marker arrow size (`0.5×`–`3×`, step `0.25`, default `1×`). A legacy boolean record migrates on read (toggle kept, size ⇒ default); invalid values fall back to OFF at the default size |
+| `0xdeck-widget-market-position-markers` | Per-instance Position Markers `{ enabled, size }` — toggle (default OFF) plus marker arrow size (`0.5×`–`3×`, step `0.25`, default `1×`). A legacy boolean record migrates on read (toggle kept, size ⇒ default); invalid values fall back to OFF at the default size |
+| `0xdeck-position-wallet` | Global Position Markers wallet `{ exchange: 'hyperliquid' \| 'lighter', address, lighterAccountIndex }`, shared by every panel and workspace and independent of the candle exchange. Unset/invalid ⇒ built-in Hyperliquid wallet; a Lighter index is only kept for `lighter` |
 | `0xdeck-widget-liquidations-settings` | Per-instance Aggregated Liquidations source (`binance` only in V1) and pane position (`bottom` default / `top`) |
 | `0xdeck-widget-rolling-vwap-instances` | Rolling VWAP overlay instances with embedded settings per instance (BTC Perp) |
 | `0xdeck-widget-rolling-vwap-settings` | Legacy per-panel rolling VWAP settings (read for migration into instances only; not written on save) |
