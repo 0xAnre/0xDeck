@@ -4,6 +4,7 @@ import type {
   IChartApi,
   ISeriesApi,
   ISeriesPrimitive,
+  ITimeScaleApi,
   IPrimitivePaneRenderer,
   IPrimitivePaneView,
   Logical,
@@ -15,6 +16,7 @@ import {
   sessionVwapBandPriceRange,
   type SessionVwapBandDrawModel,
   type SessionVwapBandPoint,
+  type SessionVwapBandVisibleWindow,
 } from './sessionVwapBandRenderGeometry.ts'
 
 export type SessionVwapBandSeriesPrimitiveContext = {
@@ -26,6 +28,21 @@ export type SessionVwapBandSeriesPrimitiveContext = {
 
 function unixTime(time: Time | undefined): number | null {
   return typeof time === 'number' && Number.isFinite(time) ? time : null
+}
+
+/**
+ * Visible bar-time window from the chart's own time scale. The implementation
+ * never converts data-array offsets to logical indices or derives time from
+ * the wall clock; the bar times are the series times the time scale reports.
+ */
+function visibleWindowFromTimeScale(
+  timeScale: ITimeScaleApi<Time>,
+): SessionVwapBandVisibleWindow | null {
+  const range = timeScale.getVisibleRange()
+  const fromTime = unixTime(range?.from)
+  const toTime = unixTime(range?.to)
+  if (fromTime === null || toTime === null) return null
+  return { fromTime, toTime }
 }
 
 class SessionVwapBandRenderer implements IPrimitivePaneRenderer {
@@ -92,14 +109,21 @@ class SessionVwapBandPaneView implements IPrimitivePaneView {
     const chart = this._getChart()
     const series = this._getSeries()
     const context = this._getContext()
-    if (!chart || !series || !context.visible) {
+    if (!chart || !series || !context.visible || context.points.length === 0) {
       this._models = []
       return
     }
 
     const timeScale = chart.timeScale()
+    const visibleWindow = visibleWindowFromTimeScale(timeScale)
+    if (visibleWindow === null) {
+      this._models = []
+      return
+    }
+
     this._models = buildSessionVwapBandDrawModels({
       points: context.points,
+      visibleWindow,
       barSpacing: timeScale.options().barSpacing,
       fillStyle: context.fillStyle,
       timeToCoordinate: (time) => timeScale.timeToCoordinate(time),
@@ -155,8 +179,22 @@ export class SessionVwapBandSeriesPrimitive implements ISeriesPrimitive<Time> {
     return { priceRange }
   }
 
+  /**
+   * Library-driven view update. The chart is already updating and will paint
+   * after this callback, so it must not request another update.
+   */
   updateAllViews(): void {
     this._view.update()
+  }
+
+  /**
+   * External invalidation: data, style, visibility, public `update()` and
+   * attachment initialization. The chart cannot infer these context changes,
+   * so it must be asked for another update; that library update rebuilds the
+   * bounded geometry against the final transforms, coalescing several setters
+   * made before the next paint.
+   */
+  invalidate(): void {
     this._requestUpdate?.()
   }
 
@@ -168,7 +206,7 @@ export class SessionVwapBandSeriesPrimitive implements ISeriesPrimitive<Time> {
     this._chart = param.chart
     this._series = param.series
     this._requestUpdate = param.requestUpdate
-    this.updateAllViews()
+    this.invalidate()
   }
 
   detached(): void {
@@ -197,18 +235,18 @@ export function attachSessionVwapBandSeriesPrimitive(
   return {
     updateBandData: (points) => {
       context = { ...context, points }
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     setBandVisible: (visible) => {
       context = { ...context, visible }
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     setFillStyle: (fillStyle) => {
       context = { ...context, fillStyle }
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     update: () => {
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     dispose: () => {
       series.detachPrimitive(primitive)

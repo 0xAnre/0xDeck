@@ -175,3 +175,27 @@ one `JSON.parse`.
 `9976989` cannot read the multi-workspace envelope (it knows only the legacy single-workspace
 payload and would fall back to its default workspace), so the `multi` table has no pre-#199 column:
 #199 introduced the multi-workspace format that payload represents.
+
+## VWAP band fill geometry (Issue #252)
+
+The session/rolling VWAP band fill primitive renders only the visible source window plus one
+chronological neighbor per side (#252). The regression test runs the production primitive/geometry
+against the **installed** `lightweight-charts` 5.2 package in Chromium:
+
+```bash
+npx playwright test e2e/vwap-band-fill.spec.ts   # or npm run test:e2e
+```
+
+It uses an isolated chart (the app is not mounted) and asserts counters, never wall-clock budgets:
+
+- source samples read through a proxy / coordinate conversions per geometry build;
+- `requestUpdate()` calls received by `attached()` — direct `updateAllViews()` callbacks must be 0;
+- canvas fill-path vertices per rendered run, captured from the real renderer;
+- idle windows after hiding/disabling a fill (no fills, clears, callbacks or requests).
+
+At a fixed 80-bar viewport, history is grown from 1,000 to 20,000 to 120,000 samples. One build of
+the 80 visible samples plus its neighbors examined 100 / 109 / 114 source samples (two binary-search
+probes for the window), converted 81 x coordinates and 162 y coordinates, and drew a 162-vertex
+polygon each time. These are attribution counters for the isolated geometry path; they do **not**
+measure the full live Rolling VWAP pipeline (numerical VWAP recomputation and fill-array remapping
+remain history-dependent) or other primitives, and they are not production latency evidence.
