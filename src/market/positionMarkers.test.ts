@@ -9,7 +9,6 @@ import {
 } from '../marketPositionMarkersStorage.ts'
 import {
   DEFAULT_POSITION_MARKER_SETTINGS,
-  isPositionMarkersMenuVisible,
   POSITION_MARKER_BUY_COLOR,
   POSITION_MARKER_SELL_COLOR,
   POSITION_MARKER_SIZE_DEFAULT,
@@ -268,14 +267,11 @@ describe('Position Markers meaning', () => {
     assert.equal(POSITION_MARKER_SELL_COLOR, '#EF4444')
   })
 
-  it('is visible and active only for Hyperliquid when enabled', () => {
-    assert.equal(isPositionMarkersMenuVisible('hyperliquid'), true)
-    assert.equal(isPositionMarkersMenuVisible('binance'), false)
-
-    assert.equal(shouldShowPositionMarkers('hyperliquid', true), true)
-    assert.equal(shouldShowPositionMarkers('hyperliquid', false), false)
-    assert.equal(shouldShowPositionMarkers('binance', true), false)
-    assert.equal(shouldShowPositionMarkers('binance', false), false)
+  it('is wallet-scoped: enabled markers show on any candle exchange', () => {
+    // The wallet exchange is global and independent of the candle exchange, so
+    // the item exists and renders for Binance and Hyperliquid candles alike.
+    assert.equal(shouldShowPositionMarkers(true), true)
+    assert.equal(shouldShowPositionMarkers(false), false)
   })
 })
 

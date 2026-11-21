@@ -34,7 +34,6 @@ type HeaderIndicatorsMenuProps = {
   options: IndicatorOption[]
   activeIndicators: MarketIndicatorId[]
   onActiveIndicatorsChange?: (indicators: MarketIndicatorId[]) => void
-  showPositionMarkers?: boolean
   positionMarkersEnabled?: boolean
   onPositionMarkersChange?: (enabled: boolean) => void
   onPositionMarkersSettingsClick?: () => void
@@ -54,7 +53,6 @@ export function HeaderIndicatorsMenu({
   options,
   activeIndicators,
   onActiveIndicatorsChange,
-  showPositionMarkers = false,
   positionMarkersEnabled = false,
   onPositionMarkersChange,
   onPositionMarkersSettingsClick,
@@ -133,7 +131,7 @@ export function HeaderIndicatorsMenu({
           )
         })}
 
-        {showPositionMarkers && onPositionMarkersChange && (
+        {onPositionMarkersChange && (
           <ChartObjectListRow
             icon={CrosshairIcon}
             label="Position Markers"

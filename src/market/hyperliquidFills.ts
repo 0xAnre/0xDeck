@@ -7,6 +7,13 @@
 import { candleIntervalDurationSeconds } from './candleIntervalDuration.ts'
 import type { CandleInterval } from './types.ts'
 
+/**
+ * Shared account-fill shape for every Position Markers source. Hyperliquid
+ * fills and Lighter trades normalize into this type, so bucketing, bucketing
+ * dedupe, marker grouping and marker styling stay one implementation.
+ */
+export type AccountFill = HyperliquidFill
+
 export type HyperliquidFill = {
   coin: string
   price: number
@@ -126,15 +133,18 @@ export function dedupeHyperliquidFills(fills: readonly HyperliquidFill[]): Hyper
 
 /** Merge REST + WS fills without duplicates (reconnect/overlap safe). */
 export function mergeHyperliquidFills(
-  existing: readonly HyperliquidFill[],
-  incoming: readonly HyperliquidFill[],
-): HyperliquidFill[] {
+  existing: readonly AccountFill[],
+  incoming: readonly AccountFill[],
+): AccountFill[] {
   return dedupeHyperliquidFills([...existing, ...incoming]).sort(
     (a, b) =>
       a.time - b.time ||
       hyperliquidFillIdentityKey(a).localeCompare(hyperliquidFillIdentityKey(b)),
   )
 }
+
+/** Provider-neutral name for the same merge, used by non-Hyperliquid sources. */
+export const mergeAccountFills = mergeHyperliquidFills
 
 /** Candle bucket (open time, unix seconds) for a fill execution time. */
 export function hyperliquidFillBucketSeconds(

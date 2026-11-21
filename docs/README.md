@@ -64,7 +64,7 @@ Runtime adapters configure how a particular agent tool loads these rules; the sh
 | Reports | Preview tab | Export mock; saved queries planned |
 | Notes | localStorage | Markdown edit + preview |
 | Market Times | — | Exchange sessions, open/close countdown |
-| BTC Perp | REST klines + WebSocket relay (Binance USD-M / Hyperliquid) | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line / anchored VWAP tools |
+| BTC Perp | REST klines + WebSocket relay (Binance USD-M / Hyperliquid); Position Markers from the global Hyperliquid/Lighter wallet | Candles, indicators, rolling VWAP overlays, FRVP / rectangle / line / anchored VWAP tools, Entry/Close markers |
 
 ## Data layout
 

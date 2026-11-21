@@ -118,6 +118,12 @@ import {
   type SessionVwapSeriesStyleInputs,
 } from '@/market/marketIndicatorSeriesColors'
 import { MarketIndicatorStyleDialog } from '@/widgetSettings/MarketIndicatorStyleDialog'
+import { usePositionWallet } from '@/market/usePositionWallet'
+import { positionWalletSelectionKey } from '@/market/positionWallet'
+import {
+  getLighterPositionMarkersSnapshot,
+  subscribeLighterPositionMarkers,
+} from '@/market/lighterFillsStore'
 import { MarketPositionMarkerSettingsDialog } from '@/widgetSettings/MarketPositionMarkerSettingsDialog'
 import { createDefaultRollingVwapSettings } from '@/market/rollingVwapSettings'
 import { saveWidgetRollingVwapInstances } from '@/rollingVwapInstancesStorage'
@@ -399,10 +405,7 @@ import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
 } from '@/market/marketStylePalette'
-import {
-  hyperliquidUserFillsChannel,
-  resolveHyperliquidAccountAddress,
-} from '@/market/hyperliquidAccount'
+import { hyperliquidUserFillsChannel } from '@/market/hyperliquidAccount'
 import { fetchHyperliquidAccountFillsByTime } from '@/market/hyperliquidAccountApi'
 import {
   bucketHyperliquidFills,
@@ -411,8 +414,8 @@ import {
   hyperliquidFillIdentityKey,
   mergeHyperliquidFills,
   parseHyperliquidFill,
+  type AccountFill,
   type BucketedHyperliquidFill,
-  type HyperliquidFill,
 } from '@/market/hyperliquidFills'
 import {
   hyperliquidFillGroupsToMarkers,
@@ -432,14 +435,30 @@ function readThemeColors() {
   }
 }
 
-/** Fixed account-marker colors (same in every theme). */
-const HYPERLIQUID_MARKER_COLORS: HyperliquidMarkerColors = {
+/** Fixed account-marker colors (same in every theme, both wallet exchanges). */
+const ACCOUNT_MARKER_COLORS: HyperliquidMarkerColors = {
   buy: POSITION_MARKER_BUY_COLOR,
   sell: POSITION_MARKER_SELL_COLOR,
 }
 
-/** The BTC Perp widget always uses this built-in read-only account. */
-const HYPERLIQUID_ACCOUNT_ADDRESS = resolveHyperliquidAccountAddress()
+/**
+ * Account fills are tagged with the wallet that produced them. Reading through
+ * the tag makes a previous wallet's fills/notice unreadable the moment the
+ * global selection changes, instead of clearing state in an effect.
+ */
+type AccountFillState = {
+  walletKey: string
+  fills: AccountFill[]
+  notice: string | null
+}
+
+type HoveredAccountFillState = {
+  walletKey: string
+  fills: BucketedHyperliquidFill[]
+}
+
+const NO_ACCOUNT_FILLS: AccountFill[] = []
+const NO_HOVERED_ACCOUNT_FILLS: BucketedHyperliquidFill[] = []
 
 function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
   switch (state) {
@@ -541,8 +560,54 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const [editingAnchoredVwapInstanceId, setEditingAnchoredVwapInstanceId] = useState<string | null>(
     null,
   )
-  const [accountFills, setAccountFills] = useState<HyperliquidFill[]>([])
-  const [accountFillsNotice, setAccountFillsNotice] = useState<string | null>(null)
+  /**
+   * Global Position Markers wallet from the app header. It is independent of
+   * the candle exchange, so this panel renders whatever wallet is selected on
+   * its own candles; no per-widget wallet input exists.
+   */
+  const positionWallet = usePositionWallet()
+  const positionWalletKey = positionWalletSelectionKey(positionWallet)
+  const [accountFillState, setAccountFillState] = useState<AccountFillState>({
+    walletKey: '',
+    fills: NO_ACCOUNT_FILLS,
+    notice: null,
+  })
+  const accountFills =
+    accountFillState.walletKey === positionWalletKey ? accountFillState.fills : NO_ACCOUNT_FILLS
+  const accountFillsNotice =
+    accountFillState.walletKey === positionWalletKey ? accountFillState.notice : null
+  const mergeAccountFills = useCallback(
+    (incoming: AccountFill[]) => {
+      setAccountFillState((current) => {
+        const fills = current.walletKey === positionWalletKey ? current.fills : NO_ACCOUNT_FILLS
+        return {
+          walletKey: positionWalletKey,
+          fills: mergeHyperliquidFills(fills, incoming),
+          notice: current.walletKey === positionWalletKey ? current.notice : null,
+        }
+      })
+    },
+    [positionWalletKey],
+  )
+  const setAccountFillsNotice = useCallback(
+    (notice: string | null) => {
+      setAccountFillState((current) => ({
+        walletKey: positionWalletKey,
+        fills: current.walletKey === positionWalletKey ? current.fills : NO_ACCOUNT_FILLS,
+        notice,
+      }))
+    },
+    [positionWalletKey],
+  )
+  const replaceAccountFills = useCallback(
+    (fills: AccountFill[], notice: string | null) => {
+      setAccountFillState({ walletKey: positionWalletKey, fills, notice })
+    },
+    [positionWalletKey],
+  )
+  const clearAccountFills = useCallback(() => {
+    setAccountFillState({ walletKey: positionWalletKey, fills: NO_ACCOUNT_FILLS, notice: null })
+  }, [positionWalletKey])
   const [positionMarkerSettings, setPositionMarkerSettings] =
     useState<PositionMarkerSettings>(() => loadWidgetMarketPositionMarkerSettings(panelId))
   const [positionMarkerSettingsOpen, setPositionMarkerSettingsOpen] = useState(false)
@@ -563,9 +628,21 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   } | null>(null)
   const [liquidationHistoryRevision, setLiquidationHistoryRevision] = useState(0)
   const [liquidationBucketsRevision, setLiquidationBucketsRevision] = useState(0)
-  const [hoveredAccountFills, setHoveredAccountFills] = useState<
-    BucketedHyperliquidFill[]
-  >([])
+  const [hoveredAccountFillState, setHoveredAccountFillState] =
+    useState<HoveredAccountFillState>({
+      walletKey: '',
+      fills: NO_HOVERED_ACCOUNT_FILLS,
+    })
+  const hoveredAccountFills =
+    hoveredAccountFillState.walletKey === positionWalletKey
+      ? hoveredAccountFillState.fills
+      : NO_HOVERED_ACCOUNT_FILLS
+  const clearHoveredAccountFills = useCallback(() => {
+    setHoveredAccountFillState({
+      walletKey: positionWalletKey,
+      fills: NO_HOVERED_ACCOUNT_FILLS,
+    })
+  }, [positionWalletKey])
   const [candleRangeRevision, setCandleRangeRevision] = useState(0)
   /**
    * Window last published through `candleRangeRevision`. The revision exists to
@@ -1876,13 +1953,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         anchoredVwapSeriesAttachmentRef.current?.update()
       }
       saveWidgetMarketInterval(panelId, next)
-      setHoveredAccountFills([])
+      clearHoveredAccountFills()
       setDataState({ status: 'loading' })
       setChartReady(false)
       setStreamState('idle')
       setInterval(next)
     },
-    [panelId],
+    [clearHoveredAccountFills, panelId],
   )
 
   const handleExchangeChange = useCallback(
@@ -1920,12 +1997,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setStreamState('idle')
       setIndicatorHistoryNotices([])
       accountFillsRangeRef.current = null
-      setAccountFills([])
-      setAccountFillsNotice(null)
-      setHoveredAccountFills([])
+      clearAccountFills()
+      clearHoveredAccountFills()
       setExchange(next)
     },
-    [panelId, stopKlineStream],
+    [clearAccountFills, clearHoveredAccountFills, panelId, stopKlineStream],
   )
 
   const persistPositionMarkerSettings = useCallback(
@@ -1937,11 +2013,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (sanitized.enabled) return
       // Markers are OFF: drop the fills that only exist to render them.
       accountFillsRangeRef.current = null
-      setAccountFills([])
-      setAccountFillsNotice(null)
-      setHoveredAccountFills([])
+      clearAccountFills()
+      clearHoveredAccountFills()
     },
-    [panelId],
+    [clearAccountFills, clearHoveredAccountFills, panelId],
   )
 
   const handlePositionMarkersChange = useCallback(
@@ -2908,7 +2983,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [anchoredVwapInstances, chartReady])
 
   useEffect(() => {
-    if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled)) return
+    if (
+      positionWallet.exchange !== 'hyperliquid' ||
+      !shouldShowPositionMarkers(positionMarkersEnabled)
+    ) {
+      // Leaving the Hyperliquid branch (wallet or toggle change) must forget
+      // the loaded range, or switching back would reuse the guard and never
+      // re-fetch the (now cleared) fills.
+      accountFillsRangeRef.current = null
+      return
+    }
     if (!chartReady) return
 
     const candles = candlesRef.current
@@ -2918,14 +3002,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const startTime = first.time * 1000
     const endTime =
       (last.time + candleIntervalDurationSeconds(interval)) * 1000
-    const rangeKey = `${startTime}:${endTime}`
+    // Wallet-scoped request identity: a different wallet must fetch its own
+    // history even when the candle window (and interval) did not move.
+    const rangeKey = `${positionWalletKey}:${startTime}:${endTime}`
     if (accountFillsRangeRef.current === rangeKey) return
     accountFillsRangeRef.current = rangeKey
 
     const controller = new AbortController()
     setAccountFillsNotice(null)
     void fetchHyperliquidAccountFillsByTime(
-      HYPERLIQUID_ACCOUNT_ADDRESS,
+      positionWallet.address,
       startTime,
       endTime,
       controller.signal,
@@ -2934,9 +3020,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (controller.signal.aborted) return
         const parsed = response.fills
           .map(parseHyperliquidFill)
-          .filter((fill): fill is HyperliquidFill => fill !== null)
+          .filter((fill): fill is AccountFill => fill !== null)
         if (parsed.length > 0) {
-          setAccountFills((current) => mergeHyperliquidFills(current, parsed))
+          mergeAccountFills(parsed)
         }
         setAccountFillsNotice(
           response.truncated
@@ -2955,11 +3041,22 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
 
     return () => controller.abort()
-  }, [candleRangeRevision, chartReady, exchange, interval, positionMarkersEnabled])
+  }, [
+    candleRangeRevision,
+    chartReady,
+    interval,
+    mergeAccountFills,
+    positionMarkersEnabled,
+    positionWallet.exchange,
+    positionWallet.address,
+    positionWalletKey,
+    setAccountFillsNotice,
+  ])
 
   useEffect(() => {
-    if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled)) return
-    const channel = hyperliquidUserFillsChannel(HYPERLIQUID_ACCOUNT_ADDRESS)
+    if (positionWallet.exchange !== 'hyperliquid') return
+    if (!shouldShowPositionMarkers(positionMarkersEnabled)) return
+    const channel = hyperliquidUserFillsChannel(positionWallet.address)
     // Shared per account channel: two panels with position markers on must not
     // open two identical fill sockets.
     return subscribeWidgetStream(channel, {
@@ -2971,17 +3068,35 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         if (!Array.isArray(fills)) return
         const parsed = fills
           .map(parseHyperliquidFill)
-          .filter((fill): fill is HyperliquidFill => fill !== null)
+          .filter((fill): fill is AccountFill => fill !== null)
         if (parsed.length === 0) return
-        setAccountFills((current) => mergeHyperliquidFills(current, parsed))
+        mergeAccountFills(parsed)
       },
     })
-  }, [exchange, positionMarkersEnabled])
+  }, [
+    mergeAccountFills,
+    positionWallet.exchange,
+    positionWallet.address,
+    positionMarkersEnabled,
+  ])
+
+  useEffect(() => {
+    if (positionWallet.exchange !== 'lighter') return
+    if (!shouldShowPositionMarkers(positionMarkersEnabled)) return
+    // One shared Lighter session serves every panel: this is a listener on the
+    // account's single history/poll loop, not a request per widget.
+    const applySnapshot = () => {
+      const snapshot = getLighterPositionMarkersSnapshot()
+      replaceAccountFills(snapshot.fills, snapshot.error ?? snapshot.notice)
+    }
+    applySnapshot()
+    return subscribeLighterPositionMarkers(positionWallet, applySnapshot)
+  }, [positionWallet, positionMarkersEnabled, replaceAccountFills])
 
   useEffect(() => {
     const markers = accountMarkersRef.current
     if (!markers) return
-    if (!shouldShowPositionMarkers(exchange, positionMarkersEnabled) || !chartReady) {
+    if (!shouldShowPositionMarkers(positionMarkersEnabled) || !chartReady) {
       markers.setMarkers([])
       accountMarkersByBucketRef.current = new Map()
       return
@@ -3001,7 +3116,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     markers.setMarkers(
       hyperliquidFillGroupsToMarkers(
         groupHyperliquidFillMarkers(visible),
-        HYPERLIQUID_MARKER_COLORS,
+        ACCOUNT_MARKER_COLORS,
         positionMarkerSettings.size,
       ),
     )
@@ -3010,7 +3125,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     accountFills,
     candleRangeRevision,
     chartReady,
-    exchange,
     interval,
     positionMarkerSettings.size,
     positionMarkersEnabled,
@@ -3024,18 +3138,22 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const time = typeof param.time === 'number' ? param.time : null
       const next =
         time === null ? [] : (accountMarkersByBucketRef.current.get(time) ?? [])
-      setHoveredAccountFills((current) => {
+      setHoveredAccountFillState((current) => {
+        const currentFills =
+          current.walletKey === positionWalletKey ? current.fills : NO_HOVERED_ACCOUNT_FILLS
         if (
-          current.length === next.length &&
-          current.every(
+          currentFills.length === next.length &&
+          currentFills.every(
             (fill, index) =>
               hyperliquidFillIdentityKey(fill) ===
               (next[index] ? hyperliquidFillIdentityKey(next[index]) : null),
           )
         ) {
-          return current
+          return current.walletKey === positionWalletKey
+            ? current
+            : { walletKey: positionWalletKey, fills: NO_HOVERED_ACCOUNT_FILLS }
         }
-        return next
+        return { walletKey: positionWalletKey, fills: next }
       })
     }
 
@@ -3043,7 +3161,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     return () => {
       chart.unsubscribeCrosshairMove(handleCrosshairMove)
     }
-  }, [chartReady])
+  }, [chartReady, positionWalletKey])
 
   useEffect(() => {
     const container = containerRef.current
@@ -3813,7 +3931,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         <div
           role="status"
           aria-live="polite"
-          data-testid="hyperliquid-fill-readout"
+          data-testid="account-fill-readout"
           className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[min(20rem,80%)] flex-col gap-0.5 rounded-md border border-border bg-card/95 px-2 py-1 text-[10px] tabular-nums text-foreground shadow-sm"
         >
           {hoveredAccountFills.slice(0, 4).map((fill) => (

@@ -2,7 +2,6 @@ import {
   MARKET_SEMANTIC_NEGATIVE_COLOR,
   MARKET_SEMANTIC_POSITIVE_COLOR,
 } from './marketSemanticColors.ts'
-import type { MarketExchange } from './types.ts'
 
 /** User requirement: fixed account-marker colors in every theme (light and dark). */
 export const POSITION_MARKER_BUY_COLOR = MARKET_SEMANTIC_POSITIVE_COLOR
@@ -87,15 +86,12 @@ export function sanitizePositionMarkerSettings(value: unknown): PositionMarkerSe
   }
 }
 
-/** Position Markers is a Hyperliquid-only item in the Indicators menu. */
-export function isPositionMarkersMenuVisible(exchange: MarketExchange): boolean {
-  return exchange === 'hyperliquid'
-}
-
-/** Account fills are loaded and markers rendered only when ON + Hyperliquid. */
-export function shouldShowPositionMarkers(
-  exchange: MarketExchange,
-  enabled: boolean,
-): boolean {
-  return enabled && isPositionMarkersMenuVisible(exchange)
+/**
+ * Position Markers are wallet-scoped, not candle-scoped. The wallet exchange is
+ * chosen globally in the app header and is independent of the candle exchange,
+ * so the indicators item exists in every BTC Perp panel (Binance or Hyperliquid
+ * candles) and never adds a Lighter candle series.
+ */
+export function shouldShowPositionMarkers(enabled: boolean): boolean {
+  return enabled
 }

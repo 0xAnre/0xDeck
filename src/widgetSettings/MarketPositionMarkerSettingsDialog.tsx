@@ -131,7 +131,8 @@ export function MarketPositionMarkerSettingsDialog({
         <DialogHeader className="shrink-0">
           <DialogTitle>Position Markers settings</DialogTitle>
           <DialogDescription>
-            Hyperliquid entry/close arrow size on the candle series.
+            Hyperliquid or Lighter entry/close arrow size on the candle series.
+            The wallet is chosen in the app header and shared by every panel.
           </DialogDescription>
         </DialogHeader>
         {open ? (
