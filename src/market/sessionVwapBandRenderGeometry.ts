@@ -17,8 +17,33 @@ export type SessionVwapBandPriceRange = {
   maxValue: number
 }
 
+/**
+ * Bar-time window currently visible on the chart time scale. The values come
+ * from the chart's own time range, not from data-array offsets or elapsed
+ * clock time.
+ */
+export type SessionVwapBandVisibleWindow = {
+  fromTime: number
+  toTime: number
+}
+
+export type SessionVwapBandSampleWindow = {
+  /** First source sample included; may be the predecessor outside the visible window. */
+  startIndex: number
+  /** Exclusive end index; may include one successor outside the visible window. */
+  endIndex: number
+}
+
 export type BuildSessionVwapBandDrawModelsParams = {
   points: readonly SessionVwapBandPoint[]
+  /**
+   * Visible bar-time window from the chart time scale (`null` when the chart
+   * has no visible range). The source window is widened by one chronological
+   * neighbor on each side so a partially visible edge bar, an isolated edge
+   * point or a segment that crosses the viewport without a sample inside still
+   * renders. Everything outside that bounded window is ignored.
+   */
+  visibleWindow: SessionVwapBandVisibleWindow | null
   barSpacing: number
   fillStyle: string
   timeToCoordinate: (time: UTCTimestamp) => number | null
@@ -76,33 +101,6 @@ function contourForRun(run: readonly PlottedBandPoint[], barSpacing: number): nu
   return polygon
 }
 
-export function buildSessionVwapBandDrawModels(
-  params: BuildSessionVwapBandDrawModelsParams,
-): SessionVwapBandDrawModel[] {
-  const { points, barSpacing, fillStyle, timeToCoordinate, priceToY } = params
-  if (points.length === 0) return []
-
-  const models: SessionVwapBandDrawModel[] = []
-  let run: PlottedBandPoint[] = []
-
-  const flushRun = () => {
-    if (run.length === 0) return
-    models.push({ polygon: contourForRun(run, barSpacing), fillStyle })
-    run = []
-  }
-
-  for (const point of points) {
-    const plotted = plotBandPoint(point, timeToCoordinate, priceToY)
-    if (!plotted) {
-      flushRun()
-      continue
-    }
-    run.push(plotted)
-  }
-  flushRun()
-  return models
-}
-
 function firstIndexAtOrAfter(points: readonly SessionVwapBandPoint[], time: number): number {
   let low = 0
   let high = points.length
@@ -123,6 +121,68 @@ function firstIndexAfter(points: readonly SessionVwapBandPoint[], time: number):
     else high = mid
   }
   return low
+}
+
+/**
+ * Locates the bounded source range to draw for one visible bar-time window.
+ *
+ * The two binary searches are O(log history); the returned range is the
+ * visible samples plus at most one predecessor and one successor. Runtime is
+ * therefore O(log history + visible samples), never an O(history) scan.
+ * Samples must be chronological, matching the line-series order.
+ */
+export function sessionVwapBandSampleWindow(
+  points: readonly SessionVwapBandPoint[],
+  visibleWindow: SessionVwapBandVisibleWindow | null,
+): SessionVwapBandSampleWindow {
+  if (points.length === 0 || visibleWindow === null) {
+    return { startIndex: 0, endIndex: 0 }
+  }
+  const { fromTime, toTime } = visibleWindow
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || fromTime > toTime) {
+    return { startIndex: 0, endIndex: 0 }
+  }
+
+  const firstAtOrAfter = firstIndexAtOrAfter(points, fromTime)
+  const startIndex = Math.max(0, firstAtOrAfter - 1)
+  const firstAfter = firstIndexAfter(points, toTime)
+  const endIndex = Math.min(points.length, firstAfter + 1)
+  return { startIndex, endIndex }
+}
+
+export function buildSessionVwapBandDrawModels(
+  params: BuildSessionVwapBandDrawModelsParams,
+): SessionVwapBandDrawModel[] {
+  const {
+    points,
+    visibleWindow,
+    barSpacing,
+    fillStyle,
+    timeToCoordinate,
+    priceToY,
+  } = params
+  const { startIndex, endIndex } = sessionVwapBandSampleWindow(points, visibleWindow)
+  if (startIndex >= endIndex) return []
+
+  const models: SessionVwapBandDrawModel[] = []
+  let run: PlottedBandPoint[] = []
+
+  const flushRun = () => {
+    if (run.length === 0) return
+    models.push({ polygon: contourForRun(run, barSpacing), fillStyle })
+    run = []
+  }
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const plotted = plotBandPoint(points[index], timeToCoordinate, priceToY)
+    if (!plotted) {
+      flushRun()
+      continue
+    }
+    run.push(plotted)
+  }
+  flushRun()
+  return models
 }
 
 /**
