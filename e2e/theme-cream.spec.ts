@@ -116,6 +116,33 @@ async function cardBackground(page: Page): Promise<Resolved> {
   ])
 }
 
+/**
+ * Theme-independent header geometry. A theme is color-only (#248), so switching palettes must not
+ * change the header box, padding/gap/font metrics or any child/button box.
+ */
+async function headerLayout(page: Page) {
+  return page.evaluate(() => {
+    const header = document.querySelector('header')
+    if (!header) throw new Error('header missing')
+    const style = getComputedStyle(header)
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect()
+      return [rect.x, rect.y, rect.width, rect.height].map(
+        (value) => Math.round(value * 100) / 100,
+      )
+    }
+    return {
+      header: box(header),
+      padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
+      gap: [style.rowGap, style.columnGap],
+      fontSize: style.fontSize,
+      lineHeight: style.lineHeight,
+      children: [...header.children].map(box),
+      buttons: [...header.querySelectorAll('button')].map(box),
+    }
+  })
+}
+
 async function selectTheme(page: Page, label: string) {
   await page.getByRole('button', { name: 'Tema seç' }).click()
   await page.getByRole('menuitemradio', { name: label }).click()
@@ -163,24 +190,27 @@ test('cream is a warm light palette with dark readable text and visible edges', 
   const background = await paint(page, [backgroundToken])
   const card = await paint(page, [cardToken])
   const popover = await paint(page, [popoverToken])
+  const secondary = await paint(page, [await themeToken(page, '--secondary')])
+  const muted = await paint(page, [await themeToken(page, '--muted')])
+  const accent = await paint(page, [await themeToken(page, '--accent')])
 
-  expect(rgb(background)).toEqual(rgb(await bodyBackground(page)))
+  // Exact reference base sampled from the supplied image: dominant canvas RGB #FDF6E4.
+  expect(backgroundToken.toLowerCase()).toBe('#fdf6e4')
+  expect(rgb(background)).toEqual([253, 246, 228])
+  expect(rgb(await bodyBackground(page))).toEqual([253, 246, 228])
   expect(rgb(card)).toEqual(rgb(await cardBackground(page)))
   expect(background.r).toBeGreaterThan(background.g)
   expect(background.g).toBeGreaterThan(background.b)
-  expect(background.r).toBeGreaterThanOrEqual(240)
-  expect(background.b).toBeGreaterThanOrEqual(200)
   expect(luminance(background)).toBeGreaterThan(0.8)
-  expect(contrast(card, background)).toBeGreaterThan(1.02)
-  expect(contrast(card, background)).toBeLessThan(1.35)
-  expect(contrast(popover, background)).toBeGreaterThan(1.02)
-  expect(contrast(popover, background)).toBeLessThan(1.4)
+  // Panel/popover/secondary/muted/hover stay subtly differentiated from the canvas.
+  for (const surface of [card, popover, secondary, muted, accent]) {
+    expect(contrast(surface, background)).toBeGreaterThan(1.02)
+    expect(contrast(surface, background)).toBeLessThan(1.5)
+  }
 
   // Text tokens: dark primary text, readable muted text on every light surface.
   const foreground = await paint(page, [await themeToken(page, '--foreground')])
   const mutedForeground = await paint(page, [await themeToken(page, '--muted-foreground')])
-  const muted = await paint(page, [await themeToken(page, '--muted')])
-  const accent = await paint(page, [await themeToken(page, '--accent')])
   expect(contrast(foreground, background)).toBeGreaterThanOrEqual(10)
   expect(contrast(foreground, card)).toBeGreaterThanOrEqual(10)
   expect(contrast(mutedForeground, background)).toBeGreaterThanOrEqual(4.5)
@@ -319,6 +349,24 @@ test('switching back to Black and Neutral restores the dark mode', async ({ page
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'neutral')
   await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+})
+
+test('switching to Cream keeps the header geometry identical', async ({ page }) => {
+  await seedLocalStorage(page, { [WORKSPACE_STORAGE_KEY]: twoWorkspacePayload })
+  await page.goto('/')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'neutral')
+
+  // The reported regression was header spacing after selecting Cream. Compare the exact
+  // header/child/button boxes and font/gap/padding metrics at a wide and a wrapped viewport.
+  for (const width of [1440, 600]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(page.getByRole('button', { name: 'Notes panelini kapat' })).toBeVisible()
+    const neutral = await headerLayout(page)
+    await selectTheme(page, 'Cream')
+    expect(await headerLayout(page)).toEqual(neutral)
+    await selectTheme(page, 'Neutral')
+    expect(await headerLayout(page)).toEqual(neutral)
+  }
 })
 
 test('cream is selectable with the keyboard', async ({ page }) => {

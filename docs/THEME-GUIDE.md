@@ -31,7 +31,7 @@ Theme is applied via `document.documentElement.dataset.theme`. Every built-in pa
 | `taupe` | Taupe | `blTaKtCok` |
 | `olive` | Olive | `b6t6ENHec` |
 | `black` | Black | Neutral-derived custom palette (`#000000` background) |
-| `cream` | Cream | Warm light palette (only light theme) |
+| `cream` | Cream | Warm light palette, reference base `#FDF6E4` (only light theme) |
 
 ### Light vs dark palettes
 
