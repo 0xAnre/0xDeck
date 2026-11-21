@@ -120,6 +120,26 @@ async function cardBackground(page: Page): Promise<Resolved> {
  * Theme-independent header geometry. A theme is color-only (#248), so switching palettes must not
  * change the header box, padding/gap/font metrics or any child/button box.
  */
+async function panelLayout(page: Page) {
+  return page.evaluate(() => {
+    const card = document.querySelector('[data-slot="card"]')
+    if (!card) throw new Error('panel card missing')
+    const style = getComputedStyle(card)
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect()
+      return [rect.x, rect.y, rect.width, rect.height].map(
+        (value) => Math.round(value * 100) / 100,
+      )
+    }
+    return {
+      card: box(card),
+      padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
+      gap: style.gap,
+      children: [...card.children].map(box),
+    }
+  })
+}
+
 async function headerLayout(page: Page) {
   return page.evaluate(() => {
     const header = document.querySelector('header')
@@ -196,16 +216,18 @@ test('cream is a warm light palette with dark readable text and visible edges', 
 
   // Final choice: workspace canvas and chart canvas share the darker cream #F2E6CE.
   expect(backgroundToken.toLowerCase()).toBe('#f2e6ce')
+  expect(cardToken.toLowerCase()).toBe('#f2e6ce')
   expect((await themeToken(page, '--chart-background')).toLowerCase()).toBe('#f2e6ce')
   expect(rgb(background)).toEqual([242, 230, 206])
   expect(rgb(await bodyBackground(page))).toEqual([242, 230, 206])
+  expect(rgb(card)).toEqual([242, 230, 206])
   expect(rgb(card)).toEqual(rgb(await cardBackground(page)))
   expect(background.r).toBeGreaterThan(background.g)
   expect(background.g).toBeGreaterThan(background.b)
   expect(luminance(background)).toBeGreaterThan(0.75)
-  // Lighter panel/popover/secondary surfaces stay differentiated from the darker canvas.
-  // Muted/accent are unchanged palette roles and are checked through text contrast below.
-  for (const surface of [card, popover, secondary]) {
+  // The panel/card shell is the same cream as the workspace and chart canvas; popover and
+  // secondary remain separate surfaces. Muted/accent stay unchanged and are checked via text.
+  for (const surface of [popover, secondary]) {
     expect(contrast(surface, background)).toBeGreaterThan(1.02)
     expect(contrast(surface, background)).toBeLessThan(1.5)
   }
@@ -364,10 +386,13 @@ test('switching to Cream keeps the header geometry identical', async ({ page }) 
     await page.setViewportSize({ width, height: 900 })
     await expect(page.getByRole('button', { name: 'Notes panelini kapat' })).toBeVisible()
     const neutral = await headerLayout(page)
+    const neutralPanel = await panelLayout(page)
     await selectTheme(page, 'Cream')
     expect(await headerLayout(page)).toEqual(neutral)
+    expect(await panelLayout(page)).toEqual(neutralPanel)
     await selectTheme(page, 'Neutral')
     expect(await headerLayout(page)).toEqual(neutral)
+    expect(await panelLayout(page)).toEqual(neutralPanel)
   }
 })
 

@@ -41,6 +41,7 @@ type CanvasStats = {
 }
 
 type ChartStats = {
+  panelBackground: string | null
   containerTag: string | null
   canvasTags: (string | null)[]
   priceAxis: CanvasStats
@@ -253,7 +254,9 @@ async function readChartStats(page: Page, panelIndex = 0): Promise<ChartStats> {
       image.data[offset + 3],
     ]
 
+    const card = container.closest('[data-slot="card"]')
     return {
+      panelBackground: card ? getComputedStyle(card).backgroundColor : null,
       containerTag: container.getAttribute('data-e2e-chart-host'),
       canvasTags: canvases.map((canvas) => canvas.getAttribute('data-e2e-chart-canvas')),
       priceAxis: axisStats((rect) => rect.width <= 120 && rect.height >= 100),
@@ -349,6 +352,7 @@ test('switching themes repaints the mounted BTC chart canvas and chrome in place
   expect(cream.canvasTags).toEqual(baseline.canvasTags)
   // Actual empty plot-canvas pixel equals the workspace canvas target (not the lighter card).
   expect(cream.emptyPixel).toEqual([...CREAM_CHART_PIXEL])
+  expect(cream.panelBackground).toBe('rgb(242, 230, 206)')
   expect(await bodyColor(page)).toBe(CREAM_PAGE_RGB)
   expect(cream.priceAxis.dark).toBeGreaterThan(50)
   expect(cream.timeAxis.dark).toBeGreaterThan(50)
@@ -413,6 +417,7 @@ test('Cream chart canvas covers Binance, Hyperliquid and newly added charts', as
     const stats = await readChartStats(page, index)
     expect(stats.containerTag).toBe(`mounted-${index}`)
     expect(stats.emptyPixel, `${exchange} chart background`).toEqual([...CREAM_CHART_PIXEL])
+    expect(stats.panelBackground, `${exchange} panel shell`).toBe('rgb(242, 230, 206)')
   }
   expect(await bodyColor(page)).toBe(CREAM_PAGE_RGB)
 

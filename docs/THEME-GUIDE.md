@@ -31,7 +31,7 @@ Theme is applied via `document.documentElement.dataset.theme`. Every built-in pa
 | `taupe` | Taupe | `blTaKtCok` |
 | `olive` | Olive | `b6t6ENHec` |
 | `black` | Black | Neutral-derived custom palette (`#000000` background) |
-| `cream` | Cream | Warm light palette; workspace canvas and chart canvas `#F2E6CE` (only light theme) |
+| `cream` | Cream | Warm light palette; workspace canvas, panel/card shell and chart canvas `#F2E6CE` (only light theme) |
 
 ### Light vs dark palettes
 
