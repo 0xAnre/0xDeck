@@ -39,7 +39,7 @@ Stack: Vite, React 19, TypeScript, Tailwind v4, shadcn/ui (Radix Mira), `react-g
 ## Architecture (read this first)
 
 ```
-App.tsx                    → header, theme/widget menus, grid shell; renders registry component
+App.tsx                    → header (workspaces, wallet, appearance, theme/widget menus), grid shell; renders registry component
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract, client, and `subscribeWidgetStream` (one shared relay connection per channel, ref-counted across panels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts, account markers)
@@ -76,7 +76,7 @@ Grid: 36/24/12 columns (lg/md/sm), `rowHeight` 11px, overlap allowed, z-index on
 - *Envelope read:* the `storage` event on `0xdeck-workspace` re-reads the envelope and adopts external changes (`reloadWorkspaces` → `adoptExternalWorkspaces`), keeping the workspaces this tab edited but has not saved yet, and keeping this tab's active workspace — a switch in another tab is not a switch here, so two tabs can render different workspaces at the same time. `0xdeck-workspace.activeWorkspaceId` is therefore neither a per-tab view nor "the workspace activated most recently": it is the last writer's active workspace, and only a freshly loaded tab adopts it as its own active workspace.
 - There is no delete/rename, so a merge never drops a stored workspace; concurrent edits of the *same* workspace are last-write-wins per workspace.
 
-**Header at narrow widths:** the header is a wrapping flex row (`flex-wrap`, `md:flex-nowrap`): below `768px` the right control group (Theme, Widgets, Data Source, Screen Lock) moves to a second row and wraps internally if it still cannot fit, so every control stays reachable instead of overflowing. From `768px` up it is one row, the workspace icon strip is the only horizontally scrollable part (`max-w-[50vw]`, hidden scrollbar) and `+` sits outside the strip. `e2e/workspace-switcher.spec.ts` asserts every control is fully inside the viewport and clickable at 375px and 600px, and that the header stays a single row at 900px with 16 workspaces.
+**Header at narrow widths:** the header is a wrapping flex row (`flex-wrap`, `md:flex-nowrap`): below `768px` the right control group (Appearance, Theme, Widgets, Data Source, Screen Lock) moves to a second row and wraps internally if it still cannot fit, so every control stays reachable instead of overflowing. From `768px` up it is one row, the workspace icon strip is the only horizontally scrollable part (`max-w-[50vw]`, hidden scrollbar) and `+` sits outside the strip. `e2e/workspace-switcher.spec.ts` asserts every control is fully inside the viewport and clickable at 375px and 600px, and that the header stays a single row at 900px with 16 workspaces.
 
 **Widget instances:** `WIDGET_REGISTRY` defines templates; each open panel gets a unique id (`chart-a1b2c3`). Widgets menu **adds** instances; panel **X** closes. Each instance has its own dataset, time range, and KPI config in localStorage. **Reusable widget** = one registry entry, add many instances, port bodies from other projects ([WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md)).
 
@@ -192,7 +192,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `chart` | Line chart (Recharts), per-widget dataset + time range |
 | `kpi-card` | Metric + aggregation + time range via `/kpi` API |
 | `data-table` | Parquet preview table, column picker, workspace defaults |
-| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances, Aggregated Liquidations), tools (fixed-range volume profile, rectangle/box, line); REST history + live kline WebSocket relay |
+| `btc-perpetual-chart` | BTC perpetual candles from **Binance USD-M** (default) or **Hyperliquid**, selected in the header; header exchange + interval (`1m`–`1w`), indicators (3 EMA, 2 EMA, RSI, daily/weekly/monthly/quarterly/yearly VWAP, rolling VWAP overlay instances, Aggregated Liquidations), tools (fixed-range volume profile, rectangle/box, line); global candle rising/falling colors from the header **Appearance** menu; REST history + live kline WebSocket relay |
 
 **`src/market/` (BTC Perp):** candle parsing/merge, chart history and live updates, VWAP context requests, rolling VWAP instances/settings UI, fixed-range volume profile selection/render pipeline, Aggregated Liquidations event paging (`aggregatedLiquidationsHistory.ts`) and per-interval bucket requests (`aggregatedLiquidationsBuckets.ts`, `30m` and above; `15m` and below keep the events path), and pure Hyperliquid account fill dedupe/bucketing/side-only marker grouping. Indicator availability is interval-specific (see `market/indicators.ts` and [README.md](README.md) BTC Perpetual section).
 
@@ -202,6 +202,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 |-----|---------|
 | `0xdeck-workspace` | **Shared by every workspace and tab.** `{ version, activeWorkspaceId, workspaces: [{ id, activePanels, layout, gridVersion }] }` — one lg layout per workspace, instance ids. A legacy `{ activePanels, layout, gridVersion }` payload (or its `layouts.lg` variant) is migrated in place to Workspace 1; a pre-version payload (no `gridVersion`, 12 columns) is scaled 12→36 exactly once. Panel ids the catalog cannot resolve and orphan layout items are kept in the payload (filtered only when rendering). Written with the two-tab merge policy above (see *Multi-tab conflict policy*); `activeWorkspaceId` is the active workspace of the tab that wrote the envelope last, which is what a newly loaded tab opens — a write from any other tab replaces it |
 | `0xdeck-theme` | Theme id string — **global**, shared by all workspaces |
+| `0xdeck-candle-colors` | Global BTC Perp candle colors `{ rising, falling }` — **global**, shared by every panel, workspace and candle exchange. One color per direction covers body + wick + matching border; the border stays hidden. Missing/invalid fields fall back to `#DBDBDB` / `#808080`; only the shared Appearance dialog's Save writes it, and theme changes never rewrite it |
 | `0xdeck-notes:<workspaceId>` | Notes workspace of one workspace (files, contents, active tab). Written with the **explicit** workspace id of the widget's context (never resolved at save time). The legacy `0xdeck-notes` singleton is read for **Workspace 1 only**, so existing notes survive the upgrade; other workspaces seed from the bundled notes |
 | `0xdeck-widget-datasets` | Per-widget dataset name |
 | `0xdeck-widget-time-ranges` | Per-widget time range (`15m` … `all`) |
@@ -222,7 +223,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `0xdeck-widget-anchored-vwap-instances` | Anchored VWAP drawing instances (BTC Perp) |
 | `0xdeck-widget-market-chart-viewports` | Per-instance BTC Perp chart viewport by candle interval |
 
-All `0xdeck-widget-*` keys are **workspace-private in practice**: they are keyed by the panel instance id, and every workspace creates its own instance ids (chart configs, indicators, drawing instances, RSI, liquidations and viewports therefore never leak across workspaces).
+All `0xdeck-widget-*` keys are **workspace-private in practice**: they are keyed by the panel instance id, and every workspace creates its own instance ids (chart configs, indicators, drawing instances, RSI, liquidations and viewports therefore never leak across workspaces). `0xdeck-candle-colors` is global like `0xdeck-theme`, not panel/workspace-scoped.
 
 Invalid saved theme ids fall back to `neutral`. Older browser data from pre-0xDeck builds is not migrated automatically.
 
