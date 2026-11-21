@@ -4,9 +4,8 @@ import { expect, test, type Page } from '@playwright/test'
  * Browser regression for in-session theme switching on mounted BTC Perpetual charts (#248).
  *
  * The chart chrome is canvas-rendered by Lightweight Charts: axis text, crosshair, current-price
- * line and the chart background. Cream paints its chart pane with the darker shared
- * `--chart-background` token while the page/header keep the lighter reference cream; dark themes
- * keep the previous transparent canvas. This spec proves the mounted chart is restyled in place:
+ * line and the chart background. Cream paints both its workspace canvas and chart pane with the darker shared
+ * `--chart-background` token; dark themes keep the previous transparent chart canvas. This spec proves the mounted chart is restyled in place:
  *
  * - an empty plot-canvas pixel is exactly the Cream chart target RGB (not the page/card colour);
  * - the price/time axis text pixels switch from light to dark and back with the theme;
@@ -26,7 +25,7 @@ const PANEL_ID = 'btc-perpetual-chart-e2e'
 const HYPERLIQUID_PANEL_ID = 'btc-perpetual-chart-e2e-hl'
 const INTERVAL = '1m'
 const T0 = 1_700_000_000
-const CREAM_PAGE_RGB = 'rgb(253, 246, 228)'
+const CREAM_PAGE_RGB = 'rgb(242, 230, 206)'
 const CREAM_CHART_PIXEL = [242, 230, 206, 255] as const
 const BLACK_PAGE_RGB = 'rgb(0, 0, 0)'
 
@@ -348,7 +347,7 @@ test('switching themes repaints the mounted BTC chart canvas and chrome in place
   const cream = await readChartStats(page)
   expect(cream.containerTag).toBe('mounted-0')
   expect(cream.canvasTags).toEqual(baseline.canvasTags)
-  // Actual empty plot-canvas pixel: darker cream chart pane, not the page/card colour.
+  // Actual empty plot-canvas pixel equals the workspace canvas target (not the lighter card).
   expect(cream.emptyPixel).toEqual([...CREAM_CHART_PIXEL])
   expect(await bodyColor(page)).toBe(CREAM_PAGE_RGB)
   expect(cream.priceAxis.dark).toBeGreaterThan(50)
@@ -389,7 +388,7 @@ test('switching themes repaints the mounted BTC chart canvas and chrome in place
   expect(viewportShape(await captureViewport(page))).toEqual(baselineViewport)
   expect(klineRequests.length).toBe(baselineKlineRequests)
 
-  // Cream persists across reload and the rebuilt chart still paints the darker cream pane.
+  // Cream persists across reload and both the workspace canvas and rebuilt chart keep the target.
   await selectTheme(page, 'Cream')
   const beforeReload = await readChartStats(page)
   expect(beforeReload.emptyPixel).toEqual([...CREAM_CHART_PIXEL])

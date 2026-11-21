@@ -284,9 +284,10 @@ body,
   --font-sans: 'Inter Variable', sans-serif;
 }
 
-/* Warm light cream palette (reference base #FDF6E4) — the only light built-in theme */
+/* Warm light cream palette — the only light built-in theme.
+   Workspace/header canvas and chart canvas share the final darker cream #F2E6CE. */
 [data-theme='cream'] {
-  --background: #fdf6e4;
+  --background: #f2e6ce;
   --foreground: oklch(0.27 0.022 55);
   --card: #fffcf2;
   --card-foreground: oklch(0.27 0.022 55);

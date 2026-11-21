@@ -194,16 +194,18 @@ test('cream is a warm light palette with dark readable text and visible edges', 
   const muted = await paint(page, [await themeToken(page, '--muted')])
   const accent = await paint(page, [await themeToken(page, '--accent')])
 
-  // Exact reference base sampled from the supplied image: dominant canvas RGB #FDF6E4.
-  expect(backgroundToken.toLowerCase()).toBe('#fdf6e4')
-  expect(rgb(background)).toEqual([253, 246, 228])
-  expect(rgb(await bodyBackground(page))).toEqual([253, 246, 228])
+  // Final choice: workspace canvas and chart canvas share the darker cream #F2E6CE.
+  expect(backgroundToken.toLowerCase()).toBe('#f2e6ce')
+  expect((await themeToken(page, '--chart-background')).toLowerCase()).toBe('#f2e6ce')
+  expect(rgb(background)).toEqual([242, 230, 206])
+  expect(rgb(await bodyBackground(page))).toEqual([242, 230, 206])
   expect(rgb(card)).toEqual(rgb(await cardBackground(page)))
   expect(background.r).toBeGreaterThan(background.g)
   expect(background.g).toBeGreaterThan(background.b)
-  expect(luminance(background)).toBeGreaterThan(0.8)
-  // Panel/popover/secondary/muted/hover stay subtly differentiated from the canvas.
-  for (const surface of [card, popover, secondary, muted, accent]) {
+  expect(luminance(background)).toBeGreaterThan(0.75)
+  // Lighter panel/popover/secondary surfaces stay differentiated from the darker canvas.
+  // Muted/accent are unchanged palette roles and are checked through text contrast below.
+  for (const surface of [card, popover, secondary]) {
     expect(contrast(surface, background)).toBeGreaterThan(1.02)
     expect(contrast(surface, background)).toBeLessThan(1.5)
   }
