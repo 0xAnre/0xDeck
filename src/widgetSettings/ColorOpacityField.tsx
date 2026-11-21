@@ -34,7 +34,7 @@ import {
   normalizeColorPickerOpacityPercent,
 } from '@/widgetSettings/colorPickerPalette'
 
-type ColorOpacityFieldProps = {
+type ColorOpacityFieldBaseProps = {
   /** Base id for the color trigger; the slider gets `${id}-opacity` by default. */
   id: string
   /** Explicit slider id when a dialog needs a stable legacy id. */
@@ -42,20 +42,6 @@ type ColorOpacityFieldProps = {
   label: string
   color: string
   onColorChange: (color: string) => void
-  /**
-   * Opacity is one half of the standard Color + Opacity pair. A narrow
-   * color-only surface (the global candle colors, which have no opacity
-   * setting) may omit it together with `onOpacityChange` and pass
-   * `showOpacity={false}`; every standard chart object still passes both.
-   */
-  opacityPercent?: number
-  onOpacityChange?: (opacityPercent: number) => void
-  /**
-   * Render the opacity row. Defaults to `true`; set `false` only for a surface
-   * whose persisted value genuinely has no opacity (see the candle-color
-   * exception in docs/CHART-OBJECT-STANDARD.md).
-   */
-  showOpacity?: boolean
   className?: string
   /**
    * Current stroke style, shown as a `Line` / `Dot` row at the bottom of the
@@ -72,6 +58,26 @@ type ColorOpacityFieldProps = {
   /** Opt-in line-style row; omitted for fill-only controls. Receives `'solid' | 'dotted'`. */
   onLineStyleChange?: (style: LineChartStrokeStyle) => void
 }
+
+/**
+ * Opacity is one half of the standard Color + Opacity pair, so the default
+ * variant requires both values. The only color-only caller is the global
+ * candle-color dialog, whose persisted preference deliberately has no opacity;
+ * it must opt in explicitly with `showOpacity={false}`.
+ */
+type ColorOpacityFieldProps = ColorOpacityFieldBaseProps &
+  (
+    | {
+        showOpacity?: true
+        opacityPercent: number
+        onOpacityChange: (opacityPercent: number) => void
+      }
+    | {
+        showOpacity: false
+        opacityPercent?: number
+        onOpacityChange?: (opacityPercent: number) => void
+      }
+  )
 
 /**
  * Transparency checkerboard behind the current color; chrome uses theme tokens.
