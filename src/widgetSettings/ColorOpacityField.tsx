@@ -34,16 +34,14 @@ import {
   normalizeColorPickerOpacityPercent,
 } from '@/widgetSettings/colorPickerPalette'
 
-type ColorOpacityFieldProps = {
+type ColorOpacityFieldBaseProps = {
   /** Base id for the color trigger; the slider gets `${id}-opacity` by default. */
   id: string
   /** Explicit slider id when a dialog needs a stable legacy id. */
   opacityId?: string
   label: string
   color: string
-  opacityPercent: number
   onColorChange: (color: string) => void
-  onOpacityChange: (opacityPercent: number) => void
   className?: string
   /**
    * Current stroke style, shown as a `Line` / `Dot` row at the bottom of the
@@ -60,6 +58,26 @@ type ColorOpacityFieldProps = {
   /** Opt-in line-style row; omitted for fill-only controls. Receives `'solid' | 'dotted'`. */
   onLineStyleChange?: (style: LineChartStrokeStyle) => void
 }
+
+/**
+ * Opacity is one half of the standard Color + Opacity pair, so the default
+ * variant requires both values. The only color-only caller is the global
+ * candle-color dialog, whose persisted preference deliberately has no opacity;
+ * it must opt in explicitly with `showOpacity={false}`.
+ */
+type ColorOpacityFieldProps = ColorOpacityFieldBaseProps &
+  (
+    | {
+        showOpacity?: true
+        opacityPercent: number
+        onOpacityChange: (opacityPercent: number) => void
+      }
+    | {
+        showOpacity: false
+        opacityPercent?: number
+        onOpacityChange?: (opacityPercent: number) => void
+      }
+  )
 
 /**
  * Transparency checkerboard behind the current color; chrome uses theme tokens.
@@ -140,6 +158,7 @@ export function ColorOpacityField({
   opacityPercent,
   onColorChange,
   onOpacityChange,
+  showOpacity = true,
   className,
   lineStyle,
   lineStyleMixed = false,
@@ -152,7 +171,7 @@ export function ColorOpacityField({
   const [customInvalid, setCustomInvalid] = useState(false)
   const swatchRefs = useRef<Array<HTMLButtonElement | null>>([])
 
-  const percent = normalizeColorPickerOpacityPercent(opacityPercent)
+  const percent = normalizeColorPickerOpacityPercent(opacityPercent ?? 100)
   const sliderId = opacityId ?? `${id}-opacity`
   const sliderLabelId = `${sliderId}-label`
   const lineStyleHintId = `${id}-line-style-hint`
@@ -383,48 +402,50 @@ export function ColorOpacityField({
                 </form>
               ) : null}
 
-              <Field className="gap-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  {/* `aria-labelledby` wins over `aria-label`, so the visible text is
-                      hidden from the accessible name and the sliders are announced
-                      precisely (e.g. "Rolling VWAP line opacity") instead of just
-                      "Opacity" in each of the field instances. */}
-                  <FieldLabel id={sliderLabelId}>
-                    <span aria-hidden="true">Opacity</span>
-                    <span className="sr-only">{`${label} opacity`}</span>
-                  </FieldLabel>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {percent}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="relative block size-6 shrink-0 overflow-hidden rounded-[3px] border border-border"
-                  >
-                    <span className="absolute inset-0" style={CHECKERBOARD_STYLE} />
+              {showOpacity ? (
+                <Field className="gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    {/* `aria-labelledby` wins over `aria-label`, so the visible text is
+                        hidden from the accessible name and the sliders are announced
+                        precisely (e.g. "Rolling VWAP line opacity") instead of just
+                        "Opacity" in each of the field instances. */}
+                    <FieldLabel id={sliderLabelId}>
+                      <span aria-hidden="true">Opacity</span>
+                      <span className="sr-only">{`${label} opacity`}</span>
+                    </FieldLabel>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {percent}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <span
-                      className="absolute inset-0"
-                      style={{ backgroundColor: currentHex, opacity: percent / 100 }}
+                      aria-hidden="true"
+                      className="relative block size-6 shrink-0 overflow-hidden rounded-[3px] border border-border"
+                    >
+                      <span className="absolute inset-0" style={CHECKERBOARD_STYLE} />
+                      <span
+                        className="absolute inset-0"
+                        style={{ backgroundColor: currentHex, opacity: percent / 100 }}
+                      />
+                    </span>
+                    <Slider
+                      id={sliderId}
+                      aria-labelledby={sliderLabelId}
+                      aria-label={`${label} opacity`}
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={[percent]}
+                      onValueChange={(value) => {
+                        const next = value[0]
+                        if (next === undefined || !Number.isFinite(next)) return
+                        onOpacityChange?.(normalizeColorPickerOpacityPercent(next))
+                      }}
+                      className="flex-1"
                     />
-                  </span>
-                  <Slider
-                    id={sliderId}
-                    aria-labelledby={sliderLabelId}
-                    aria-label={`${label} opacity`}
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={[percent]}
-                    onValueChange={(value) => {
-                      const next = value[0]
-                      if (next === undefined || !Number.isFinite(next)) return
-                      onOpacityChange(normalizeColorPickerOpacityPercent(next))
-                    }}
-                    className="flex-1"
-                  />
-                </div>
-              </Field>
+                  </div>
+                </Field>
+              ) : null}
 
               {onLineStyleChange ? (
                 <>
