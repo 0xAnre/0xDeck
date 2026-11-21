@@ -283,6 +283,50 @@ body,
   --font-sans: 'Inter Variable', sans-serif;
 }
 
+/* Warm light cream palette — the only light built-in theme */
+[data-theme='cream'] {
+  --background: oklch(0.958 0.017 82);
+  --foreground: oklch(0.27 0.022 55);
+  --card: oklch(0.985 0.011 86);
+  --card-foreground: oklch(0.27 0.022 55);
+  --popover: oklch(0.99 0.008 86);
+  --popover-foreground: oklch(0.27 0.022 55);
+  --primary: oklch(0.36 0.05 55);
+  --primary-foreground: oklch(0.985 0.012 86);
+  --secondary: oklch(0.925 0.024 82);
+  --secondary-foreground: oklch(0.27 0.022 55);
+  --muted: oklch(0.935 0.02 82);
+  --muted-foreground: oklch(0.47 0.028 60);
+  --accent: oklch(0.915 0.035 78);
+  --accent-foreground: oklch(0.27 0.022 55);
+  --destructive: oklch(0.48 0.185 27.5);
+  --border: oklch(0.4 0.03 65 / 30%);
+  --input: oklch(0.4 0.03 65 / 38%);
+  --ring: oklch(0.45 0.11 60);
+  --chart-1: oklch(0.34 0.04 60);
+  --chart-2: oklch(0.46 0.06 55);
+  --chart-3: oklch(0.55 0.09 50);
+  --chart-4: oklch(0.62 0.11 65);
+  --chart-5: oklch(0.58 0.1 40);
+  --radius: 0;
+  --sidebar: oklch(0.975 0.013 85);
+  --sidebar-foreground: oklch(0.27 0.022 55);
+  --sidebar-primary: oklch(0.36 0.05 55);
+  --sidebar-primary-foreground: oklch(0.985 0.012 86);
+  --sidebar-accent: oklch(0.925 0.024 82);
+  --sidebar-accent-foreground: oklch(0.27 0.022 55);
+  --sidebar-border: oklch(0.4 0.03 65 / 30%);
+  --sidebar-ring: oklch(0.45 0.11 60);
+  --bid: oklch(0.5 0.11 152);
+  --ask: oklch(0.47 0.03 60);
+  --up: oklch(0.5 0.11 152);
+  --down: oklch(0.48 0.185 27.5);
+  --long: oklch(0.5 0.11 152);
+  --short: oklch(0.48 0.185 27.5);
+  --chart-glow: oklch(0.36 0.05 55 / 12%);
+  --font-sans: 'Inter Variable', sans-serif;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --color-background: var(--background);

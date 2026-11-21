@@ -17,7 +17,7 @@ Themes are **color-only palettes** built on [shadcn/ui](https://ui.shadcn.com) C
 | `components.json` | shadcn project config |
 | `index.html` | Initial `data-theme` on `<html>` |
 
-Theme is applied via `document.documentElement.dataset.theme` and `.dark` class. Default: `neutral`. Unknown saved theme ids fall back to `neutral`.
+Theme is applied via `document.documentElement.dataset.theme`. Every built-in palette except `cream` is dark: `applyTheme` also adds the shadcn `.dark` class for them (driving every `dark:` variant) and sets the native `color-scheme` to `dark`. `cream` is light, so it removes `.dark` and sets `color-scheme: light`; switching back re-adds both. Default: `neutral`. Unknown saved theme ids fall back to `neutral`.
 
 ---
 
@@ -31,6 +31,11 @@ Theme is applied via `document.documentElement.dataset.theme` and `.dark` class.
 | `taupe` | Taupe | `blTaKtCok` |
 | `olive` | Olive | `b6t6ENHec` |
 | `black` | Black | Neutral-derived custom palette (`#000000` background) |
+| `cream` | Cream | Warm light palette (only light theme) |
+
+### Light vs dark palettes
+
+A theme is either dark or light, and `THEME_APPEARANCES` in `src/themeStorage.ts` records which. A light palette must define its own *dark* text, borders, muted text and focus ring, because on a light canvas the dark themes' low-alpha white hairlines and near-white market tokens disappear. It must also keep buy/sell/up/down distinguishable as readable colors, and provide chart tokens that stay legible as lines on light surfaces. `dark:` utility branches only apply to dark themes; a light theme gets shadcn's base (light) branch.
 
 ### Core variables
 
@@ -78,6 +83,11 @@ export const THEMES = ['neutral', 'stone', 'mauve', 'taupe', 'olive', 'black', '
 export const THEME_LABELS: Record<Theme, string> = {
   // ...
   'my-theme': 'My Theme',
+}
+
+export const THEME_APPEARANCES: Record<Theme, ThemeAppearance> = {
+  // every existing dark theme stays 'dark'
+  'my-theme': 'light', // 'light' removes `.dark` and sets color-scheme: light
 }
 ```
 
