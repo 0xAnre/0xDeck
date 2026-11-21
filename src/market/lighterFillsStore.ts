@@ -202,6 +202,9 @@ async function runSession(active: LighterSession): Promise<void> {
     if (resolution.kind === 'missing') {
       active.status = 'ready'
       active.failureCount = 0
+      // A successful retry replaces the transient provider error with the
+      // truthful empty state; the old error must not outrank it in the panel.
+      active.error = null
       active.notice = 'No Lighter account is associated with this wallet address'
       emitSnapshot()
       return
@@ -209,6 +212,7 @@ async function runSession(active: LighterSession): Promise<void> {
     if (resolution.kind === 'ambiguous') {
       active.status = 'ready'
       active.failureCount = 0
+      active.error = null
       active.notice = `This wallet owns ${accounts.length} Lighter accounts. Choose one in the Position Markers wallet menu.`
       emitSnapshot()
       return

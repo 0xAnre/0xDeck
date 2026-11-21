@@ -87,6 +87,10 @@ async function waitFor(condition: () => boolean, label: string): Promise<void> {
   assert.fail(`timed out waiting for ${label}`)
 }
 
+function expectNoTrades(requests: readonly string[]): void {
+  assert.equal(requests.filter((url) => url.includes('/trades?')).length, 0)
+}
+
 let cleanup: (() => void) | null = null
 const trackedUnsubscribes: Array<() => void> = []
 const originalFetch = globalThis.fetch
@@ -106,7 +110,7 @@ afterEach(() => {
 })
 
 describe('shared Lighter position-markers session', () => {
-  it('resolves the single account, loads its BTC trades and reads its position once', async () => {
+  it('resolves the single account and loads its BTC trades with one request', async () => {
     const fetchStub = installFetch((url) => {
       if (url.includes('/account?by=l1_address')) return jsonResponse(accountsPayload([{ index: 42 }]))
       if (url.includes('/trades?')) return jsonResponse(tradesPayload(['1', '2']))
@@ -210,6 +214,55 @@ describe('shared Lighter position-markers session', () => {
     assert.ok(accountCalls >= 2)
     unsubscribe()
     assert.equal(getLighterPositionMarkersSnapshot().status, 'idle')
+  })
+
+  it('clears a transient provider error when the retry discovers no accounts', async () => {
+    let accountCalls = 0
+    const fetchStub = installFetch((url) => {
+      if (url.includes('/account?by=l1_address')) {
+        accountCalls += 1
+        if (accountCalls === 1) throw new Error('offline')
+        return jsonResponse(accountsPayload([]))
+      }
+      throw new Error(`unexpected request ${url}`)
+    })
+    cleanup = fetchStub.restore
+
+    const unsubscribe = trackSubscribe(() => {})
+    await waitFor(
+      () => getLighterPositionMarkersSnapshot().status === 'ready',
+      'ready empty state after retry',
+    )
+    const snapshot = getLighterPositionMarkersSnapshot()
+    assert.match(snapshot.notice ?? '', /No Lighter account/)
+    assert.equal(snapshot.error, null)
+    assert.ok(accountCalls >= 2)
+    unsubscribe()
+  })
+
+  it('clears a transient provider error when the retry discovers several accounts', async () => {
+    let accountCalls = 0
+    const fetchStub = installFetch((url) => {
+      if (url.includes('/account?by=l1_address')) {
+        accountCalls += 1
+        if (accountCalls === 1) throw new Error('offline')
+        return jsonResponse(accountsPayload([{ index: 7 }, { index: 42, account_type: 1 }]))
+      }
+      throw new Error(`unexpected request ${url}`)
+    })
+    cleanup = fetchStub.restore
+
+    const unsubscribe = trackSubscribe(() => {})
+    await waitFor(
+      () => getLighterPositionMarkersSnapshot().status === 'ready',
+      'ready ambiguous state after retry',
+    )
+    const snapshot = getLighterPositionMarkersSnapshot()
+    assert.match(snapshot.notice ?? '', /owns 2 Lighter accounts/)
+    assert.equal(snapshot.error, null)
+    expectNoTrades(fetchStub.requests)
+    assert.ok(accountCalls >= 2)
+    unsubscribe()
   })
 
   it('reports a provider rate limit instead of pretending the history is empty', async () => {

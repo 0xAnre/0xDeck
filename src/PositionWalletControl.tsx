@@ -75,16 +75,29 @@ export function PositionWalletControl() {
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const requestRef = useRef<AbortController | null>(null)
+  /**
+   * Identity of the newest BTC-position check. A slow response for a previous
+   * account/address/exchange must never paint its result on the current one.
+   */
+  const positionRequestRef = useRef<{ controller: AbortController; key: string } | null>(null)
   const exchangeId = useId()
   const addressId = useId()
   const accountId = useId()
 
-  // An unmounted control must not resolve a discovery request into a commit.
-  useEffect(() => () => requestRef.current?.abort(), [])
+  // An unmounted control must not resolve a discovery or position request into a commit.
+  useEffect(
+    () => () => {
+      requestRef.current?.abort()
+      positionRequestRef.current?.controller.abort()
+    },
+    [],
+  )
 
   const resetDiscovery = () => {
     requestRef.current?.abort()
     requestRef.current = null
+    positionRequestRef.current?.controller.abort()
+    positionRequestRef.current = null
     setBusy(false)
     setAccounts([])
     setAccountsAddress(null)
@@ -103,9 +116,11 @@ export function PositionWalletControl() {
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
-      // A closed popover must not leave a discovery request running.
+      // A closed popover must not leave a discovery or position request running.
       requestRef.current?.abort()
       requestRef.current = null
+      positionRequestRef.current?.controller.abort()
+      positionRequestRef.current = null
       setBusy(false)
     } else {
       resetDiscovery()
@@ -179,20 +194,35 @@ export function PositionWalletControl() {
     }
   }
 
-  /** BTC-position check for a known account; informational only (markers use trades). */
+  /**
+   * BTC-position check for a known account; informational only (markers use
+   * trades). Each check carries its own identity and abort controller: only the
+   * newest check for the current draft/exchange/address/account may set state,
+   * so a delayed response can never show another account's empty state or error.
+   */
   const loadBtcPosition = async (accountIndex: number) => {
+    const key = `${draft.exchange}:${draft.address.trim().toLowerCase()}:${accountIndex}`
+    positionRequestRef.current?.controller.abort()
+    const controller = new AbortController()
+    positionRequestRef.current = { controller, key }
     setPositionAccountIndex(accountIndex)
     setHasBtcPosition(null)
     setPositionError(null)
+    const isCurrent = () =>
+      !controller.signal.aborted && positionRequestRef.current?.key === key
     try {
-      const position = await fetchLighterBtcPosition(accountIndex)
+      const position = await fetchLighterBtcPosition(accountIndex, controller.signal)
+      if (!isCurrent()) return
       setHasBtcPosition(position !== null)
     } catch (caught) {
+      if (!isCurrent()) return
       setPositionError(
         caught instanceof Error && caught.message !== ''
           ? caught.message
           : 'Could not read this account’s BTC position',
       )
+    } finally {
+      if (positionRequestRef.current?.key === key) positionRequestRef.current = null
     }
   }
 

@@ -474,6 +474,84 @@ test.describe('global position-markers wallet', () => {
     await expect(popover.getByText(/No open BTC position on this account/)).toBeVisible()
   })
 
+  test('ignores a delayed BTC-position result for a previously selected account', async ({
+    page,
+  }) => {
+    await page.addInitScript(`(() => {
+      localStorage.setItem('0xdeck-workspace', JSON.stringify({
+        version: 2,
+        activeWorkspaceId: 'ws-notes',
+        workspaces: [{ id: 'ws-notes', activePanels: ['notes-wallet'], layout: [], gridVersion: 3 }],
+      }))
+    })()`)
+    await mockBackend(page)
+    const address = '0xddddccccbbbbaaaa999988887777666655554444'
+    const positionRequests: number[] = []
+    await page.route('https://mainnet.zklighter.elliot.ai/**', async (route) => {
+      const url = new URL(route.request().url())
+      const json = (body: unknown) =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+      if (url.pathname === '/api/v1/account' && url.searchParams.get('by') === 'l1_address') {
+        return json({
+          code: 200,
+          total: 2,
+          accounts: [
+            { code: 0, index: 11, account_type: 0, l1_address: address, positions: [] },
+            { code: 0, index: 22, account_type: 1, l1_address: address, positions: [] },
+          ],
+        })
+      }
+      if (url.pathname === '/api/v1/account' && url.searchParams.get('by') === 'index') {
+        const accountIndex = Number(url.searchParams.get('value'))
+        positionRequests.push(accountIndex)
+        // A slow answer for account #11 (no position) vs an immediate answer for #22.
+        if (accountIndex === 11) await new Promise((resolve) => setTimeout(resolve, 900))
+        return json({
+          code: 200,
+          accounts: [
+            {
+              code: 0,
+              index: accountIndex,
+              l1_address: address,
+              positions:
+                accountIndex === 22
+                  ? [{ symbol: 'BTC', sign: 1, position: '0.5', avg_entry_price: '56000' }]
+                  : [],
+            },
+          ],
+        })
+      }
+      if (url.pathname === '/api/v1/trades') {
+        return json({ code: 200, next_cursor: null, trades: [] })
+      }
+      return route.fulfill({ status: 404, body: 'not mocked' })
+    })
+    await page.goto('/')
+    const popover = await openWallet(page)
+    await chooseExchange(page, 'Lighter')
+    await popover.getByLabel('Wallet address').fill(address)
+    await saveWallet(page)
+    const accountSelect = popover.getByRole('combobox', { name: 'Lighter account' })
+    await expect(accountSelect).toBeVisible()
+
+    // Select the slow, position-less account, then the fast account with a position.
+    await accountSelect.click()
+    await page.getByRole('option', { name: 'Master account · #11' }).click()
+    await accountSelect.click()
+    await page.getByRole('option', { name: 'Sub-account · #22' }).click()
+
+    // The late #11 answer must not label account #22 as position-less or failed.
+    await page.waitForTimeout(1_400)
+    expect(positionRequests.slice(0, 2)).toEqual([11, 22])
+    await expect(popover.getByText(/No open BTC position on this account/)).toHaveCount(0)
+    await expect(popover.getByText(/Could not read the Bitcoin position/)).toHaveCount(0)
+
+    // The check still reports the truth for the account that is actually selected.
+    await accountSelect.click()
+    await page.getByRole('option', { name: 'Master account · #11' }).click()
+    await expect(popover.getByText(/No open BTC position on this account/)).toBeVisible()
+  })
+
   test('keeps the wallet control reachable at a narrow viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 })
     await page.addInitScript(seedWorkspace(false))
