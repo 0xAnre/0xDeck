@@ -37,22 +37,6 @@ function accountsPayload(accounts: Array<{ index: number; account_type?: number 
   }
 }
 
-function positionPayload(hasBtc: boolean) {
-  return {
-    code: 200,
-    accounts: [
-      {
-        code: 0,
-        index: 42,
-        l1_address: ADDRESS,
-        positions: hasBtc
-          ? [{ symbol: 'BTC', sign: 1, position: '0.5', avg_entry_price: '56000' }]
-          : [],
-      },
-    ],
-  }
-}
-
 function tradesPayload(tradeIds: string[], nextCursor: string | null = null) {
   return {
     code: 200,
@@ -95,7 +79,7 @@ function installFetch(script: ScriptedResponse[] | ((url: string, init: FetchIni
 }
 
 async function waitFor(condition: () => boolean, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000
+  const deadline = Date.now() + 6_000
   while (Date.now() < deadline) {
     if (condition()) return
     await new Promise((resolve) => setTimeout(resolve, 5))
@@ -104,31 +88,37 @@ async function waitFor(condition: () => boolean, label: string): Promise<void> {
 }
 
 let cleanup: (() => void) | null = null
+const trackedUnsubscribes: Array<() => void> = []
+const originalFetch = globalThis.fetch
+
+/** Every subscription is torn down even when an assertion fails mid-test. */
+function trackSubscribe(listener: () => void): () => void {
+  const unsubscribe = subscribeLighterPositionMarkers(selection, listener)
+  trackedUnsubscribes.push(unsubscribe)
+  return unsubscribe
+}
 
 afterEach(() => {
+  while (trackedUnsubscribes.length > 0) trackedUnsubscribes.pop()?.()
   cleanup?.()
   cleanup = null
   globalThis.fetch = originalFetch
 })
 
-const originalFetch = globalThis.fetch
-
 describe('shared Lighter position-markers session', () => {
   it('resolves the single account, loads its BTC trades and reads its position once', async () => {
     const fetchStub = installFetch((url) => {
       if (url.includes('/account?by=l1_address')) return jsonResponse(accountsPayload([{ index: 42 }]))
-      if (url.includes('/account?by=index')) return jsonResponse(positionPayload(true))
       if (url.includes('/trades?')) return jsonResponse(tradesPayload(['1', '2']))
       throw new Error(`unexpected request ${url}`)
     })
     cleanup = fetchStub.restore
 
-    const unsubscribe = subscribeLighterPositionMarkers(selection, () => {})
+    const unsubscribe = trackSubscribe(() => {})
     await waitFor(() => getLighterPositionMarkersSnapshot().status === 'ready', 'ready snapshot')
 
     const snapshot = getLighterPositionMarkersSnapshot()
     assert.equal(snapshot.accountIndex, 42)
-    assert.equal(snapshot.hasBtcPosition, true)
     assert.equal(snapshot.fills.length, 2)
     assert.equal(snapshot.error, null)
     assert.equal(snapshot.notice, null)
@@ -141,17 +131,16 @@ describe('shared Lighter position-markers session', () => {
   it('serves several widgets from one session instead of one request per widget', async () => {
     const fetchStub = installFetch((url) => {
       if (url.includes('/account?by=l1_address')) return jsonResponse(accountsPayload([{ index: 42 }]))
-      if (url.includes('/account?by=index')) return jsonResponse(positionPayload(false))
       if (url.includes('/trades?')) return jsonResponse(tradesPayload(['1']))
       throw new Error(`unexpected request ${url}`)
     })
     cleanup = fetchStub.restore
 
-    const first = subscribeLighterPositionMarkers(selection, () => {})
-    const second = subscribeLighterPositionMarkers(selection, () => {})
+    const first = trackSubscribe(() => {})
+    const second = trackSubscribe(() => {})
     await waitFor(() => getLighterPositionMarkersSnapshot().status === 'ready', 'ready snapshot')
 
-    assert.equal(fetchStub.requests.filter((url) => url.includes('/account?')).length, 2)
+    assert.equal(fetchStub.requests.filter((url) => url.includes('/account?')).length, 1)
     assert.equal(fetchStub.requests.filter((url) => url.includes('/trades?')).length, 1)
 
     second()
@@ -170,7 +159,7 @@ describe('shared Lighter position-markers session', () => {
     })
     cleanup = fetchStub.restore
 
-    const unsubscribe = subscribeLighterPositionMarkers(selection, () => {})
+    const unsubscribe = trackSubscribe(() => {})
     await waitFor(() => getLighterPositionMarkersSnapshot().status === 'ready', 'ready snapshot')
     const snapshot = getLighterPositionMarkersSnapshot()
     assert.equal(snapshot.accountIndex, null)
@@ -187,12 +176,40 @@ describe('shared Lighter position-markers session', () => {
     })
     cleanup = fetchStub.restore
 
-    const unsubscribe = subscribeLighterPositionMarkers(selection, () => {})
+    const unsubscribe = trackSubscribe(() => {})
     await waitFor(() => getLighterPositionMarkersSnapshot().status === 'ready', 'ready snapshot')
     const snapshot = getLighterPositionMarkersSnapshot()
     assert.equal(snapshot.fills.length, 0)
     assert.match(snapshot.notice ?? '', /No Lighter account/)
     unsubscribe()
+  })
+
+  it('retries a transient start failure with backoff and recovers without a user action', async () => {
+    let accountCalls = 0
+    const fetchStub = installFetch((url) => {
+      if (url.includes('/account?by=l1_address')) {
+        accountCalls += 1
+        if (accountCalls === 1) {
+          // Network-level failure on the first attempt.
+          throw new Error('offline')
+        }
+        return jsonResponse(accountsPayload([{ index: 42 }]))
+      }
+      if (url.includes('/trades?')) return jsonResponse(tradesPayload(['1']))
+      throw new Error(`unexpected request ${url}`)
+    })
+    cleanup = fetchStub.restore
+
+    const unsubscribe = trackSubscribe(() => {})
+    await waitFor(() => getLighterPositionMarkersSnapshot().status === 'error', 'first failure')
+    assert.match(getLighterPositionMarkersSnapshot().error ?? '', /Could not reach Lighter/)
+    // The retry is scheduled by the session itself (1s base delay).
+    await waitFor(() => getLighterPositionMarkersSnapshot().status === 'ready', 'recovered session')
+    assert.equal(getLighterPositionMarkersSnapshot().fills.length, 1)
+    assert.equal(getLighterPositionMarkersSnapshot().error, null)
+    assert.ok(accountCalls >= 2)
+    unsubscribe()
+    assert.equal(getLighterPositionMarkersSnapshot().status, 'idle')
   })
 
   it('reports a provider rate limit instead of pretending the history is empty', async () => {
@@ -201,7 +218,7 @@ describe('shared Lighter position-markers session', () => {
     )
     cleanup = fetchStub.restore
 
-    const unsubscribe = subscribeLighterPositionMarkers(selection, () => {})
+    const unsubscribe = trackSubscribe(() => {})
     await waitFor(() => getLighterPositionMarkersSnapshot().status === 'error', 'error snapshot')
     assert.match(getLighterPositionMarkersSnapshot().error ?? '', /rate limit/)
     unsubscribe()

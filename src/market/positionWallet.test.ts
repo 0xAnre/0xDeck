@@ -82,6 +82,18 @@ describe('selection sanitizing', () => {
     }
   })
 
+  it('falls back to the whole built-in wallet when only the address is invalid', () => {
+    // A corrupted record must not pair a kept Lighter exchange/index with the
+    // built-in Hyperliquid address.
+    for (const value of [
+      { exchange: 'lighter', address: 'bad', lighterAccountIndex: 5 },
+      { exchange: 'lighter', address: '', lighterAccountIndex: 0 },
+      { exchange: 'hyperliquid', address: '0x123', lighterAccountIndex: 7 },
+    ]) {
+      assert.deepEqual(sanitizePositionWalletSelection(value), DEFAULT_POSITION_WALLET)
+    }
+  })
+
   it('drops an invalid or out-of-range Lighter account index', () => {
     const address = '0xAAAABBBBCCCCDDDDEEEEFFFF0000111122223333'
     assert.equal(

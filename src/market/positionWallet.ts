@@ -84,13 +84,16 @@ function sanitizeLighterAccountIndex(value: unknown): number | null {
 export function sanitizePositionWalletSelection(value: unknown): PositionWalletSelection {
   if (!value || typeof value !== 'object') return { ...DEFAULT_POSITION_WALLET }
   const record = value as Record<string, unknown>
+  // An invalid address cannot identify a wallet, so the whole record falls back
+  // to the documented default: never "Lighter" paired with the built-in
+  // Hyperliquid address, and never a Lighter account index for it.
+  if (positionWalletAddressError(record.address) !== null) {
+    return { ...DEFAULT_POSITION_WALLET }
+  }
   const exchange = isPositionWalletExchange(record.exchange)
     ? record.exchange
     : DEFAULT_POSITION_WALLET.exchange
-  const address =
-    positionWalletAddressError(record.address) === null
-      ? String(record.address).trim().toLowerCase()
-      : DEFAULT_POSITION_WALLET.address
+  const address = String(record.address).trim().toLowerCase()
   return {
     exchange,
     address,

@@ -2983,8 +2983,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [anchoredVwapInstances, chartReady])
 
   useEffect(() => {
-    if (positionWallet.exchange !== 'hyperliquid') return
-    if (!shouldShowPositionMarkers(positionMarkersEnabled)) return
+    if (
+      positionWallet.exchange !== 'hyperliquid' ||
+      !shouldShowPositionMarkers(positionMarkersEnabled)
+    ) {
+      // Leaving the Hyperliquid branch (wallet or toggle change) must forget
+      // the loaded range, or switching back would reuse the guard and never
+      // re-fetch the (now cleared) fills.
+      accountFillsRangeRef.current = null
+      return
+    }
     if (!chartReady) return
 
     const candles = candlesRef.current
@@ -2994,7 +3002,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const startTime = first.time * 1000
     const endTime =
       (last.time + candleIntervalDurationSeconds(interval)) * 1000
-    const rangeKey = `${startTime}:${endTime}`
+    // Wallet-scoped request identity: a different wallet must fetch its own
+    // history even when the candle window (and interval) did not move.
+    const rangeKey = `${positionWalletKey}:${startTime}:${endTime}`
     if (accountFillsRangeRef.current === rangeKey) return
     accountFillsRangeRef.current = rangeKey
 
@@ -3039,6 +3049,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     positionMarkersEnabled,
     positionWallet.exchange,
     positionWallet.address,
+    positionWalletKey,
     setAccountFillsNotice,
   ])
 

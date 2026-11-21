@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { lighterAccountLabel, type LighterAccountSummary } from '@/market/lighterAccount'
-import { fetchLighterAccounts } from '@/market/lighterAccountApi'
+import { fetchLighterAccounts, fetchLighterBtcPosition } from '@/market/lighterAccountApi'
 import {
   DEFAULT_POSITION_WALLET,
   POSITION_WALLET_EXCHANGES,
@@ -55,12 +55,22 @@ function draftForSelection(selection: PositionWalletSelection): PositionWalletDr
  * place a wallet is entered — panels have no per-widget wallet input. A Lighter
  * wallet that owns several accounts must be resolved here, so two accounts'
  * markers can never be mixed or an arbitrary account picked silently.
+ *
+ * The menu is also the global empty-state surface: a wallet without a Lighter
+ * account, and an account without an open BTC position, are reported here even
+ * when no BTC Perp panel has Position Markers switched on.
  */
 export function PositionWalletControl() {
   const selection = usePositionWallet()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<PositionWalletDraft>(() => draftForSelection(selection))
   const [accounts, setAccounts] = useState<LighterAccountSummary[]>([])
+  /** Address the current `accounts` list belongs to; a different address must re-discover. */
+  const [accountsAddress, setAccountsAddress] = useState<string | null>(null)
+  const [emptyWalletAddress, setEmptyWalletAddress] = useState<string | null>(null)
+  const [positionAccountIndex, setPositionAccountIndex] = useState<number | null>(null)
+  const [hasBtcPosition, setHasBtcPosition] = useState<boolean | null>(null)
+  const [positionError, setPositionError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -71,6 +81,20 @@ export function PositionWalletControl() {
 
   // An unmounted control must not resolve a discovery request into a commit.
   useEffect(() => () => requestRef.current?.abort(), [])
+
+  const resetDiscovery = () => {
+    requestRef.current?.abort()
+    requestRef.current = null
+    setBusy(false)
+    setAccounts([])
+    setAccountsAddress(null)
+    setEmptyWalletAddress(null)
+    setPositionAccountIndex(null)
+    setHasBtcPosition(null)
+    setPositionError(null)
+    setError(null)
+    setInfo(null)
+  }
 
   const commit = (next: PositionWalletSelection) => {
     setPositionWallet(next)
@@ -84,21 +108,19 @@ export function PositionWalletControl() {
       requestRef.current = null
       setBusy(false)
     } else {
+      resetDiscovery()
       setDraft(draftForSelection(selection))
-      setAccounts([])
-      setError(null)
-      setInfo(null)
-      if (selection.exchange === 'lighter') void loadLighterAccounts(selection.address)
+      if (selection.exchange === 'lighter') {
+        void loadLighterWallet(selection.address, selection.lighterAccountIndex)
+      }
     }
     setOpen(next)
   }
 
   const handleExchangeChange = (value: string) => {
     const exchange: PositionWalletExchange = value === 'lighter' ? 'lighter' : 'hyperliquid'
+    resetDiscovery()
     setDraft((current) => ({ ...current, exchange, accountIndex: null }))
-    setAccounts([])
-    setError(null)
-    setInfo(null)
   }
 
   const handleAccountChange = (value: string) => {
@@ -106,6 +128,14 @@ export function PositionWalletControl() {
     if (!Number.isSafeInteger(index)) return
     setDraft((current) => ({ ...current, accountIndex: index }))
     setInfo(null)
+    void loadBtcPosition(index)
+  }
+
+  const handleAddressChange = (address: string) => {
+    // The previous wallet's account list and account index are not evidence
+    // about this address: drop them and any in-flight discovery immediately.
+    resetDiscovery()
+    setDraft((current) => ({ ...current, address, accountIndex: null }))
   }
 
   /**
@@ -125,6 +155,13 @@ export function PositionWalletControl() {
       const found = await fetchLighterAccounts(address, controller.signal)
       if (controller.signal.aborted) return null
       setAccounts(found)
+      setAccountsAddress(address)
+      if (found.length === 0) {
+        setEmptyWalletAddress(address)
+        setInfo(
+          'No Lighter account is associated with this address yet. Use it anyway to keep it selected — markers stay empty until it trades.',
+        )
+      }
       return found
     } catch (caught) {
       if (controller.signal.aborted) return null
@@ -142,17 +179,39 @@ export function PositionWalletControl() {
     }
   }
 
-  const resolveLighterAccount = async (address: string, requestedIndex: number | null) => {
-    setInfo(null)
+  /** BTC-position check for a known account; informational only (markers use trades). */
+  const loadBtcPosition = async (accountIndex: number) => {
+    setPositionAccountIndex(accountIndex)
+    setHasBtcPosition(null)
+    setPositionError(null)
+    try {
+      const position = await fetchLighterBtcPosition(accountIndex)
+      setHasBtcPosition(position !== null)
+    } catch (caught) {
+      setPositionError(
+        caught instanceof Error && caught.message !== ''
+          ? caught.message
+          : 'Could not read this account’s BTC position',
+      )
+    }
+  }
+
+  /** Discovery + position for the saved wallet when the menu opens. */
+  const loadLighterWallet = async (address: string, accountIndex: number | null) => {
     const found = await loadLighterAccounts(address)
     if (found === null) return
-    if (found.length === 0) {
-      setInfo(
-        'No Lighter account is associated with this address yet. Markers stay empty until it trades.',
-      )
-      commit({ exchange: 'lighter', address, lighterAccountIndex: null })
-      return
-    }
+    const resolved = found.some((account) => account.index === accountIndex)
+      ? accountIndex
+      : found.length === 1
+        ? found[0].index
+        : null
+    if (resolved !== null) await loadBtcPosition(resolved)
+  }
+
+  const resolveLighterAccount = async (address: string, requestedIndex: number | null) => {
+    const found = await loadLighterAccounts(address)
+    if (found === null) return
+    if (found.length === 0) return
     if (found.length === 1) {
       commit({ exchange: 'lighter', address, lighterAccountIndex: found[0].index })
       return
@@ -182,6 +241,21 @@ export function PositionWalletControl() {
   }
 
   const label = positionWalletShortLabel(selection)
+  const draftAddress = draft.address.trim().toLowerCase()
+  const emptyWalletConfirmed =
+    draft.exchange === 'lighter' && emptyWalletAddress === draftAddress
+  const showAccountSelect =
+    draft.exchange === 'lighter' &&
+    accounts.length > 1 &&
+    accountsAddress === draftAddress
+  const positionStatus =
+    draft.exchange !== 'lighter'
+      ? null
+      : positionError !== null
+        ? `Could not read the Bitcoin position: ${positionError}`
+        : positionAccountIndex !== null && hasBtcPosition === false
+          ? 'No open BTC position on this account. Markers appear from its trades.'
+          : null
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -238,11 +312,7 @@ export function PositionWalletControl() {
                 autoComplete="off"
                 aria-invalid={error !== null}
                 aria-describedby={`${addressId}-description`}
-                onChange={(event) => {
-                  setDraft((current) => ({ ...current, address: event.target.value }))
-                  setError(null)
-                  setInfo(null)
-                }}
+                onChange={(event) => handleAddressChange(event.target.value)}
                 placeholder="0x…"
               />
               <FieldDescription id={`${addressId}-description`}>
@@ -252,7 +322,7 @@ export function PositionWalletControl() {
               </FieldDescription>
             </Field>
 
-            {accounts.length > 1 && (
+            {showAccountSelect && (
               <Field>
                 <FieldLabel htmlFor={accountId}>Lighter account</FieldLabel>
                 <Select
@@ -284,6 +354,11 @@ export function PositionWalletControl() {
                 {info}
               </p>
             )}
+            {positionStatus !== null && (
+              <p className="text-[0.625rem] text-muted-foreground" role="status">
+                {positionStatus}
+              </p>
+            )}
 
             <div className="flex items-center justify-between gap-2">
               <Button
@@ -299,9 +374,28 @@ export function PositionWalletControl() {
                 <RotateCcwIcon data-icon="inline-start" />
                 Reset
               </Button>
-              <Button type="submit" size="sm" disabled={busy}>
-                {busy ? 'Checking…' : 'Save'}
-              </Button>
+              <div className="flex items-center gap-2">
+                {emptyWalletConfirmed ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      commit({
+                        exchange: 'lighter',
+                        address: draftAddress,
+                        lighterAccountIndex: null,
+                      })
+                    }
+                  >
+                    Use wallet anyway
+                  </Button>
+                ) : null}
+                <Button type="submit" size="sm" disabled={busy}>
+                  {busy ? 'Checking…' : 'Save'}
+                </Button>
+              </div>
             </div>
           </FieldGroup>
         </form>

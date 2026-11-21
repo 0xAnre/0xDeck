@@ -76,7 +76,7 @@ function seedWorkspace(twoWorkspaces: boolean) {
   })()`
 }
 
-async function mockBackend(page: Page) {
+async function mockBackend(page: Page, hyperliquidFills: string[] = []) {
   await page.routeWebSocket(/\/api\/ws\//, () => {
     // One silent relay socket per channel: fills/klines are mocked through REST.
   })
@@ -86,6 +86,19 @@ async function mockBackend(page: Page) {
     const json = (body: unknown) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     if (path === '/api/health') return json({ status: 'ok', parquet_folder: '/data' })
+    if (path.endsWith('/fills/by-time')) {
+      // Record every Hyperliquid wallet history request for the wallet-switch spec.
+      hyperliquidFills.push(path)
+      const address = path.split('/account/')[1]?.split('/')[0] ?? ''
+      return json({
+        address,
+        fills: [],
+        count: 0,
+        truncated: false,
+        complete: true,
+        pages: 1,
+      })
+    }
     if (path.endsWith('/klines/daily-context')) {
       return json({ exchange: 'binance', symbol: 'BTCUSDT', interval: INTERVAL, candles: candles(240) })
     }
@@ -114,6 +127,8 @@ async function mockBackend(page: Page) {
 type LighterState = {
   accounts: Array<{ index: number; account_type?: number }>
   tradesByAccount: Record<string, string[]>
+  /** Accounts with `false` report no open BTC position (a legitimate empty state). */
+  positionsByAccount?: Record<string, boolean>
   requests: string[]
 }
 
@@ -138,14 +153,18 @@ async function mockLighter(page: Page, state: LighterState) {
       })
     }
     if (url.pathname === '/api/v1/account' && url.searchParams.get('by') === 'index') {
+      const accountIndex = url.searchParams.get('value') ?? ''
+      const hasPosition = state.positionsByAccount?.[accountIndex] !== false
       return json({
         code: 200,
         accounts: [
           {
             code: 0,
-            index: Number(url.searchParams.get('value')),
+            index: Number(accountIndex),
             l1_address: LIGHTER_ADDRESS,
-            positions: [{ symbol: 'BTC', sign: 1, position: '0.5', avg_entry_price: '56000' }],
+            positions: hasPosition
+              ? [{ symbol: 'BTC', sign: 1, position: '0.5', avg_entry_price: '56000' }]
+              : [],
           },
         ],
       })
@@ -328,6 +347,131 @@ test.describe('global position-markers wallet', () => {
     await expect
       .poll(() => lighter.requests.filter((url) => url.includes('account_index=7')).length)
       .toBe(2)
+  })
+
+  test('requests the new wallet history immediately on address and exchange switches', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const hyperliquidFills: string[] = []
+    await page.addInitScript(seedWorkspace(false))
+    await mockBackend(page, hyperliquidFills)
+    const lighter: LighterState = {
+      accounts: [{ index: 7 }],
+      tradesByAccount: { '7': ['7001'] },
+      requests: [],
+    }
+    await mockLighter(page, lighter)
+    await page.goto('/')
+
+    await expect(page.getByTestId('btc-perp-chart').first()).toHaveAttribute(
+      'aria-hidden',
+      'false',
+      { timeout: 60_000 },
+    )
+    // The default built-in wallet loads its history for the mounted panels.
+    await expect
+      .poll(() => hyperliquidFills.filter((path) => path.includes(HYPERLIQUID_ADDRESS)).length)
+      .toBeGreaterThan(0)
+
+    // Address change alone (same candle window, same interval) must refetch.
+    const nextAddress = '0x222233334444555566667777888899990000aaaa'
+    let popover = await openWallet(page)
+    await popover.getByLabel('Wallet address').fill(nextAddress)
+    await saveWallet(page)
+    await expect(walletPopover(page)).toHaveCount(0)
+    await expect
+      .poll(() => hyperliquidFills.filter((path) => path.includes(nextAddress)).length)
+      .toBeGreaterThan(0)
+
+    // Lighter → Hyperliquid with the same range must refetch too.
+    popover = await openWallet(page)
+    await chooseExchange(page, 'Lighter')
+    await popover.getByLabel('Wallet address').fill(LIGHTER_ADDRESS)
+    await saveWallet(page)
+    await expect(walletPopover(page)).toHaveCount(0)
+    await expect
+      .poll(() => lighter.requests.filter((url) => url.includes('/trades?')).length)
+      .toBeGreaterThan(0)
+
+    const beforeSwitchBack = hyperliquidFills.filter((path) => path.includes(nextAddress)).length
+    popover = await openWallet(page)
+    await chooseExchange(page, 'Hyperliquid')
+    await popover.getByLabel('Wallet address').fill(nextAddress)
+    await saveWallet(page)
+    await expect
+      .poll(() => hyperliquidFills.filter((path) => path.includes(nextAddress)).length)
+      .toBeGreaterThan(beforeSwitchBack)
+  })
+
+  test('shows the Lighter empty states in the wallet menu without any markers panel', async ({
+    page,
+  }) => {
+    // Notes-only workspace: no BTC Perp panel, so nothing else can surface these.
+    await page.addInitScript(`(() => {
+      localStorage.setItem('0xdeck-workspace', JSON.stringify({
+        version: 2,
+        activeWorkspaceId: 'ws-notes',
+        workspaces: [{ id: 'ws-notes', activePanels: ['notes-wallet'], layout: [], gridVersion: 3 }],
+      }))
+    })()`)
+    await mockBackend(page)
+    const noAccountAddress = '0xbbbbccccddddeeeeffff00001111222233334444'
+    const noPositionAddress = '0xccccddddeeeeffff000011112222333344445555'
+    const lighter: LighterState = {
+      accounts: [{ index: 7 }],
+      tradesByAccount: { '7': [] },
+      positionsByAccount: { '7': false },
+      requests: [],
+    }
+    await page.route('https://mainnet.zklighter.elliot.ai/**', async (route) => {
+      const url = new URL(route.request().url())
+      const json = (body: unknown) =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+      if (url.pathname === '/api/v1/account' && url.searchParams.get('by') === 'l1_address') {
+        const address = url.searchParams.get('value')
+        const accounts = address === noAccountAddress ? [] : lighter.accounts
+        return json({
+          code: 200,
+          total: accounts.length,
+          accounts: accounts.map((account) => ({
+            code: 0,
+            index: account.index,
+            account_type: 0,
+            l1_address: address,
+            positions: [],
+          })),
+        })
+      }
+      if (url.pathname === '/api/v1/account' && url.searchParams.get('by') === 'index') {
+        return json({ code: 200, accounts: [{ index: 7, l1_address: noPositionAddress, positions: [] }] })
+      }
+      if (url.pathname === '/api/v1/trades') {
+        return json({ code: 200, next_cursor: null, trades: [] })
+      }
+      return route.fulfill({ status: 404, body: 'not mocked' })
+    })
+    await page.goto('/')
+    await expect(walletTrigger(page)).toBeVisible()
+
+    // A wallet without a Lighter account: the menu stays open and explains it.
+    let popover = await openWallet(page)
+    await chooseExchange(page, 'Lighter')
+    await popover.getByLabel('Wallet address').fill(noAccountAddress)
+    await saveWallet(page)
+    await expect(walletPopover(page)).toBeVisible()
+    await expect(popover.getByText(/No Lighter account is associated with this address/)).toBeVisible()
+    await popover.getByRole('button', { name: 'Use wallet anyway' }).click()
+    await expect(walletPopover(page)).toHaveCount(0)
+    await expect(walletTrigger(page)).toHaveAttribute('aria-label', /Lighter · 0xbbbb…4444/)
+
+    // An account with no open BTC position reports it while the menu is open.
+    popover = await openWallet(page)
+    await popover.getByLabel('Wallet address').fill(noPositionAddress)
+    await saveWallet(page)
+    await expect(walletPopover(page)).toHaveCount(0)
+    popover = await openWallet(page)
+    await expect(popover.getByText(/No open BTC position on this account/)).toBeVisible()
   })
 
   test('keeps the wallet control reachable at a narrow viewport', async ({ page }) => {

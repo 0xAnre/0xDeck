@@ -9,8 +9,10 @@
  * markers into the new one.
  *
  * Lighter has no unauthenticated push channel for trades (`account_tx` requires
- * an auth token), so "live" is a short REST poll of the newest trade page and
- * the account's public position. Inaccessible history is reported, never
+ * an auth token), so "live" is a short REST poll of the newest trade page. A
+ * start failure (429/5xx/network) retries with capped exponential backoff while
+ * the operator-visible error stays on screen, instead of leaving markers dead
+ * until the user re-saves the wallet. Inaccessible history is reported, never
  * presented as complete.
  */
 import {
@@ -23,7 +25,6 @@ import {
 } from './lighterAccount.ts'
 import {
   fetchLighterAccounts,
-  fetchLighterBtcPosition,
   fetchLighterTradesPage,
   LighterRequestError,
 } from './lighterAccountApi.ts'
@@ -39,7 +40,6 @@ export type LighterPositionMarkersSnapshot = {
   fills: AccountFill[]
   accounts: LighterAccountSummary[]
   accountIndex: number | null
-  hasBtcPosition: boolean | null
   notice: string | null
   error: string | null
 }
@@ -50,7 +50,6 @@ const EMPTY_SNAPSHOT: LighterPositionMarkersSnapshot = {
   fills: [],
   accounts: [],
   accountIndex: null,
-  hasBtcPosition: null,
   notice: null,
   error: null,
 }
@@ -58,6 +57,9 @@ const EMPTY_SNAPSHOT: LighterPositionMarkersSnapshot = {
 const NEWEST_POLL_INTERVAL_MS = 12_000
 const HISTORY_PAGE_INTERVAL_MS = 350
 const MAX_HISTORY_PAGES = Math.ceil(LIGHTER_TRADE_HISTORY_CAP / LIGHTER_TRADES_PAGE_LIMIT)
+/** Start-failure retry: 1s, 2s, 4s … capped, so a transient 429 recovers by itself. */
+const RETRY_BASE_DELAY_MS = 1_000
+const RETRY_MAX_DELAY_MS = 30_000
 
 type LighterSession = {
   key: string
@@ -69,11 +71,12 @@ type LighterSession = {
   fills: AccountFill[]
   accounts: LighterAccountSummary[]
   accountIndex: number | null
-  hasBtcPosition: boolean | null
   nextCursor: string | null
   pagesLoaded: number
   notice: string | null
   error: string | null
+  /** Consecutive failures, reset by a successful page so retries cannot grow forever. */
+  failureCount: number
 }
 
 let snapshot: LighterPositionMarkersSnapshot = EMPTY_SNAPSHOT
@@ -88,7 +91,6 @@ function emitSnapshot(): void {
     fills: active?.fills ?? [],
     accounts: active?.accounts ?? [],
     accountIndex: active?.accountIndex ?? null,
-    hasBtcPosition: active?.hasBtcPosition ?? null,
     notice: active?.notice ?? null,
     error: active?.error ?? null,
   }
@@ -113,12 +115,16 @@ function stopSession(): void {
   if (snapshot !== EMPTY_SNAPSHOT) emitSnapshot()
 }
 
-function scheduleTick(active: LighterSession, delayMs: number): void {
+function schedule(active: LighterSession, delayMs: number, run: () => Promise<void>): void {
   if (active.stopped) return
   active.timer = setTimeout(() => {
     active.timer = null
-    void runTick(active)
+    void run()
   }, delayMs)
+}
+
+function retryDelay(failureCount: number): number {
+  return Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** Math.max(0, failureCount - 1))
 }
 
 /**
@@ -152,27 +158,40 @@ async function runTick(active: LighterSession): Promise<void> {
       const page = await fetchLighterTradesPage(active.accountIndex, active.nextCursor, signal)
       if (active.stopped) return
       applyTradesPage(active, page, { trackCursor: true })
+      active.failureCount = 0
+      active.error = null
       emitSnapshot()
-      scheduleTick(active, active.nextCursor === null ? NEWEST_POLL_INTERVAL_MS : HISTORY_PAGE_INTERVAL_MS)
+      schedule(active, active.nextCursor === null ? NEWEST_POLL_INTERVAL_MS : HISTORY_PAGE_INTERVAL_MS, () =>
+        runTick(active),
+      )
       return
     }
     const page = await fetchLighterTradesPage(active.accountIndex, null, signal)
     if (active.stopped) return
     applyTradesPage(active, page, { trackCursor: false })
+    active.failureCount = 0
     active.error = null
     emitSnapshot()
-    scheduleTick(active, NEWEST_POLL_INTERVAL_MS)
+    schedule(active, NEWEST_POLL_INTERVAL_MS, () => runTick(active))
   } catch (error) {
     if (active.stopped || signal.aborted) return
+    active.failureCount += 1
     active.error = lighterErrorMessage(error)
     emitSnapshot()
-    scheduleTick(active, NEWEST_POLL_INTERVAL_MS)
+    // Keep polling, but back off while the provider keeps failing.
+    schedule(
+      active,
+      retryDelay(active.failureCount),
+      () => runTick(active),
+    )
   }
 }
 
 async function runSession(active: LighterSession): Promise<void> {
   const signal = active.abort.signal
   try {
+    active.status = active.status === 'error' ? 'loading' : active.status
+    active.accounts = []
     const accounts = await fetchLighterAccounts(active.selection.address, signal)
     if (active.stopped) return
     active.accounts = accounts
@@ -182,36 +201,41 @@ async function runSession(active: LighterSession): Promise<void> {
     )
     if (resolution.kind === 'missing') {
       active.status = 'ready'
+      active.failureCount = 0
       active.notice = 'No Lighter account is associated with this wallet address'
       emitSnapshot()
       return
     }
     if (resolution.kind === 'ambiguous') {
       active.status = 'ready'
+      active.failureCount = 0
       active.notice = `This wallet owns ${accounts.length} Lighter accounts. Choose one in the Position Markers wallet menu.`
       emitSnapshot()
       return
     }
 
     active.accountIndex = resolution.index
-    const btcPosition = await fetchLighterBtcPosition(resolution.index, signal)
-    if (active.stopped) return
-    active.hasBtcPosition = btcPosition !== null
-
     const page = await fetchLighterTradesPage(resolution.index, null, signal)
     if (active.stopped) return
     applyTradesPage(active, page, { trackCursor: true })
     active.status = 'ready'
+    active.failureCount = 0
+    active.error = null
+    active.notice = null
     emitSnapshot()
-    scheduleTick(
+    schedule(
       active,
       active.nextCursor === null ? NEWEST_POLL_INTERVAL_MS : HISTORY_PAGE_INTERVAL_MS,
+      () => runTick(active),
     )
   } catch (error) {
     if (active.stopped || signal.aborted) return
+    active.failureCount += 1
     active.status = 'error'
     active.error = lighterErrorMessage(error)
     emitSnapshot()
+    // A transient start failure (429/5xx/offline) must recover on its own.
+    schedule(active, retryDelay(active.failureCount), () => runSession(active))
   }
 }
 
@@ -226,11 +250,11 @@ function startSession(selection: PositionWalletSelection): void {
     fills: [],
     accounts: [],
     accountIndex: null,
-    hasBtcPosition: null,
     nextCursor: null,
     pagesLoaded: 0,
     notice: null,
     error: null,
+    failureCount: 0,
   }
   session = active
   emitSnapshot()

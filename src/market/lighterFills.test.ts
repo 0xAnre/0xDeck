@@ -2,7 +2,6 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   lighterTradeAccountSide,
-  lighterTradeIdentityKey,
   lighterTradePositionBefore,
   lighterTradeToAccountFill,
   lighterTradesToAccountFills,
@@ -111,21 +110,6 @@ describe('Lighter trade → account fill', () => {
         ACCOUNT,
       ),
       null,
-    )
-  })
-
-  it('gives each account and trade one stable identity', () => {
-    assert.equal(
-      lighterTradeIdentityKey(trade(), ACCOUNT),
-      'lighter:trade:41968002086:100833',
-    )
-    assert.equal(
-      lighterTradeIdentityKey(trade(), ACCOUNT),
-      lighterTradeIdentityKey(trade({ bidAccountId: ACCOUNT, askAccountId: 9 }), ACCOUNT),
-    )
-    assert.notEqual(
-      lighterTradeIdentityKey(trade(), ACCOUNT),
-      lighterTradeIdentityKey(trade({ tradeId: '41968002019' }), ACCOUNT),
     )
   })
 

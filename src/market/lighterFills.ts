@@ -39,11 +39,6 @@ export function lighterTradePositionBefore(
   return accountIsMaker ? trade.makerPositionSizeBefore : trade.takerPositionSizeBefore
 }
 
-/** Stable fill identity, unique per account and trade. */
-export function lighterTradeIdentityKey(trade: LighterTrade, accountIndex: number): string {
-  return `lighter:trade:${trade.tradeId}:${accountIndex}`
-}
-
 /**
  * Normalize one Lighter BTC trade into an `AccountFill`.
  *
@@ -74,7 +69,14 @@ export function lighterTradeToAccountFill(
   }
 }
 
-/** Map one trade page; malformed rows and other markets are dropped. */
+/**
+ * Map one trade page; malformed rows and other markets are dropped.
+ *
+ * Dedupe/merge uses the shared `hyperliquidFillIdentityKey`: `hash` carries
+ * `lighter:trade:<trade_id>` (stable per trade, unique across page overlap and
+ * the live poll), so the identifier is provider-prefixed and never collides
+ * with a Hyperliquid fill.
+ */
 export function lighterTradesToAccountFills(
   trades: readonly LighterTrade[],
   accountIndex: number,
