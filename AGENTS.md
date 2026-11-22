@@ -30,7 +30,7 @@ A **market research workspace canvas** with a **reusable widget model** — not 
 - Trade execution UI
 - Bot monitoring and control panels
 
-**Included:** draggable/resizable widget grid, layout persistence, 6 built-in color themes (including `black`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` and Hyperliquid `BTC` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`), plus a global read-only Position Markers wallet (Hyperliquid built-in default, or any Hyperliquid/Lighter address) and automatic Entry/Close markers on the existing candle series.
+**Included:** draggable/resizable widget grid, layout persistence, 7 built-in color themes (including `black` and the warm light `cream`), shadcn/ui components, local Parquet backend (FastAPI + DuckDB), reusable widget model, Parquet-backed widgets (table, chart, KPI, dashboard, reports preview, notes, market times), **BTC Perpetual** chart (Binance USD-M `BTCUSDT` and Hyperliquid `BTC` klines via backend REST + WebSocket relay, TradingView Lightweight Charts, indicators and chart tools in `src/market/`), plus a global read-only Position Markers wallet (Hyperliquid built-in default, or any Hyperliquid/Lighter address) and automatic Entry/Close markers on the existing candle series.
 
 **Not included:** auth, generic multi-exchange connectors, trade execution APIs. Parquet widgets do not use live feeds; **BTC Perp** is the live market widget (see `src/widgets/stream/`, `/api/ws/{channel}`, `backend/app/market/`).
 
@@ -180,6 +180,7 @@ Project-local skills for AI agents. Read the relevant `SKILL.md` before working 
 | `taupe` | Taupe |
 | `olive` | Olive |
 | `black` | Black (Neutral-derived palette, `#000000` background) |
+| `cream` | Cream (warm light palette; the only light theme — `applyTheme` removes `.dark`) |
 
 ## Widgets
 
