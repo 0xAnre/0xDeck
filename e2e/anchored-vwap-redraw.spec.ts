@@ -283,6 +283,38 @@ test.describe('anchored VWAP band fill scheduling', () => {
     expect(idle.requestUpdates).toBe(0)
   })
 
+  test('dense full-history fill rebuild stays linear in anchored points', async ({ page }) => {
+    await openHarness(page)
+    const observations: Array<{
+      bars: number
+      timeConversions: number
+      priceConversions: number
+      requestUpdates: number
+    }> = []
+    for (const bars of [600, 2400]) {
+      await createChart(page, { bars, visibleBars: 80, fillOpacity: 24, bandCount: 3 })
+      await reset(page)
+      await page.evaluate(() => window.__anchoredRedrawHarness.forceViews())
+      const direct = await stats(page)
+      observations.push({
+        bars,
+        timeConversions: direct.timeConversions,
+        priceConversions: direct.priceConversions,
+        requestUpdates: direct.requestUpdates,
+      })
+    }
+    // Recorded, not expanded here: the fill geometry still samples every point
+    // since the anchor (no visible-range windowing), so one rebuild is linear in
+    // the anchored length — 3 pairs x 2 conversions per point. The lifecycle fix
+    // removes the idle loop, not this per-rebuild cost.
+    for (const observation of observations) {
+      expect(observation.requestUpdates).toBe(0)
+      expect(observation.timeConversions).toBe(observation.bars * 3)
+      expect(observation.priceConversions).toBe(observation.bars * 3 * 2)
+    }
+    console.log(JSON.stringify(observations))
+  })
+
   test('empty pairs and cleared history settle without fills or requests', async ({ page }) => {
     await openHarness(page)
     await createChart(page, { bars: 120, visibleBars: 40, fillOpacity: 24, hidden: true })
