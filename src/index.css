@@ -60,6 +60,7 @@ body,
   --long: oklch(0.87 0 0);
   --short: oklch(0.704 0.191 22.216);
   --chart-glow: oklch(0.87 0 0 / 12%);
+  --chart-background: transparent;
   --font-sans: 'Inter Variable', sans-serif;
 }
 
@@ -280,6 +281,52 @@ body,
   --long: oklch(0.87 0 0);
   --short: oklch(0.704 0.191 22.216);
   --chart-glow: oklch(0.87 0 0 / 12%);
+  --font-sans: 'Inter Variable', sans-serif;
+}
+
+/* Warm light cream palette — the only light built-in theme.
+   Literal original reference: workspace/header, panel/card shell and chart canvas are all #FDF6E3. */
+[data-theme='cream'] {
+  --background: #fdf6e3;
+  --foreground: oklch(0.27 0.022 55);
+  --card: #fdf6e3;
+  --card-foreground: oklch(0.27 0.022 55);
+  --popover: #fffdf8;
+  --popover-foreground: oklch(0.27 0.022 55);
+  --primary: oklch(0.36 0.05 55);
+  --primary-foreground: oklch(0.985 0.012 86);
+  --secondary: #f7eeda;
+  --secondary-foreground: oklch(0.27 0.022 55);
+  --muted: #f3e8cf;
+  --muted-foreground: oklch(0.47 0.028 60);
+  --accent: #f0e2c3;
+  --accent-foreground: oklch(0.27 0.022 55);
+  --destructive: oklch(0.48 0.185 27.5);
+  --border: oklch(0.4 0.03 65 / 30%);
+  --input: oklch(0.4 0.03 65 / 38%);
+  --ring: oklch(0.45 0.11 60);
+  --chart-1: oklch(0.34 0.04 60);
+  --chart-2: oklch(0.46 0.06 55);
+  --chart-3: oklch(0.55 0.09 50);
+  --chart-4: oklch(0.62 0.11 65);
+  --chart-5: oklch(0.58 0.1 40);
+  --radius: 0;
+  --sidebar: #fffcf2;
+  --sidebar-foreground: oklch(0.27 0.022 55);
+  --sidebar-primary: oklch(0.36 0.05 55);
+  --sidebar-primary-foreground: oklch(0.985 0.012 86);
+  --sidebar-accent: #f3e8cf;
+  --sidebar-accent-foreground: oklch(0.27 0.022 55);
+  --sidebar-border: oklch(0.4 0.03 65 / 30%);
+  --sidebar-ring: oklch(0.45 0.11 60);
+  --bid: oklch(0.5 0.11 152);
+  --ask: oklch(0.47 0.03 60);
+  --up: oklch(0.5 0.11 152);
+  --down: oklch(0.48 0.185 27.5);
+  --long: oklch(0.5 0.11 152);
+  --short: oklch(0.48 0.185 27.5);
+  --chart-glow: oklch(0.36 0.05 55 / 12%);
+  --chart-background: #fdf6e3;
   --font-sans: 'Inter Variable', sans-serif;
 }
 

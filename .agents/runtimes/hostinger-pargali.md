@@ -1,6 +1,16 @@
 # Hostinger Pargali Preview Adapter — 0xDeck
 
-This adapter maps the shared [preview and merge-readiness contract](../WORKFLOW.md#preview-and-merge-readiness-contract) to the current VPS. It defines operational outcomes for an authorized deployment setup; it does not authorize an agent to edit Caddy, bypass authentication, deploy to production, merge a PR or enable auto-merge.
+This adapter maps the shared [preview and merge-readiness contract](../WORKFLOW.md#preview-and-merge-readiness-contract) to the current VPS. It defines operational outcomes for the configured deployment; routine per-PR preview routing on the existing host runs under the [standing authorization](#standing-authorization-for-routine-task-previews) below, and nothing here authorizes an agent to weaken authentication, deploy to production, merge a PR, enable auto-merge or make unrelated infrastructure changes.
+
+## Standing authorization for routine task previews
+
+The user granted **standing authorization** for routine preview work on the existing configured deck host (source: user instruction recorded on PR #251, comment `7062638053`; codified by Issue #253). Within its scope, do not ask the user for fresh approval on every PR, push or SHA refresh:
+
+- create a per-PR preview route and its immutable `pr-<number>/<full-head-sha>/` artifact directory;
+- re-publish and re-point that route to the new current head after each push;
+- perform scoped lifecycle cleanup of that PR's preview directory and route after the user's merge, hold or cancel decision, or an explicitly approved expiry.
+
+Scope is the existing protected host and its `/previews/pr-<number>/` prefix only. This standing permission does **not** authorize weakening or bypassing authentication and access policy, disclosing credentials, new hosts or backends, publishing to production or `/srv/0xdeck/dist`, unrelated Caddy or infrastructure edits, merging or auto-merging; those need their own authorization, and a broader action the user already explicitly authorized takes precedence over this section instead of being asked again. Every guardrail below — existing gate/access policy, immutable PR/SHA artifacts and prefix asset isolation, canonical-target protection, exact-head and loaded-asset verification, independent review, backup/validation/rollback of any config change, and retention until the user's decision — remains in force.
 
 ## Artifact convention
 
@@ -36,7 +46,7 @@ For both strategies:
 - Preserve the existing password gate and access policy. Never publish credentials in the URL, repository, deployment record, logs or handoff.
 - Never write to or replace `/srv/0xdeck/dist`.
 - If the application needs API/WebSocket routing, keep the existing protected upstream behavior unless the Issue explicitly authorizes an isolated backend. A static preview with unavailable backend behavior must record that limitation and cannot satisfy affected acceptance criteria.
-- Caddy or host changes are infrastructure work and require explicit user authorization and their own verification. If neither strategy is configured and verified, the browser-visible task is **NOT MERGE-READY**; do not fall back to the canonical site.
+- Caddy or host changes outside the [standing authorization](#standing-authorization-for-routine-task-previews) are infrastructure work and require explicit user authorization and their own verification. If neither strategy is configured and verified, the browser-visible task is **NOT MERGE-READY**; do not fall back to the canonical site.
 
 ## Publish and verify
 

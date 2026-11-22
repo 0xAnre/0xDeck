@@ -6,6 +6,7 @@ import {
   createSeriesMarkers,
   LineSeries,
   type IChartApi,
+  type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type LogicalRange,
   type MouseEventParams,
@@ -16,7 +17,11 @@ import { nextLiveRefreshDelayMs } from '@/lib/liveRefresh'
 import { cn } from '@/lib/utils'
 import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
-import { BTC_PERPETUAL_CANDLESTICK_COLORS } from '@/market/btcPerpetualCandleColors'
+import {
+  candleCandlestickSeriesOptions,
+  type CandleColors,
+} from '@/market/candleColors'
+import { useCandleColors } from '@/market/useCandleColors'
 import { btcPerpetualCrosshairOptions } from '@/market/btcPerpetualCrosshairOptions'
 import { btcPerpetualCurrentPriceLineOptions } from '@/market/btcPerpetualCurrentPriceLineOptions'
 import {
@@ -400,7 +405,7 @@ import type { WidgetInstanceProps } from '@/widgets/registry/types'
 import type { WidgetStreamConnectionState } from '@/widgets/stream/client'
 import { subscribeWidgetStream } from '@/widgets/stream/sharedClient'
 import type { ServerEventMessage } from '@/widgets/stream/messages'
-import { resolveCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
+import { resolveThemeCssColor, rgbaFromResolvedCssColor } from '@/lib/resolveCssColor.ts'
 import {
   MARKET_STYLE_DUAL_LINE_SHADES,
   MARKET_STYLE_MULTI_LINE_SHADES,
@@ -427,11 +432,35 @@ import { formatSeriesLabel } from '@/lib/formatTime'
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement)
   return {
-    background: 'transparent',
-    text: resolveCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
+    // Shared theme token: dark palettes keep the previous transparent canvas (card shows through);
+    // Cream paints a distinctly darker cream chart pane than the page. No per-widget override.
+    background: resolveThemeCssColor(style.getPropertyValue('--chart-background'), 'transparent'),
+    text: resolveThemeCssColor(style.getPropertyValue('--foreground'), '#d4d4d8'),
     ema: MARKET_STYLE_MULTI_LINE_SHADES,
     ema100: MARKET_STYLE_DUAL_LINE_SHADES[0],
     ema200: MARKET_STYLE_DUAL_LINE_SHADES[1],
+  }
+}
+
+/**
+ * Theme-derived chart chrome only: text/background, pane separators and crosshair. It is shared by
+ * chart creation and the in-session theme refresh so both always apply the same chrome options.
+ * Series/candle/indicator colors are deliberately not part of this object.
+ */
+function themeChartOptions(colors: ReturnType<typeof readThemeColors>) {
+  return {
+    layout: {
+      background: { type: ColorType.Solid, color: colors.background },
+      textColor: colors.text,
+      // Native pane separators: a faint theme-derived hairline instead of the
+      // library's high-contrast default. `enableResize` keeps resize behaviour.
+      panes: {
+        enableResize: true,
+        separatorColor: rgbaFromResolvedCssColor(colors.text, 0.12),
+        separatorHoverColor: rgbaFromResolvedCssColor(colors.text, 0.24),
+      },
+    },
+    crosshair: btcPerpetualCrosshairOptions(colors.text),
   }
 }
 
@@ -460,6 +489,28 @@ type HoveredAccountFillState = {
 const NO_ACCOUNT_FILLS: AccountFill[] = []
 const NO_HOVERED_ACCOUNT_FILLS: BucketedHyperliquidFill[] = []
 
+/**
+ * Mirror the applied candlestick series options onto the chart container.
+ *
+ * The chart body is canvas-only, so a browser test cannot inspect the series
+ * otherwise; these attributes report the actual series options after
+ * `applyOptions`, not the stored preference. They have no visual or pointer
+ * behaviour.
+ */
+function publishCandleSeriesColorOptions(
+  container: HTMLElement,
+  series: ISeriesApi<'Candlestick'>,
+) {
+  const options = series.options()
+  container.dataset.candleRisingColor = String(options.upColor)
+  container.dataset.candleFallingColor = String(options.downColor)
+  container.dataset.candleRisingWickColor = String(options.wickUpColor)
+  container.dataset.candleFallingWickColor = String(options.wickDownColor)
+  container.dataset.candleRisingBorderColor = String(options.borderUpColor)
+  container.dataset.candleFallingBorderColor = String(options.borderDownColor)
+  container.dataset.candleBorderVisible = String(options.borderVisible)
+}
+
 function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
   switch (state) {
     case 'connecting':
@@ -480,6 +531,7 @@ type LoadedVwapContext = {
 }
 
 export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
+  const candleColors = useCandleColors()
   const [exchange, setExchange] = useState<MarketExchange>(() =>
     loadWidgetMarketExchange(panelId),
   )
@@ -666,6 +718,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ChartSeriesBundle | null>(null)
+  /** Latest global colors for chart creation, without re-running the creation effect. */
+  const candleColorsRef = useRef<CandleColors>(candleColors)
   const overlayIndicatorSelectionRef = useRef<OverlayIndicatorSelectionTarget | null>(null)
   const chartObjectSettingsTargetRef = useRef<ChartObjectSettingsTarget | null>(null)
   const candlesRef = useRef<MarketCandle[]>([])
@@ -846,6 +900,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       flushMarketChartViewportPersist(intervalAtSchedule)
     }, 250)
   }, [flushMarketChartViewportPersist])
+
+  useEffect(() => {
+    candleColorsRef.current = candleColors
+  }, [candleColors])
+
+  /**
+   * Apply the global candle colors in place. This effect never calls
+   * `createChart`, reloads candles, touches the time scale or persists the
+   * viewport: it only writes candlestick series options, so Save cannot reset
+   * zoom/drawings or trigger a history refetch.
+   */
+  useEffect(() => {
+    const candleSeries = seriesRef.current?.candle
+    const container = containerRef.current
+    if (!candleSeries || !container) return
+    candleSeries.applyOptions(candleCandlestickSeriesOptions(candleColors))
+    publishCandleSeriesColorOptions(container, candleSeries)
+  }, [candleColors, chartReady])
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -3167,7 +3239,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const container = containerRef.current
     if (!container) return
 
-    const colors = readThemeColors()
     let chart: IChartApi | null = null
     let historyListenerChart: IChartApi | null = null
 
@@ -3220,25 +3291,21 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       const height = container.clientHeight
       if (width < 2 || height < 2) return null
 
+      // Read at creation, not when the effect mounted: a deferred first layout
+      // must not create the chart with a palette the user already switched away from.
+      const colors = readThemeColors()
+      const chromeOptions = themeChartOptions(colors)
+
       chart = createChart(container, {
+        ...chromeOptions,
         layout: {
-          background: { type: ColorType.Solid, color: colors.background },
-          textColor: colors.text,
+          ...chromeOptions.layout,
           attributionLogo: false,
-          // Native pane separators: a faint theme-derived hairline instead of
-          // the library's high-contrast default. `enableResize` keeps the
-          // existing drag-to-resize pane behaviour.
-          panes: {
-            enableResize: true,
-            separatorColor: rgbaFromResolvedCssColor(colors.text, 0.12),
-            separatorHoverColor: rgbaFromResolvedCssColor(colors.text, 0.24),
-          },
         },
         grid: {
           vertLines: { visible: false },
           horzLines: { visible: false },
         },
-        crosshair: btcPerpetualCrosshairOptions(colors.text),
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
         handleScroll: {
@@ -3258,9 +3325,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
 
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        ...BTC_PERPETUAL_CANDLESTICK_COLORS,
+        ...candleCandlestickSeriesOptions(candleColorsRef.current),
         ...btcPerpetualCurrentPriceLineOptions(colors.text),
       })
+      publishCandleSeriesColorOptions(container, candleSeries)
       registerCandleChartSeries(chart, candleSeries)
       // One marker primitive for the lifetime of this chart instance. Account
       // markers are always updated through `setMarkers`, never a second chart.
@@ -3386,6 +3454,35 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     scheduleMarketChartViewportPersist,
     stopKlineStream,
   ])
+
+  /**
+   * Re-apply theme-derived chrome when the palette changes while this chart is mounted.
+   * `applyOptions` repaints the existing chart instance: no re-creation, no history refetch,
+   * no viewport reset and no series/candle/indicator color changes. Only chart chrome follows the
+   * theme (text, background, pane separators, crosshair).
+   */
+  useEffect(() => {
+    const root = document.documentElement
+    let appliedTheme = root.dataset.theme
+    const applyThemeToChart = () => {
+      const chart = chartRef.current
+      if (!chart) return
+      const colors = readThemeColors()
+      chart.applyOptions(themeChartOptions(colors))
+      // Current-price line/label is series-level chrome derived from the same text token.
+      // Only the price-line keys are applied; candle colors and every other series option stay.
+      seriesRef.current?.candle.applyOptions(btcPerpetualCurrentPriceLineOptions(colors.text))
+    }
+    const observer = new MutationObserver(() => {
+      if (root.dataset.theme === appliedTheme) return
+      appliedTheme = root.dataset.theme
+      applyThemeToChart()
+    })
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const intervalLeaving = activeIntervalRef.current
@@ -3971,6 +4068,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       <div
         ref={containerRef}
         data-testid="btc-perp-chart"
+        data-panel-id={panelId}
         className={cn(
           'min-h-[5rem] w-full flex-1 basis-0',
           !chartReady && 'pointer-events-none opacity-0',
