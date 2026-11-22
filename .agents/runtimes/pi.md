@@ -226,6 +226,7 @@ Between tasks a slot may sit detached at `origin/main`; that is clean and safe f
 - Fast-forward canonical `main` only; never force or rewrite history.
 - Prepare every configured Coder worktree from current `origin/main` only when it is clean and its ownership is clear. `deck-role`'s `sync_worktree` implements exactly that: a dirty worktree is reported and started as-is, never reset.
 - Do not delete remote branches. `origin/team/wt3` stays as the closed-PR record. Delete only local branches verified merged into `origin/main` and not checked out anywhere.
+- Preview artifact and route retirement is not part of slot preparation: it follows the deployment adapter's [retention and cleanup](hostinger-pargali.md#retention-and-cleanup) and is automatic after a user-confirmed merge with verified production. Never fold another task's preview into slot housekeeping.
 - Stop and report if: the worktree is dirty; HEAD carries unmerged work that is not the new task; an open PR already belongs to the slot; the role prompt, `env.sh`, `bin/gh` or the mint script is missing or fails; the identity is not the App installation token or its scope differs from the table above; enabling the slot would need a retired trigger, webhook or credential; or the work would touch another slot's branch or worktree.
 - The user alone merges; never enable auto-merge.
 

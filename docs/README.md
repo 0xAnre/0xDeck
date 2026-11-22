@@ -9,15 +9,15 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [../README.md](../README.md) | Product overview, quick start, custom widget path |
 | [WIDGET-STANDARD.md](./WIDGET-STANDARD.md) | Normative widget rules (registry, data, states, DoD) |
 | [WIDGET-GUIDE.md](./WIDGET-GUIDE.md) | How-to: add widgets, wire Parquet data |
-| [CHART-OBJECT-STANDARD.md](./CHART-OBJECT-STANDARD.md) | Normative chart tool / indicator rules: capability matrix, color picker, mouse, settings, persistence, feature parity |
+| [CHART-OBJECT-STANDARD.md](./CHART-OBJECT-STANDARD.md) | Normative chart tool / indicator rules: capability matrix, color picker, mouse, settings, persistence, primitive redraw lifecycle, feature parity |
 | [../templates/widget/README.md](../templates/widget/README.md) | Copy-paste starter panel + registry snippet |
 | [THEME-GUIDE.md](./THEME-GUIDE.md) | Color themes, shadcn tokens, shell rules |
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |
 | [NEXT-STEPS.md](./NEXT-STEPS.md) | Roadmap — done vs remaining |
 | [../AGENTS.md](../AGENTS.md) | Architecture + AI agent conventions |
-| [../.agents/WORKFLOW.md](../.agents/WORKFLOW.md) | Agent-independent development lifecycle |
+| [../.agents/WORKFLOW.md](../.agents/WORKFLOW.md) | Agent-independent development lifecycle, including mandatory post-merge preview cleanup |
 | [../.agents/runtimes/pi.md](../.agents/runtimes/pi.md) | Pi runtime adapter: verified VPS three-Coder deployment and Mac migration runbook |
-| [../.agents/runtimes/hostinger-pargali.md](../.agents/runtimes/hostinger-pargali.md) | Hostinger preview artifact, routing and cleanup convention; separate user-confirmed production publish authorization |
+| [../.agents/runtimes/hostinger-pargali.md](../.agents/runtimes/hostinger-pargali.md) | Hostinger preview artifact, routing and automatic merged-preview retirement procedure; separate user-confirmed production publish authorization |
 | [PRODUCT-POSITIONING.md](./PRODUCT-POSITIONING.md) | Product positioning + UX direction |
 
 ## AI-assisted development
