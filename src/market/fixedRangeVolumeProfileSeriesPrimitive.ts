@@ -216,7 +216,7 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
 
   setContextProvider(getContext: () => FixedRangeVolumeProfileSeriesPrimitiveContext): void {
     this._getContext = getContext
-    this.updateAllViews()
+    this.invalidate()
   }
 
   paneViews(): readonly IPrimitivePaneView[] {
@@ -225,6 +225,10 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
 
   updateAllViews(): void {
     this._view.update()
+  }
+
+  /** Explicit data/style/visibility/range change; the library update rebuilds the view. */
+  invalidate(): void {
     this._requestUpdate?.()
   }
 
@@ -236,7 +240,7 @@ export class FixedRangeVolumeProfileSeriesPrimitive implements ISeriesPrimitive<
     this._chart = param.chart
     this._series = param.series
     this._requestUpdate = param.requestUpdate
-    this.updateAllViews()
+    this.invalidate()
   }
 
   detached(): void {
@@ -258,7 +262,7 @@ export function attachFixedRangeVolumeProfileSeriesPrimitive(
   series.attachPrimitive(primitive)
   return {
     primitive,
-    update: () => primitive.updateAllViews(),
+    update: () => primitive.invalidate(),
     dispose: () => {
       series.detachPrimitive(primitive)
       primitive.detached()

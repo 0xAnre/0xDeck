@@ -171,6 +171,10 @@ export class RectangleSeriesPrimitive implements ISeriesPrimitive<Time> {
 
   updateAllViews(): void {
     this._view.update()
+  }
+
+  /** Explicit data/style/interaction/range change; the library update rebuilds the view. */
+  invalidate(): void {
     this._requestUpdate?.()
   }
 
@@ -182,7 +186,7 @@ export class RectangleSeriesPrimitive implements ISeriesPrimitive<Time> {
     this._chart = param.chart
     this._series = param.series
     this._requestUpdate = param.requestUpdate
-    this.updateAllViews()
+    this.invalidate()
   }
 
   detached(): void {
@@ -203,7 +207,7 @@ export function attachRectangleSeriesPrimitive(
   series.attachPrimitive(primitive)
   return {
     update: () => {
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     dispose: () => {
       series.detachPrimitive(primitive)
