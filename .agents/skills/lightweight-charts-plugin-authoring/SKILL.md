@@ -296,7 +296,9 @@ be recognised in a new shape, not just avoided in the old one.
 ### Primitives specifics
 
 - `requestUpdate()` after any change the chart cannot see (an option, a new
-  time, a decoded image). The chart does not poll your state.
+  time, a decoded image). The chart does not poll your state — but see
+  [Redraw scheduling](#redraw-scheduling): the request belongs to your setter,
+  never to the library's own view rebuild.
 - `detached()` must undo everything `attached()` did: listeners, DOM nodes,
   timers, pending image loads. Attach/detach cycles are common (React
   effects, pane reordering) and leaks show up as ghost drawings and thrown
@@ -307,6 +309,27 @@ be recognised in a new shape, not just avoided in the old one.
   identity — indices shift when panes are added, removed or moved.
 - For DOM overlays, append to `paneContentElement(pane)` and keep the
   overlay's layout independent of the chart's own table cells.
+
+### Redraw scheduling
+
+- `updateAllViews()` is a **view rebuild**, not an invalidation hook. Recompute
+  geometry there and paint; never call `requestUpdate()` — or anything that ends
+  in one — from it, from `renderer()`, or from a view `update()`. Doing so
+  creates a frame loop that survives idle: one library update schedules a frame,
+  that frame schedules the next one forever, even with no data change.
+- `requestUpdate()` belongs to the changes the chart cannot observe: your own
+  `attached()` initialization, external data/style/visibility setters, and your
+  public update entry points. Coalesce several setters made before the next
+  paint into one request instead of one request each.
+- The library calls `updateAllViews()` for its own layout passes (data change,
+  pan/zoom, resize, pane reorder), so the view must still rebuild against the
+  current context there. View-only is not the same as caching.
+- Test the lifecycle with counters rather than by eye: frames (`requestUpdate`
+  calls or `requestAnimationFrame`) versus canvas clears/draws, counted
+  separately. Assert that idle `updateAllViews()` calls schedule nothing — also
+  hidden, zero-opacity, empty and multiple mounted instances — that an external
+  change or an interaction schedules exactly one frame, and that `detached()`
+  (and the attach helper's `dispose()`) stops scheduling for good.
 
 ## Testing
 

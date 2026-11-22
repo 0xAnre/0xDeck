@@ -29,7 +29,7 @@ The roles are specified in [roles/](roles/). The current runtime-to-role mapping
 4. **Review:** A separate Reviewer context independently reads the Issue, PR diff, call sites, tests and claimed verification. For browser-visible work, the Reviewer also verifies the preview at the reviewed head as defined below. Findings must be actionable; style preferences alone should not generate unnecessary implementation churn.
 5. **Fix and re-review:** Coder addresses accepted findings on the **same branch and PR**; Reviewer assesses the updated diff. On an unresolved technical disagreement or repeated unsuccessful iterations, Orchestrator raises a blocker and asks the user to decide. Do not silently create replacement PRs or an unbounded review loop.
 6. **Ready for user decision:** Orchestrator reports the user-testable preview URL when required, summarizes acceptance criteria, tests actually run, unverified areas, Reviewer verdict and remaining risks, and states exactly one conclusion: **MERGE-READY** or **NOT MERGE-READY**. The Orchestrator may report MERGE-READY only when the required automated checks, preview evidence and independent review all pass for the same head. The user alone decides whether and when to merge.
-7. **Close or cancel:** After an externally verified user merge, Orchestrator may clean up the assigned worktree and task branch as permitted. Cancellation stops all further dispatch and pushes for that task; reopen/restart only on explicit user instruction.
+7. **Close or cancel:** After an externally verified user merge, Orchestrator may clean up the assigned worktree and task branch as permitted, and retires that task's preview artifacts and route under [post-merge preview cleanup](#post-merge-preview-cleanup-mandatory). Cancellation stops all further dispatch and pushes for that task and keeps its preview until the user decides; reopen/restart only on explicit user instruction.
 
 **One Issue / one PR** is the default for a concrete implementation task; splitting major tasks requires a clearly recorded decision. Every implementation PR must include `Closes #<issue-number>` in its description for the task Issue, so that merging closes that Issue; use `Refs #<issue-number>` only for tracking/reference Issues that must stay open. Never close a tracking/migration Issue by using `Closes #...` in an intermediate PR.
 
@@ -56,7 +56,8 @@ The preview mechanism is runtime-specific, but every implementation must satisfy
 - Build and serve artifacts outside the canonical `main` deployment output. Never replace or mutate the canonical build to create a PR preview.
 - Tie the preview to the PR and exact head SHA. After every push, redeploy and re-verify before handing off; evidence from an older head is stale.
 - Keep the URL user-openable under the environment's existing access controls. Do not put passwords, tokens, cookies or other credentials in URLs, committed files, logs or handoffs, and do not weaken an existing access gate for preview convenience.
-- Keep the verified preview available until the user chooses merge, hold or cancel. Record who owns retention and cleanup; cleanup happens only after that user decision or an explicitly recorded expiry approved by the user.
+- Keep the verified preview available until the user chooses merge, hold or cancel. Record who owns retention and cleanup. An open or held task keeps its preview; a cancel is terminal, so its preview may be retired after the decision is recorded. No expiry applies without an explicitly recorded user approval.
+- **Automatic cleanup on a confirmed merge.** The user's merge decision is the cleanup approval, so no agent asks again: that task's preview is retired during post-merge housekeeping under [post-merge preview cleanup](#post-merge-preview-cleanup-mandatory). It is an agent workflow step, not a new cron, webhook or daemon, and it never touches another task's preview.
 - Record on the PR the preview URL, deployed head SHA, exact checks performed against the URL, result, verification time or run reference, and lifecycle owner. Deployment success alone is not preview verification.
 - Verify that the browser-loaded JavaScript, CSS and other acceptance-relevant assets come from the isolated preview artifact for the exact head. Evidence must identify the approved preview path/host and prove the served JS/CSS matches that artifact; a matching HTML page or SHA marker alone is insufficient.
 
@@ -65,6 +66,33 @@ The Coder verifies that the URL loads the deployed head, verifies the loaded ass
 If a required preview cannot be published, opened, matched to the reviewed head or verified, record the blocker and report NOT MERGE-READY. Do not substitute the canonical deployment. Docs-only and other non-browser tasks may mark preview **N/A** only with a concrete reason explaining why no rendered browser behavior or asset changes; "not needed" alone is insufficient.
 
 Runtime adapters may define artifact paths, host routing, deployment commands and cleanup procedures. They must preserve the outcomes above and must not redefine role ownership or the user-only merge policy. See [runtimes/hostinger-pargali.md](runtimes/hostinger-pargali.md) for the current VPS convention.
+
+## Post-merge preview cleanup (mandatory)
+
+A merged task's preview is retired as a routine, mandatory part of [post-merge housekeeping](#post-merge-housekeeping-before-each-new-task). The user's confirmed merge is the authorization for it; agents do not ask a second time, and this is workflow automation rather than a new long-running service.
+
+**Preconditions before anything is removed**
+
+1. The PR is `MERGED`, not merely closed, and its merge commit is contained in `origin/main`.
+2. The required checks and independent review passed at that same head.
+3. The change's applicable production publication succeeded and was verified at the protected production URL. A docs-only or otherwise non-published change records that publication is not applicable instead of skipping the check silently.
+4. The preview to remove is this task's own, and its route/artifact ownership is unambiguous.
+
+Any missing or failed check is a blocker: keep the preview, keep serving it, and report the drift instead of cleaning.
+
+**What cleanup removes and what it must not touch**
+
+- Archive non-secret durable audit evidence first, outside any served root: build markers/manifests/checksums, the PR/merge/production references, and the configuration diff with its hashes and backup path.
+- Remove only the verified, fully resolved per-task preview directories and route blocks named for this task. No broad globs, no unresolved or wildcard paths, no symlink-escaped paths.
+- Preserve the canonical build, production staging and backups, configuration backups, credentials and every unrelated file.
+- Keep every open, held or undecided preview and its route exactly as it was, and never weaken or remove the existing access gate.
+- A retired preview prefix must not fall through to the canonical application. After the surviving routes, serve one protected explicit response (404/410) under the same gate for the reserved prefix.
+
+**Verification and record before handback**
+
+- Validate the configuration change and reload only the affected service; keep the API, WebSocket, login/logout and host routing unchanged.
+- Verify the production root and assets, the gate, and every remaining preview at their protected actual URLs, and record the removed roots/bytes, config diff/hash/backup and exact checks on the Issue/PR.
+- Record cleanup completion before the task handback. Stop and report drift rather than overwriting an unexpected configuration or filesystem state.
 
 ## Concurrent work
 
@@ -85,6 +113,7 @@ Before starting a new task, the Orchestrator performs post-merge housekeeping so
 2. **Synchronize canonical `main`.** Bring the canonical `main` up to date with `origin/main` using fast-forward only. Never force or rewrite history; if `main` cannot fast-forward, stop and report instead of resolving it.
 3. **Prepare every configured Coder worktree.** The runtime adapter defines the Coder slot inventory and its paths. Prepare each configured worktree from the latest `main` only when it is clean and its branch ownership is clear; never reset a worktree with uncommitted or unmerged work. A slot that is dirty, carries unmerged work that is not the new task, or has unclear ownership is a stop condition, not a cleanup target.
 4. **Remove obsolete merged local branches.** Delete a local branch only after verifying it is merged into `origin/main` and is not checked out in any worktree.
+5. **Retire merged task previews.** Apply [post-merge preview cleanup](#post-merge-preview-cleanup-mandatory) to every task whose user-confirmed merge and applicable production verification hold; keep open, held and undecided previews. The runtime adapter owns the concrete artifact paths, route procedure and evidence location.
 
 Remote head-branch deletion is controlled by GitHub's `delete_branch_on_merge` repository setting, not by agents. Agents remove only local branches they have verified and must not delete unmerged or unverified remote work.
 

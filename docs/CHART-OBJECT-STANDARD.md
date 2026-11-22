@@ -199,6 +199,34 @@ Both fields only gate rendering: a hidden/disabled object keeps its geometry, it
 
 ---
 
+## Series primitive redraw lifecycle (MUST)
+
+A lightweight-charts series/pane primitive is a *view* of caller-owned state. Its `updateAllViews()` — and every `renderer()` / view `update()` it calls — MUST be view-only: it may rebuild geometry and paint the next frame, but it MUST NOT schedule another chart redraw, directly or indirectly. No `requestUpdate()`, no series `applyOptions` / `setData`, no public setter, and no timer, `requestAnimationFrame` chain or microtask that ends in a request may originate inside the render pass. A self-scheduling render path turns one library update into a permanent frame loop: the chart repaints forever while nothing changes.
+
+**Legitimate invalidation (MUST remain).** Only these call sites may ask the chart for a redraw, at most once per change:
+
+- attachment initialization (`attached()`), so the primitive paints its first frame — via its own `invalidate()`, not from `updateAllViews()`;
+- an external data, style or visibility change made outside the chart (`set*` / `invalidate()` on the attachment, context replacement);
+- the object's public update / apply path that the chart cannot observe;
+- user interaction that changes what must be drawn (pan/zoom, hover, selection, drag).
+
+Setters MUST coalesce: several changes before the next paint request one redraw, not one each. Library-driven `updateAllViews()` is never an invalidation source, and it MUST still rebuild the visible model from the current context, because the library calls it for its own layout passes (data change, pan/zoom, resize, pane reorder).
+
+**Disposal (MUST).** `detached()` clears the chart, series and `requestUpdate` references and every timer or listener the primitive installed, so no later callback can schedule a frame; the attach helper's `dispose()` detaches. After disposal a public setter or library update MUST be a no-op — never a throw and never a paint.
+
+**Lifecycle tests (MUST for a new or changed primitive).** Count redraw requests and canvas draws as separate signals:
+
+- **Idle settles:** after the initial paint, repeated library `updateAllViews()` calls on an unchanged context request **zero** further redraws — including the hidden (`visible: false`), zero-opacity (`fillOpacity: 0`), empty (no models) and multiple-primitive mounted states.
+- **External changes paint:** each external data/style/visibility change and each public update requests exactly one redraw, and the next library update renders the new state.
+- **Interaction paints:** pan/zoom, hover or selection that must repaint requests one redraw and starts no chain; the library's own pass stays view-only.
+- **Dispose stops scheduling:** after detach/dispose no callback schedules a frame, and later setters do not resurrect one.
+
+Count `requestAnimationFrame` frames (or the primitive's own `requestUpdate` / `invalidate` calls) **separately** from canvas clears and draws. A render pass legitimately clears and repaints once per frame, so a draw counter alone cannot distinguish "one frame per interaction" from "one frame forever". Distinguish live ticks from idle: a live kline tick must repaint; a settled hidden, zero-opacity or empty chart must not.
+
+**Scope.** #254 and #259 fixed this defect class; their lifecycle tests in `sessionVwapBandSeriesPrimitive.test.ts` and `anchoredVwapBandFillSeriesPrimitive.test.ts` are the reference pattern, not a request to rewrite unrelated primitives, their numerical code or their performance characteristics. A source-text scan for `requestUpdate` cannot prove the absence of an indirect loop (for example through a library API that itself triggers a layout pass), so review MUST NOT accept a grep claim as evidence — only the counting lifecycle test is evidence.
+
+---
+
 ## Feature parity (MUST)
 
 Functionally equivalent chart objects MUST expose the same capabilities and the same interaction vocabulary. Parity is checked against the [capability matrix](#capability-matrix-by-object-type-must) and against existing objects of the same category — not against a new object's own ambition.
@@ -245,3 +273,4 @@ No gap is open as of #194 (Rolling VWAP per-band widths, per-series time-based V
 | Dialog width/spacing + non-blackout overlay | `src/widgetSettings/chartSettingsDialogLayout.ts` (`CHART_SETTINGS_DIALOG_CONTENT_CLASS`, `CHART_SETTINGS_DIALOG_OVERLAY_CLASS`, `CHART_SETTINGS_DIALOG_BODY_CLASS`) |
 | Dialog draft/diff/sanitize logic | `src/widgetSettings/lineStyleDraft.ts`, `rectangleFillStyleDraft.ts`, `marketIndicatorStyleDraft.ts`, `fixedRangeVolumeProfileSettingsDraft.ts`, `src/market/aggregatedLiquidationsSettingsDraft.ts` |
 | Global candle color preference | `src/market/candleColors.ts`, `src/market/useCandleColors.ts`, `src/AppearanceMenu.tsx`, `src/widgetSettings/CandleColorsDialog.tsx` |
+| Redraw lifecycle tests (frame vs draw counting) | `src/market/sessionVwapBandSeriesPrimitive.test.ts`, `src/market/anchoredVwapBandFillSeriesPrimitive.test.ts`, `src/market/lineSeriesPrimitive.test.ts`, `src/market/rectangleSeriesPrimitive.test.ts`, `src/market/fixedRangeVolumeProfileSeriesPrimitive.test.ts` |

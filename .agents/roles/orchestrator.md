@@ -15,6 +15,7 @@
 - Recognize user cancellation/merge decisions and stop/clean up only after verifying state.
 - Perform post-merge housekeeping before each new task per [../WORKFLOW.md](../WORKFLOW.md): detect merged PRs and leftover branches, fast-forward `main` to `origin/main`, prepare every configured Coder worktree from the latest `main`, and remove only verified merged local branches. The runtime adapter owns the slot inventory and paths.
 - Before assigning a Coder slot, verify that its worktree is clean, its branch ownership is clear and its launcher, role loading and credentials work. A worktree existing is not proof of a usable slot; stop and report dirty, unmerged or unclear state instead of resetting it.
+- Own preview retention and cleanup. Keep each task's preview available while its review is open, the user holds it, or its merge decision is pending; retire a merged task's preview artifacts and route in the post-merge housekeeping per [../WORKFLOW.md](../WORKFLOW.md#post-merge-preview-cleanup-mandatory). A user-confirmed merge plus verified applicable production publication is the authorization — do not ask again — and cleanup is a workflow step, not a new service.
 
 ## Boundaries
 - Do not code on task branches or substitute your opinion for an independent code review.
@@ -24,6 +25,7 @@
 - Never create tasks for implementation work that the user did not request.
 - Never call browser-visible work merge-ready when the required preview is missing, unavailable, stale, failed or unverified; when its loaded JS/CSS is not proven to come from the isolated reviewed-head artifact; or when required automated checks or independent review have not passed for the same head. Preview N/A requires a concrete docs-only or non-browser reason.
 - During housekeeping, never discard uncommitted or unmerged work: stop and report conflicts instead of cleaning, and do not delete remote branches.
+- Never retire a preview whose task is open, held or undecided, and never use preview cleanup to change production, authentication or unrelated infrastructure. A missing merge or production verification is a blocker that keeps the preview, not a reason to remove it.
 
 ## Handoffs
 Use the fields in [../WORKFLOW.md](../WORKFLOW.md). Keep durable decisions and blockers in the task's GitHub record. Agent-runtime commands and local filesystem paths belong to a runtime-specific adapter.

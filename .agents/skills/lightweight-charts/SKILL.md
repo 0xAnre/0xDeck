@@ -172,6 +172,7 @@ If these repo paths do not exist in the user's project, do not ask them to creat
 - **`IPanePrimitive` views render across the whole pane; `ISeriesPrimitive` views are clipped to the series.** Pick the right base.
 - **The renderer interface is `IPrimitivePaneRenderer`, not `IPanePrimitivePaneRenderer`.** The view is `IPanePrimitivePaneView` and its `renderer()` returns `IPrimitivePaneRenderer | null` — the names are deliberately asymmetric. There is no `IPanePrimitivePaneRenderer` export; grep `dist/typings.d.ts` if unsure.
 - **`ICustomSeriesPaneView` is heavier than a primitive** — only use it when you need a true series API (data, scales, autoscale). For decorations, use a primitive.
+- **`updateAllViews()` must not request another update.** It is the library's own view-rebuild callback (data change, pan/zoom, resize, pane reorder); calling `requestUpdate()` from it, from `renderer()` or from a view `update()` creates a frame loop that never settles. Ask for a redraw only from your `attached()` initialization, your external setters and your public update path, and coalesce several setters into one request. Test it by counting frames separately from canvas draws: idle `updateAllViews()` must schedule zero frames, an external change exactly one, and `detached()` must stop scheduling. In 0xDeck this is normative ([chart standard](../../../docs/CHART-OBJECT-STANDARD.md#series-primitive-redraw-lifecycle-must)); see `.agents/skills/lightweight-charts-plugin-authoring/SKILL.md` for the plugin-level checklist.
 
 ### Wrappers (React/Vue/etc.)
 

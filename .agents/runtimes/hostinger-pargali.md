@@ -8,7 +8,7 @@ The user granted **standing authorization** for routine preview work on the exis
 
 - create a per-PR preview route and its immutable `pr-<number>/<full-head-sha>/` artifact directory;
 - re-publish and re-point that route to the new current head after each push;
-- perform scoped lifecycle cleanup of that PR's preview directory and route after the user's merge, hold or cancel decision, or an explicitly approved expiry.
+- perform scoped lifecycle cleanup of that PR's preview directory and route after the user's merge, hold or cancel decision, or an explicitly approved expiry. For a user-confirmed merge this cleanup is mandatory and automatic under [retention and cleanup](#retention-and-cleanup) — do not ask again; a hold or cancel keeps the preview until the user says otherwise.
 
 Scope is the existing protected host and its `/previews/pr-<number>/` prefix only. This standing permission does **not** authorize weakening or bypassing authentication and access policy, disclosing credentials, new hosts or backends, publishing to `/srv/0xdeck/dist` or production, unrelated Caddy or infrastructure edits, merging or auto-merging. Preview work stays preview work: publishing a merged `main` state is authorized only separately, under the [user-confirmed production authorization](#standing-authorization-for-user-confirmed-production-deploys), and everything else still needs its own authorization. A broader action the user already explicitly authorized takes precedence over this section instead of being asked again. Every guardrail below — existing gate/access policy, immutable PR/SHA artifacts and prefix asset isolation, canonical-target protection, exact-head and loaded-asset verification, independent review, backup/validation/rollback of any config change, and retention until the user's decision — remains in force.
 
@@ -65,9 +65,34 @@ Every push invalidates earlier preview and asset-origin evidence. Publish a new 
 
 ## Retention and cleanup
 
-The PR must name the person or role responsible for keeping the preview available and for cleanup. Retain the current verified SHA directory and route until the user chooses merge, hold or cancel. After that recorded decision, the owner may remove only the explicitly identified PR preview directory after confirming it is under `/srv/0xdeck-previews/pr-<number>/`; never use a broad or unresolved path and never remove `/srv/0xdeck/dist`.
+The Orchestrator owns retention and cleanup and performs it as part of post-merge housekeeping ([shared contract](../WORKFLOW.md#post-merge-preview-cleanup-mandatory)); the Coder supplies the preview and production evidence. Cleanup of preview artifacts does not close an Issue, merge a PR or delete a Git branch.
 
-If the user approves an explicit expiry instead, record the timestamp and resulting availability risk on the PR before applying it. Cleanup of preview artifacts does not close an Issue, merge a PR or delete a Git branch.
+### Retention
+
+Keep the current verified SHA directory and route while the PR is open, its review is pending, the user holds it, or the merge decision is outstanding. An explicit user-approved expiry is the only other way to retire a preview early; record the timestamp and resulting availability risk on the PR before applying it. Never retire another task's preview.
+
+### Automatic retirement of a merged task's preview
+
+Once the user confirms a merge, retirement is mandatory and needs no new permission. It is one step of post-merge housekeeping, not a cron job, webhook or daemon.
+
+Preconditions — any failure keeps the preview and blocks cleanup:
+
+1. The PR is `MERGED`, not merely closed, and its merge commit is contained in `origin/main`.
+2. The required checks and independent review passed at that same head.
+3. The change's applicable production publication succeeded and was verified: a release record under `/srv/0xdeck-prod-stage/<full-sha>/release.json` with its verification evidence, and a live `/srv/0xdeck/dist/index.html` checksum that matches what is served. A docs-only or otherwise unpublished change records publication as not applicable instead of skipping the check silently.
+4. `realpath -e` of each candidate directory is exactly `/srv/0xdeck-previews/pr-<number>`, with no symlink component, and the route's `root *` path resolves inside it.
+
+Procedure:
+
+1. Archive non-secret audit evidence outside every served root, for example `/srv/0xdeck-preview-archive/<issue>-<UTC-timestamp>/`: PR/merge/production references, each SHA's `preview.json`/`deployment.json`/`checksums.sha256`, a file inventory, sizes, and the configuration diff, hashes and backup path. Never copy cookies, session data or credentials.
+2. Delete only the exact verified `/srv/0xdeck-previews/pr-<number>` directories and their SHA subdirectories. No broad glob, no unresolved path, no other PR, and never `/srv/0xdeck/dist`, production staging or backups, Caddy backups or a credential store.
+3. Back up the live Caddyfile (for example `/etc/caddy/Caddyfile.bak-cleanup-preview<issue>-<timestamp>`), compose a scoped candidate that removes only that task's preview `redir`/`handle` blocks, and keep `/login*`, `/logout*`, the canonical `handle`, the API/WebSocket upstream and the other site blocks byte-identical. Check the live file for drift first; a candidate that changes anything else is rejected rather than installed.
+4. Keep the reserved prefix from falling through to the canonical app. When no preview survives for a prefix, keep exactly one protected handler after the surviving routes — matching `/previews` and `/previews/*`, using the same `forward_auth 127.0.0.1:8791 { uri /auth }`, answering an explicit `410` (or `404`). It must behave the same for the bare and slashed forms.
+5. Validate the candidate (`caddy validate --config <candidate> --adapter caddyfile`), install it, then `systemctl reload caddy`. A failed validation or reload, or a running configuration that differs from the candidate, is a stop condition: restore the recorded backup and report.
+6. Verify at the protected actual endpoints: the canonical root and its loaded JavaScript/CSS checksums match `/srv/0xdeck/dist`; anonymous requests for the app, the API and every retired prefix still reach the gate; each surviving preview still loads; `/login`, `/logout`, the API/WebSocket route and the other host blocks are unchanged.
+7. Record the removed roots and bytes, configuration diff/hashes/backup, reload result and exact endpoint checks on the Issue/PR before handback. Rollback is the recorded backup plus `systemctl reload caddy`.
+
+Cleanup stops and reports instead of overwriting when: the PR is not actually merged; its merge commit is not on `origin/main`; same-head checks or review are missing; the production verification is missing or failed; a directory does not resolve exactly as expected; an unknown, foreign or held preview or route would be affected; the configuration has drifted from the reviewed candidate; or validation/reload/endpoint checks fail.
 
 ## Standing authorization for user-confirmed production deploys
 
