@@ -17,7 +17,7 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [../AGENTS.md](../AGENTS.md) | Architecture + AI agent conventions |
 | [../.agents/WORKFLOW.md](../.agents/WORKFLOW.md) | Agent-independent development lifecycle |
 | [../.agents/runtimes/pi.md](../.agents/runtimes/pi.md) | Pi runtime adapter: verified VPS three-Coder deployment and Mac migration runbook |
-| [../.agents/runtimes/hostinger-pargali.md](../.agents/runtimes/hostinger-pargali.md) | Hostinger preview artifact, routing and cleanup convention |
+| [../.agents/runtimes/hostinger-pargali.md](../.agents/runtimes/hostinger-pargali.md) | Hostinger preview artifact, routing and cleanup convention; separate user-confirmed production publish authorization |
 | [PRODUCT-POSITIONING.md](./PRODUCT-POSITIONING.md) | Product positioning + UX direction |
 
 ## AI-assisted development
