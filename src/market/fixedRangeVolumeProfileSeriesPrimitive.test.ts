@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   FixedRangeVolumeProfileSeriesPrimitive,
+  attachFixedRangeVolumeProfileSeriesPrimitive,
   type FixedRangeVolumeProfileSeriesPrimitiveContext,
 } from './fixedRangeVolumeProfileSeriesPrimitive.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
@@ -226,5 +227,146 @@ describe('fixedRangeVolumeProfileSeriesPrimitive lifecycle', () => {
     }))
 
     assert.notEqual(renderer, null)
+  })
+})
+
+
+function frvpSchedulingSeries() {
+  return { priceToCoordinate: (price: number) => 500 - price } as never
+}
+
+function frvpSchedulingContext(
+  instances: FixedRangeVolumeProfileInstance[],
+): FixedRangeVolumeProfileSeriesPrimitiveContext {
+  return {
+    instances,
+    runtimeById: Object.fromEntries(instances.map((instance) => [instance.id, readyState(instance)])),
+    selectedId: null,
+    interaction: null,
+    getIntervalDurationSeconds: () => 60,
+    getLastBarUnixTime: () => null,
+  }
+}
+
+describe('fixedRangeVolumeProfileSeriesPrimitive scheduling', () => {
+  it('library updateAllViews does not request another redraw', () => {
+    let requests = 0
+    const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() =>
+      frvpSchedulingContext([frvpInstance()]),
+    )
+    primitive.attached({
+      chart: fakeChart(),
+      series: frvpSchedulingSeries(),
+      requestUpdate: () => {
+        requests += 1
+      },
+    })
+    assert.equal(requests, 1)
+    requests = 0
+
+    primitive.updateAllViews()
+    primitive.updateAllViews()
+
+    assert.equal(requests, 0)
+    const view = primitive.paneViews()[0] as { renderer: () => unknown }
+    assert.notEqual(view.renderer(), null)
+    primitive.detached()
+  })
+
+  it('explicit invalidate, context provider change and public update still request a paint', () => {
+    let requests = 0
+    const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() =>
+      frvpSchedulingContext([]),
+    )
+    primitive.attached({
+      chart: fakeChart(),
+      series: frvpSchedulingSeries(),
+      requestUpdate: () => {
+        requests += 1
+      },
+    })
+    requests = 0
+
+    primitive.invalidate()
+    assert.equal(requests, 1)
+
+    requests = 0
+    primitive.setContextProvider(() => frvpSchedulingContext([frvpInstance()]))
+    assert.equal(requests, 1)
+
+    requests = 0
+    primitive.updateAllViews()
+    assert.equal(requests, 0)
+  })
+
+  it('the public attachment update and dispose keep the invalidation contract', () => {
+    let requests = 0
+    let captured: FixedRangeVolumeProfileSeriesPrimitive | null = null
+    const series = {
+      attachPrimitive: (primitive: FixedRangeVolumeProfileSeriesPrimitive) => {
+        captured = primitive
+      },
+      detachPrimitive: () => {},
+      priceToCoordinate: (price: number) => 500 - price,
+    }
+    const attachment = attachFixedRangeVolumeProfileSeriesPrimitive(
+      series as never,
+      () => frvpSchedulingContext([frvpInstance()]),
+    )
+    assert.notEqual(captured, null)
+    captured!.attached({
+      chart: fakeChart(),
+      series: series as never,
+      requestUpdate: () => {
+        requests += 1
+      },
+    })
+    requests = 0
+
+    attachment.update()
+    assert.equal(requests, 1)
+
+    attachment.dispose()
+    attachment.update()
+    assert.equal(requests, 1)
+  })
+
+  it('empty state settles without requests or renderer work', () => {
+    let requests = 0
+    const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() =>
+      frvpSchedulingContext([]),
+    )
+    primitive.attached({
+      chart: fakeChart(),
+      series: frvpSchedulingSeries(),
+      requestUpdate: () => {
+        requests += 1
+      },
+    })
+    requests = 0
+
+    primitive.updateAllViews()
+
+    assert.equal(requests, 0)
+    const view = primitive.paneViews()[0] as { renderer: () => unknown }
+    assert.equal(view.renderer(), null)
+  })
+
+  it('a view-only callback reflects an externally updated context on the next library update', () => {
+    let context = frvpSchedulingContext([])
+    const primitive = new FixedRangeVolumeProfileSeriesPrimitive(() => context)
+    primitive.attached({
+      chart: fakeChart(),
+      series: frvpSchedulingSeries(),
+      requestUpdate: () => {},
+    })
+    primitive.updateAllViews()
+    const view = primitive.paneViews()[0] as { renderer: () => unknown }
+    assert.equal(view.renderer(), null)
+
+    context = frvpSchedulingContext([frvpInstance()])
+    primitive.updateAllViews()
+    assert.notEqual(view.renderer(), null)
+    primitive.detached()
   })
 })
