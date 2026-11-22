@@ -49,6 +49,7 @@ import { ParquetDataProvider } from './context/ParquetDataContext'
 import { WidgetSettingsProvider } from './context/WidgetSettingsContext'
 import { WorkspaceScopeProvider } from './context/WorkspaceScopeContext'
 import { DataSourceDialog } from './DataSourceDialog'
+import { AppearanceMenu } from './AppearanceMenu'
 import { ThemeSelect } from './ThemeSelect'
 import { WidgetSelect } from './WidgetSelect'
 import { applyTheme, loadTheme, saveTheme, type Theme } from './themeStorage'
@@ -589,6 +590,7 @@ function App() {
               <TooltipContent>{SCREEN_LOCK_LABELS[screenLock ? 'on' : 'off']}</TooltipContent>
             </Tooltip>
           </ButtonGroup>
+          <AppearanceMenu />
           <ThemeSelect value={theme} onChange={handleThemeChange} />
           <WidgetSelect panelCount={visiblePanels.length} onAdd={handleAddPanel} />
           <DataSourceDialog />

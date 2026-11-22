@@ -6,6 +6,7 @@ import {
   createSeriesMarkers,
   LineSeries,
   type IChartApi,
+  type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type LogicalRange,
   type MouseEventParams,
@@ -16,7 +17,11 @@ import { nextLiveRefreshDelayMs } from '@/lib/liveRefresh'
 import { cn } from '@/lib/utils'
 import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
-import { BTC_PERPETUAL_CANDLESTICK_COLORS } from '@/market/btcPerpetualCandleColors'
+import {
+  candleCandlestickSeriesOptions,
+  type CandleColors,
+} from '@/market/candleColors'
+import { useCandleColors } from '@/market/useCandleColors'
 import { btcPerpetualCrosshairOptions } from '@/market/btcPerpetualCrosshairOptions'
 import { btcPerpetualCurrentPriceLineOptions } from '@/market/btcPerpetualCurrentPriceLineOptions'
 import {
@@ -460,6 +465,28 @@ type HoveredAccountFillState = {
 const NO_ACCOUNT_FILLS: AccountFill[] = []
 const NO_HOVERED_ACCOUNT_FILLS: BucketedHyperliquidFill[] = []
 
+/**
+ * Mirror the applied candlestick series options onto the chart container.
+ *
+ * The chart body is canvas-only, so a browser test cannot inspect the series
+ * otherwise; these attributes report the actual series options after
+ * `applyOptions`, not the stored preference. They have no visual or pointer
+ * behaviour.
+ */
+function publishCandleSeriesColorOptions(
+  container: HTMLElement,
+  series: ISeriesApi<'Candlestick'>,
+) {
+  const options = series.options()
+  container.dataset.candleRisingColor = String(options.upColor)
+  container.dataset.candleFallingColor = String(options.downColor)
+  container.dataset.candleRisingWickColor = String(options.wickUpColor)
+  container.dataset.candleFallingWickColor = String(options.wickDownColor)
+  container.dataset.candleRisingBorderColor = String(options.borderUpColor)
+  container.dataset.candleFallingBorderColor = String(options.borderDownColor)
+  container.dataset.candleBorderVisible = String(options.borderVisible)
+}
+
 function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
   switch (state) {
     case 'connecting':
@@ -480,6 +507,7 @@ type LoadedVwapContext = {
 }
 
 export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstanceProps) {
+  const candleColors = useCandleColors()
   const [exchange, setExchange] = useState<MarketExchange>(() =>
     loadWidgetMarketExchange(panelId),
   )
@@ -666,6 +694,8 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ChartSeriesBundle | null>(null)
+  /** Latest global colors for chart creation, without re-running the creation effect. */
+  const candleColorsRef = useRef<CandleColors>(candleColors)
   const overlayIndicatorSelectionRef = useRef<OverlayIndicatorSelectionTarget | null>(null)
   const chartObjectSettingsTargetRef = useRef<ChartObjectSettingsTarget | null>(null)
   const candlesRef = useRef<MarketCandle[]>([])
@@ -846,6 +876,24 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       flushMarketChartViewportPersist(intervalAtSchedule)
     }, 250)
   }, [flushMarketChartViewportPersist])
+
+  useEffect(() => {
+    candleColorsRef.current = candleColors
+  }, [candleColors])
+
+  /**
+   * Apply the global candle colors in place. This effect never calls
+   * `createChart`, reloads candles, touches the time scale or persists the
+   * viewport: it only writes candlestick series options, so Save cannot reset
+   * zoom/drawings or trigger a history refetch.
+   */
+  useEffect(() => {
+    const candleSeries = seriesRef.current?.candle
+    const container = containerRef.current
+    if (!candleSeries || !container) return
+    candleSeries.applyOptions(candleCandlestickSeriesOptions(candleColors))
+    publishCandleSeriesColorOptions(container, candleSeries)
+  }, [candleColors, chartReady])
 
   useEffect(() => {
     rollingVwapInstancesRef.current = rollingVwapInstances
@@ -3258,9 +3306,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       })
 
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        ...BTC_PERPETUAL_CANDLESTICK_COLORS,
+        ...candleCandlestickSeriesOptions(candleColorsRef.current),
         ...btcPerpetualCurrentPriceLineOptions(colors.text),
       })
+      publishCandleSeriesColorOptions(container, candleSeries)
       registerCandleChartSeries(chart, candleSeries)
       // One marker primitive for the lifetime of this chart instance. Account
       // markers are always updated through `setMarkers`, never a second chart.
@@ -3971,6 +4020,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       <div
         ref={containerRef}
         data-testid="btc-perp-chart"
+        data-panel-id={panelId}
         className={cn(
           'min-h-[5rem] w-full flex-1 basis-0',
           !chartReady && 'pointer-events-none opacity-0',
