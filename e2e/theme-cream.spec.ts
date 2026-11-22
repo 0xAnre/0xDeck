@@ -214,13 +214,13 @@ test('cream is a warm light palette with dark readable text and visible edges', 
   const muted = await paint(page, [await themeToken(page, '--muted')])
   const accent = await paint(page, [await themeToken(page, '--accent')])
 
-  // Final choice: workspace canvas and chart canvas share the darker cream #F2E6CE.
-  expect(backgroundToken.toLowerCase()).toBe('#f2e6ce')
-  expect(cardToken.toLowerCase()).toBe('#f2e6ce')
-  expect((await themeToken(page, '--chart-background')).toLowerCase()).toBe('#f2e6ce')
-  expect(rgb(background)).toEqual([242, 230, 206])
-  expect(rgb(await bodyBackground(page))).toEqual([242, 230, 206])
-  expect(rgb(card)).toEqual([242, 230, 206])
+  // Literal reference: workspace, panel/card shell and chart canvas are all #FDF6E3.
+  expect(backgroundToken.toLowerCase()).toBe('#fdf6e3')
+  expect(cardToken.toLowerCase()).toBe('#fdf6e3')
+  expect((await themeToken(page, '--chart-background')).toLowerCase()).toBe('#fdf6e3')
+  expect(rgb(background)).toEqual([253, 246, 227])
+  expect(rgb(await bodyBackground(page))).toEqual([253, 246, 227])
+  expect(rgb(card)).toEqual([253, 246, 227])
   expect(rgb(card)).toEqual(rgb(await cardBackground(page)))
   expect(background.r).toBeGreaterThan(background.g)
   expect(background.g).toBeGreaterThan(background.b)

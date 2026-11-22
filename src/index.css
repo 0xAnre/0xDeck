@@ -285,11 +285,11 @@ body,
 }
 
 /* Warm light cream palette — the only light built-in theme.
-   Workspace/header canvas, panel/card shell and chart canvas share the final darker cream #F2E6CE. */
+   Literal original reference: workspace/header, panel/card shell and chart canvas are all #FDF6E3. */
 [data-theme='cream'] {
-  --background: #f2e6ce;
+  --background: #fdf6e3;
   --foreground: oklch(0.27 0.022 55);
-  --card: #f2e6ce;
+  --card: #fdf6e3;
   --card-foreground: oklch(0.27 0.022 55);
   --popover: #fffdf8;
   --popover-foreground: oklch(0.27 0.022 55);
@@ -326,7 +326,7 @@ body,
   --long: oklch(0.5 0.11 152);
   --short: oklch(0.48 0.185 27.5);
   --chart-glow: oklch(0.36 0.05 55 / 12%);
-  --chart-background: #f2e6ce;
+  --chart-background: #fdf6e3;
   --font-sans: 'Inter Variable', sans-serif;
 }
 
