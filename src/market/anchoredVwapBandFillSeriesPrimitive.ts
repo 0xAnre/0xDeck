@@ -173,6 +173,16 @@ export class AnchoredVwapBandFillSeriesPrimitive implements ISeriesPrimitive<Tim
 
   updateAllViews(): void {
     this._view.update()
+  }
+
+  /**
+   * External invalidation: data, style, visibility, public `update()` and
+   * attachment initialization. The chart cannot infer these context changes,
+   * so it must be asked for another update; that library update rebuilds the
+   * geometry against the final transforms, coalescing several setters made
+   * before the next paint.
+   */
+  invalidate(): void {
     this._requestUpdate?.()
   }
 
@@ -184,7 +194,7 @@ export class AnchoredVwapBandFillSeriesPrimitive implements ISeriesPrimitive<Tim
     this._chart = param.chart
     this._series = param.series
     this._requestUpdate = param.requestUpdate
-    this.updateAllViews()
+    this.invalidate()
   }
 
   detached(): void {
@@ -211,10 +221,10 @@ export function attachAnchoredVwapBandFillSeriesPrimitive(
   return {
     setPairs: (pairs) => {
       context = { pairs }
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     update: () => {
-      primitive.updateAllViews()
+      primitive.invalidate()
     },
     dispose: () => {
       series.detachPrimitive(primitive)
