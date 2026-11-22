@@ -319,17 +319,21 @@ be recognised in a new shape, not just avoided in the old one.
   that frame schedules the next one forever, even with no data change.
 - `requestUpdate()` belongs to the changes the chart cannot observe: your own
   `attached()` initialization, external data/style/visibility setters, and your
-  public update entry points. Coalesce several setters made before the next
-  paint into one request instead of one request each.
+  public update entry points. One request per explicit setter is correct — the
+  chart library, not your primitive, coalesces requested updates into painted
+  frames. Do not add a batching, debounce or timer layer to reduce the request
+  count, and do not assume a fixed number of painted frames per interaction.
 - The library calls `updateAllViews()` for its own layout passes (data change,
   pan/zoom, resize, pane reorder), so the view must still rebuild against the
   current context there. View-only is not the same as caching.
-- Test the lifecycle with counters rather than by eye: frames (`requestUpdate`
-  calls or `requestAnimationFrame`) versus canvas clears/draws, counted
-  separately. Assert that idle `updateAllViews()` calls schedule nothing — also
-  hidden, zero-opacity, empty and multiple mounted instances — that an external
-  change or an interaction schedules exactly one frame, and that `detached()`
-  (and the attach helper's `dispose()`) stops scheduling for good.
+- Test the lifecycle with counters rather than by eye. A unit test counts
+  `requestUpdate()` calls and canvas draws separately: idle `updateAllViews()`
+  calls add no request (also hidden, zero-opacity, empty and multiple mounted
+  instances), each explicit external setter or public update adds exactly one
+  request, a gesture stays bounded by its own events rather than a fixed frame
+  number, and `detached()` / the attach helper's `dispose()` stops scheduling
+  for good. Painted-frame coalescing and idle `requestAnimationFrame`
+  quiescence need a real-library browser test, not a Node counter.
 
 ## Testing
 
