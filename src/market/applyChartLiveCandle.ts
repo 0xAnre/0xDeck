@@ -2,31 +2,36 @@ import type { ISeriesApi, UTCTimestamp } from 'lightweight-charts'
 import {
   applyDailyVwapLiveFromCandles,
   type DailyVwapLineSeriesBundle,
-} from '@/market/dailyVwapChartSeries'
-import { applyMonthlyVwapLiveFromCandles } from '@/market/monthlyVwapChartSeries'
-import { applyQuarterlyVwapLiveFromCandles } from '@/market/quarterlyVwapChartSeries'
+} from './dailyVwapChartSeries.ts'
+import { applyMonthlyVwapLiveFromCandles } from './monthlyVwapChartSeries.ts'
+import { applyQuarterlyVwapLiveFromCandles } from './quarterlyVwapChartSeries.ts'
 import {
   applyWeeklyVwapLiveFromCandles,
   type WeeklyVwapLineSeriesBundle,
-} from '@/market/weeklyVwapChartSeries'
-import { applyYearlyVwapLiveFromCandles } from '@/market/yearlyVwapChartSeries'
-import { applyAnchoredVwapDrawingInstancesLive } from '@/market/anchoredVwapDrawingChartInstances'
-import type { AnchoredVwapDrawingChartInstanceMap } from '@/market/anchoredVwapDrawingChartInstances'
-import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
-import { applyRollingVwapInstancesLive } from '@/market/rollingVwapChartInstances'
-import type { RollingVwapChartInstanceMap } from '@/market/rollingVwapChartInstances'
-import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
-import type { RsiChartPaneBundle } from '@/market/rsiChartPane'
-import { updateRsiPaneLiveData } from '@/market/rsiChartPane'
-import type { MarketIndicatorId, VwapContextLevel } from '@/market/indicators'
-import { shouldShowVwapIndicatorSeries } from '@/market/indicators'
-import { updateDualEmaLive } from '@/market/chartDualEmaSeries'
-import { computeEmaLine, EMA_PERIODS } from '@/market/ema'
-import { applyLiveCandle } from '@/market/parseMarketCandle'
-import type { MonthlyVwapLineSeriesBundle } from '@/market/monthlyVwapChartSeries'
-import type { QuarterlyVwapLineSeriesBundle } from '@/market/quarterlyVwapChartSeries'
-import type { YearlyVwapLineSeriesBundle } from '@/market/yearlyVwapChartSeries'
-import type { CandleInterval, MarketCandle } from '@/market/types'
+} from './weeklyVwapChartSeries.ts'
+import { applyYearlyVwapLiveFromCandles } from './yearlyVwapChartSeries.ts'
+import { applyAnchoredVwapDrawingInstancesLive } from './anchoredVwapDrawingChartInstances.ts'
+import type { AnchoredVwapDrawingChartInstanceMap } from './anchoredVwapDrawingChartInstances.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
+import { applyRollingVwapInstancesLive } from './rollingVwapChartInstances.ts'
+import type { RollingVwapChartInstanceMap } from './rollingVwapChartInstances.ts'
+import type { RollingVwapInstance } from './rollingVwapInstances.ts'
+import type { RsiChartPaneBundle } from './rsiChartPane.ts'
+import { updateRsiPaneLiveData } from './rsiChartPane.ts'
+import type { MarketIndicatorId, VwapContextLevel } from './indicators.ts'
+import { shouldShowVwapIndicatorSeries } from './indicators.ts'
+import {
+  FULL_CHART_INDICATOR_SERIES_PLAN,
+  resolveChartIndicatorSeriesPlan,
+  type ChartIndicatorSeriesPlan,
+} from './chartIndicatorSeriesPlan.ts'
+import { updateDualEmaLive } from './chartDualEmaSeries.ts'
+import { computeEmaLine, EMA_PERIODS } from './ema.ts'
+import { applyLiveCandle } from './parseMarketCandle.ts'
+import type { MonthlyVwapLineSeriesBundle } from './monthlyVwapChartSeries.ts'
+import type { QuarterlyVwapLineSeriesBundle } from './quarterlyVwapChartSeries.ts'
+import type { YearlyVwapLineSeriesBundle } from './yearlyVwapChartSeries.ts'
+import type { CandleInterval, MarketCandle } from './types.ts'
 
 function toCandlestickPoint(candle: MarketCandle) {
   return {
@@ -74,6 +79,18 @@ function shouldUpdateVwap(
   })
 }
 
+/**
+ * Derive the same plan history used, so a tick can never push a latest-only
+ * point onto a series whose history was skipped.
+ */
+function liveIndicatorSeriesPlan(context: LiveVwapUpdateContext | undefined): ChartIndicatorSeriesPlan {
+  if (!context) return FULL_CHART_INDICATOR_SERIES_PLAN
+  return resolveChartIndicatorSeriesPlan({
+    activeIndicators: context.activeIndicators,
+    interval: context.interval,
+  })
+}
+
 /** Update in-memory candles and chart series (no full setData). */
 export function applyChartLiveCandle(
   candles: MarketCandle[],
@@ -87,20 +104,25 @@ export function applyChartLiveCandle(
   if (applyResult === 'ignore') return
 
   const rollingInterval = candle.interval
+  const plan = liveIndicatorSeriesPlan(vwapContext)
 
   bundle.candle.update(toCandlestickPoint(candle))
 
-  EMA_PERIODS.forEach((period, index) => {
-    const line = computeEmaLine(candles, period)
-    if (line.length === 0) return
-    const last = line[line.length - 1]
-    bundle.emas[index].update({
-      time: last.time as UTCTimestamp,
-      value: last.value,
+  if (plan['triple-ema']) {
+    EMA_PERIODS.forEach((period, index) => {
+      const line = computeEmaLine(candles, period)
+      if (line.length === 0) return
+      const last = line[line.length - 1]
+      bundle.emas[index].update({
+        time: last.time as UTCTimestamp,
+        value: last.value,
+      })
     })
-  })
+  }
 
-  updateDualEmaLive(bundle.ema100, bundle.ema200, candles)
+  if (plan['dual-ema']) {
+    updateDualEmaLive(bundle.ema100, bundle.ema200, candles)
+  }
 
   if (bundle.rsi) {
     updateRsiPaneLiveData(bundle.rsi, candles)

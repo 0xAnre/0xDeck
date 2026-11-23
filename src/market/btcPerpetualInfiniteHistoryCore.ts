@@ -108,6 +108,12 @@ type LoadOlderHistoryParams = {
   applyMergedHistory: ApplyMergedHistory
   mergeOlderCandles: MergeOlderCandles
   /**
+   * Merge into `candlesRef` only: no series rebuild and no logical-range shift.
+   * A multi-page restore burst uses this and applies the final merged window
+   * once, instead of rebuilding every series for every page.
+   */
+  deferSeriesApplication?: boolean
+  /**
    * Called whenever the history state changed (candles prepended, provider
    * horizon reached, or history exhausted) so derived state such as notices refreshes.
    */
@@ -127,6 +133,7 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
     fetchHistory,
     applyMergedHistory,
     mergeOlderCandles,
+    deferSeriesApplication = false,
     onHistoryStateChange,
   } = params
 
@@ -177,15 +184,22 @@ export async function loadOlderBtcPerpHistoryCore(params: LoadOlderHistoryParams
       return
     }
 
-    const logicalRange = chart.timeScale().getVisibleLogicalRange()
-    applyMergedHistory(bundle, merged)
-    candlesRef.current = merged
+    if (deferSeriesApplication) {
+      // The chart still shows the pre-page window; the caller rebuilds the
+      // series once after the burst, so shifting a range it does not contain
+      // would move the viewport without reason.
+      candlesRef.current = merged
+    } else {
+      const logicalRange = chart.timeScale().getVisibleLogicalRange()
+      applyMergedHistory(bundle, merged)
+      candlesRef.current = merged
 
-    if (logicalRange) {
-      chart.timeScale().setVisibleLogicalRange({
-        from: logicalRange.from + addedCount,
-        to: logicalRange.to + addedCount,
-      })
+      if (logicalRange) {
+        chart.timeScale().setVisibleLogicalRange({
+          from: logicalRange.from + addedCount,
+          to: logicalRange.to + addedCount,
+        })
+      }
     }
 
     if (reachedProviderHorizon) {

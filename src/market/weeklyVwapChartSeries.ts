@@ -1,12 +1,12 @@
 import type { IChartApi } from 'lightweight-charts'
-import { computeWeeklyVwap, type WeeklyVwapPoint } from '@/market/weeklyVwap'
+import { computeWeeklyVwap, type WeeklyVwapPoint } from './weeklyVwap.ts'
 import {
   WEEKLY_VWAP_CHART_SERIES_KEYS,
   WEEKLY_VWAP_CHART_SERIES_STYLES,
   weeklyVwapPointToLinePoint,
   weeklyVwapPointsToLineData,
   type WeeklyVwapChartSeriesKey,
-} from '@/market/weeklyVwapLineData'
+} from './weeklyVwapLineData.ts'
 import {
   createSessionVwapLineSeries,
   clearSessionVwapLineSeriesData,
@@ -15,8 +15,8 @@ import {
   updateSessionVwapLineSeriesLast,
   type SessionVwapChartSeriesAdapter,
   type SessionVwapLineSeriesBundle,
-} from '@/market/sessionVwapChartSeries'
-import type { MarketCandle } from '@/market/types'
+} from './sessionVwapChartSeries.ts'
+import type { MarketCandle } from './types.ts'
 
 export { WEEKLY_VWAP_CHART_SERIES_KEYS }
 

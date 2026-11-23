@@ -467,6 +467,51 @@ describe('loadOlderBtcPerpHistoryCore provider availability', () => {
     assert.equal(calls, 1)
   })
 
+  it('defers series application without shifting a range the chart does not hold', async () => {
+    const state = createInfiniteHistoryState()
+    state.generation = 1
+    const candlesRef = { current: [candle(1_700_000_500)] }
+    const applied: number[] = []
+    let rangeWrites = 0
+
+    await loadOlderBtcPerpHistoryCore({
+      state,
+      generation: 1,
+      interval: '1m',
+      before: 1_700_000_500,
+      candlesRef,
+      bundle: fakeBundle(),
+      chart: {
+        timeScale: () => ({
+          getVisibleLogicalRange: () => ({ from: 0, to: 10 }),
+          setVisibleLogicalRange: () => {
+            rangeWrites += 1
+          },
+          subscribeVisibleLogicalRangeChange: () => {},
+          unsubscribeVisibleLogicalRangeChange: () => {},
+        }),
+      } as unknown as IChartApi,
+      fetchHistory: async () => ({
+        symbol: 'BTCUSDT',
+        interval: '1m',
+        candles: [candle(1_700_000_400)],
+      }),
+      applyMergedHistory: (_bundle, candles) => {
+        applied.push(candles.length)
+      },
+      mergeOlderCandles: (existing, older) => [...older, ...existing],
+      deferSeriesApplication: true,
+    })
+
+    // The merged window is kept for the caller, but the chart is not rebuilt
+    // and its viewport is not shifted by a range that does not exist yet.
+    assert.equal(candlesRef.current.length, 2)
+    assert.equal(candlesRef.current[0].time, 1_700_000_400)
+    assert.deepEqual(applied, [])
+    assert.equal(rangeWrites, 0)
+    assert.equal(state.loading, false)
+  })
+
   it('resets provider availability when the history state is renewed', () => {
     const state = createInfiniteHistoryState()
     state.historyUnavailable = true
