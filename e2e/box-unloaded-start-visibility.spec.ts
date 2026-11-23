@@ -174,15 +174,23 @@ const paintRecorderScript = () => {
       ratioX: number
     }>,
     arcs: [] as Array<{ x: number; y: number; radius: number; fillStyle: string }>,
+    /** Narrow fills of a repaint: candle bodies and wicks, the time grid. */
+    narrowFills: [] as Array<{ x: number; width: number; height: number; frame: number }>,
+    frame: 0,
     reset() {
       state.fills.length = 0
       state.arcs.length = 0
+      state.narrowFills.length = 0
+      state.frame = 0
     },
   }
   window.__boxPaint = state
   const prototype = CanvasRenderingContext2D.prototype
   const originalFillRect = prototype.fillRect
   prototype.fillRect = function (left, top, width, height) {
+    if (width > 0 && width <= 40 && height > 0) {
+      state.narrowFills.push({ x: left + width / 2, width, height, frame: state.frame })
+    }
     const fillStyle = String(this.fillStyle)
     if (fillStyle === '#ff0000' || fillStyle.startsWith('rgba(255, 0, 0')) {
       const rect = this.canvas.getBoundingClientRect()
@@ -197,6 +205,11 @@ const paintRecorderScript = () => {
       })
     }
     return originalFillRect.call(this, left, top, width, height)
+  }
+  const originalClearRect = prototype.clearRect
+  prototype.clearRect = function (x, y, width, height) {
+    state.frame += 1
+    return originalClearRect.call(this, x, y, width, height)
   }
   const originalArc = prototype.arc
   prototype.arc = function (x, y, radius, startAngle, endAngle, counterclockwise) {
@@ -216,6 +229,8 @@ type BoxPaint = {
     ratioX: number
   }>
   arcs: Array<{ x: number; y: number; radius: number; fillStyle: string }>
+  narrowFills: Array<{ x: number; width: number; height: number; frame: number }>
+  frame: number
   reset: () => void
 }
 
@@ -483,6 +498,29 @@ async function setInstanceAndReload(run: ChartRun, kind: BoxKind) {
   await run.page.waitForTimeout(800)
   const hasBox = kind !== 'none' && kind !== 'outside' && kind !== 'hidden'
   run.mountFill = hasBox ? await waitForRedFill(run.page) : null
+}
+
+/**
+ * Bar spacing measured from the same mount's own painted candle grid: narrow
+ * fills are candle bodies/wicks, so the average distance between distinct
+ * centres is the time-axis scale in bitmap px per bar. This makes the clamp
+ * checkable without comparing two mounts (whose restored viewports can differ).
+ */
+async function measureBarSpacingBitmapPx(page: Page): Promise<number> {
+  const centres = await page.evaluate(() => {
+    const recorded = window.__boxPaint?.narrowFills ?? []
+    let lastFrame = -1
+    for (const fill of recorded) lastFrame = Math.max(lastFrame, fill.frame)
+    const unique = new Set<number>()
+    for (const fill of recorded) {
+      if (fill.frame !== lastFrame) continue
+      if (fill.width <= 0 || fill.width > 40 || fill.height <= 0) continue
+      unique.add(Math.round(fill.x))
+    }
+    return [...unique].sort((a, b) => a - b)
+  })
+  if (centres.length < 100) throw new Error(`candle grid too sparse: ${centres.length}`)
+  return (centres[centres.length - 1] - centres[0]) / (centres.length - 1)
 }
 
 /** One canvas pixel of the pane canvas, in its own bitmap coordinates. */
@@ -757,17 +795,16 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
     if (!clippedFill) return
     expect(clippedFill.left).toBeLessThanOrEqual(1)
     expect(clippedFill.width).toBeGreaterThan(100)
-    const clippedGeometry = {
-      left: clippedFill.left,
-      top: clippedFill.top,
-      width: clippedFill.width,
-      height: clippedFill.height,
-      fillStyle: clippedFill.fillStyle,
-    }
     // Positive pixel control: the visible part really paints opaque red.
     const clippedPixel = visibleFillCentre(clippedFill)
     expect(clippedPixel.visible).toBeGreaterThan(100)
     expect(await samplePanePixel(ab.page, clippedPixel.x, clippedPixel.y)).toEqual([255, 0, 0, 255])
+    // The painted span must be exactly the stored 629 bar intervals at this
+    // mount's own measured bar spacing: the clipped start is the earliest
+    // loaded bar, not a fabricated historical position.
+    await waitForRedFill(ab.page)
+    const mountSpacingInAB = await measureBarSpacingBitmapPx(ab.page)
+    expect(Math.abs(clippedFill.width / BARS_TO_BOX_END - mountSpacingInAB)).toBeLessThan(0.05)
 
     // The same box anchored exactly on the loaded edge: same paint calls, same
     // visible pixels, and the eight handles (the clipped box has five).
@@ -775,14 +812,12 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
     const anchoredFill = ab.mountFill
     expect(anchoredFill).not.toBeNull()
     if (!anchoredFill) return
-    expect({
-      left: anchoredFill.left,
-      top: anchoredFill.top,
-      width: anchoredFill.width,
-      height: anchoredFill.height,
-      fillStyle: anchoredFill.fillStyle,
-    }).toEqual(clippedGeometry)
-    expect(await samplePanePixel(ab.page, clippedPixel.x, clippedPixel.y)).toEqual([255, 0, 0, 255])
+    // Same stored span at the same own-mount spacing, and the same opaque fill.
+    await waitForRedFill(ab.page)
+    expect(Math.abs(anchoredFill.width / BARS_TO_BOX_END - (await measureBarSpacingBitmapPx(ab.page)))).toBeLessThan(0.05)
+    expect(anchoredFill.fillStyle).toBe(clippedFill.fillStyle)
+    const anchoredPixel = visibleFillCentre(anchoredFill)
+    expect(await samplePanePixel(ab.page, anchoredPixel.x, anchoredPixel.y)).toEqual([255, 0, 0, 255])
     await resetPaint(ab.page)
     await clickFillCentre(ab.page, anchoredFill)
     const anchoredHandles = await waitForHandles(ab.page, anchoredFill)
@@ -851,14 +886,11 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
     expect(clipped2).not.toBeNull()
     if (!clipped2) return
     expect(clipped2.ratioX).toBe(clippedFill.ratioX)
-    expect({
-      left: clipped2.left,
-      top: clipped2.top,
-      width: clipped2.width,
-      height: clipped2.height,
-      fillStyle: clipped2.fillStyle,
-    }).toEqual(clippedGeometry)
-    expect(barSpacingCssPx(clipped2)).toBe(barSpacingCssPx(clippedFill))
+    expect(clipped2.fillStyle).toBe(clippedFill.fillStyle)
+    await waitForRedFill(ab2.page)
+    expect(
+      Math.abs(clipped2.width / BARS_TO_BOX_END - (await measureBarSpacingBitmapPx(ab2.page))),
+    ).toBeLessThan(0.05)
     const pixel2 = visibleFillCentre(clipped2)
     expect(await samplePanePixel(ab2.page, pixel2.x, pixel2.y)).toEqual([255, 0, 0, 255])
 
@@ -866,13 +898,11 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
     const anchored2 = ab2.mountFill
     expect(anchored2).not.toBeNull()
     if (!anchored2) return
-    expect({
-      left: anchored2.left,
-      top: anchored2.top,
-      width: anchored2.width,
-      height: anchored2.height,
-      fillStyle: anchored2.fillStyle,
-    }).toEqual(clippedGeometry)
+    await waitForRedFill(ab2.page)
+    expect(
+      Math.abs(anchored2.width / BARS_TO_BOX_END - (await measureBarSpacingBitmapPx(ab2.page))),
+    ).toBeLessThan(0.05)
+    expect(anchored2.fillStyle).toBe(clippedFill.fillStyle)
     expect(await samplePanePixel(ab2.page, pixel2.x, pixel2.y)).toEqual([255, 0, 0, 255])
     await resetPaint(ab2.page)
     await clickFillCentre(ab2.page, anchored2)
