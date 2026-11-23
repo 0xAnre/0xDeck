@@ -142,8 +142,11 @@ describe('Rolling VWAP Auto mode compatibility', () => {
   })
 
   it('does not render an incompatible instance but renders it on a larger interval', () => {
-    const instance = createRollingVwapInstance({ settings: fixedWindow(7) })
+    const settings = fixedWindow(7)
+    settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 3 }
+    const instance = createRollingVwapInstance({ settings })
     const visibility: boolean[] = []
+    const bandVisibility: Array<Record<string, boolean>> = []
     const line = {
       setData: () => {},
       update: () => {},
@@ -154,21 +157,22 @@ describe('Rolling VWAP Auto mode compatibility', () => {
     const bundle = {
       center: line,
       bands: {
-        upper1: line,
-        lower1: line,
-        upper2: line,
-        lower2: line,
-        upper3: line,
-        lower3: line,
+        setVisibility: (
+          _visible: boolean,
+          bands: Record<string, boolean>,
+        ) => {
+          bandVisibility.push({ ...bands })
+        },
       },
-      ordered: [line],
     } as unknown as Parameters<typeof setRollingVwapInstanceSeriesVisibility>[0]
 
     setRollingVwapInstanceSeriesVisibility(bundle, instance, '1m')
     assert.equal(visibility[0], false)
+    assert.deepEqual(bandVisibility[0], { band1: false, band2: false, band3: false })
 
     visibility.length = 0
     setRollingVwapInstanceSeriesVisibility(bundle, instance, '5m')
     assert.equal(visibility[0], true)
+    assert.deepEqual(bandVisibility[1], { band1: true, band2: true, band3: true })
   })
 })

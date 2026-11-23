@@ -43,7 +43,7 @@ App.tsx                    → header (workspaces, wallet, appearance, theme/wid
 widgets/registry/          → WidgetDefinition catalog (id, layout, headerSettings, data metadata)
 widgets/stream/            → WebSocket message contract, client, and `subscribeWidgetStream` (one shared relay connection per channel, ref-counted across panels)
 BtcPerpetualChartPanel.tsx → BTC Perpetual widget body (lightweight-charts, account markers)
-market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays, Aggregated Liquidations pane (per-interval backend buckets at 30m+, event paging at 15m and below), FRVP, rectangle/line tools, exchange routing/tick/history limits, account-fill grouping/markers (`positionWallet.ts` global wallet, `lighterAccount.ts`/`lighterFills.ts` Lighter trades)
+market/                    → Candles, EMA/VWAP indicators, rolling VWAP overlays (native centre + one band primitive per instance), Aggregated Liquidations pane (per-interval backend buckets at 30m+, event paging at 15m and below), FRVP, rectangle/line tools, exchange routing/tick/history limits, account-fill grouping/markers (`positionWallet.ts` global wallet, `lighterAccount.ts`/`lighterFills.ts` Lighter trades)
 screenNavigationShortcuts.ts → Workspace screen jumps (`m` then `1`–`9`) + Screen Lock alignment helpers
 api/client.ts              → Parquet datasets: preview, series, kpi; market klines reads share one response per request key
 api/fixedRangeVolumeProfileClient.ts → Volume-profile klines client
@@ -119,6 +119,7 @@ The normative rules are [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDA
 6. **Update the documentation in the same PR** — capability matrix, reference table, persistence keys and known gaps when chart capabilities change.
 7. **Reviewer gate** — the Reviewer MUST verify standard compliance (matrix, shared components, interaction and persistence contracts) before approving a chart tool/indicator PR, and MUST NOT accept an undocumented capability gap.
 8. **Primitive redraw lifecycle** — `updateAllViews()` is view-only and never requests another redraw; only attachment, external data/style/visibility changes, public updates and user interaction invalidate. Ship a counting test (one request per external change, zero from library callbacks, idle quiescence, dispose stops scheduling) plus real-library frame coverage where painted frames matter — see [Series primitive redraw lifecycle](docs/CHART-OBJECT-STANDARD.md#series-primitive-redraw-lifecycle-must).
+9. **Rolling VWAP bands are one primitive** — a Rolling VWAP instance keeps its native centre `LineSeries` for identity/last value/price line, while its six band outlines and three fills are one official series primitive (`src/market/rollingVwapBandSeriesPrimitive.ts`). Do not reintroduce per-band native series; hit testing, the per-band halo and settings resolve through the shared `ChartObjectSettingsTarget` path. See [Rolling VWAP band primitive](docs/CHART-OBJECT-STANDARD.md#rolling-vwap-band-primitive-262-must).
 
 Deviations are recorded in [Known conformance gaps](docs/CHART-OBJECT-STANDARD.md#known-conformance-gaps), a table expected to be empty once the standard is met; a resolved or removed gap must never be cited as precedent.
 

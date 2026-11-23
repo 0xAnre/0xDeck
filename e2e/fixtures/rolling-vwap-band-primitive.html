@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Rolling VWAP band primitive harness</title>
+    <style>
+      body {
+        margin: 0;
+        background: #ffffff;
+        font: 12px monospace;
+      }
+      #root {
+        display: flex;
+        gap: 8px;
+      }
+      .chart {
+        width: 880px;
+        height: 500px;
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="base" class="chart"></div>
+      <div id="consolidated" class="chart"></div>
+    </div>
+    <script type="module" src="./rolling-vwap-band-primitive.ts"></script>
+  </body>
+</html>
