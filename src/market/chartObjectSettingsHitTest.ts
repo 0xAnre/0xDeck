@@ -197,10 +197,17 @@ function hitTestRollingVwapInstances(
     if (!instance.enabled) continue
     const chartBundle = ctx.bundle.rollingVwaps.get(instance.id)
     if (!chartBundle) continue
-    for (const series of chartBundle.ordered) {
-      if (hitTestLineSeriesAtPane(ctx.chart, series, ctx.paneX, ctx.paneY)) {
-        return { kind: 'rolling-vwap', instanceId: instance.id }
-      }
+    // Keep the pre-#262 precedence: the native centre line wins over a band
+    // outline that happens to pass through the same point.
+    if (hitTestLineSeriesAtPane(ctx.chart, chartBundle.center, ctx.paneX, ctx.paneY)) {
+      return { kind: 'rolling-vwap', instanceId: instance.id, part: 'center' }
+    }
+    // Band parts resolve through the primitive's official hit test, using the
+    // same visible-bounded geometry it draws. Hidden/disabled/zero-multiplier
+    // bands are absent from that geometry, so they can never be selected.
+    const bandHit = chartBundle.bands.hitTestBandAt(ctx.paneX, ctx.paneY)
+    if (bandHit !== null) {
+      return { kind: 'rolling-vwap', instanceId: instance.id, part: bandHit.band }
     }
   }
   return null

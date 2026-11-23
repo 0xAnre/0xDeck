@@ -59,7 +59,11 @@ export function sameOverlayIndicatorSelection(
     case 'market-indicator':
       return b.kind === 'market-indicator' && a.indicatorId === b.indicatorId
     case 'rolling-vwap':
-      return b.kind === 'rolling-vwap' && a.instanceId === b.instanceId
+      return (
+        b.kind === 'rolling-vwap' &&
+        a.instanceId === b.instanceId &&
+        a.part === b.part
+      )
     case 'aggregated-liquidations':
       return b.kind === 'aggregated-liquidations'
     default: {
@@ -125,7 +129,15 @@ export function isOverlayIndicatorSelectionRendered(
       const instance = state.rollingVwapInstances.find(
         (item) => item.id === selection.instanceId,
       )
-      return instance !== undefined && instance.enabled
+      if (instance === undefined || !instance.enabled) return false
+      // A band-part selection cannot outlive its band: hiding the band pair via
+      // a zero multiplier removes its geometry, so the selection is released
+      // exactly like a hidden overlay.
+      const part = selection.part
+      if (part === 'band1') return instance.settings.multipliers.multiplier1 > 0
+      if (part === 'band2') return instance.settings.multipliers.multiplier2 > 0
+      if (part === 'band3') return instance.settings.multipliers.multiplier3 > 0
+      return true
     }
     case 'aggregated-liquidations':
       return isMarketIndicatorRendered('aggregated-liquidations', state)
@@ -180,7 +192,14 @@ export function overlayIndicatorSelectionLineSeries(
     case 'rolling-vwap': {
       const instance = rollingVwapInstances.find((item) => item.id === selection.instanceId)
       if (!instance || !instance.enabled) return []
-      return bundle.rollingVwaps.get(selection.instanceId)?.ordered ?? []
+      const chartBundle = bundle.rollingVwaps.get(selection.instanceId)
+      if (!chartBundle) return []
+      // Band parts are stroked by the Rolling VWAP band primitive itself, with
+      // their own color and width. Only the native centre uses this halo.
+      if (selection.part === undefined || selection.part === 'all' || selection.part === 'center') {
+        return [chartBundle.center]
+      }
+      return []
     }
     case 'aggregated-liquidations':
       return []

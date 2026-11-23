@@ -1,54 +1,146 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { applyLiveCandle } from './parseMarketCandle.ts'
 import {
-  computeRollingVwapPointsForSettings,
-  createDefaultRollingVwapSettings,
-  type RollingVwapSettings,
-} from './rollingVwapSettings.ts'
-import { LineStyle, type IChartApi } from 'lightweight-charts'
+  LineStyle,
+  type IChartApi,
+  type IPrimitivePaneView,
+  type ISeriesPrimitive,
+} from 'lightweight-charts'
 import {
-  ROLLING_VWAP_BAND_FILL_KEYS,
   ROLLING_VWAP_BAND_SERIES_KEYS,
   ROLLING_VWAP_LINE_CHART_OPTIONS,
+  applyRollingVwapChartBandColors,
   applyRollingVwapChartBandFillStyle,
   applyRollingVwapChartBandLineStyles,
+  applyRollingVwapChartBandLineWidths,
   applyRollingVwapChartInstancePresentation,
   applyRollingVwapLiveFromCandles,
   clearRollingVwapChartSeriesData,
   createRollingVwapChartSeriesBundle,
-  rollingVwapBandFillPoints,
+  removeRollingVwapChartSeriesBundle,
   rollingVwapPointToLinePoint,
   rollingVwapPointsToLineData,
   setRollingVwapChartSeriesData,
   setRollingVwapInstanceSeriesVisibility,
+  updateRollingVwapChartSeriesLast,
   type RollingVwapChartSeriesBundle,
 } from './rollingVwapChartSeries.ts'
-import { createRollingVwapInstance } from './rollingVwapInstances.ts'
-import { registerCandleChartSeries } from './candlePane.ts'
+import {
+  createRollingVwapInstance,
+  rollingVwapInstancePeriodLabel,
+} from './rollingVwapInstances.ts'
 import type { RollingVwapPoint } from './rollingVwap.ts'
-import type { MarketCandle } from './types.ts'
+import {
+  createDefaultRollingVwapSettings,
+  DEFAULT_ROLLING_VWAP_FILL_OPACITY,
+  type RollingVwapSettings,
+} from './rollingVwapSettings.ts'
 import {
   MARKET_STYLE_PALETTE,
   marketStyleColorWithOpacity,
 } from './marketStylePalette.ts'
+import { RollingVwapBandSeriesPrimitive } from './rollingVwapBandSeriesPrimitive.ts'
+import type { RollingVwapBandPrimitiveStyle } from './rollingVwapBandRenderGeometry.ts'
 
-function candle(overrides: Partial<MarketCandle> = {}): MarketCandle {
-  return {
-    symbol: 'BTCUSDT',
-    interval: '1m',
-    time: 1_700_000_000,
-    open: 1,
-    high: 10,
-    low: 4,
-    close: 7,
-    volume: 2,
-    closed: true,
-    ...overrides,
-  }
+type PrimitiveAttachment = {
+  primitive: ISeriesPrimitive
+  requestUpdate: () => void
+  detached: boolean
 }
 
-function rollingPoint(overrides: Partial<RollingVwapPoint>): RollingVwapPoint {
+type FakeSeries = {
+  id: number
+  options: Record<string, unknown>
+  data: unknown[]
+  updates: unknown[]
+  setData: (data: unknown[]) => void
+  update: (point: unknown) => void
+  applyOptions: (options: Record<string, unknown>) => void
+  attachPrimitive: (primitive: ISeriesPrimitive) => void
+  detachPrimitive: (primitive: ISeriesPrimitive) => void
+  priceToCoordinate: (price: number) => number
+  priceScale: () => { options: () => { mode: number } }
+  barsInLogicalRange: () => null
+  attachments: PrimitiveAttachment[]
+}
+
+function createFakeChart(): {
+  chart: IChartApi
+  created: FakeSeries[]
+  removed: FakeSeries[]
+  requests: () => number
+} {
+  const created: FakeSeries[] = []
+  const removed: FakeSeries[] = []
+  let requests = 0
+  let nextId = 0
+  const chart = {
+    addSeries: (_definition: unknown, options: Record<string, unknown> = {}) => {
+      const series: FakeSeries = {
+        id: nextId,
+        options: { ...options },
+        data: [],
+        updates: [],
+        attachments: [],
+        setData: (data) => {
+          series.data = [...data]
+        },
+        update: (point) => {
+          series.updates.push(point)
+        },
+        applyOptions: (options) => {
+          Object.assign(series.options, options)
+        },
+        attachPrimitive: (primitive) => {
+          series.attachments.push({
+            primitive,
+            requestUpdate: () => {
+              requests += 1
+            },
+            detached: false,
+          })
+          const attachment = series.attachments[series.attachments.length - 1]
+          ;(
+            primitive as unknown as {
+              attached: (param: unknown) => void
+            }
+          ).attached({
+            chart,
+            series,
+            requestUpdate: () => {
+              requests += 1
+            },
+          })
+          // Keep the mutable request counter on the attachment entry.
+          attachment.requestUpdate = () => {
+            requests += 1
+          }
+        },
+        detachPrimitive: (primitive) => {
+          const match = series.attachments.find((item) => item.primitive === primitive)
+          if (match) match.detached = true
+        },
+        priceToCoordinate: (price) => 1000 - price,
+        priceScale: () => ({ options: () => ({ mode: 0 }) }),
+        barsInLogicalRange: () => null,
+      }
+      nextId += 1
+      created.push(series)
+      return series
+    },
+    removeSeries: (series: FakeSeries) => {
+      removed.push(series)
+    },
+    timeScale: () => ({
+      getVisibleRange: () => null,
+      timeToCoordinate: () => null,
+      options: () => ({ barSpacing: 6 }),
+    }),
+  } as unknown as IChartApi
+  return { chart, created, removed, requests: () => requests }
+}
+
+function rollingPoint(overrides: Partial<RollingVwapPoint> = {}): RollingVwapPoint {
   return {
     time: 1_700_000_000,
     vwap: 10,
@@ -63,726 +155,313 @@ function rollingPoint(overrides: Partial<RollingVwapPoint>): RollingVwapPoint {
   }
 }
 
-function trackBundle() {
-  const counters = { setDataCount: 0, updateCount: 0 }
-  const visibility: boolean[] = []
+function primitiveOf(bundle: RollingVwapChartSeriesBundle): RollingVwapBandSeriesPrimitive {
+  const center = bundle.center as unknown as FakeSeries
+  const attachment = center.attachments[0]
+  assert.ok(attachment, 'center series owns exactly one primitive')
+  return attachment.primitive as RollingVwapBandSeriesPrimitive
+}
 
-  const makeLine = () =>
-    ({
-      setData: () => {
-        counters.setDataCount += 1
-      },
-      update: () => {
-        counters.updateCount += 1
-      },
-      applyOptions: (opts: { visible?: boolean; color?: string }) => {
-        if (typeof opts.visible === 'boolean') visibility.push(opts.visible)
-      },
-    }) as RollingVwapChartSeriesBundle['center']
+function paneViewsOf(bundle: RollingVwapChartSeriesBundle): readonly IPrimitivePaneView[] {
+  return primitiveOf(bundle).paneViews()
+}
 
-  const center = makeLine()
-  const bands = {} as RollingVwapChartSeriesBundle['bands']
-  const ordered = [center]
-  for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-    const series = makeLine()
-    bands[key] = series
-    ordered.push(series)
-  }
-
-  const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
-  return { bundle, counters, visibility }
+function styleOf(bundle: RollingVwapChartSeriesBundle): RollingVwapBandPrimitiveStyle {
+  return bundle.bands.getStyle()
 }
 
 describe('rollingVwap chart series defaults', () => {
-  it('uses the palette center style and six band keys', () => {
+  it('uses the palette center style and six band outline keys', () => {
     assert.equal(ROLLING_VWAP_LINE_CHART_OPTIONS.color, MARKET_STYLE_PALETTE.light)
     assert.equal(ROLLING_VWAP_BAND_SERIES_KEYS.length, 6)
   })
 
-  it('creates center plus six band series with default thin-line options', () => {
-    const createdOptions: Record<string, unknown>[] = []
-    const chart = {
-      addSeries: (_type: unknown, options: Record<string, unknown>) => {
-        createdOptions.push(options)
-        return {
-          setData: () => {},
-          update: () => {},
-          applyOptions: () => {},
-          attachPrimitive: () => {},
-          detachPrimitive: () => {},
-        }
-      },
-    } as IChartApi
-    const defaults = createDefaultRollingVwapSettings()
-    const bundle = createRollingVwapChartSeriesBundle(chart, defaults)
-    assert.equal(bundle.ordered.length, 7)
-    assert.equal(createdOptions[0].color, MARKET_STYLE_PALETTE.light)
-    assert.equal(createdOptions[0].lineWidth, 1)
-    assert.equal(createdOptions[0].lineStyle, LineStyle.Solid)
-    assert.equal(createdOptions[0].priceLineVisible, false)
-    assert.equal(createdOptions[0].lastValueVisible, true)
-    // Band colors are the palette's distinct grayscale shades at 70% opacity.
-    assert.equal(
-      createdOptions[1].color,
-      marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.subtle, 70),
+  it('creates one native centre series and one band primitive, never per-band series', () => {
+    const { chart, created, requests } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(
+      chart,
+      createDefaultRollingVwapSettings(),
+      { title: 'RV', lineWidth: 2 },
     )
-    assert.equal(
-      createdOptions[3].color,
-      marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.medium, 70),
+    assert.equal(created.length, 1)
+    assert.equal(created[0].options.color, MARKET_STYLE_PALETTE.light)
+    assert.equal(created[0].options.lineWidth, 2)
+    assert.equal(created[0].options.visible, false)
+    assert.equal(created[0].attachments.length, 1)
+
+    const views = paneViewsOf(bundle)
+    assert.equal(views.length, 3)
+    assert.deepEqual(
+      views.map((view) => view.zOrder?.()),
+      ['bottom', 'normal', 'top'],
     )
-    assert.equal(
-      createdOptions[5].color,
-      marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.dark, 70),
-    )
-    for (const options of createdOptions.slice(1)) {
-      assert.equal(options.lineWidth, 1)
-      assert.equal(options.lastValueVisible, false)
-      assert.equal(options.crosshairMarkerVisible, false)
-      assert.equal(options.pointMarkersVisible, false)
-    }
+    // Attachment initialization is the only initial invalidation.
+    assert.equal(requests(), 1)
   })
 
-  it('creates every overlay series in the candle pane when it is not pane 0', () => {
-    const panes: Array<{ paneIndex: () => number }> = []
-    const candlePane = { paneIndex: () => panes.indexOf(candlePane) }
-    const liquidationPane = { paneIndex: () => panes.indexOf(liquidationPane) }
-    // Top position: the liquidation pane owns index 0, candles move to index 1.
-    panes.push(liquidationPane, candlePane)
-
-    const paneIndexes: Array<number | undefined> = []
-    const chart = {
-      panes: () => panes,
-      addSeries: (_type: unknown, _options: Record<string, unknown>, paneIndex?: number) => {
-        paneIndexes.push(paneIndex)
-        return {
-          setData: () => {},
-          update: () => {},
-          applyOptions: () => {},
-          attachPrimitive: () => {},
-          detachPrimitive: () => {},
-        }
-      },
-    } as unknown as IChartApi
-    registerCandleChartSeries(chart, { getPane: () => candlePane } as never)
-
-    createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
-
-    assert.equal(paneIndexes.length, 7)
-    for (const paneIndex of paneIndexes) {
-      assert.equal(paneIndex, 1)
-    }
-  })
-
-  it('applies center-line color, opacity, and style at creation', () => {
-    const createdOptions: Record<string, unknown>[] = []
-    const chart = {
-      addSeries: (_type: unknown, options: Record<string, unknown>) => {
-        createdOptions.push(options)
-        return {
-          setData: () => {},
-          update: () => {},
-          applyOptions: () => {},
-          attachPrimitive: () => {},
-          detachPrimitive: () => {},
-        }
-      },
-    } as IChartApi
-    const settings = createDefaultRollingVwapSettings()
-    settings.lineColor = '#ff0000'
-    settings.lineOpacity = 50
-    settings.lineStyle = 'dotted'
-    createRollingVwapChartSeriesBundle(chart, settings, {
-      lineWidth: settings.lineWidth,
-      lineColor: settings.lineColor,
-      lineOpacity: settings.lineOpacity,
-      lineStyle: settings.lineStyle,
+  it('starts with no visible band pair and no halo', () => {
+    const { chart } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    const primitive = primitiveOf(bundle)
+    primitive.updateAllViews()
+    assert.deepEqual(primitive.stats(), {
+      rebuilds: 1,
+      invalidations: 1,
+      visitedPoints: 0,
+      outlineRuns: 0,
+      fillContours: 0,
+      haloStrokes: 0,
     })
-    assert.equal(createdOptions[0].color, 'rgba(255, 0, 0, 0.5)')
-    assert.equal(createdOptions[0].lineStyle, LineStyle.Dotted)
   })
+})
 
-  it('creates every band series solid by default', () => {
-    const createdOptions: Record<string, unknown>[] = []
-    const chart = {
-      addSeries: (_type: unknown, options: Record<string, unknown>) => {
-        createdOptions.push(options)
-        return {
-          setData: () => {},
-          update: () => {},
-          applyOptions: () => {},
-          attachPrimitive: () => {},
-          detachPrimitive: () => {},
-        }
-      },
-    } as IChartApi
-    createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
-    for (const options of createdOptions.slice(1)) {
-      assert.equal(options.lineStyle, LineStyle.Solid)
-    }
-  })
-
-  it("applies each band's own line style at creation", () => {
-    const createdOptions: Record<string, unknown>[] = []
-    const chart = {
-      addSeries: (_type: unknown, options: Record<string, unknown>) => {
-        createdOptions.push(options)
-        return {
-          setData: () => {},
-          update: () => {},
-          applyOptions: () => {},
-          attachPrimitive: () => {},
-          detachPrimitive: () => {},
-        }
-      },
-    } as IChartApi
+describe('rollingVwap style application', () => {
+  it('resolves per-band color + opacity and independent width/style', () => {
+    const { chart } = createFakeChart()
     const settings = createDefaultRollingVwapSettings()
-    settings.lineStyle = 'solid'
-    settings.bandLineStyles = { band1: 'dotted', band2: 'solid', band3: 'dotted' }
-    createRollingVwapChartSeriesBundle(chart, settings, {
-      lineWidth: settings.lineWidth,
-      lineStyle: settings.lineStyle,
-    })
-    // Order: center, upper1, lower1, upper2, lower2, upper3, lower3
-    assert.equal(createdOptions[0].lineStyle, LineStyle.Solid)
-    assert.equal(createdOptions[1].lineStyle, LineStyle.Dotted)
-    assert.equal(createdOptions[2].lineStyle, LineStyle.Dotted)
-    assert.equal(createdOptions[3].lineStyle, LineStyle.Solid)
-    assert.equal(createdOptions[4].lineStyle, LineStyle.Solid)
-    assert.equal(createdOptions[5].lineStyle, LineStyle.Dotted)
-    assert.equal(createdOptions[6].lineStyle, LineStyle.Dotted)
+    settings.bandColors = { band1: '#111111', band2: '#222222', band3: '#333333' }
+    settings.bandOpacities = { band1: 100, band2: 50, band3: 25 }
+    settings.bandLineWidths = { band1: 1, band2: 2, band3: 4 }
+    settings.bandLineStyles = { band1: 'solid', band2: 'dotted', band3: 'dotted' }
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings)
+
+    const style = styleOf(bundle)
+    assert.equal(style.outlines.upper1.color, marketStyleColorWithOpacity('#111111', 100))
+    assert.equal(style.outlines.lower1.color, style.outlines.upper1.color)
+    assert.equal(style.outlines.upper2.color, marketStyleColorWithOpacity('#222222', 50))
+    assert.equal(style.outlines.upper3.color, marketStyleColorWithOpacity('#333333', 25))
+    assert.equal(style.outlines.upper1.widthPx, 1)
+    assert.equal(style.outlines.lower2.widthPx, 2)
+    assert.equal(style.outlines.upper3.widthPx, 4)
+    assert.equal(style.outlines.upper1.lineStyle, 'solid')
+    assert.equal(style.outlines.upper2.lineStyle, 'dotted')
+    assert.equal(style.fillStyle, marketStyleColorWithOpacity(
+      settings.fillColor,
+      DEFAULT_ROLLING_VWAP_FILL_OPACITY,
+    ))
   })
 
-  it('applies the center width and each band pair its own width at creation', () => {
-    const createdOptions: Record<string, unknown>[] = []
-    const chart = {
-      addSeries: (_type: unknown, options: Record<string, unknown>) => {
-        createdOptions.push(options)
-        return {
-          setData: () => {},
-          update: () => {},
-          applyOptions: () => {},
-          attachPrimitive: () => {},
-          detachPrimitive: () => {},
-        }
-      },
-    } as IChartApi
+  it('applies colors, widths, styles and fill independently with one request each', () => {
+    const { chart, requests } = createFakeChart()
+    const settings = createDefaultRollingVwapSettings()
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings)
+    const before = requests()
+
+    applyRollingVwapChartBandColors(bundle, {
+      ...settings,
+      bandColors: { band1: '#AA0000', band2: '#00AA00', band3: '#0000AA' },
+    })
+    assert.equal(requests(), before + 1)
+    assert.equal(
+      styleOf(bundle).outlines.lower3.color,
+      marketStyleColorWithOpacity('#0000AA', settings.bandOpacities.band3),
+    )
+    assert.equal(styleOf(bundle).outlines.lower3.widthPx, settings.bandLineWidths.band3)
+
+    applyRollingVwapChartBandLineWidths(bundle, {
+      bandLineWidths: { band1: 2, band2: 3, band3: 4 },
+    })
+    assert.equal(requests(), before + 2)
+    assert.equal(styleOf(bundle).outlines.upper2.widthPx, 3)
+
+    applyRollingVwapChartBandLineStyles(bundle, {
+      bandLineStyles: { band1: 'dotted', band2: 'solid', band3: 'dotted' },
+    })
+    assert.equal(requests(), before + 3)
+    assert.equal(styleOf(bundle).outlines.upper1.lineStyle, 'dotted')
+    assert.equal(styleOf(bundle).outlines.upper2.lineStyle, 'solid')
+
+    applyRollingVwapChartBandFillStyle(bundle, { fillColor: '#123456', fillOpacity: 0 })
+    assert.equal(requests(), before + 4)
+    assert.equal(styleOf(bundle).fillStyle, marketStyleColorWithOpacity('#123456', 0))
+  })
+
+  it('applies the full instance presentation through one primitive style set', () => {
+    const { chart, requests } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
     const settings = createDefaultRollingVwapSettings()
     settings.lineWidth = 3
-    settings.bandLineWidths = { band1: 1, band2: 2, band3: 3 }
-    createRollingVwapChartSeriesBundle(chart, settings, { lineWidth: settings.lineWidth })
-    assert.equal(createdOptions.length, 7)
-    assert.equal(createdOptions[0].lineWidth, 3)
-    // Order: upper1, lower1, upper2, lower2, upper3, lower3.
-    assert.deepEqual(
-      createdOptions.slice(1).map((options) => options.lineWidth),
-      [1, 1, 2, 2, 3, 3],
-    )
-  })
-})
-
-describe('applyRollingVwapChartInstancePresentation', () => {
-  it('updates center-line color and style when settings are saved', () => {
-    const centerOptions: Record<string, unknown>[] = []
-    const makeLine = () => ({
-      setData: () => {},
-      update: () => {},
-      applyOptions: (opts: Record<string, unknown>) => {
-        centerOptions.push(opts)
-      },
-    })
-    const center = makeLine()
-    const bands = {} as RollingVwapChartSeriesBundle['bands']
-    const ordered = [center]
-    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-      const series = makeLine()
-      bands[key] = series
-      ordered.push(series)
-    }
-    const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
-
-    const settings = createDefaultRollingVwapSettings()
-    settings.lineColor = '#00ff00'
-    settings.lineOpacity = 25
+    settings.lineColor = '#ABCDEF'
+    settings.lineOpacity = 80
     settings.lineStyle = 'dotted'
-    const instance = createRollingVwapInstance({
-      id: 'rvwap-style',
-      settings,
-      randomId: () => 'rvwap-style',
-    })
-    applyRollingVwapChartInstancePresentation(bundle, instance, '1m')
-    const styleApply = centerOptions.find(
-      (opts) => opts.color === 'rgba(0, 255, 0, 0.25)' && opts.lineStyle === LineStyle.Dotted,
-    )
-    assert.ok(styleApply)
+    settings.bandLineWidths = { band1: 4, band2: 3, band3: 2 }
+    const instance = createRollingVwapInstance({ id: 'rv', settings })
+    const before = requests()
+
+    applyRollingVwapChartInstancePresentation(bundle, instance, '1h')
+
+    assert.equal(requests(), before + 1)
+    assert.equal(styleOf(bundle).outlines.upper3.widthPx, 2)
+    const center = bundle.center as unknown as FakeSeries
+    assert.equal(center.options.lineWidth, 3)
+    assert.equal(center.options.lineStyle, LineStyle.Dotted)
+    assert.equal(center.options.title, rollingVwapInstancePeriodLabel(instance, '1h'))
+    assert.equal(center.options.lastValueVisible, true)
+    assert.equal(center.options.priceLineVisible, false)
   })
 })
 
-describe('applyRollingVwapChartInstancePresentation band line styles', () => {
-  function trackLineStyles() {
-    const optionsBySeries = new Map<object, Record<string, unknown>>()
-    const makeLine = () => {
-      const series = {
-        setData: () => {},
-        update: () => {},
-        applyOptions: (opts: Record<string, unknown>) => {
-          optionsBySeries.set(series, { ...(optionsBySeries.get(series) ?? {}), ...opts })
-        },
-      }
-      return series
-    }
-    const center = makeLine()
-    const bands = {} as RollingVwapChartSeriesBundle['bands']
-    const ordered = [center]
-    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-      const series = makeLine()
-      bands[key] = series
-      ordered.push(series)
-    }
-    const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
-    return { bundle, center, bands, optionsBySeries }
-  }
+describe('rollingVwap data path', () => {
+  it('writes history to the centre once and adopts the same full source', () => {
+    const { chart, created, requests } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    const points = [rollingPoint(), rollingPoint({ time: 1_700_000_060 })]
+    const before = requests()
+    setRollingVwapChartSeriesData(bundle, points)
 
-  it("applies each band's own style and leaves the other bands alone", () => {
-    const { bundle, center, bands, optionsBySeries } = trackLineStyles()
+    const center = created[0]
+    assert.equal(center.data.length, 2)
+    assert.deepEqual(center.data[0], { time: 1_700_000_000, value: 10 })
+    // One native data write; the primitive receives the full source.
+    assert.equal(requests(), before + 1)
+  })
+
+  it('updates one native centre point per live tick and patches the primitive last point', () => {
+    const { chart, created, requests } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    setRollingVwapChartSeriesData(bundle, [rollingPoint()])
+    const before = requests()
+
+    updateRollingVwapChartSeriesLast(bundle, rollingPoint({ vwap: 20, upper1: 21 }))
+    assert.equal(created[0].updates.length, 1)
+    assert.equal(requests(), before + 1)
+
+    updateRollingVwapChartSeriesLast(bundle, rollingPoint({ time: 1_700_000_060 }))
+    assert.equal(created[0].updates.length, 2)
+    // A stale point is ignored by the primitive, but the native series still
+    // receives exactly the caller's update.
+    updateRollingVwapChartSeriesLast(bundle, rollingPoint({ time: 1_699_999_000 }))
+    assert.equal(created[0].updates.length, 3)
+  })
+
+  it('clears every part of the instance', () => {
+    const { chart, created, requests } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    setRollingVwapChartSeriesData(bundle, [rollingPoint()])
+    const before = requests()
+    clearRollingVwapChartSeriesData(bundle)
+    assert.deepEqual(created[0].data, [])
+    assert.equal(requests(), before + 1)
+    primitiveOf(bundle).updateAllViews()
+    assert.equal(primitiveOf(bundle).stats().outlineRuns, 0)
+  })
+
+  it('live candles compute one latest point through the existing math', () => {
+    const { chart, created } = createFakeChart()
     const settings = createDefaultRollingVwapSettings()
-    settings.lineStyle = 'solid'
-    settings.bandLineStyles = { band1: 'dotted', band2: 'solid', band3: 'dotted' }
-    applyRollingVwapChartInstancePresentation(
-      bundle,
-      createRollingVwapInstance({ id: 'rvwap-bands', settings, randomId: () => 'rvwap-bands' }),
-      '1m',
-    )
-
-    assert.equal(optionsBySeries.get(center)?.lineStyle, LineStyle.Solid)
-    for (const key of ['upper1', 'lower1', 'upper3', 'lower3'] as const) {
-      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Dotted, key)
-    }
-    for (const key of ['upper2', 'lower2'] as const) {
-      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Solid, key)
-    }
-  })
-
-  it('applies a dotted style to every band independently of the center line', () => {
-    const { bundle, center, bands, optionsBySeries } = trackLineStyles()
-    const settings = createDefaultRollingVwapSettings()
-    settings.lineStyle = 'solid'
-    settings.bandLineStyles = { band1: 'dotted', band2: 'dotted', band3: 'dotted' }
-    applyRollingVwapChartInstancePresentation(
-      bundle,
-      createRollingVwapInstance({ id: 'rvwap-all', settings, randomId: () => 'rvwap-all' }),
-      '1m',
-    )
-
-    assert.equal(optionsBySeries.get(center)?.lineStyle, LineStyle.Solid)
-    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Dotted, key)
-    }
-  })
-
-  it('keeps every band solid by default', () => {
-    const { bundle, bands, optionsBySeries } = trackLineStyles()
-    applyRollingVwapChartInstancePresentation(
-      bundle,
-      createRollingVwapInstance({
-        id: 'rvwap-default',
-        settings: createDefaultRollingVwapSettings(),
-        randomId: () => 'rvwap-default',
-      }),
-      '1m',
-    )
-
-    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-      assert.equal(optionsBySeries.get(bands[key])?.lineStyle, LineStyle.Solid, key)
-    }
-  })
-
-  it('only patches band line styles, not colors or widths', () => {
-    const { bundle, bands, optionsBySeries } = trackLineStyles()
-    const settings = createDefaultRollingVwapSettings()
-    settings.bandLineStyles = { band1: 'dotted', band2: 'dotted', band3: 'dotted' }
-    applyRollingVwapChartBandLineStyles(bundle, settings)
-
-    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-      assert.deepEqual(optionsBySeries.get(bands[key]), { lineStyle: LineStyle.Dotted }, key)
-    }
-  })
-})
-
-describe('applyRollingVwapChartInstancePresentation line width', () => {
-  it('updates the center width and each band pair width when settings are saved', () => {
-    const lineWidths: number[] = []
-    const makeLine = () => ({
-      setData: () => {},
-      update: () => {},
-      applyOptions: (opts: { lineWidth?: number }) => {
-        if (typeof opts.lineWidth === 'number') lineWidths.push(opts.lineWidth)
-      },
-    })
-    const center = makeLine()
-    const bands = {} as RollingVwapChartSeriesBundle['bands']
-    const ordered = [center]
-    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-      const series = makeLine()
-      bands[key] = series
-      ordered.push(series)
-    }
-    const bundle: RollingVwapChartSeriesBundle = { center, bands, ordered }
-
-    const settings = createDefaultRollingVwapSettings()
-    settings.lineWidth = 4
-    settings.bandLineWidths = { band1: 1, band2: 2, band3: 3 }
-    const instance = createRollingVwapInstance({
-      id: 'rvwap-a',
-      settings,
-      randomId: () => 'rvwap-a',
-    })
-    applyRollingVwapChartInstancePresentation(bundle, instance, '1m')
-    // Six band widths first, then the independent center width.
-    assert.deepEqual(lineWidths, [1, 1, 2, 2, 3, 3, 4])
-  })
-
-  it('keeps line widths independent between instances', () => {
-    const widthsBySeries = new Map<object, number>()
-    const makeLine = () => {
-      const series = {
-        setData: () => {},
-        update: () => {},
-        applyOptions: (opts: { lineWidth?: number }) => {
-          if (typeof opts.lineWidth === 'number') widthsBySeries.set(series, opts.lineWidth)
-        },
-      }
-      return series
-    }
-
-    const bundleA = (() => {
-      const center = makeLine()
-      const bands = {} as RollingVwapChartSeriesBundle['bands']
-      const ordered = [center]
-      for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-        const series = makeLine()
-        bands[key] = series
-        ordered.push(series)
-      }
-      return { center, bands, ordered }
-    })()
-
-    const bundleB = (() => {
-      const center = makeLine()
-      const bands = {} as RollingVwapChartSeriesBundle['bands']
-      const ordered = [center]
-      for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
-        const series = makeLine()
-        bands[key] = series
-        ordered.push(series)
-      }
-      return { center, bands, ordered }
-    })()
-
-    const settingsA = createDefaultRollingVwapSettings()
-    settingsA.lineWidth = 2
-    settingsA.bandLineWidths = { band1: 1, band2: 2, band3: 3 }
-    const settingsB = createDefaultRollingVwapSettings()
-    settingsB.lineWidth = 3
-    settingsB.bandLineWidths = { band1: 4, band2: 4, band3: 4 }
-
-    applyRollingVwapChartInstancePresentation(
-      bundleA,
-      createRollingVwapInstance({ id: 'a', settings: settingsA, randomId: () => 'a' }),
-      '1m',
-    )
-    applyRollingVwapChartInstancePresentation(
-      bundleB,
-      createRollingVwapInstance({ id: 'b', settings: settingsB, randomId: () => 'b' }),
-      '1m',
-    )
-
-    const widthsA = [...bundleA.ordered].map((series) => widthsBySeries.get(series))
-    const widthsB = [...bundleB.ordered].map((series) => widthsBySeries.get(series))
-    assert.deepEqual(widthsA, [2, 1, 1, 2, 2, 3, 3])
-    assert.deepEqual(widthsB, [3, 4, 4, 4, 4, 4, 4])
-  })
-})
-
-describe('rollingVwapPointsToLineData', () => {
-  it('maps null vwap to whitespace points', () => {
-    const data = rollingVwapPointsToLineData([rollingPoint({ vwap: null })], 'vwap')
-    assert.equal('value' in data[0], false)
-  })
-})
-
-describe('setRollingVwapInstanceSeriesVisibility', () => {
-  const settings = createDefaultRollingVwapSettings()
-
-  it('hides all series when instance is disabled', () => {
-    const { bundle, visibility } = trackBundle()
-    setRollingVwapInstanceSeriesVisibility(
-      bundle,
-      { id: 'a', enabled: false, settings },
-      '1m',
-    )
-    assert.ok(visibility.every((visible) => visible === false))
-  })
-
-  it('shows center and band pair only when multiplier is positive', () => {
-    const { bundle, visibility } = trackBundle()
-    const withBand1: RollingVwapSettings = {
-      ...settings,
-      multipliers: { multiplier1: 1, multiplier2: 0, multiplier3: 0 },
-    }
-    setRollingVwapInstanceSeriesVisibility(
-      bundle,
-      { id: 'a', enabled: true, settings: withBand1 },
-      '1m',
-    )
-    assert.equal(visibility[0], true)
-    assert.equal(visibility[1], true)
-    assert.equal(visibility[2], true)
-    assert.equal(visibility[3], false)
-  })
-
-  it('sets center last value label title and keeps price line hidden', () => {
-    const { bundle } = trackBundle()
-    let centerOptions: Record<string, unknown> = {}
-    bundle.center.applyOptions = (opts: Record<string, unknown>) => {
-      centerOptions = opts
-    }
-    const settings = createDefaultRollingVwapSettings()
-    settings.fixedTimePeriod = { useFixedTimePeriod: true, days: 1, hours: 0, minutes: 0 }
-    setRollingVwapInstanceSeriesVisibility(
-      bundle,
-      { id: 'a', enabled: true, settings },
-      '1m',
-    )
-    assert.equal(centerOptions.lastValueVisible, true)
-    assert.equal(centerOptions.priceLineVisible, false)
-    assert.equal(centerOptions.title, '1D')
-  })
-})
-
-describe('history and live integration', () => {
-  it('uses setData on all seven series for history', () => {
-    const { bundle, counters } = trackBundle()
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings)
     const candles = [
-      candle({ time: 1_700_000_000, high: 10, low: 10, close: 10, volume: 1 }),
-      candle({ time: 1_700_000_060, high: 20, low: 20, close: 20, volume: 1 }),
-    ]
-    const settings = createDefaultRollingVwapSettings()
-    setRollingVwapChartSeriesData(
-      bundle,
-      computeRollingVwapPointsForSettings(candles, '1m', settings),
-    )
-    assert.equal(counters.setDataCount, 7)
-    assert.equal(counters.updateCount, 0)
-  })
-
-  it('uses update on all seven series for live ticks', () => {
-    const { bundle, counters } = trackBundle()
-    const candles = [candle({ time: 1_700_000_000, close: 10, volume: 1 })]
-    const settings = createDefaultRollingVwapSettings()
-    applyRollingVwapLiveFromCandles(candles, bundle, '1m', settings)
-    assert.equal(counters.updateCount, 7)
-    assert.equal(counters.setDataCount, 0)
-  })
-})
-
-describe('settings reach computation', () => {
-  it('applies minBars and multipliers from panel settings', () => {
-    const candles = Array.from({ length: 5 }, (_, index) =>
-      candle({
-        time: 1_700_000_000 + index * 60,
-        high: 10 + index,
-        low: 10 + index,
-        close: 10 + index,
+      {
+        symbol: 'BTCUSDT',
+        interval: '1m' as const,
+        time: 1_700_000_000,
+        open: 10,
+        high: 12,
+        low: 8,
+        close: 10,
         volume: 1,
-      }),
-    )
-    const settings = createDefaultRollingVwapSettings()
-    settings.minBars = 2
-    settings.multipliers = { multiplier1: 2, multiplier2: 0, multiplier3: 0 }
-    const last = computeRollingVwapPointsForSettings(candles, '1m', settings).at(-1)!
-    assert.notEqual(last.upper1, null)
-    assert.notEqual(last.vwap, null)
-    assertClose(last.upper1!, last.vwap! + (last.stdev ?? 0) * 2)
+        closed: true,
+      },
+      {
+        symbol: 'BTCUSDT',
+        interval: '1m' as const,
+        time: 1_700_000_060,
+        open: 10,
+        high: 12,
+        low: 8,
+        close: 11,
+        volume: 1,
+        closed: true,
+      },
+    ]
+    applyRollingVwapLiveFromCandles(candles, bundle, '1m', settings)
+    // First tick calls center.update() with the computed point (no history rewrite).
+    assert.equal(created[0].updates.length, 1)
+    assert.equal(created[0].data.length, 0)
   })
 })
 
-function assertClose(actual: number | null, expected: number, tolerance = 1e-9) {
-  assert.notEqual(actual, null)
-  assert.ok(Math.abs(actual! - expected) <= tolerance)
-}
-
-describe('live candle path', () => {
-  const settings = createDefaultRollingVwapSettings()
-
-  it('updates same timestamp without setData', () => {
-    const { bundle, counters } = trackBundle()
-    const candles = [candle({ time: 1_700_000_000, volume: 1 })]
-    applyLiveCandle(candles, candle({ time: 1_700_000_000, volume: 3 }))
-    applyRollingVwapLiveFromCandles(candles, bundle, '1m', settings)
-    assert.equal(candles[0].volume, 3)
-    assert.equal(counters.setDataCount, 0)
-    assert.equal(counters.updateCount, 7)
+describe('rollingVwap visibility and identity', () => {
+  it('keeps the centre label/last value and hides every band when the instance is off', () => {
+    const { chart, created } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    const instance = createRollingVwapInstance({ id: 'rv', enabled: false })
+    setRollingVwapInstanceSeriesVisibility(bundle, instance, '1h')
+    const center = created[0]
+    assert.equal(center.options.visible, false)
+    assert.equal(center.options.lastValueVisible, false)
+    assert.equal(center.options.priceLineVisible, false)
+    assert.equal(center.attachments.length, 1)
   })
 
-  it('ignores stale candles', () => {
-    const { counters } = trackBundle()
-    const candles = [candle({ time: 1_700_000_120 })]
-    applyLiveCandle(candles, candle({ time: 1_700_000_000 }))
-    assert.equal(candles.length, 1)
-    assert.equal(counters.updateCount, 0)
+  it('shows the centre and only pairs with a positive multiplier', () => {
+    const { chart, created, requests } = createFakeChart()
+    const settings = createDefaultRollingVwapSettings()
+    settings.multipliers = { multiplier1: 1, multiplier2: 0, multiplier3: 2 }
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings)
+    const instance = createRollingVwapInstance({ id: 'rv', settings })
+    const before = requests()
+    setRollingVwapInstanceSeriesVisibility(bundle, instance, '1m')
+    assert.equal(created[0].options.visible, true)
+    assert.equal(created[0].options.title, rollingVwapInstancePeriodLabel(instance, '1m'))
+    assert.equal(created[0].options.lastValueVisible, true)
+    assert.equal(requests(), before + 1)
+  })
+
+  it('marks an unsupported timeframe on the centre label and hides all bands', () => {
+    const { chart, created } = createFakeChart()
+    const settings = createDefaultRollingVwapSettings()
+    // A 1Y window needs a 4h chart timeframe; on 1h the instance is not rendered.
+    settings.fixedTimePeriod = { useFixedTimePeriod: true, days: 365, hours: 0, minutes: 0 }
+    const bundle = createRollingVwapChartSeriesBundle(chart, settings)
+    const instance = createRollingVwapInstance({ id: 'rv', settings })
+    setRollingVwapInstanceSeriesVisibility(bundle, instance, '1h')
+    const center = created[0]
+    assert.equal(center.options.visible, false)
+    assert.match(String(center.options.title), /needs 4h chart timeframe/)
+  })
+
+  it('removes the single centre series and detaches the primitive', () => {
+    const { chart, removed } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, createDefaultRollingVwapSettings())
+    const center = bundle.center as unknown as FakeSeries
+    removeRollingVwapChartSeriesBundle(chart, bundle)
+    assert.equal(removed.length, 1)
+    assert.equal(removed[0], center)
+    assert.equal(center.attachments[0].detached, true)
   })
 })
 
 describe('rollingVwapPointToLinePoint', () => {
-  it('maps band values for update payloads', () => {
-    const point = rollingPoint({ upper2: 42 })
-    const line = rollingVwapPointToLinePoint(point, 'upper2')
-    assert.equal(line.value, 42)
+  it('maps null values to whitespace and keeps every band value', () => {
+    assert.deepEqual(rollingVwapPointToLinePoint(rollingPoint({ vwap: null }), 'vwap'), {
+      time: 1_700_000_000,
+    })
+    for (const key of ROLLING_VWAP_BAND_SERIES_KEYS) {
+      assert.deepEqual(rollingVwapPointToLinePoint(rollingPoint(), key), {
+        time: 1_700_000_000,
+        value: rollingPoint()[key],
+      })
+    }
+  })
+
+  it('maps a points array in one pass', () => {
+    const data = rollingVwapPointsToLineData([rollingPoint(), rollingPoint({ time: 1_700_000_060 })], 'vwap')
+    assert.deepEqual(data, [
+      { time: 1_700_000_000, value: 10 },
+      { time: 1_700_000_060, value: 10 },
+    ])
   })
 })
 
-
-function makeFillRecorder() {
-  const calls = {
-    points: [] as unknown[],
-    visible: [] as boolean[],
-    fillStyles: [] as string[],
-  }
-  const attachment = {
-    updateBandData: (points: unknown) => calls.points.push(points),
-    setBandVisible: (visible: boolean) => calls.visible.push(visible),
-    setFillStyle: (fillStyle: string) => calls.fillStyles.push(fillStyle),
-    update: () => {},
-    dispose: () => {},
-  }
-  return { attachment, calls }
-}
-
-describe('rolling VWAP band fills', () => {
-  it('projects each band pair onto the shared fill geometry', () => {
-    const points: RollingVwapPoint[] = [
-      rollingPoint({ time: 1, upper1: 11, lower1: 9, upper2: 12, lower2: 8, upper3: 13, lower3: 7 }),
-      rollingPoint({ time: 2, upper1: 21, lower1: 19, upper2: 22, lower2: 18, upper3: 23, lower3: 17 }),
-    ]
-    assert.deepEqual(rollingVwapBandFillPoints(points, 'band1'), [
-      { time: 1, upper1: 11, lower1: 9 },
-      { time: 2, upper1: 21, lower1: 19 },
-    ])
-    assert.deepEqual(rollingVwapBandFillPoints(points, 'band2'), [
-      { time: 1, upper1: 12, lower1: 8 },
-      { time: 2, upper1: 22, lower1: 18 },
-    ])
-    assert.deepEqual(rollingVwapBandFillPoints(points, 'band3'), [
-      { time: 1, upper1: 13, lower1: 7 },
-      { time: 2, upper1: 23, lower1: 17 },
-    ])
-  })
-
-  it('attaches one fill primitive per band pair at creation', () => {
-    const attached: unknown[] = []
-    const makeLine = () => ({
-      setData: () => {},
-      update: () => {},
-      applyOptions: () => {},
-      attachPrimitive: (primitive: unknown) => attached.push(primitive),
-      detachPrimitive: () => {},
-    })
-    const chart = { addSeries: () => makeLine() } as unknown as IChartApi
-    const settings = createDefaultRollingVwapSettings()
-    settings.fillColor = '#123456'
-    settings.fillOpacity = 40
+describe('settings storage compatibility', () => {
+  it('keeps an instance built from persisted settings equivalent to its stored values', () => {
+    const settings: RollingVwapSettings = createDefaultRollingVwapSettings()
+    const { chart } = createFakeChart()
     const bundle = createRollingVwapChartSeriesBundle(chart, settings)
-    assert.equal(attached.length, ROLLING_VWAP_BAND_FILL_KEYS.length)
-    assert.ok(bundle.bandFills)
-    for (const bandKey of ROLLING_VWAP_BAND_FILL_KEYS) {
-      assert.equal(typeof bundle.bandFills[bandKey].updateBandData, 'function')
-    }
-  })
-
-  it('applies one Background color + opacity to all band fills', () => {
-    const { bundle } = trackBundle()
-    const fills = {
-      band1: makeFillRecorder(),
-      band2: makeFillRecorder(),
-      band3: makeFillRecorder(),
-    }
-    bundle.bandFills = {
-      band1: fills.band1.attachment,
-      band2: fills.band2.attachment,
-      band3: fills.band3.attachment,
-    } as unknown as RollingVwapChartSeriesBundle['bandFills']
-
-    applyRollingVwapChartBandFillStyle(bundle, { fillColor: '#123456', fillOpacity: 40 })
-    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
-      assert.deepEqual(fills[key].calls.fillStyles, ['rgba(18, 52, 86, 0.4)'])
-    }
-
-    applyRollingVwapChartBandFillStyle(bundle, { fillColor: '#123456', fillOpacity: 0 })
-    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
-      assert.equal(fills[key].calls.fillStyles.at(-1), 'rgba(18, 52, 86, 0)')
-    }
-  })
-
-  it('shows each fill only while its band pair is visible', () => {
-    const { bundle } = trackBundle()
-    const fills = {
-      band1: makeFillRecorder(),
-      band2: makeFillRecorder(),
-      band3: makeFillRecorder(),
-    }
-    bundle.bandFills = {
-      band1: fills.band1.attachment,
-      band2: fills.band2.attachment,
-      band3: fills.band3.attachment,
-    } as unknown as RollingVwapChartSeriesBundle['bandFills']
-
-    const settings = createDefaultRollingVwapSettings()
-    settings.multipliers = { multiplier1: 1, multiplier2: 0, multiplier3: 2 }
-    const instance = createRollingVwapInstance({ id: 'fills', settings, randomId: () => 'fills' })
-    setRollingVwapInstanceSeriesVisibility(bundle, instance, '1m')
-    assert.deepEqual(fills.band1.calls.visible, [true])
-    assert.deepEqual(fills.band2.calls.visible, [false])
-    assert.deepEqual(fills.band3.calls.visible, [true])
-
-    setRollingVwapInstanceSeriesVisibility(bundle, { ...instance, enabled: false }, '1m')
-    assert.deepEqual(fills.band1.calls.visible, [true, false])
-    assert.deepEqual(fills.band3.calls.visible, [true, false])
-  })
-
-  it('keeps fill geometry in sync with history, live ticks and clearing', () => {
-    const { bundle } = trackBundle()
-    const fills = {
-      band1: makeFillRecorder(),
-      band2: makeFillRecorder(),
-      band3: makeFillRecorder(),
-    }
-    bundle.bandFills = {
-      band1: fills.band1.attachment,
-      band2: fills.band2.attachment,
-      band3: fills.band3.attachment,
-    } as unknown as RollingVwapChartSeriesBundle['bandFills']
-    const settings = createDefaultRollingVwapSettings()
-    settings.minBars = 1
-    const point = rollingPoint({ time: 1 })
-
-    setRollingVwapChartSeriesData(bundle, [point])
-    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
-      assert.deepEqual(fills[key].calls.points.at(-1), rollingVwapBandFillPoints([point], key))
-    }
-
-    applyRollingVwapLiveFromCandles(
-      [candle({ time: 1, close: 10, volume: 1 })],
-      bundle,
-      '1m',
-      settings,
-    )
-    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
-      assert.equal(fills[key].calls.points.length, 2)
-    }
-
-    clearRollingVwapChartSeriesData(bundle)
-    for (const key of ROLLING_VWAP_BAND_FILL_KEYS) {
-      assert.deepEqual(fills[key].calls.points.at(-1), [])
-    }
+    const style = styleOf(bundle)
+    assert.equal(style.outlines.upper1.lineStyle, settings.bandLineStyles.band1)
+    assert.equal(style.outlines.upper1.widthPx, settings.bandLineWidths.band1)
+    assert.equal(style.fillStyle, marketStyleColorWithOpacity(settings.fillColor, settings.fillOpacity))
   })
 })

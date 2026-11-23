@@ -15,6 +15,8 @@ import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileI
 import type { FixedRangeVolumeProfileResult } from './fixedRangeVolumeProfile.ts'
 import { buildFixedRangeVolumeProfileRequestIdentityKey } from './fixedRangeVolumeProfileRuntimeIdentity.ts'
 import type { FixedRangeVolumeProfileRuntimeSnapshot } from './fixedRangeVolumeProfileRuntimeTypes.ts'
+import type { RollingVwapChartSeriesBundle } from './rollingVwapChartSeries.ts'
+import { createRollingVwapInstance } from './rollingVwapInstances.ts'
 
 function frvpInstance(
   overrides: Partial<FixedRangeVolumeProfileInstance> = {},
@@ -116,6 +118,8 @@ function buildContext(args: {
   fixedRangeVolumeProfileRuntime?: FixedRangeVolumeProfileRuntimeSnapshot
   paneRole?: ChartPaneElementRole
   activeIndicators?: readonly MarketIndicatorId[]
+  rollingVwapInstances?: readonly ReturnType<typeof createRollingVwapInstance>[]
+  rollingVwapBundles?: ReadonlyMap<string, RollingVwapChartSeriesBundle>
 }) {
   const bundle = {
     candle: args.series,
@@ -127,7 +131,7 @@ function buildContext(args: {
     monthlyVwap: null,
     quarterlyVwap: null,
     yearlyVwap: null,
-    rollingVwaps: new Map(),
+    rollingVwaps: args.rollingVwapBundles ?? new Map(),
     anchoredVwaps: new Map(),
     rsi: null,
   } as ChartSeriesBundle
@@ -152,10 +156,40 @@ function buildContext(args: {
     lineInstances: args.lineInstances ?? [],
     fixedRangeVolumeProfileInstances: args.fixedRangeVolumeProfileInstances ?? [],
     fixedRangeVolumeProfileRuntime: args.fixedRangeVolumeProfileRuntime ?? {},
-    rollingVwapInstances: [],
+    rollingVwapInstances: args.rollingVwapInstances ?? [],
     anchoredVwapInstances: [],
     anchoredVwapDrawingInteraction: INITIAL_ANCHORED_VWAP_DRAWING_INTERACTION_STATE,
   }
+}
+
+function rollingChartAndSeries() {
+  const chart = {
+    timeScale: () => ({
+      options: () => ({ barSpacing: 6 }),
+      timeToCoordinate: (time: number) => time,
+      coordinateToTime: () => 120,
+      coordinateToLogical: (x: number) => x,
+      timeToIndex: () => 1,
+      logicalToCoordinate: (logical: number) => logical,
+      getVisibleLogicalRange: () => ({ from: 0, to: 1 }),
+    }),
+  } as unknown as IChartApi
+  const center = {
+    priceToCoordinate: (price: number) => 100 - price,
+    priceScale: () => ({ options: () => ({ mode: 0 }) }),
+    options: () => ({ visible: true }),
+    barsInLogicalRange: () => ({ from: 100, to: 200, barsBefore: 0, barsAfter: 0 }),
+    dataByIndex: (index: number) =>
+      index === 0
+        ? { time: 100, value: 50 }
+        : index === 1
+          ? { time: 200, value: 50 }
+          : null,
+  } as unknown as ISeriesApi<'Line', Time>
+  const bands = {
+    hitTestBandAt: () => null,
+  } as unknown as RollingVwapChartSeriesBundle['bands']
+  return { chart, center, bands }
 }
 
 describe('hitTestChartObjectSettingsTarget', () => {
@@ -358,5 +392,98 @@ describe('hitTestChartObjectSettingsTarget', () => {
       kind: 'fixed-range-volume-profile',
       instanceId: previous.id,
     })
+  })
+})
+
+describe('hitTestChartObjectSettingsTarget Rolling VWAP primitive', () => {
+  it('resolves the selected band part from the primitive hit test', () => {
+    const { chart, center, bands } = rollingChartAndSeries()
+    const instance = createRollingVwapInstance({ id: 'rv-1', randomId: () => '1' })
+    const hitBands = {
+      hitTestBandAt: () => ({ band: 'band2' as const, distance: 1 }),
+    } as unknown as RollingVwapChartSeriesBundle['bands']
+    const target = hitTestChartObjectSettingsTarget(
+      buildContext({
+        chart,
+        series: center,
+        paneX: 150,
+        paneY: 40,
+        rollingVwapInstances: [instance],
+        rollingVwapBundles: new Map([
+          ['rv-1', { center, bands: hitBands }],
+        ]),
+      }),
+    )
+    assert.deepEqual(target, { kind: 'rolling-vwap', instanceId: 'rv-1', part: 'band2' })
+    // Silence the unused dummy bands binding in this test helper contract.
+    assert.ok(bands)
+  })
+
+  it('keeps the native centre hit ahead of a band outline', () => {
+    const { chart, center } = rollingChartAndSeries()
+    const instance = createRollingVwapInstance({ id: 'rv-1', randomId: () => '1' })
+    const hitBands = {
+      hitTestBandAt: () => ({ band: 'band1' as const, distance: 0 }),
+    } as unknown as RollingVwapChartSeriesBundle['bands']
+    const target = hitTestChartObjectSettingsTarget(
+      buildContext({
+        chart,
+        series: center,
+        paneX: 150,
+        paneY: 50,
+        rollingVwapInstances: [instance],
+        rollingVwapBundles: new Map([
+          ['rv-1', { center, bands: hitBands }],
+        ]),
+      }),
+    )
+    assert.deepEqual(target, { kind: 'rolling-vwap', instanceId: 'rv-1', part: 'center' })
+  })
+
+  it('skips a disabled instance and a hidden/zero-multiplier band', () => {
+    const { chart, center } = rollingChartAndSeries()
+    const disabled = createRollingVwapInstance({
+      id: 'rv-1',
+      enabled: false,
+      randomId: () => '1',
+    })
+    const hitBands = {
+      hitTestBandAt: () => ({ band: 'band1' as const, distance: 0 }),
+    } as unknown as RollingVwapChartSeriesBundle['bands']
+    assert.equal(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series: center,
+          paneX: 150,
+          paneY: 40,
+          rollingVwapInstances: [disabled],
+          rollingVwapBundles: new Map([
+            ['rv-1', { center, bands: hitBands }],
+          ]),
+        }),
+      ),
+      null,
+    )
+
+    const enabled = createRollingVwapInstance({ id: 'rv-1', randomId: () => '1' })
+    const noBands = {
+      hitTestBandAt: () => null,
+    } as unknown as RollingVwapChartSeriesBundle['bands']
+    assert.equal(
+      hitTestChartObjectSettingsTarget(
+        buildContext({
+          chart,
+          series: center,
+          paneX: 150,
+          paneY: 40,
+          rollingVwapInstances: [enabled],
+          rollingVwapBundles: new Map([
+            ['rv-1', { center, bands: noBands }],
+          ]),
+        }),
+      ),
+      null,
+    )
   })
 })

@@ -46,18 +46,6 @@ import { computeWeeklyVwap } from '../../src/market/weeklyVwap.ts'
 import { computeMonthlyVwap } from '../../src/market/monthlyVwap.ts'
 import { computeQuarterlyVwap } from '../../src/market/quarterlyVwap.ts'
 import { computeYearlyVwap } from '../../src/market/yearlyVwap.ts'
-import {
-  createRollingVwapChartSeriesBundle,
-  rollingVwapBandFillPoints,
-  setRollingVwapChartSeriesData,
-  setRollingVwapInstanceSeriesVisibility,
-  type RollingVwapChartSeriesBundle,
-} from '../../src/market/rollingVwapChartSeries.ts'
-import {
-  computeRollingVwapPointsForSettings,
-  createDefaultRollingVwapSettings,
-  type RollingVwapSettings,
-} from '../../src/market/rollingVwapSettings.ts'
 import type { SessionVwapLineSeriesBundle } from '../../src/market/sessionVwapChartSeries.ts'
 import type { CandleInterval, MarketCandle } from '../../src/market/types.ts'
 
@@ -479,11 +467,6 @@ function forceViews(): void {
   state.primitive?.updateAllViews()
 }
 
-function forceAllViews(): void {
-  for (const primitive of state.primitives) primitive.updateAllViews()
-}
-
-
 async function attachSecondFill(fillStyle: string): Promise<void> {
   if (!state.series) throw new Error('chart is not ready')
   const attachment = attachSessionVwapBandSeriesPrimitive(state.series, {
@@ -572,30 +555,7 @@ function snapshotBundle<Key extends string>(bundle: SessionVwapLineSeriesBundle<
   return bundle.ordered.map((series) => JSON.stringify(series.data()))
 }
 
-function snapshotRolling(bundle: RollingVwapChartSeriesBundle): {
-  center: string
-  bands: Record<string, string>
-  options: Record<string, unknown>
-} {
-  const bands: Record<string, string> = {}
-  for (const key of Object.keys(bundle.bands)) {
-    bands[key] = JSON.stringify(bundle.bands[key as keyof typeof bundle.bands].data())
-  }
-  const options: Record<string, unknown> = {}
-  for (const key of Object.keys(bundle.bands)) {
-    const series = bundle.bands[key as keyof typeof bundle.bands]
-    const seriesOptions = series.options()
-    options[key] = {
-      color: seriesOptions.color,
-      lineWidth: seriesOptions.lineWidth,
-      lineStyle: seriesOptions.lineStyle,
-    }
-  }
-  return { center: JSON.stringify(bundle.center.data()), bands, options }
-}
-
 let sessionPoints: Record<string, unknown> | null = null
-let rollingPoints: Record<string, number | null>[] | null = null
 
 async function runSessionConsumers(): Promise<Record<string, unknown>> {
   installRecorder()
@@ -705,202 +665,8 @@ async function runSessionConsumers(): Promise<Record<string, unknown>> {
   }
 }
 
-async function runRollingConsumer(): Promise<Record<string, unknown>> {
-  installRecorder()
-  destroyChart()
-  resetCounters()
-  const chart = createChartInContainer(1000, 520)
-  state.chart = chart
-  const timeScale = chart.timeScale() as unknown as {
-    timeToCoordinate: (time: UTCTimestamp) => number | null
-  }
-  const timeToCoordinate = timeScale.timeToCoordinate.bind(timeScale)
-  timeScale.timeToCoordinate = (time: UTCTimestamp): number | null => {
-    state.timeConversions += 1
-    return timeToCoordinate(time)
-  }
-  const candles = makeCandles(5_000, 60, '1m')
-  const settings: RollingVwapSettings = createDefaultRollingVwapSettings()
-  settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 3 }
-  const points = computeRollingVwapPointsForSettings(candles, '1m', settings)
-  const bundle = createRollingVwapChartSeriesBundle(chart, settings, { title: 'RV' })
-  const fills = {
-    band1: 'rgba(11, 22, 33, 0.5)',
-    band2: 'rgba(44, 55, 66, 0.5)',
-    band3: 'rgba(77, 88, 99, 0.5)',
-  }
-  bundle.bandFills?.band1.setFillStyle(fills.band1)
-  bundle.bandFills?.band2.setFillStyle(fills.band2)
-  bundle.bandFills?.band3.setFillStyle(fills.band3)
-  setRollingVwapChartSeriesData(bundle, points)
-  setRollingVwapInstanceSeriesVisibility(
-    bundle,
-    { id: 'rv', enabled: true, settings, displaySequence: 1 },
-    '1m',
-  )
-  chart.timeScale().setVisibleLogicalRange({ from: points.length - 120, to: points.length - 1 })
-  await nextFrames(4)
-
-  const before = snapshotRolling(bundle)
-  const shown = stats()
-  const shownByStyle = Object.fromEntries(
-    Object.entries(fills).map(([key, style]) => [
-      key,
-      shown.lastFrameFills.filter((fill) => fill.fillStyle === style).length,
-    ]),
-  )
-
-  settings.multipliers = { multiplier1: 1, multiplier2: 0, multiplier3: 0 }
-  setRollingVwapInstanceSeriesVisibility(
-    bundle,
-    { id: 'rv', enabled: true, settings, displaySequence: 1 },
-    '1m',
-  )
-  await nextFrames(3)
-  resetCounters()
-  bundle.bandFills?.band1.setFillStyle(fills.band1)
-  await nextFrames(2)
-  const disabledBands = stats()
-  const disabledByStyle = Object.fromEntries(
-    Object.entries(fills).map(([key, style]) => [
-      key,
-      disabledBands.lastFrameFills.filter((fill) => fill.fillStyle === style).length,
-    ]),
-  )
-
-  setRollingVwapInstanceSeriesVisibility(
-    bundle,
-    { id: 'rv', enabled: false, settings, displaySequence: 1 },
-    '1m',
-  )
-  await nextFrames(3)
-  resetCounters()
-  await new Promise((resolve) => setTimeout(resolve, 300))
-  const hidden = stats()
-
-  setRollingVwapInstanceSeriesVisibility(
-    bundle,
-    { id: 'rv', enabled: true, settings, displaySequence: 1 },
-    '1m',
-  )
-  await nextFrames(3)
-  const reenabled = stats()
-  const reenabledByStyle = Object.fromEntries(
-    Object.entries(fills).map(([key, style]) => [
-      key,
-      reenabled.lastFrameFills.filter((fill) => fill.fillStyle === style).length,
-    ]),
-  )
-  const after = snapshotRolling(bundle)
-  rollingPoints = points.map((point) => ({
-    time: point.time,
-    vwap: point.vwap,
-    upper1: point.upper1,
-    lower1: point.lower1,
-  }))
-
-  const dataEqual =
-    before.center === after.center &&
-    JSON.stringify(before.bands) === JSON.stringify(after.bands)
-  return {
-    pointCount: points.length,
-    band1SourceRows: rollingVwapBandFillPoints(points, 'band1').length,
-    fills,
-    shownByStyle,
-    disabledByStyle,
-    hidden,
-    reenabledByStyle,
-    dataEqual,
-    optionsEqual: JSON.stringify(before.options) === JSON.stringify(after.options),
-    reenabled,
-  }
-}
-
-async function runThreeRollingInstances(): Promise<Record<string, unknown>> {
-  installRecorder()
-  destroyChart()
-  resetCounters()
-  const chart = createChartInContainer(1000, 520)
-  state.chart = chart
-  const timeScale = chart.timeScale() as unknown as {
-    timeToCoordinate: (time: UTCTimestamp) => number | null
-  }
-  const timeToCoordinate = timeScale.timeToCoordinate.bind(timeScale)
-  timeScale.timeToCoordinate = (time: UTCTimestamp): number | null => {
-    state.timeConversions += 1
-    return timeToCoordinate(time)
-  }
-  const candles = makeCandles(5_000, 60, '1m')
-  const settings: RollingVwapSettings = createDefaultRollingVwapSettings()
-  settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 3 }
-  const points = computeRollingVwapPointsForSettings(candles, '1m', settings)
-  const bundles: RollingVwapChartSeriesBundle[] = []
-  const fills: string[] = []
-  for (let instance = 0; instance < 3; instance += 1) {
-    const bundle = createRollingVwapChartSeriesBundle(chart, settings, {
-      title: `RV ${instance + 1}`,
-    })
-    const priced = bundle.center as unknown as {
-      priceToCoordinate: (price: number) => number | null
-    }
-    const priceToCoordinate = priced.priceToCoordinate.bind(bundle.center)
-    priced.priceToCoordinate = (price: number): number | null => {
-      state.priceConversions += 1
-      return priceToCoordinate(price)
-    }
-    for (const band of ['band1', 'band2', 'band3'] as const) {
-      const style = `rgba(${10 + instance * 30}, ${20 + instance * 20}, ${30 + instance * 10}, 0.5)`
-      bundle.bandFills?.[band].setFillStyle(style)
-      fills.push(style)
-    }
-    setRollingVwapChartSeriesData(bundle, points)
-    setRollingVwapInstanceSeriesVisibility(
-      bundle,
-      { id: `rv${instance + 1}`, enabled: true, settings, displaySequence: instance + 1 },
-      '1m',
-    )
-    bundles.push(bundle)
-  }
-  chart.timeScale().setVisibleLogicalRange({ from: points.length - 120, to: points.length - 1 })
-  await nextFrames(4)
-
-  const shown = stats()
-  const shownByStyle = Object.fromEntries(
-    fills.map((style) => [
-      style,
-      shown.lastFrameFills.filter((fill) => fill.fillStyle === style).length,
-    ]),
-  )
-  resetCounters()
-  forceAllViews()
-  const direct = stats()
-
-  for (const bundle of bundles) {
-    setRollingVwapInstanceSeriesVisibility(
-      bundle,
-      { id: 'shared', enabled: false, settings, displaySequence: 1 },
-      '1m',
-    )
-  }
-  await nextFrames(3)
-  resetCounters()
-  await new Promise((resolve) => setTimeout(resolve, 300))
-  const hidden = stats()
-
-  return {
-    fills,
-    shownByStyle,
-    direct,
-    hidden,
-  }
-}
-
 function sessionPointCounts(): Record<string, unknown> | null {
   return sessionPoints
-}
-
-function rollingPointCount(): number {
-  return rollingPoints?.length ?? 0
 }
 
 export type VwapHarnessApi = {
@@ -921,10 +687,7 @@ export type VwapHarnessApi = {
   stats: () => HarnessStats
   resetCounters: () => void
   runSessionConsumers: () => Promise<Record<string, unknown>>
-  runRollingConsumer: () => Promise<Record<string, unknown>>
-  runThreeRollingInstances: () => Promise<Record<string, unknown>>
   sessionPointCounts: () => Record<string, unknown> | null
-  rollingPointCount: () => number
   PriceScaleMode: typeof PriceScaleMode
 }
 
@@ -952,9 +715,6 @@ window.__vwapHarness = {
   stats,
   resetCounters,
   runSessionConsumers,
-  runRollingConsumer,
-  runThreeRollingInstances,
   sessionPointCounts,
-  rollingPointCount,
   PriceScaleMode,
 }

@@ -1083,6 +1083,25 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     }
   }, [chartReady, overlayIndicatorSelection])
 
+  /**
+   * Band-part selection feedback is painted by the Rolling VWAP band primitive
+   * itself, so only the selected band pair is stroked. The shared halo above
+   * still strokes the native centre line for a centre/whole-instance part.
+   */
+  useEffect(() => {
+    if (!chartReady) return
+    const bundle = seriesRef.current
+    if (!bundle) return
+    for (const [instanceId, chartBundle] of bundle.rollingVwaps) {
+      const part =
+        overlayIndicatorSelection?.kind === 'rolling-vwap' &&
+        overlayIndicatorSelection.instanceId === instanceId
+          ? (overlayIndicatorSelection.part ?? 'all')
+          : null
+      chartBundle.bands.setHaloPart(part)
+    }
+  }, [chartReady, overlayIndicatorSelection])
+
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !chartReady) return

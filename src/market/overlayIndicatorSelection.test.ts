@@ -38,7 +38,7 @@ function buildBundle(): ChartSeriesBundle {
     quarterlyVwap: vwapBundle([]),
     yearlyVwap: vwapBundle([]),
     rollingVwaps: new Map([
-      ['rolling-1', { ordered: [rollingCenter], band: {} }],
+      ['rolling-1', { center: rollingCenter, bands: {} }],
     ]),
     anchoredVwaps: new Map(),
     rsi: { series: rsiSeries },
@@ -49,6 +49,9 @@ function rollingInstance(overrides: Partial<RollingVwapInstance> = {}): RollingV
   return {
     id: 'rolling-1',
     enabled: true,
+    settings: {
+      multipliers: { multiplier1: 1, multiplier2: 2, multiplier3: 3 },
+    },
     ...overrides,
   } as unknown as RollingVwapInstance
 }
@@ -252,7 +255,7 @@ describe('overlay indicator selection chart series', () => {
     )
   })
 
-  it('resolves rolling VWAP lines only while the instance is enabled', () => {
+  it('resolves the native centre for a whole/centre selection and no native band lines', () => {
     const selection: OverlayIndicatorSelectionTarget = {
       kind: 'rolling-vwap',
       instanceId: 'rolling-1',
@@ -262,10 +265,76 @@ describe('overlay indicator selection chart series', () => {
       [rollingCenter],
     )
     assert.deepEqual(
+      overlayIndicatorSelectionLineSeries(
+        bundle,
+        { kind: 'rolling-vwap', instanceId: 'rolling-1', part: 'center' },
+        [rollingInstance()],
+      ),
+      [rollingCenter],
+    )
+    // Band parts are haloed by the band primitive itself.
+    assert.deepEqual(
+      overlayIndicatorSelectionLineSeries(
+        bundle,
+        { kind: 'rolling-vwap', instanceId: 'rolling-1', part: 'band2' },
+        [rollingInstance()],
+      ),
+      [],
+    )
+    assert.deepEqual(
       overlayIndicatorSelectionLineSeries(bundle, selection, [
         rollingInstance({ enabled: false }),
       ]),
       [],
+    )
+  })
+
+  it('treats a part change as a different Rolling VWAP selection', () => {
+    assert.equal(
+      sameOverlayIndicatorSelection(
+        { kind: 'rolling-vwap', instanceId: 'a', part: 'band1' },
+        { kind: 'rolling-vwap', instanceId: 'a', part: 'band2' },
+      ),
+      false,
+    )
+    assert.equal(
+      sameOverlayIndicatorSelection(
+        { kind: 'rolling-vwap', instanceId: 'a', part: 'band1' },
+        { kind: 'rolling-vwap', instanceId: 'a' },
+      ),
+      false,
+    )
+  })
+
+  it('clears a band selection when its multiplier becomes zero', () => {
+    const selection: OverlayIndicatorSelectionTarget = {
+      kind: 'rolling-vwap',
+      instanceId: 'rolling-1',
+      part: 'band2',
+    }
+    assert.equal(isOverlayIndicatorSelectionRendered(selection, renderState()), true)
+    const settings = { multipliers: { multiplier1: 1, multiplier2: 0, multiplier3: 3 } }
+    assert.equal(
+      isOverlayIndicatorSelectionRendered(
+        selection,
+        renderState({
+          rollingVwapInstances: [rollingInstance({ settings } as never)],
+        }),
+      ),
+      false,
+    )
+    assert.equal(
+      isOverlayIndicatorSelectionRendered(
+        selection,
+        renderState({
+          rollingVwapInstances: [
+            rollingInstance({
+              settings: { multipliers: { multiplier1: 1, multiplier2: 2, multiplier3: 3 } },
+            } as never),
+          ],
+        }),
+      ),
+      true,
     )
   })
 
