@@ -6,9 +6,10 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
  *
  * The chart is canvas-only, so the assertions read the exact bitmap
  * `fillRect`/`arc` calls the rectangle series primitive makes. The backend is
- * mocked with a fixed 15-minute fixture: the initial load has 900 bars while
- * the default viewport shows the last 500, so the first loaded bar is always
- * off the left edge of the pane.
+ * mocked with a fixed 15-minute fixture: the initial candle window (the
+ * context endpoint the panel loads first) has 750 bars while the default
+ * viewport shows the last 500, so the first loaded bar is always off the left
+ * edge of the pane and no older-history page is requested on mount.
  *
  * The honest projection this spec pins: a stored start before the loaded
  * history is clipped to the earliest loaded bar's own coordinate (never a
@@ -22,7 +23,7 @@ const INTERVAL = '15m'
 const BAR_SECONDS = 15 * 60
 /** Fixed, bar-aligned "now"; the fixture never depends on the wall clock. */
 const NOW_SECONDS = 1_795_000_000 - (1_795_000_000 % BAR_SECONDS)
-const INITIAL_BARS = 900
+const INITIAL_BARS = 750
 const FIRST_LOADED_SECONDS = NOW_SECONDS - (INITIAL_BARS - 1) * BAR_SECONDS
 const PANEL_ID = 'btc-perpetual-chart-box265'
 const RECTANGLE_STORAGE_KEY = '0xdeck-widget-rectangle-instances'
@@ -220,11 +221,12 @@ async function openChart(
         })
 
       if (path === '/api/health') return json({ status: 'ok', parquet_folder: '/data' })
-      if (path.endsWith('/klines/daily-context')) return klines(candles(300))
-      if (path.endsWith('/klines/weekly-context')) return klines(candles(300))
-      if (path.endsWith('/klines/monthly-context')) return klines(candles(300))
-      if (path.endsWith('/klines/quarterly-context')) return klines(candles(300))
-      if (path.endsWith('/klines/yearly-context')) return klines(candles(300))
+      // The panel loads its first candle window from the context endpoint.
+      if (path.endsWith('/klines/daily-context')) return klines(candles(INITIAL_BARS))
+      if (path.endsWith('/klines/weekly-context')) return klines(candles(INITIAL_BARS))
+      if (path.endsWith('/klines/monthly-context')) return klines(candles(INITIAL_BARS))
+      if (path.endsWith('/klines/quarterly-context')) return klines(candles(INITIAL_BARS))
+      if (path.endsWith('/klines/yearly-context')) return klines(candles(INITIAL_BARS))
       if (path.endsWith('/klines/history')) {
         const before = Number(url.searchParams.get('before') ?? FIRST_LOADED_SECONDS)
         return klines(candles(500, before))
