@@ -501,17 +501,27 @@ async function storedRectangle(page: Page): Promise<StoredRectangle | null> {
  */
 async function setInstanceAndReload(run: ChartRun, kind: BoxKind) {
   const instances = seedPayload(kind).rectangles
-  await run.page.evaluate(
-    ({ key, payload }) => localStorage.setItem(key, JSON.stringify(payload)),
-    { key: RECTANGLE_STORAGE_KEY, payload: instances },
-  )
-  await run.page.reload()
   const chart = run.page.getByTestId('btc-perp-chart').first()
-  await expect(chart).toHaveAttribute('aria-hidden', 'false', { timeout: 60_000 })
-  await run.page.waitForTimeout(800)
-  const hasBox = kind !== 'none' && kind !== 'outside' && kind !== 'hidden'
-  run.mountFill = hasBox ? await waitForRedFill(run.page) : null
-  run.mountHash = await stablePaneCanvasBitmap(run.page)
+  // The panel restores the viewport it saved on the previous mount, so the
+  // first reload after a default mount can land on a different (still valid)
+  // presentation. Reload until two consecutive captures of the SAME fixture
+  // agree, then compare fixed points: only the instance may differ.
+  let previous = ''
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await run.page.evaluate(
+      ({ key, payload }) => localStorage.setItem(key, JSON.stringify(payload)),
+      { key: RECTANGLE_STORAGE_KEY, payload: instances },
+    )
+    await run.page.reload()
+    await expect(chart).toHaveAttribute('aria-hidden', 'false', { timeout: 60_000 })
+    await run.page.waitForTimeout(800)
+    const hasBox = kind !== 'none' && kind !== 'outside' && kind !== 'hidden'
+    run.mountFill = hasBox ? await waitForRedFill(run.page) : null
+    run.mountHash = await stablePaneCanvasBitmap(run.page)
+    if (previous === run.mountHash) return
+    previous = run.mountHash
+  }
+  throw new Error(`${kind} presentation did not reach a fixed point across reloads`)
 }
 
 async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
