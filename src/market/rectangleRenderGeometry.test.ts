@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   buildRectangleDrawModels,
   getRectangleInstanceOmittedDuringInteraction,
+  rectangleHandleKindFromDrawIndex,
   type BuildRectangleDrawModelsArgs,
   type RectangleTimeProjector,
 } from './rectangleRenderGeometry.ts'
@@ -266,6 +267,66 @@ describe('rectangleRenderGeometry', () => {
       }),
     )
     assert.equal(createModels.at(-1)?.fillStyle, defaultFill)
+  })
+})
+
+describe('rectangleHandleKindFromDrawIndex', () => {
+  it('documents the full eight-slot layout; clipped models carry a subset', () => {
+    assert.deepEqual(
+      Array.from({ length: 8 }, (_, index) => rectangleHandleKindFromDrawIndex(index)),
+      [
+        'corner-nw',
+        'edge-n',
+        'corner-ne',
+        'edge-e',
+        'corner-se',
+        'edge-s',
+        'corner-sw',
+        'edge-w',
+      ],
+    )
+    assert.equal(rectangleHandleKindFromDrawIndex(8), null)
+    // `buildRectangleDrawModels` filters clipped-side handles out of
+    // `model.handles`, so the helper's index is a full-layout slot number, not
+    // a model handle index once either edge is clipped.
+    const instance = {
+      ...createRectangleInstance({
+        fromTime: 1000,
+        toTime: 2000,
+        lowPrice: 10,
+        highPrice: 20,
+      })!,
+      fillColor: '#ff0000',
+      fillOpacity: 100,
+    }
+    const clipped = buildRectangleDrawModels({
+      instances: [instance],
+      interaction: { phase: 'inactive', selectedId: instance.id, draft: null },
+      resolveInstanceFillStyle: resolveRectangleInstanceFillStyle,
+      previewFillStyle: 'rgba(0,0,0,0.2)',
+      handleFillStyle: 'rgba(0,0,0,0.8)',
+      pointerTime: null,
+      pointerPrice: null,
+      projectTime: (time) => ({
+        coordinate: time < 1500 ? 1500 : time,
+        clippedBeforeLoadedHistory: time < 1500,
+      }),
+      priceToY: (price) => 100 - price,
+      handleRadiusPx: 4,
+    })
+    assert.equal(clipped.length, 1)
+    assert.equal(clipped[0].handles.length, 5)
+    // Full-layout order with the three start-side slots removed.
+    assert.deepEqual(
+      clipped[0].handles,
+      [
+        { x: 1750, y: 80 },
+        { x: 2000, y: 80 },
+        { x: 2000, y: 85 },
+        { x: 2000, y: 90 },
+        { x: 1750, y: 90 },
+      ],
+    )
   })
 })
 

@@ -247,6 +247,17 @@ export function projectRectangleInstanceToScreenBox(
   return boundsToScreenBox(instance, projectTime, priceToY)
 }
 
+/**
+ * Handle kind of an index in the **full eight-slot layout** — the pre-clip
+ * order `nw, n, ne, e, se, s, sw, w`.
+ *
+ * Draw models omit the handles of a clipped edge (an edge that is the earliest
+ * loaded bar, not the stored time), so `model.handles[i]` is this kind only for
+ * a model whose edges are both real; a clipped model carries the remaining
+ * subset in the same relative order. Callers that need kinds for a clipped
+ * model must map `model.handles` against the model's `clippedStart`/
+ * `clippedEnd` flags rather than index into the full layout.
+ */
 export function rectangleHandleKindFromDrawIndex(index: number): RectangleHandleKind | null {
   return RECTANGLE_HANDLE_KINDS[index] ?? null
 }
