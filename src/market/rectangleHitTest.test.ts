@@ -34,6 +34,54 @@ describe('rectangleHitTest', () => {
     assert.equal(hit?.instanceId, 'rect-old')
   })
 
+  it('has no start handle where the box was clipped at the loaded history', () => {
+    const clipped: RectangleInstance[] = [
+      { id: 'rect-clipped', fromTime: 1, toTime: 2, lowPrice: 1, highPrice: 2 },
+    ]
+    const projectClipped = () => ({
+      left: 0,
+      right: 100,
+      top: 0,
+      bottom: 100,
+      clippedStart: true,
+    })
+    // The shared earliest-loaded-bar edge is not a real endpoint: a press there
+    // never starts a west/corner (time) resize. The price-only top/bottom edges
+    // behave exactly as they do on any other box.
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped', 0, 0, projectClipped)?.kind, 'edge-n')
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped', 0, 50, projectClipped)?.kind, 'interior')
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped', 0, 100, projectClipped)?.kind, 'edge-s')
+    // Loaded-history handles and the interior still work.
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped', 100, 0, projectClipped)?.kind, 'corner-ne')
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped', 100, 50, projectClipped)?.kind, 'edge-e')
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped', 50, 50, projectClipped)?.kind, 'interior')
+  })
+
+  it('keeps east handles when only the end is clipped', () => {
+    const clipped: RectangleInstance[] = [
+      { id: 'rect-clipped-end', fromTime: 1, toTime: 2, lowPrice: 1, highPrice: 2 },
+    ]
+    const projectClipped = () => ({
+      left: 0,
+      right: 100,
+      top: 0,
+      bottom: 100,
+      clippedEnd: true,
+    })
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped-end', 0, 0, projectClipped)?.kind, 'corner-nw')
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped-end', 100, 0, projectClipped)?.kind, 'edge-n')
+    assert.equal(hitTestRectangles(clipped, 'rect-clipped-end', 100, 100, projectClipped)?.kind, 'edge-s')
+  })
+
+  it('ignores a box that collapsed onto a single loaded edge', () => {
+    const outside: RectangleInstance[] = [
+      { id: 'rect-before-history', fromTime: 1, toTime: 2, lowPrice: 1, highPrice: 2 },
+    ]
+    const collapsed = () => ({ left: 40, right: 40, top: 0, bottom: 100 })
+    assert.equal(hitTestRectangles(outside, 'rect-before-history', 40, 50, collapsed), null)
+    assert.equal(hitTestRectangles(outside, null, 40, 50, collapsed), null)
+  })
+
   it('ignores hidden handle targets on a selected locked rectangle', () => {
     const locked: RectangleInstance[] = [
       {

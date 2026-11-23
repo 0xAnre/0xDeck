@@ -4,6 +4,7 @@ import type { IChartApi } from 'lightweight-charts'
 import {
   buildRectangleChartTimeContext,
   latestCandleUnixTime,
+  projectRectangleTimeToCoordinate,
   resolveRectangleTimeFromCoordinate,
   resolveRectangleTimeToCoordinate,
   type RectangleChartTimeContext,
@@ -102,6 +103,117 @@ describe('resolveRectangleTimeToCoordinate', () => {
     assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen + 700, 'start', context), 20)
     assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen + 800, 'end', context), 30)
     assert.equal(resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen + 1_500, 'end', context), 50)
+  })
+})
+
+/**
+ * Same bars, but the first bar sits at a non-zero pane coordinate (for example
+ * a fractional pan with whitespace left of the loaded history). A clipped
+ * projection must reuse that bar coordinate, not fabricate logical 0 -> x 0.
+ */
+function chartWithBarsOffset(barTimes: number[], spacing = 10, originX = 37.5): IChartApi {
+  const base = chartWithBars(barTimes, spacing) as unknown as {
+    timeScale: () => {
+      timeToCoordinate: (time: number) => number | null
+      logicalToCoordinate: (logical: number) => number
+    }
+  }
+  const timeScale = () => {
+    const inner = base.timeScale()
+    return {
+      timeToCoordinate: (time: number) => {
+        const coordinate = inner.timeToCoordinate(time)
+        return coordinate === null ? null : coordinate + originX
+      },
+      timeToIndex: (time: number, findNearest?: boolean) => {
+        if (barTimes.length === 0) return null
+        const lastIndex = barTimes.length - 1
+        if (time > barTimes[lastIndex]) return findNearest ? lastIndex : null
+        const index = barTimes.findIndex((bar) => bar >= time)
+        if (index === -1) return findNearest ? lastIndex : null
+        if (barTimes[index] > time) return findNearest ? index : null
+        return index
+      },
+      logicalToCoordinate: (logical: number) => inner.logicalToCoordinate(logical) + originX,
+      coordinateToLogical: (x: number) => (x - originX) / spacing,
+      coordinateToTime: (x: number) => barTimes[Math.round((x - originX) / spacing)] ?? null,
+    }
+  }
+  return { timeScale } as unknown as IChartApi
+}
+
+describe('projectRectangleTimeToCoordinate', () => {
+  it('clips a timestamp before the loaded history to the earliest loaded bar', () => {
+    const chart = chartWithBars(barTimes)
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen - 240, 'start', context),
+      { coordinate: 0, clippedBeforeLoadedHistory: true },
+    )
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen - 60, 'end', context),
+      { coordinate: 0, clippedBeforeLoadedHistory: true },
+    )
+  })
+
+  it('uses the loaded bar coordinate, not a fabricated zero, for the clipped edge', () => {
+    const chart = chartWithBarsOffset(barTimes)
+    const started = projectRectangleTimeToCoordinate(chart, fiveMinuteOpen - 600, 'start', context)
+    assert.deepEqual(started, { coordinate: 37.5, clippedBeforeLoadedHistory: true })
+    // A box that starts at the first loaded bar keeps that same coordinate.
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen, 'start', context),
+      { coordinate: 37.5, clippedBeforeLoadedHistory: false },
+    )
+  })
+
+  it('keeps loaded, in-gap and future projections unchanged and unclipped', () => {
+    const chart = chartWithBars(barTimes)
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen + 300, 'start', context),
+      { coordinate: 10, clippedBeforeLoadedHistory: false },
+    )
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen + 60, 'start', context),
+      { coordinate: 0, clippedBeforeLoadedHistory: false },
+    )
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen + 240, 'end', context),
+      { coordinate: 10, clippedBeforeLoadedHistory: false },
+    )
+    assert.deepEqual(
+      projectRectangleTimeToCoordinate(chart, fiveMinuteOpen + 800, 'end', context),
+      { coordinate: 30, clippedBeforeLoadedHistory: false },
+    )
+  })
+
+  it('keeps the legacy resolver null for a pre-history edge on other tools', () => {
+    const chart = chartWithBars(barTimes)
+    assert.equal(
+      resolveRectangleTimeToCoordinate(chart, fiveMinuteOpen - 240, 'start', context),
+      null,
+    )
+  })
+
+  it('guards non-finite, invalid and unresolvable inputs', () => {
+    const chart = chartWithBars(barTimes)
+    assert.equal(projectRectangleTimeToCoordinate(chart, Number.NaN, 'start', context), null)
+    assert.equal(projectRectangleTimeToCoordinate(chart, Number.POSITIVE_INFINITY, 'start', context), null)
+    assert.equal(projectRectangleTimeToCoordinate(chart, -1, 'start', context), null)
+    const empty = chartWithBars([])
+    assert.equal(projectRectangleTimeToCoordinate(empty, fiveMinuteOpen, 'start', context), null)
+    const noCoordinate = {
+      timeScale: () => ({
+        timeToCoordinate: () => null,
+        timeToIndex: () => 0,
+        logicalToCoordinate: () => null,
+        coordinateToLogical: () => null,
+        coordinateToTime: () => barTimes[0],
+      }),
+    } as unknown as IChartApi
+    assert.equal(
+      projectRectangleTimeToCoordinate(noCoordinate, fiveMinuteOpen - 240, 'start', context),
+      null,
+    )
   })
 })
 

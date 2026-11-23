@@ -20,6 +20,12 @@ export type RectangleScreenBox = {
   right: number
   top: number
   bottom: number
+  /**
+   * The left/right screen edge is the earliest loaded bar, not the stored
+   * `fromTime`/`toTime`. Such an edge must not own a resize handle.
+   */
+  clippedStart?: boolean
+  clippedEnd?: boolean
 }
 
 export type RectangleHitTarget = {
@@ -82,30 +88,34 @@ function hitTestSingleRectangleBox(
   allowHandles: boolean,
 ): RectangleHitTarget | null {
   const { left, right, top, bottom } = box
+  // A clipped edge is a rendering boundary, never an endpoint the user can
+  // drag: the stored time it would write does not exist in the loaded history.
+  const allowStartHandles = allowHandles && box.clippedStart !== true
+  const allowEndHandles = allowHandles && box.clippedEnd !== true
 
   if (allowHandles) {
-    if (hitCorner(paneX, paneY, left, top, radiusSq)) {
+    if (allowStartHandles && hitCorner(paneX, paneY, left, top, radiusSq)) {
       return { instanceId, kind: 'corner-nw', priority: CORNER_PRIORITY, instanceIndex }
     }
-    if (hitCorner(paneX, paneY, right, top, radiusSq)) {
+    if (allowEndHandles && hitCorner(paneX, paneY, right, top, radiusSq)) {
       return { instanceId, kind: 'corner-ne', priority: CORNER_PRIORITY, instanceIndex }
     }
-    if (hitCorner(paneX, paneY, right, bottom, radiusSq)) {
+    if (allowEndHandles && hitCorner(paneX, paneY, right, bottom, radiusSq)) {
       return { instanceId, kind: 'corner-se', priority: CORNER_PRIORITY, instanceIndex }
     }
-    if (hitCorner(paneX, paneY, left, bottom, radiusSq)) {
+    if (allowStartHandles && hitCorner(paneX, paneY, left, bottom, radiusSq)) {
       return { instanceId, kind: 'corner-sw', priority: CORNER_PRIORITY, instanceIndex }
     }
     if (hitEdgeSegment(paneX, paneY, left, top, right, top, radiusSq)) {
       return { instanceId, kind: 'edge-n', priority: EDGE_PRIORITY, instanceIndex }
     }
-    if (hitEdgeSegment(paneX, paneY, right, top, right, bottom, radiusSq)) {
+    if (allowEndHandles && hitEdgeSegment(paneX, paneY, right, top, right, bottom, radiusSq)) {
       return { instanceId, kind: 'edge-e', priority: EDGE_PRIORITY, instanceIndex }
     }
     if (hitEdgeSegment(paneX, paneY, left, bottom, right, bottom, radiusSq)) {
       return { instanceId, kind: 'edge-s', priority: EDGE_PRIORITY, instanceIndex }
     }
-    if (hitEdgeSegment(paneX, paneY, left, top, left, bottom, radiusSq)) {
+    if (allowStartHandles && hitEdgeSegment(paneX, paneY, left, top, left, bottom, radiusSq)) {
       return { instanceId, kind: 'edge-w', priority: EDGE_PRIORITY, instanceIndex }
     }
   }
@@ -136,6 +146,9 @@ export function hitTestRectangles(
     if (isRectangleInstanceHidden(instance)) continue
     const box = project(instance)
     if (!box) continue
+    // A box entirely before the loaded history projects onto one shared edge
+    // (zero area) and must not own an off-screen hit target.
+    if (!(box.right > box.left) || !(box.bottom > box.top)) continue
     const allowHandles =
       selectedId === instance.id && !isRectangleInstanceLocked(instance)
     const hit = hitTestSingleRectangleBox(

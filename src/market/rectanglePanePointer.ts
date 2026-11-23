@@ -28,7 +28,7 @@ import { projectRectangleInstanceToScreenBox } from './rectangleRenderGeometry.t
 import { resolvePointerChartPoint } from './rectangleChartCoordinates.ts'
 import {
   buildRectangleChartTimeContext,
-  resolveRectangleTimeToCoordinate,
+  projectRectangleTimeToCoordinate,
   type RectangleChartTimeContext,
 } from './rectangleChartTime.ts'
 
@@ -99,7 +99,7 @@ export function attachRectanglePanePointer(
     const timeContext = resolveTimeContext()
     return projectRectangleInstanceToScreenBox(
       instance,
-      (time, edge) => resolveRectangleTimeToCoordinate(chart, time, edge, timeContext),
+      (time, edge) => projectRectangleTimeToCoordinate(chart, time, edge, timeContext),
       (price) => series.priceToCoordinate(price),
     )
   }
