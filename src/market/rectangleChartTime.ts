@@ -199,25 +199,55 @@ export function resolveRectangleTimeFromCoordinate(
   return resolveRectangleTimeFromLogicalIndex(chart, logicalIndex, context)
 }
 
-export function resolveRectangleTimeToCoordinate(
+export type RectangleTimeCoordinateProjection = {
+  coordinate: number
+  /**
+   * The timestamp precedes every loaded bar. Nothing is known about bar spacing
+   * before the loaded window, so the coordinate is the earliest loaded bar's own
+   * position (the last honest anchor) and never the stored endpoint itself.
+   */
+  clippedBeforeLoadedHistory: boolean
+}
+
+function timeCoordinateProjection(
+  coordinate: number | null,
+  clippedBeforeLoadedHistory: boolean,
+): RectangleTimeCoordinateProjection | null {
+  if (coordinate === null || !Number.isFinite(coordinate)) return null
+  return { coordinate, clippedBeforeLoadedHistory }
+}
+
+/**
+ * Project a stored time edge to a pane coordinate.
+ *
+ * Exact loaded times, in-gap times and future times keep their existing
+ * projection. Only the "before the loaded history" case (which used to resolve
+ * to `null`, hiding the whole object) is clipped back to the earliest loaded
+ * bar, so a visible part can still be painted without inventing a historical
+ * index or bar spacing.
+ */
+export function projectRectangleTimeToCoordinate(
   chart: IChartApi,
   time: number,
   edge: RectangleTimeEdge,
   context: RectangleChartTimeContext | null = null,
-): number | null {
+): RectangleTimeCoordinateProjection | null {
   if (!Number.isFinite(time) || !isValidUnixChartTimeSeconds(Math.trunc(time))) {
     return null
   }
   const unixTime = Math.trunc(time) as UTCTimestamp
   const timeScale = chart.timeScale()
   const direct = timeScale.timeToCoordinate(unixTime)
-  if (direct !== null) return direct
+  if (direct !== null) return timeCoordinateProjection(direct, false)
 
   const futureLogical = context
     ? logicalIndexForFutureTimestamp(unixTime, context, edge)
     : null
   if (futureLogical !== null) {
-    return timeScale.logicalToCoordinate(futureLogical as Logical)
+    return timeCoordinateProjection(
+      timeScale.logicalToCoordinate(futureLogical as Logical),
+      false,
+    )
   }
 
   const ceilIndex = timeScale.timeToIndex(unixTime as Time, true)
@@ -226,12 +256,37 @@ export function resolveRectangleTimeToCoordinate(
   const barTime = snappedBarUnixTime(timeScale, ceilIndexNumber)
   // Index 0 with a later bar time means the timestamp is before the loaded
   // history, not in the gap ahead of the first candle.
-  if (barTime !== null && ceilIndexNumber === 0 && barTime > unixTime) return null
+  if (barTime !== null && ceilIndexNumber === 0 && barTime > unixTime) {
+    return timeCoordinateProjection(
+      timeScale.logicalToCoordinate(ceilIndexNumber as Logical),
+      true,
+    )
+  }
   const logicalIndex = projectedLogicalIndex(
     ceilIndexNumber,
     barTime,
     unixTime,
     edge,
   )
-  return timeScale.logicalToCoordinate(logicalIndex as Logical)
+  return timeCoordinateProjection(
+    timeScale.logicalToCoordinate(logicalIndex as Logical),
+    false,
+  )
+}
+
+/**
+ * Coordinate of a stored time edge, or `null` when it cannot be resolved inside
+ * the loaded history. Keeps the pre-existing contract for tools that are not a
+ * rectangle/box (FRVP, anchored VWAP drawings, lines): a timestamp before the
+ * loaded history still resolves to `null` instead of a clipped coordinate.
+ */
+export function resolveRectangleTimeToCoordinate(
+  chart: IChartApi,
+  time: number,
+  edge: RectangleTimeEdge,
+  context: RectangleChartTimeContext | null = null,
+): number | null {
+  const projection = projectRectangleTimeToCoordinate(chart, time, edge, context)
+  if (projection === null || projection.clippedBeforeLoadedHistory) return null
+  return projection.coordinate
 }

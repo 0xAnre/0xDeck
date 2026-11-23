@@ -15,6 +15,7 @@ import type { LineInstance } from './lineInstances.ts'
 import { projectLineInstanceToScreenSegment } from './lineRenderGeometry.ts'
 import {
   buildRectangleChartTimeContext,
+  projectRectangleTimeToCoordinate,
   resolveRectangleTimeToCoordinate,
 } from './rectangleChartTime.ts'
 import {
@@ -197,7 +198,8 @@ export function rectangleHitAtPanePoint(
   return hitTestRectangles(args.instances, args.selectedId, args.paneX, args.paneY, (instance) =>
     projectRectangleInstanceToScreenBox(
       instance,
-      (time, edge) => resolveRectangleTimeToCoordinate(args.chart, time, edge, timeContext),
+      (time, edge) =>
+        projectRectangleTimeToCoordinate(args.chart, time, edge, timeContext),
       (price) => args.series.priceToCoordinate(price),
     ),
   )

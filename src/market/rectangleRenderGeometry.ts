@@ -1,5 +1,5 @@
-import type { RectangleTimeEdge } from './rectangleChartTime.ts'
-import type { RectangleHandleKind } from './rectangleHitTest.ts'
+import type { RectangleTimeCoordinateProjection, RectangleTimeEdge } from './rectangleChartTime.ts'
+import type { RectangleHandleKind, RectangleScreenBox } from './rectangleHitTest.ts'
 import {
   isRectangleInstanceHidden,
   isRectangleInstanceLocked,
@@ -21,6 +21,24 @@ export type RectangleDrawModel = {
   bottom: number
   fillStyle: string
   handles: RectangleHandleDrawModel[]
+  /** Left edge is the earliest loaded bar, not the stored `fromTime`. */
+  clippedStart: boolean
+  /** Right edge is the earliest loaded bar, not the stored `toTime`. */
+  clippedEnd: boolean
+}
+
+/**
+ * Stored time edge -> pane coordinate. `clippedBeforeLoadedHistory` marks a
+ * coordinate that is the earliest loaded bar instead of the stored time.
+ */
+export type RectangleTimeProjector = (
+  time: number,
+  edge: RectangleTimeEdge,
+) => RectangleTimeCoordinateProjection | null
+
+export type RectangleProjectedScreenBox = RectangleScreenBox & {
+  clippedStart: boolean
+  clippedEnd: boolean
 }
 
 export type BuildRectangleDrawModelsArgs = {
@@ -31,38 +49,70 @@ export type BuildRectangleDrawModelsArgs = {
   handleFillStyle: string
   pointerTime: number | null
   pointerPrice: number | null
-  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null
+  projectTime: RectangleTimeProjector
   priceToY: (price: number) => number | null
   handleRadiusPx: number
 }
 
+const RECTANGLE_HANDLE_KINDS: readonly RectangleHandleKind[] = [
+  'corner-nw',
+  'edge-n',
+  'corner-ne',
+  'edge-e',
+  'corner-se',
+  'edge-s',
+  'corner-sw',
+  'edge-w',
+]
+
+/** Handles that move the stored `fromTime`; a clipped start has no real one. */
+const RECTANGLE_START_HANDLE_KINDS: ReadonlySet<RectangleHandleKind> = new Set([
+  'corner-nw',
+  'corner-sw',
+  'edge-w',
+])
+
+/** Handles that move the stored `toTime`; a clipped end has no real one. */
+const RECTANGLE_END_HANDLE_KINDS: ReadonlySet<RectangleHandleKind> = new Set([
+  'corner-ne',
+  'corner-se',
+  'edge-e',
+])
+
 function boundsToScreenBox(
   bounds: NormalizedRectangleBounds,
-  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
+  projectTime: RectangleTimeProjector,
   priceToY: (price: number) => number | null,
-): { left: number; right: number; top: number; bottom: number } | null {
-  const left = timeToCoordinate(bounds.fromTime, 'start')
-  const right = timeToCoordinate(bounds.toTime, 'end')
+): { left: number; right: number; top: number; bottom: number; clippedStart: boolean; clippedEnd: boolean } | null {
+  const start = projectTime(bounds.fromTime, 'start')
+  const end = projectTime(bounds.toTime, 'end')
+  if (start === null || end === null) return null
   const top = priceToY(bounds.highPrice)
   const bottom = priceToY(bounds.lowPrice)
-  if (left === null || right === null || top === null || bottom === null) return null
+  if (top === null || bottom === null) return null
   return {
-    left: Math.min(left, right),
-    right: Math.max(left, right),
+    left: Math.min(start.coordinate, end.coordinate),
+    right: Math.max(start.coordinate, end.coordinate),
     top: Math.min(top, bottom),
     bottom: Math.max(top, bottom),
+    clippedStart: start.clippedBeforeLoadedHistory,
+    clippedEnd: end.clippedBeforeLoadedHistory,
   }
 }
 
-function buildHandlePoints(box: {
-  left: number
-  right: number
-  top: number
-  bottom: number
-}): RectangleHandleDrawModel[] {
+function buildHandlePoints(
+  box: {
+    left: number
+    right: number
+    top: number
+    bottom: number
+  },
+  clippedStart: boolean,
+  clippedEnd: boolean,
+): RectangleHandleDrawModel[] {
   const midX = (box.left + box.right) / 2
   const midY = (box.top + box.bottom) / 2
-  return [
+  const points: RectangleHandleDrawModel[] = [
     { x: box.left, y: box.top },
     { x: midX, y: box.top },
     { x: box.right, y: box.top },
@@ -72,23 +122,42 @@ function buildHandlePoints(box: {
     { x: box.left, y: box.bottom },
     { x: box.left, y: midY },
   ]
+  // A clipped edge is not a real endpoint: it must not show (or later own) a
+  // handle that would drag the stored time to an invented position.
+  return points.filter((_, index) => {
+    const kind = RECTANGLE_HANDLE_KINDS[index]
+    if (kind === undefined) return false
+    if (clippedStart && RECTANGLE_START_HANDLE_KINDS.has(kind)) return false
+    if (clippedEnd && RECTANGLE_END_HANDLE_KINDS.has(kind)) return false
+    return true
+  })
+}
+
+function isPositiveAreaBox(box: { left: number; right: number; top: number; bottom: number }): boolean {
+  return box.right > box.left && box.bottom > box.top
 }
 
 function instanceToDrawModel(
   instance: RectangleInstance,
   selectedId: string | null,
   resolveInstanceFillStyle: (instance: RectangleInstance) => string,
-  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
+  projectTime: RectangleTimeProjector,
   priceToY: (price: number) => number | null,
 ): RectangleDrawModel | null {
-  const box = boundsToScreenBox(instance, timeToCoordinate, priceToY)
+  const box = boundsToScreenBox(instance, projectTime, priceToY)
   if (!box) return null
+  // A box whose stored range lies entirely before the loaded history collapses
+  // onto the earliest loaded bar: nothing of it is on screen, so nothing is
+  // painted and no handle appears at that shared edge.
+  if (!isPositiveAreaBox(box)) return null
   const showHandles =
     selectedId === instance.id && !isRectangleInstanceLocked(instance)
   return {
     ...box,
     fillStyle: resolveInstanceFillStyle(instance),
-    handles: showHandles ? buildHandlePoints(box) : [],
+    handles: showHandles
+      ? buildHandlePoints(box, box.clippedStart, box.clippedEnd)
+      : [],
   }
 }
 
@@ -134,7 +203,7 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
       instance,
       args.interaction.selectedId,
       args.resolveInstanceFillStyle,
-      args.timeToCoordinate,
+      args.projectTime,
       args.priceToY,
     )
     if (model) models.push(model)
@@ -152,14 +221,14 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
         args.pointerPrice,
       )
       if (preview) {
-        const box = boundsToScreenBox(preview, args.timeToCoordinate, args.priceToY)
-        if (box) {
+        const box = boundsToScreenBox(preview, args.projectTime, args.priceToY)
+        if (box && isPositiveAreaBox(box)) {
           models.push({
             ...box,
             fillStyle: previewFillStyleForInteraction(args),
             handles:
               args.interaction.phase === 'resizing' || args.interaction.phase === 'moving'
-                ? buildHandlePoints(box)
+                ? buildHandlePoints(box, box.clippedStart, box.clippedEnd)
                 : [],
           })
         }
@@ -172,22 +241,12 @@ export function buildRectangleDrawModels(args: BuildRectangleDrawModelsArgs): Re
 
 export function projectRectangleInstanceToScreenBox(
   instance: RectangleInstance,
-  timeToCoordinate: (time: number, edge: RectangleTimeEdge) => number | null,
+  projectTime: RectangleTimeProjector,
   priceToY: (price: number) => number | null,
-): { left: number; right: number; top: number; bottom: number } | null {
-  return boundsToScreenBox(instance, timeToCoordinate, priceToY)
+): RectangleProjectedScreenBox | null {
+  return boundsToScreenBox(instance, projectTime, priceToY)
 }
 
 export function rectangleHandleKindFromDrawIndex(index: number): RectangleHandleKind | null {
-  const kinds: RectangleHandleKind[] = [
-    'corner-nw',
-    'edge-n',
-    'corner-ne',
-    'edge-e',
-    'corner-se',
-    'edge-s',
-    'corner-sw',
-    'edge-w',
-  ]
-  return kinds[index] ?? null
+  return RECTANGLE_HANDLE_KINDS[index] ?? null
 }

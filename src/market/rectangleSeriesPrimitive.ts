@@ -10,7 +10,7 @@ import type {
 } from 'lightweight-charts'
 import {
   buildRectangleChartTimeContext,
-  resolveRectangleTimeToCoordinate,
+  projectRectangleTimeToCoordinate,
 } from './rectangleChartTime.ts'
 import {
   readRectangleFillStyle,
@@ -129,8 +129,8 @@ class RectanglePaneView implements IPrimitivePaneView {
       handleFillStyle: readRectangleHandleFillStyle(),
       pointerTime: context.pointerTime,
       pointerPrice: context.pointerPrice,
-      timeToCoordinate: (time, edge) =>
-        resolveRectangleTimeToCoordinate(chart, time, edge, timeContext),
+      projectTime: (time, edge) =>
+        projectRectangleTimeToCoordinate(chart, time, edge, timeContext),
       priceToY: (price) => series.priceToCoordinate(price),
       handleRadiusPx: RECTANGLE_HANDLE_DRAW_RADIUS_PX,
     })
