@@ -1,0 +1,4860 @@
+{
+ "schema": 1,
+ "issue": 264,
+ "generatedAt": "2026-11-23T08:41:25.685Z",
+ "measuredSourceSha": "2558f85496bf37e1136c63a90711a87cf3efae71",
+ "repositoryHeadAtAggregation": "2558f85496bf37e1136c63a90711a87cf3efae71",
+ "baselineSourceSha": "6544e96bf6e44c093e0acf574d2bc9d8e7b87ee6",
+ "harness": {
+  "browserCells": {
+   "path": "/srv/0xdeck-research/history-indicator-application-20261123/perf-history-app.mjs",
+   "sha256": "29824289d1cf6caaf5931b61abe5c8afef6af00f7ecc074b54abc1016679ea54"
+  },
+  "moduleCells": {
+   "path": "/srv/0xdeck-research/history-indicator-application-20261123/perf-history-micro.mjs",
+   "sha256": "e7b3f4221de4c5f7111024351658d6e47eff509dd36d0bc84b3cd8950a4f298e"
+  },
+  "aggregation": {
+   "path": "/srv/0xdeck-research/history-indicator-application-20261123/aggregate-evidence.mjs",
+   "sha256": "b0c9610afcc1b4e7c47b4643367eb18e608ab56ff2dbc9b80a76a87edbaf5c90"
+  }
+ },
+ "builds": {
+  "baseline": {
+   "sourceSha": "6544e96bf6e44c093e0acf574d2bc9d8e7b87ee6",
+   "indexSha256": "da53357d192207b43874d93621768e8f0d89f00aea74a828fcb0c304c85ec316",
+   "fileCount": 17,
+   "bundleSha256": "bc5a25dcc3c741cb0c0a1703399f43598ed35a6649ca5532e611567d85cbca1e"
+  },
+  "target": {
+   "sourceSha": "2558f85496bf37e1136c63a90711a87cf3efae71",
+   "indexSha256": "4b07fae6fd3c8e08742edf61308e7b0431e529995e53cb866d2066015e3a8874",
+   "fileCount": 17,
+   "bundleSha256": "abc6fe244b78d17c4f1fd42ae761c179b186b1457b5d6db76f75ed0cf621d80c"
+  },
+  "note": "vite build --minify false preserves function names for CPU attribution; both builds use the identical flags, React production mode and mocked data."
+ },
+ "host": {
+  "platform": "linux",
+  "release": "6.8.0-147-generic",
+  "cpu": "AMD EPYC 9354P 32-Core Processor",
+  "cpuCount": 2,
+  "node": "v22.23.4"
+ },
+ "runtime": {
+  "dpr": 1,
+  "viewport": {
+   "width": 1440,
+   "height": 900
+  },
+  "browser": "chromium",
+  "browserVersion": "156.0.8078.4",
+  "profileIntervalUs": 200
+ },
+ "contract": {
+  "initialBars": 750,
+  "pageBars": 500,
+  "edgeTime": 1700000000,
+  "availableFrom": 1698740000,
+  "savedViewportBarsBehind": 19400,
+  "settleMs": 1500,
+  "pageWindowCapMs": 1200,
+  "panDirection": null,
+  "scenario": "enable"
+ },
+ "rawRuns": [
+  {
+   "file": "history-indicator-enable-after-restore-baseline-rep-1-2026-11-23T08-22-49-084Z.json",
+   "sha256": "a62e22bb6889b792d47cb85851501c08f6884dee4ad6957944df5d1a80d52cdc",
+   "variant": "baseline",
+   "cell": "enable-after-restore",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-enable-after-restore-baseline-rep0-2026-11-23T08-23-25-978Z.json",
+   "sha256": "6aaa4b65a8d02a7c7b5883f74a48084d20286dba9de7e1c1cac842da5dc3d182",
+   "variant": "baseline",
+   "cell": "enable-after-restore",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-enable-after-restore-baseline-rep1-2026-11-23T08-23-48-593Z.json",
+   "sha256": "e88789aedbd7a38d6ba2828046864cb0c80ef6805862c91e6bc24591adab5d2c",
+   "variant": "baseline",
+   "cell": "enable-after-restore",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-enable-after-restore-baseline-rep2-2026-11-23T08-24-26-706Z.json",
+   "sha256": "2eb3cf17530e60e65bed970e4c24a5e452b9c8621676ed622ec94f34290117d2",
+   "variant": "baseline",
+   "cell": "enable-after-restore",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-enable-after-restore-target-rep-1-2026-11-23T08-22-55-580Z.json",
+   "sha256": "2622d8cb005f8b5f1da0dbc64322db0befeeeeab0f1cdfbef2d6dbf3ee510e1d",
+   "variant": "target",
+   "cell": "enable-after-restore",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-enable-after-restore-target-rep0-2026-11-23T08-23-02-750Z.json",
+   "sha256": "c3866082c18ea7e9654d49c11956bfb2a9257218d3cbf28e704bb919e5e4190e",
+   "variant": "target",
+   "cell": "enable-after-restore",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-enable-after-restore-target-rep1-2026-11-23T08-23-54-984Z.json",
+   "sha256": "8abad52060f47e3f30a293c72e8bc1f82e03063735e4b3b6858334d1ffc549f9",
+   "variant": "target",
+   "cell": "enable-after-restore",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-enable-after-restore-target-rep2-2026-11-23T08-24-02-166Z.json",
+   "sha256": "2948c69c03a58d8ca963f5f7a3daa398ca71ab6fc9ce27e3a4138e6c821ed18e",
+   "variant": "target",
+   "cell": "enable-after-restore",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-baseline-rep-1-2026-11-23T08-17-51-612Z.json",
+   "sha256": "00ccfc4aef7dd590d00ae9d0084711fc7ccc5edbbff346fafdc0e67a0f8a2ebc",
+   "variant": "baseline",
+   "cell": "pan-disabled",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-pan-disabled-baseline-rep0-2026-11-23T08-18-45-439Z.json",
+   "sha256": "d96d7058c80b6358ae55ad4be0b253ed10dd638233c690556744fb2b1ed456ce",
+   "variant": "baseline",
+   "cell": "pan-disabled",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-baseline-rep1-2026-11-23T08-19-04-132Z.json",
+   "sha256": "5d0d9c6f84a58aa841e79bdd97cbf9e119fbda212440024f3247724f92191df9",
+   "variant": "baseline",
+   "cell": "pan-disabled",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-baseline-rep2-2026-11-23T08-19-55-894Z.json",
+   "sha256": "04e92306576b2e083cf3ec02a4163085af15d08b92be2c563901315af0025142",
+   "variant": "baseline",
+   "cell": "pan-disabled",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-target-rep-1-2026-11-23T08-18-10-725Z.json",
+   "sha256": "3e9c9f700c2f141fa32cd6ac150ade94ac00f2b8428259cedc9baa15d0280ef3",
+   "variant": "target",
+   "cell": "pan-disabled",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-pan-disabled-target-rep0-2026-11-23T08-18-28-071Z.json",
+   "sha256": "20a0c3eff659c1545cdb211ce677774bf710e9fe8b2856940701256979f7775f",
+   "variant": "target",
+   "cell": "pan-disabled",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-target-rep1-2026-11-23T08-19-21-674Z.json",
+   "sha256": "5303ac5d3bf2a185b0983653a8d1e09ae7c3a57778f7764d4c5dfd3323e58f37",
+   "variant": "target",
+   "cell": "pan-disabled",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-target-rep2-2026-11-23T08-19-38-258Z.json",
+   "sha256": "b418470ced6bc1942c8342a97db8879263ba87db1c78ad750181579913f974a4",
+   "variant": "target",
+   "cell": "pan-disabled",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-warm-baseline-rep0-2026-11-23T08-36-33-157Z.json",
+   "sha256": "aa48a0c8108372882846479b6bc7e28990312cee229cae77bc76c16d7070d8b3",
+   "variant": "baseline",
+   "cell": "pan-disabled-warm",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-warm-baseline-rep1-2026-11-23T08-38-12-395Z.json",
+   "sha256": "96997322986f6ee7ce8719432629423615e718da6af87fed0ac2f6fa3aac8b36",
+   "variant": "baseline",
+   "cell": "pan-disabled-warm",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-warm-target-rep0-2026-11-23T08-37-06-329Z.json",
+   "sha256": "9601695c21e4d3128b21e3ff6b14de535f84d0f2027601306e4017fbf0da0dfb",
+   "variant": "target",
+   "cell": "pan-disabled-warm",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-disabled-warm-target-rep1-2026-11-23T08-37-37-574Z.json",
+   "sha256": "c3ba27e33943c62d93cabfc0d246fc3c1997f0bd94053a9d6c062e2badd138f7",
+   "variant": "target",
+   "cell": "pan-disabled-warm",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-mixed-baseline-rep-1-2026-11-23T08-20-17-798Z.json",
+   "sha256": "7628a6864f38a25fd0aa53f3581d2ad381c14bed61557aa0a51ef56ea2133037",
+   "variant": "baseline",
+   "cell": "pan-mixed",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-pan-mixed-baseline-rep0-2026-11-23T08-21-14-908Z.json",
+   "sha256": "7ac9b6dd778080c9cd25a8659c2ed3bdafe1fc35ed8680fd49173c8a52262736",
+   "variant": "baseline",
+   "cell": "pan-mixed",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-mixed-baseline-rep1-2026-11-23T08-21-32-970Z.json",
+   "sha256": "b8b7224eb7220875ed9cbdeb64918018249053605bb9464e8edc0c7d8b296a0c",
+   "variant": "baseline",
+   "cell": "pan-mixed",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-mixed-baseline-rep2-2026-11-23T08-22-26-189Z.json",
+   "sha256": "d16fbd7c7fb0f2eea09f4d4dc92108fdabf6f065e66f201d5e0ef5eb6505743f",
+   "variant": "baseline",
+   "cell": "pan-mixed",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-mixed-target-rep-1-2026-11-23T08-20-36-779Z.json",
+   "sha256": "dee9853eb6ca9167db2e7cd66208835fbd88e7c1d3d789a9cf699429b236ec9f",
+   "variant": "target",
+   "cell": "pan-mixed",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-pan-mixed-target-rep0-2026-11-23T08-20-54-414Z.json",
+   "sha256": "0f7d80591708971c0551827874ff32be1b8cd3667fdb91aea468401ddda23d78",
+   "variant": "target",
+   "cell": "pan-mixed",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-mixed-target-rep1-2026-11-23T08-21-49-879Z.json",
+   "sha256": "e437045e7b635fbd8800f7f738366e6896c9f316d7bddb8c597c1fe852cb1dd2",
+   "variant": "target",
+   "cell": "pan-mixed",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-pan-mixed-target-rep2-2026-11-23T08-22-08-492Z.json",
+   "sha256": "b598840cf0961dd7577740760deb4bee35ade1c77971f9c89d54cbb6639cf9f1",
+   "variant": "target",
+   "cell": "pan-mixed",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-baseline-rep-1-2026-11-23T08-12-13-523Z.json",
+   "sha256": "581b2d7b01241d2a5c703be4f8f9881add9fbfa239cca19dfdc714691abac28d",
+   "variant": "baseline",
+   "cell": "restore-disabled",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-restore-disabled-baseline-rep0-2026-11-23T08-12-45-113Z.json",
+   "sha256": "4c9d7c98ceb36da49c789bb64af7ed13305851966678eaf361880c49cba6cd94",
+   "variant": "baseline",
+   "cell": "restore-disabled",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-baseline-rep1-2026-11-23T08-13-08-652Z.json",
+   "sha256": "209cecddadcbabf76a96cd6b6e197764b20e9ae61a3d446aff4cd0f2bb2261ad",
+   "variant": "baseline",
+   "cell": "restore-disabled",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-baseline-rep2-2026-11-23T08-13-40-322Z.json",
+   "sha256": "8b70bb7ffacb9911f85788f7ac996d1ed24c8401217913b08135dcbf06995e41",
+   "variant": "baseline",
+   "cell": "restore-disabled",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-target-rep-1-2026-11-23T08-12-18-814Z.json",
+   "sha256": "e963dee5d4c52fcdd34e88ef6b2ed63c645a48db8c3afb49c1c8b61110318af0",
+   "variant": "target",
+   "cell": "restore-disabled",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-restore-disabled-target-rep0-2026-11-23T08-12-23-988Z.json",
+   "sha256": "e9a26ad30983ec19ea248f530a5ee3b9fcc43f7339d7c44602932e1fc55be558",
+   "variant": "target",
+   "cell": "restore-disabled",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-target-rep1-2026-11-23T08-13-13-945Z.json",
+   "sha256": "dc65ada1bed2678130046cae3bb1a5d9f937ab7f5f98356815a27cab9bf090dc",
+   "variant": "target",
+   "cell": "restore-disabled",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-target-rep2-2026-11-23T08-13-19-077Z.json",
+   "sha256": "dbc001da1073f843cb084f98783293d3775560e3d841fee14bd725317dea77c4",
+   "variant": "target",
+   "cell": "restore-disabled",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-warm-baseline-rep0-2026-11-23T08-34-52-148Z.json",
+   "sha256": "8906e3c0194106b6b4c3334aec43d484c2fb689349264366c6d87d81a70e46c4",
+   "variant": "baseline",
+   "cell": "restore-disabled-warm",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-warm-baseline-rep1-2026-11-23T08-35-57-983Z.json",
+   "sha256": "af01849764b6771784709bdff3449188d4d419f4d276a01811a77552867aae03",
+   "variant": "baseline",
+   "cell": "restore-disabled-warm",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-warm-target-rep0-2026-11-23T08-35-02-250Z.json",
+   "sha256": "d08b5b746b0b863c70031f96af1f73eba4fc197d7abdf3dd6b5aa03b4afb4536",
+   "variant": "target",
+   "cell": "restore-disabled-warm",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-disabled-warm-target-rep1-2026-11-23T08-35-13-591Z.json",
+   "sha256": "496fb3bdcaf43fa8a9a3d7f53671ead64fdaff13798a1f45b423a61a1e465029",
+   "variant": "target",
+   "cell": "restore-disabled-warm",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-enabled-baseline-rep-1-2026-11-23T08-15-56-536Z.json",
+   "sha256": "131f53bac115ff9ecd73e1a1c771ff542e3d40329bc17ef9cac4c0bd710ea169",
+   "variant": "baseline",
+   "cell": "restore-enabled",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-restore-enabled-baseline-rep0-2026-11-23T08-16-33-013Z.json",
+   "sha256": "a08a3b22ced4509f99b56d8be16eca579e4faec2d32450e8d3fe7c49c20a3d9a",
+   "variant": "baseline",
+   "cell": "restore-enabled",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-enabled-baseline-rep1-2026-11-23T08-16-57-390Z.json",
+   "sha256": "c10ad18e3c90e9e562ed2d0bdb6dca21a8383a57d8c6196967a16a26be8c834d",
+   "variant": "baseline",
+   "cell": "restore-enabled",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-enabled-baseline-rep2-2026-11-23T08-17-33-999Z.json",
+   "sha256": "5abc4103e5b14650151dcd7e1c9b4f0389f518d3982c87123bd80b1d0e015477",
+   "variant": "baseline",
+   "cell": "restore-enabled",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-enabled-target-rep-1-2026-11-23T08-16-02-036Z.json",
+   "sha256": "ceecffd86edfed07131d655a4834be500ac191abd3879099011741fd4936d095",
+   "variant": "target",
+   "cell": "restore-enabled",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-restore-enabled-target-rep0-2026-11-23T08-16-09-548Z.json",
+   "sha256": "a73b06f706660ac071155d93d104c88c17966ff22576c21f75b8e15e49ff9fee",
+   "variant": "target",
+   "cell": "restore-enabled",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-enabled-target-rep1-2026-11-23T08-17-03-436Z.json",
+   "sha256": "e99a609d263dd9c556d095d20873e18185a722ba57bfca45cc3d34c4d501fc15",
+   "variant": "target",
+   "cell": "restore-enabled",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-enabled-target-rep2-2026-11-23T08-17-09-702Z.json",
+   "sha256": "4b742b9de31d2112bdaea4942264b284c37f8cecd5ce78ebd52fdde251a6a1dd",
+   "variant": "target",
+   "cell": "restore-enabled",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-mixed-baseline-rep-1-2026-11-23T08-14-02-383Z.json",
+   "sha256": "5797e17eeab4686a677f52299785d91728be85c8cc31967d9d25866d97b63e4f",
+   "variant": "baseline",
+   "cell": "restore-mixed",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-restore-mixed-baseline-rep0-2026-11-23T08-14-36-219Z.json",
+   "sha256": "88c0ac16c7e69ef59a812c15de3ed76ab47b18657b7a4c29cb6361c30b3f197f",
+   "variant": "baseline",
+   "cell": "restore-mixed",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-mixed-baseline-rep1-2026-11-23T08-14-58-300Z.json",
+   "sha256": "f50e7f49deb16983fdb6026e2a632f8b147adf7dfc11e8a6c239f8250454a259",
+   "variant": "baseline",
+   "cell": "restore-mixed",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-mixed-baseline-rep2-2026-11-23T08-15-35-483Z.json",
+   "sha256": "31194897a4b3d933139029de2bd75cd694587bbcbcb5fa13b4ee43e8754e2e62",
+   "variant": "baseline",
+   "cell": "restore-mixed",
+   "rep": 2,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-mixed-target-rep-1-2026-11-23T08-14-08-863Z.json",
+   "sha256": "9a0e40ac6423d6c0d4ec68f1d893407e071ff5d0249b7053e36d124cb753a491",
+   "variant": "target",
+   "cell": "restore-mixed",
+   "rep": -1,
+   "measured": false
+  },
+  {
+   "file": "history-indicator-restore-mixed-target-rep0-2026-11-23T08-14-14-523Z.json",
+   "sha256": "eead8428ad1c812b8c82d0d2f1f6f7aa3e780fda0c142c6b2a992cd2359cb234",
+   "variant": "target",
+   "cell": "restore-mixed",
+   "rep": 0,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-mixed-target-rep1-2026-11-23T08-15-04-343Z.json",
+   "sha256": "903d0eea4225ddc9455a5bc88007936ebb4174403e4fa66b079d28a9284b0fc1",
+   "variant": "target",
+   "cell": "restore-mixed",
+   "rep": 1,
+   "measured": true
+  },
+  {
+   "file": "history-indicator-restore-mixed-target-rep2-2026-11-23T08-15-11-334Z.json",
+   "sha256": "4cd788c1e91c24a1e5554174124ae0a6bc7bd88cb69a9ab53abdb7d56f5a45c1",
+   "variant": "target",
+   "cell": "restore-mixed",
+   "rep": 2,
+   "measured": true
+  }
+ ],
+ "cells": {
+  "enable-after-restore": {
+   "baseline": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 0,
+     "values": [
+      0,
+      0,
+      0
+     ]
+    },
+    "contextRequests": [
+     0,
+     0,
+     0
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": null,
+     "min": null,
+     "max": null
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 55,
+      "values": [
+       53,
+       119,
+       55
+      ]
+     },
+     "maxMs": {
+      "median": 55,
+      "max": 60
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 50,
+     "over100": 0,
+     "valuesP95": [
+      16.8,
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 0,
+     "maxPageMs": null,
+     "windows": 0
+    },
+    "wallMs": {
+     "median": 23045
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 19.9,
+      "values": [
+       22.8,
+       19.9,
+       14.8
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 278.2,
+      "values": [
+       278.2,
+       261.7,
+       292
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 112.6,
+      "values": [
+       128.9,
+       112.6,
+       81
+      ]
+     },
+     "computeEmaLine": {
+      "median": 50.9,
+      "values": [
+       54.2,
+       42.4,
+       50.9
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 7.1,
+      "values": [
+       2.3,
+       8.8,
+       7.1
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 2.7,
+      "values": [
+       2.7,
+       1.8,
+       2.7
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 114.3,
+      "values": [
+       114.3,
+       95.9,
+       149.7
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 1.7,
+      "values": [
+       1.4,
+       1.7,
+       1.7
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 7.5,
+      "values": [
+       7.5,
+       4.9,
+       10.6
+      ]
+     },
+     "setData": {
+      "median": 1.9,
+      "values": [
+       1.9,
+       0,
+       3.5
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 12.9,
+      "values": [
+       20,
+       7.3,
+       12.9
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 3.9,
+      "values": [
+       5.9,
+       3.1,
+       3.9
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "8a1494b730a98b6dcbb0d758f194a400524b100a0f1769037c3a24f64ead20a5",
+     "8a1494b730a98b6dcbb0d758f194a400524b100a0f1769037c3a24f64ead20a5",
+     "8a1494b730a98b6dcbb0d758f194a400524b100a0f1769037c3a24f64ead20a5"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": [
+     {
+      "windowStart": 21033.400000095367,
+      "pixelDiff": {
+       "sizeMismatch": false,
+       "differing": 39908,
+       "total": 1222792
+      },
+      "fetchesAfterToggle": []
+     },
+     {
+      "windowStart": 20518.200000286102,
+      "pixelDiff": {
+       "sizeMismatch": false,
+       "differing": 39908,
+       "total": 1222792
+      },
+      "fetchesAfterToggle": []
+     },
+     {
+      "windowStart": 22298.5,
+      "pixelDiff": {
+       "sizeMismatch": false,
+       "differing": 39908,
+       "total": 1222792
+      },
+      "fetchesAfterToggle": []
+     }
+    ]
+   },
+   "target": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 0,
+     "values": [
+      0,
+      0,
+      0
+     ]
+    },
+    "contextRequests": [
+     0,
+     0,
+     0
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": null,
+     "min": null,
+     "max": null
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 222,
+      "values": [
+       467,
+       73,
+       222
+      ]
+     },
+     "maxMs": {
+      "median": 103,
+      "max": 206
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 150,
+     "over100": 1,
+     "valuesP95": [
+      16.8,
+      16.7,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 0,
+     "maxPageMs": null,
+     "windows": 0
+    },
+    "wallMs": {
+     "median": 7087
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0,
+      "values": [
+       0,
+       0.4,
+       0
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 2.1,
+      "values": [
+       8.5,
+       2.1,
+       2
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       1.1,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 2.1,
+      "values": [
+       3,
+       1.8,
+       2.1
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "8a1494b730a98b6dcbb0d758f194a400524b100a0f1769037c3a24f64ead20a5",
+     "8a1494b730a98b6dcbb0d758f194a400524b100a0f1769037c3a24f64ead20a5",
+     "8a1494b730a98b6dcbb0d758f194a400524b100a0f1769037c3a24f64ead20a5"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": [
+     {
+      "windowStart": 4284,
+      "pixelDiff": {
+       "sizeMismatch": false,
+       "differing": 39908,
+       "total": 1222792
+      },
+      "fetchesAfterToggle": []
+     },
+     {
+      "windowStart": 4312.900000095367,
+      "pixelDiff": {
+       "sizeMismatch": false,
+       "differing": 39908,
+       "total": 1222792
+      },
+      "fetchesAfterToggle": []
+     },
+     {
+      "windowStart": 4157.800000190735,
+      "pixelDiff": {
+       "sizeMismatch": false,
+       "differing": 39908,
+       "total": 1222792
+      },
+      "fetchesAfterToggle": []
+     }
+    ]
+   }
+  },
+  "pan-disabled-warm": {
+   "baseline": {
+    "runs": 2,
+    "warmups": 0,
+    "pages": {
+     "median": 6,
+     "values": [
+      6,
+      6
+     ]
+    },
+    "contextRequests": [
+     0,
+     0
+    ],
+    "allPageRequests": [
+     6,
+     6
+    ],
+    "burstWallMs": null,
+    "restoredPages": [
+     6,
+     6
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 758,
+      "values": [
+       637,
+       879
+      ]
+     },
+     "maxMs": {
+      "median": 207,
+      "max": 231
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 208.4,
+     "over100": 3,
+     "valuesP95": [
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 758,
+     "maxPageMs": 231,
+     "windows": 6
+    },
+    "wallMs": {
+     "median": 18000.5
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 1.3,
+      "values": [
+       1.8,
+       0.8
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 18.2,
+      "values": [
+       11.4,
+       25
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 5.7,
+      "values": [
+       3.7,
+       7.6
+      ]
+     },
+     "computeEmaLine": {
+      "median": 2.1,
+      "values": [
+       2.2,
+       1.9
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0.2,
+      "values": [
+       0,
+       0.3
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 1.2,
+      "values": [
+       1,
+       1.3
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 6.4,
+      "values": [
+       5,
+       7.8
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 0.9,
+      "values": [
+       1.2,
+       0.6
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0.9,
+      "values": [
+       1.2,
+       0.5
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0.2,
+      "values": [
+       0.3,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "7307d82ed9ac4cdc3bf3b0f8d30f6332cedf70c88e9903d36f0819c1da396c95",
+     "7307d82ed9ac4cdc3bf3b0f8d30f6332cedf70c88e9903d36f0819c1da396c95"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 2,
+    "warmups": 0,
+    "pages": {
+     "median": 6,
+     "values": [
+      6,
+      6
+     ]
+    },
+    "contextRequests": [
+     0,
+     0
+    ],
+    "allPageRequests": [
+     6,
+     6
+    ],
+    "burstWallMs": null,
+    "restoredPages": [
+     6,
+     6
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 68,
+      "values": [
+       136,
+       0
+      ]
+     },
+     "maxMs": {
+      "median": 35.5,
+      "max": 71
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 33.4,
+     "over100": 0,
+     "valuesP95": [
+      16.8,
+      16.7
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 35.5,
+     "maxPageMs": 71,
+     "windows": 6
+    },
+    "wallMs": {
+     "median": 17019
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0.2,
+      "values": [
+       0,
+       0.3
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 3.1,
+      "values": [
+       6.1,
+       0
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "7307d82ed9ac4cdc3bf3b0f8d30f6332cedf70c88e9903d36f0819c1da396c95",
+     "f58709a0b42c8e473b406c7cb09bdf89dbb11a8fdbf8847295d34e8665154ecb"
+    ],
+    "screenshotParityAcrossMeasured": false,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699802960,
+       "to": 1699832720
+      },
+      "visibleLogicalRange": {
+       "from": 466.9608433734951,
+       "to": 961.4427710843383
+      },
+      "visibleBars": 496,
+      "rightOffset": -2787.5572289156617
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  },
+  "pan-disabled": {
+   "baseline": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 6,
+     "values": [
+      6,
+      6,
+      6
+     ]
+    },
+    "contextRequests": [
+     0,
+     0,
+     0
+    ],
+    "allPageRequests": [
+     6,
+     6,
+     6
+    ],
+    "burstWallMs": null,
+    "restoredPages": [
+     6,
+     6,
+     6
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 808,
+      "values": [
+       808,
+       1497,
+       772
+      ]
+     },
+     "maxMs": {
+      "median": 255,
+      "max": 654
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 250,
+     "over100": 5,
+     "valuesP95": [
+      16.8,
+      16.8,
+      16.7
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 808,
+     "maxPageMs": 654,
+     "windows": 6
+    },
+    "wallMs": {
+     "median": 17534
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 1.6,
+      "values": [
+       1.6,
+       1.3,
+       3.1
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 13.4,
+      "values": [
+       13.4,
+       24.9,
+       7
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 3.3,
+      "values": [
+       3.1,
+       7.6,
+       3.3
+      ]
+     },
+     "computeEmaLine": {
+      "median": 3.2,
+      "values": [
+       3.2,
+       2.3,
+       3.5
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0.1,
+      "values": [
+       0.1,
+       5.3,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0.3,
+      "values": [
+       0.3,
+       0,
+       0.3
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 7.3,
+      "values": [
+       4.4,
+       9.7,
+       7.3
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0.3,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 1,
+      "values": [
+       1,
+       1.1,
+       0.3
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0.3,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0.8,
+      "values": [
+       2.3,
+       0.8,
+       0.4
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0.3,
+      "values": [
+       0,
+       1.3,
+       0.3
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "865c6045ffc4656459fd5872a2b07425a6c7d01f64cf1f849be2b7be53ad570d",
+     "f58709a0b42c8e473b406c7cb09bdf89dbb11a8fdbf8847295d34e8665154ecb",
+     "7307d82ed9ac4cdc3bf3b0f8d30f6332cedf70c88e9903d36f0819c1da396c95"
+    ],
+    "screenshotParityAcrossMeasured": false,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1699800320,
+       "to": 1699830320
+      },
+      "visibleLogicalRange": {
+       "from": 422.13373860182287,
+       "to": 921.1337386018231
+      },
+      "visibleBars": 500,
+      "rightOffset": -2827.866261398177
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699802960,
+       "to": 1699832720
+      },
+      "visibleLogicalRange": {
+       "from": 466.9608433734951,
+       "to": 961.4427710843383
+      },
+      "visibleBars": 496,
+      "rightOffset": -2787.5572289156617
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 6,
+     "values": [
+      6,
+      6,
+      6
+     ]
+    },
+    "contextRequests": [
+     0,
+     0,
+     0
+    ],
+    "allPageRequests": [
+     6,
+     6,
+     6
+    ],
+    "burstWallMs": null,
+    "restoredPages": [
+     6,
+     6,
+     6
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "maxMs": {
+      "median": 0,
+      "max": 0
+     }
+    },
+    "frames": {
+     "p95Ms": 16.7,
+     "p50Ms": 16.7,
+     "maxMs": 33.3,
+     "over100": 0,
+     "valuesP95": [
+      16.7,
+      16.8,
+      16.7
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 0,
+     "maxPageMs": 0,
+     "windows": 6
+    },
+    "wallMs": {
+     "median": 17228
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0,
+      "values": [
+       0.2,
+       0,
+       0
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 1.1,
+      "values": [
+       1.1,
+       2.4,
+       0.2
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "dbe817ebeae05db4a213fff4e2625aacb2913f51461c7420d8e1282ce295dfa7",
+     "ffcb5ca4a949cad3fc88bbb2da36ab6194efaf67289c49bd0bb2f098724ef816",
+     "7307d82ed9ac4cdc3bf3b0f8d30f6332cedf70c88e9903d36f0819c1da396c95"
+    ],
+    "screenshotParityAcrossMeasured": false,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1699802120,
+       "to": 1699831820
+      },
+      "visibleLogicalRange": {
+       "from": 452.2771084337363,
+       "to": 946.7590361445796
+      },
+      "visibleBars": 495,
+      "rightOffset": -2802.2409638554204
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699800320,
+       "to": 1699830320
+      },
+      "visibleLogicalRange": {
+       "from": 422.133738601824,
+       "to": 921.133738601824
+      },
+      "visibleBars": 500,
+      "rightOffset": -2827.866261398176
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  },
+  "pan-mixed": {
+   "baseline": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 6,
+     "values": [
+      6,
+      6,
+      6
+     ]
+    },
+    "contextRequests": [
+     0,
+     0,
+     0
+    ],
+    "allPageRequests": [
+     6,
+     6,
+     6
+    ],
+    "burstWallMs": null,
+    "restoredPages": [
+     6,
+     6,
+     6
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 797,
+      "values": [
+       1094,
+       797,
+       767
+      ]
+     },
+     "maxMs": {
+      "median": 172,
+      "max": 233
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 166.7,
+     "over100": 5,
+     "valuesP95": [
+      16.8,
+      16.7,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 797,
+     "maxPageMs": 233,
+     "windows": 6
+    },
+    "wallMs": {
+     "median": 17989
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 1.8,
+      "values": [
+       0.9,
+       1.8,
+       7.5
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 13,
+      "values": [
+       12.6,
+       13,
+       15.7
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 5.9,
+      "values": [
+       2.4,
+       5.9,
+       6.3
+      ]
+     },
+     "computeEmaLine": {
+      "median": 2.3,
+      "values": [
+       2.3,
+       1.3,
+       4.7
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0.5,
+      "values": [
+       0.3,
+       0.5,
+       1.1
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0.3,
+      "values": [
+       0,
+       0.3,
+       1.6
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 4.1,
+      "values": [
+       3.4,
+       4.1,
+       4.7
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0.7,
+      "values": [
+       0.8,
+       0.7,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 2,
+      "values": [
+       2,
+       4.3,
+       0.8
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 1,
+      "values": [
+       1.8,
+       1,
+       0.8
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0.7,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "f7f52480394f2628b52e8f4765d4628b3070d2e6834a168991e4d5442d85db74",
+     "7ba850c2d5e2135db3d4d2525f6850bab6b91f40b847eb8e40aedc54e14b7854",
+     "c7665b5cfe38851e4ecafe3834d8a9557d15dfa8cad3b3643ade80d7ba5eca51"
+    ],
+    "screenshotParityAcrossMeasured": false,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1699802960,
+       "to": 1699832720
+      },
+      "visibleLogicalRange": {
+       "from": 466.9608433734951,
+       "to": 961.4427710843383
+      },
+      "visibleBars": 496,
+      "rightOffset": -2787.5572289156617
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699802120,
+       "to": 1699831820
+      },
+      "visibleLogicalRange": {
+       "from": 452.2771084337363,
+       "to": 946.7590361445796
+      },
+      "visibleBars": 495,
+      "rightOffset": -2802.2409638554204
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 6,
+     "values": [
+      6,
+      6,
+      6
+     ]
+    },
+    "contextRequests": [
+     0,
+     0,
+     0
+    ],
+    "allPageRequests": [
+     6,
+     6,
+     6
+    ],
+    "burstWallMs": null,
+    "restoredPages": [
+     6,
+     6,
+     6
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": null,
+      "values": []
+     },
+     "maxMs": {
+      "median": null,
+      "max": null
+     },
+     "count": null
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 0,
+      "values": [
+       0,
+       60,
+       0
+      ]
+     },
+     "maxMs": {
+      "median": 0,
+      "max": 60
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 50,
+     "over100": 0,
+     "valuesP95": [
+      16.8,
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 0,
+     "maxPageMs": 60,
+     "windows": 6
+    },
+    "wallMs": {
+     "median": 17556
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0,
+      "values": [
+       0,
+       0.9,
+       0
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 2.6,
+      "values": [
+       3.5,
+       2.6,
+       1.7
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0.3,
+      "values": [
+       0.5,
+       0,
+       0.3
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 1.8,
+      "values": [
+       4,
+       1.8,
+       1.5
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0.3,
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "7ba850c2d5e2135db3d4d2525f6850bab6b91f40b847eb8e40aedc54e14b7854",
+     "f7f52480394f2628b52e8f4765d4628b3070d2e6834a168991e4d5442d85db74",
+     "7ba850c2d5e2135db3d4d2525f6850bab6b91f40b847eb8e40aedc54e14b7854"
+    ],
+    "screenshotParityAcrossMeasured": false,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699802960,
+       "to": 1699832720
+      },
+      "visibleLogicalRange": {
+       "from": 466.9608433734951,
+       "to": 961.4427710843383
+      },
+      "visibleBars": 496,
+      "rightOffset": -2787.5572289156617
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1699801160,
+       "to": 1699831160
+      },
+      "visibleLogicalRange": {
+       "from": 436.9513677811551,
+       "to": 935.9513677811551
+      },
+      "visibleBars": 500,
+      "rightOffset": -2813.048632218845
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  },
+  "restore-disabled-warm": {
+   "baseline": {
+    "runs": 2,
+    "warmups": 0,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 17080.4,
+     "min": 16749.2,
+     "max": 17411.6
+    },
+    "restoredPages": [
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 17024.5,
+      "values": [
+       16798,
+       17251
+      ]
+     },
+     "maxMs": {
+      "median": 1009.5,
+      "max": 1051
+     },
+     "count": 37
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 17054.5,
+      "values": [
+       16798,
+       17311
+      ]
+     },
+     "maxMs": {
+      "median": 1009.5,
+      "max": 1051
+     }
+    },
+    "frames": {
+     "p95Ms": 575.1,
+     "p50Ms": 16.7,
+     "maxMs": 1016.6,
+     "over100": 33.5,
+     "valuesP95": [
+      550,
+      600.1
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 16990.5,
+     "maxPageMs": 1051,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 21919.5
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 15.6,
+      "values": [
+       15.7,
+       15.4
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 293.5,
+      "values": [
+       289.2,
+       297.7
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 100.4,
+      "values": [
+       97.9,
+       102.9
+      ]
+     },
+     "computeEmaLine": {
+      "median": 44.8,
+      "values": [
+       36.4,
+       53.3
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 5.1,
+      "values": [
+       3.7,
+       6.5
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 4,
+      "values": [
+       4.7,
+       3.2
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 114.4,
+      "values": [
+       115.2,
+       113.5
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 2.8,
+      "values": [
+       1.1,
+       4.5
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 8.2,
+      "values": [
+       4.2,
+       12.2
+      ]
+     },
+     "setData": {
+      "median": 0.5,
+      "values": [
+       0.9,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 14.5,
+      "values": [
+       15.6,
+       13.3
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 2.8,
+      "values": [
+       2.5,
+       3
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12",
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 2,
+    "warmups": 0,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 662.7,
+     "min": 629.7,
+     "max": 695.7
+    },
+    "restoredPages": [
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "maxMs": {
+      "median": 0,
+      "max": 0
+     },
+     "count": 0
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "maxMs": {
+      "median": 0,
+      "max": 0
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 166.6,
+     "over100": 1,
+     "valuesP95": [
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 0,
+     "maxPageMs": 0,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 5539.5
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0.8,
+      "values": [
+       0.3,
+       1.2
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 4,
+      "values": [
+       5,
+       2.9
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12",
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  },
+  "restore-disabled": {
+   "baseline": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 16741.8,
+     "min": 16577.2,
+     "max": 18884.4
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 16735,
+      "values": [
+       16706,
+       18861,
+       16735
+      ]
+     },
+     "maxMs": {
+      "median": 962,
+      "max": 1780
+     },
+     "count": 37
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 16975,
+      "values": [
+       16975,
+       19115,
+       16919
+      ]
+     },
+     "maxMs": {
+      "median": 962,
+      "max": 1780
+     }
+    },
+    "frames": {
+     "p95Ms": 533.3,
+     "p50Ms": 16.7,
+     "maxMs": 949.9,
+     "over100": 35,
+     "valuesP95": [
+      550,
+      516.8,
+      533.3
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 16735,
+     "maxPageMs": 1780,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 21146
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 15.4,
+      "values": [
+       17.1,
+       15.4,
+       11.2
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 293.4,
+      "values": [
+       293.4,
+       282.3,
+       314.1
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 98.4,
+      "values": [
+       95,
+       102.5,
+       98.4
+      ]
+     },
+     "computeEmaLine": {
+      "median": 47.5,
+      "values": [
+       48,
+       47.5,
+       45
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 4.6,
+      "values": [
+       2.8,
+       4.6,
+       5.1
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 3.7,
+      "values": [
+       5.7,
+       3.5,
+       3.7
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 112.9,
+      "values": [
+       100.6,
+       117.7,
+       112.9
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 2.2,
+      "values": [
+       2.2,
+       3.4,
+       1.4
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 6.3,
+      "values": [
+       7.7,
+       5.5,
+       6.3
+      ]
+     },
+     "setData": {
+      "median": 0.3,
+      "values": [
+       0.3,
+       0.3,
+       1.9
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 12.4,
+      "values": [
+       12.4,
+       14,
+       8.6
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 2.8,
+      "values": [
+       2.8,
+       3,
+       1.9
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12",
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12",
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 531.7,
+     "min": 494.7,
+     "max": 565.6
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 51,
+      "values": [
+       51,
+       58,
+       51
+      ]
+     },
+     "maxMs": {
+      "median": 51,
+      "max": 58
+     },
+     "count": 1
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 252,
+      "values": [
+       275,
+       252,
+       227
+      ]
+     },
+     "maxMs": {
+      "median": 100,
+      "max": 121
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 116.6,
+     "over100": 1,
+     "valuesP95": [
+      16.8,
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 51,
+     "maxPageMs": 58,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 5105
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0.4,
+      "values": [
+       0.4,
+       0.5,
+       0.3
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0.3,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 4,
+      "values": [
+       4,
+       1.3,
+       7.9
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12",
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12",
+     "878e872a75ae4b506eb737bf79539425713af834caacc158a6b014392f8cbc12"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  },
+  "restore-enabled": {
+   "baseline": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 19429.8,
+     "min": 18733.2,
+     "max": 19728.6
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 19098,
+      "values": [
+       18566,
+       19295,
+       19098
+      ]
+     },
+     "maxMs": {
+      "median": 1209,
+      "max": 1212
+     },
+     "count": 42
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 19495,
+      "values": [
+       18995,
+       19511,
+       19495
+      ]
+     },
+     "maxMs": {
+      "median": 1209,
+      "max": 1212
+     }
+    },
+    "frames": {
+     "p95Ms": 633.2,
+     "p50Ms": 16.7,
+     "maxMs": 1249.9,
+     "over100": 37,
+     "valuesP95": [
+      683.2,
+      633.2,
+      616.7
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 19035,
+     "maxPageMs": 1212,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 24206
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 11.3,
+      "values": [
+       13.9,
+       8.3,
+       11.3
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 287.9,
+      "values": [
+       287.6,
+       287.9,
+       301.8
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 114.9,
+      "values": [
+       111.3,
+       114.9,
+       130.4
+      ]
+     },
+     "computeEmaLine": {
+      "median": 48.2,
+      "values": [
+       47.2,
+       48.2,
+       48.9
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 4.9,
+      "values": [
+       5.8,
+       3.6,
+       4.9
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 3.6,
+      "values": [
+       3.3,
+       5.1,
+       3.6
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 105.8,
+      "values": [
+       105.8,
+       119.7,
+       100.4
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 1.3,
+      "values": [
+       0.9,
+       2.9,
+       1.3
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 4.7,
+      "values": [
+       4.7,
+       1.6,
+       6.1
+      ]
+     },
+     "setData": {
+      "median": 0.6,
+      "values": [
+       0.3,
+       0.6,
+       1.6
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 14.5,
+      "values": [
+       16.2,
+       12.5,
+       14.5
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 4.1,
+      "values": [
+       3.9,
+       4.2,
+       4.1
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "f15cd92f0761b6ed0c4ac8fd27077405f28bd438ba72fe4a603bc6a5632fa38d",
+     "f15cd92f0761b6ed0c4ac8fd27077405f28bd438ba72fe4a603bc6a5632fa38d",
+     "f15cd92f0761b6ed0c4ac8fd27077405f28bd438ba72fe4a603bc6a5632fa38d"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 720.8,
+     "min": 604.8,
+     "max": 1258.8
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 757,
+      "values": [
+       862,
+       757,
+       654
+      ]
+     },
+     "maxMs": {
+      "median": 380,
+      "max": 400
+     },
+     "count": 4
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 1025,
+      "values": [
+       1358,
+       953,
+       1025
+      ]
+     },
+     "maxMs": {
+      "median": 380,
+      "max": 400
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 550,
+     "over100": 3,
+     "valuesP95": [
+      16.8,
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 641,
+     "maxPageMs": 400,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 6052
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0.3,
+      "values": [
+       0.3,
+       0,
+       0.5
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 7,
+      "values": [
+       2.4,
+       7.5,
+       7
+      ]
+     },
+     "computeEmaLine": {
+      "median": 12.8,
+      "values": [
+       12.8,
+       14.9,
+       7.3
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 4,
+      "values": [
+       4.4,
+       2.6,
+       4
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 1.7,
+      "values": [
+       1,
+       3,
+       1.7
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "f15cd92f0761b6ed0c4ac8fd27077405f28bd438ba72fe4a603bc6a5632fa38d",
+     "f15cd92f0761b6ed0c4ac8fd27077405f28bd438ba72fe4a603bc6a5632fa38d",
+     "f15cd92f0761b6ed0c4ac8fd27077405f28bd438ba72fe4a603bc6a5632fa38d"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  },
+  "restore-mixed": {
+   "baseline": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 17434.2,
+     "min": 17124,
+     "max": 19387.7
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 17179,
+      "values": [
+       16792,
+       17179,
+       18898
+      ]
+     },
+     "maxMs": {
+      "median": 1037,
+      "max": 1056
+     },
+     "count": 39
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 17465,
+      "values": [
+       16973,
+       17465,
+       19198
+      ]
+     },
+     "maxMs": {
+      "median": 1037,
+      "max": 1056
+     }
+    },
+    "frames": {
+     "p95Ms": 533.3,
+     "p50Ms": 16.7,
+     "maxMs": 1050,
+     "over100": 35,
+     "valuesP95": [
+      533.3,
+      533.2,
+      583.3
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 17179,
+     "maxPageMs": 1056,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 22004
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 14.9,
+      "values": [
+       21.1,
+       12.2,
+       14.9
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 274.4,
+      "values": [
+       274.4,
+       270.5,
+       320.3
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 98.4,
+      "values": [
+       88.5,
+       98.4,
+       129.1
+      ]
+     },
+     "computeEmaLine": {
+      "median": 37.2,
+      "values": [
+       37.2,
+       37.1,
+       51
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 6.3,
+      "values": [
+       6.3,
+       4.2,
+       7.6
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 4.7,
+      "values": [
+       3.1,
+       5,
+       4.7
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 121.7,
+      "values": [
+       108.4,
+       123,
+       121.7
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 1.7,
+      "values": [
+       1.8,
+       1.7,
+       0.7
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 2.7,
+      "values": [
+       2,
+       4.2,
+       2.7
+      ]
+     },
+     "setData": {
+      "median": 0.6,
+      "values": [
+       0.6,
+       2.5,
+       0.6
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 16.6,
+      "values": [
+       16.6,
+       7.7,
+       17.6
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 2.4,
+      "values": [
+       2.2,
+       4,
+       2.4
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "2fef031a1d0015691a6aebf454b4df515c1599d0d0f4d8e93e6242a7ced516ad",
+     "2fef031a1d0015691a6aebf454b4df515c1599d0d0f4d8e93e6242a7ced516ad",
+     "2fef031a1d0015691a6aebf454b4df515c1599d0d0f4d8e93e6242a7ced516ad"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   },
+   "target": {
+    "runs": 3,
+    "warmups": 1,
+    "pages": {
+     "median": 38,
+     "values": [
+      38,
+      38,
+      38
+     ]
+    },
+    "contextRequests": [
+     1,
+     1,
+     1
+    ],
+    "allPageRequests": [
+     38,
+     38,
+     38
+    ],
+    "burstWallMs": {
+     "median": 718.1,
+     "min": 696.4,
+     "max": 1002.1
+    },
+    "restoredPages": [
+     38,
+     38,
+     38
+    ],
+    "burstLongTasks": {
+     "totalMs": {
+      "median": 404,
+      "values": [
+       389,
+       404,
+       780
+      ]
+     },
+     "maxMs": {
+      "median": 147,
+      "max": 355
+     },
+     "count": 4
+    },
+    "cellLongTasks": {
+     "totalMs": {
+      "median": 612,
+      "values": [
+       600,
+       612,
+       1257
+      ]
+     },
+     "maxMs": {
+      "median": 147,
+      "max": 355
+     }
+    },
+    "frames": {
+     "p95Ms": 16.8,
+     "p50Ms": 16.7,
+     "maxMs": 249.9,
+     "over100": 3,
+     "valuesP95": [
+      16.8,
+      16.8,
+      16.8
+     ]
+    },
+    "perPageLongTaskTotalMs": {
+     "median": 350,
+     "maxPageMs": 355,
+     "windows": 38
+    },
+    "wallMs": {
+     "median": 5959
+    },
+    "profileSelected": {
+     "applyChartHistorySeries": {
+      "median": 0.5,
+      "values": [
+       0.3,
+       0.5,
+       1.7
+      ]
+     },
+     "applyPlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeAnchoredVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeDailyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeEmaLine": {
+      "median": 7.9,
+      "values": [
+       5.3,
+       7.9,
+       8.9
+      ]
+     },
+     "computeMonthlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeQuarterlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeWeeklyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "computeYearlyVwap": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "hydratePlannedChartIndicatorSeries": {
+      "median": 0,
+      "values": [
+       0,
+       0.3,
+       0
+      ]
+     },
+     "loadOlderBtcPerpHistoryCore": {
+      "median": 2.9,
+      "values": [
+       2.9,
+       1.8,
+       8
+      ]
+     },
+     "setData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0.3
+      ]
+     },
+     "setEmaPeriodHistoryData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "setSessionVwapLineSeriesData": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     },
+     "updateDualEmaLive": {
+      "median": 0,
+      "values": [
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    "screenshots": [
+     "2fef031a1d0015691a6aebf454b4df515c1599d0d0f4d8e93e6242a7ced516ad",
+     "2fef031a1d0015691a6aebf454b4df515c1599d0d0f4d8e93e6242a7ced516ad",
+     "2fef031a1d0015691a6aebf454b4df515c1599d0d0f4d8e93e6242a7ced516ad"
+    ],
+    "screenshotParityAcrossMeasured": true,
+    "finalViewport": [
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     },
+     {
+      "visibleTimeRange": {
+       "from": 1698836000,
+       "to": 1698865940
+      },
+      "visibleLogicalRange": {
+       "from": 350,
+       "to": 849
+      },
+      "visibleBars": 499,
+      "rightOffset": -18900
+     }
+    ],
+    "errors": [],
+    "extra": []
+   }
+  }
+ },
+ "parity": {
+  "enable-after-restore": {
+   "identicalScreenshots": true,
+   "identicalPages": true,
+   "burstWindowMeasured": false,
+   "finalViewportEqual": true
+  },
+  "pan-disabled-warm": {
+   "identicalScreenshots": false,
+   "identicalPages": true,
+   "burstWindowMeasured": false,
+   "finalViewportEqual": true
+  },
+  "pan-disabled": {
+   "identicalScreenshots": false,
+   "identicalPages": true,
+   "burstWindowMeasured": false,
+   "finalViewportEqual": false
+  },
+  "pan-mixed": {
+   "identicalScreenshots": false,
+   "identicalPages": true,
+   "burstWindowMeasured": false,
+   "finalViewportEqual": false
+  },
+  "restore-disabled-warm": {
+   "identicalScreenshots": true,
+   "identicalPages": true,
+   "burstWindowMeasured": true,
+   "finalViewportEqual": true
+  },
+  "restore-disabled": {
+   "identicalScreenshots": true,
+   "identicalPages": true,
+   "burstWindowMeasured": true,
+   "finalViewportEqual": true
+  },
+  "restore-enabled": {
+   "identicalScreenshots": true,
+   "identicalPages": true,
+   "burstWindowMeasured": true,
+   "finalViewportEqual": true
+  },
+  "restore-mixed": {
+   "identicalScreenshots": true,
+   "identicalPages": true,
+   "burstWindowMeasured": true,
+   "finalViewportEqual": true
+  }
+ },
+ "headline": {
+  "restoreDisabledBurstLongTaskMs": {
+   "baselineMedian": 16735,
+   "targetMedian": 51,
+   "reductionFactor": 328.1
+  },
+  "restoreDisabledBurstWallMs": {
+   "baselineMedian": 16741.8,
+   "targetMedian": 531.7
+  },
+  "restoreDisabledFrameP95Ms": {
+   "baselineMedian": 533.3,
+   "targetMedian": 16.8
+  },
+  "panDisabledInteractionLongTaskMs": {
+   "baselineMedian": 808,
+   "targetMedian": 0
+  },
+  "restorePixelParity": {
+   "restore-disabled-warm": true,
+   "restore-disabled": true,
+   "restore-enabled": true,
+   "restore-mixed": true
+  }
+ },
+ "moduleWorkCounts": {
+  "sourceSha": "2558f85496bf37e1136c63a90711a87cf3efae71",
+  "rawFile": "history-indicator-micro-2026-11-23T08-10-57-302Z.json",
+  "rawFileSha256": "d9412d5999202747e2f62f4a5cdaec92ddd124b88bf01f6de667eabf4096eed6",
+  "contract": {
+   "initialBars": 750,
+   "pageBars": 500,
+   "restorePages": 38,
+   "finalBars": 19750
+  },
+  "singleApply": [
+   {
+    "bars": 750,
+    "plan": "disabled",
+    "medianMs": 0.214,
+    "samplesMs": [
+     0.103,
+     0.211,
+     0.233,
+     0.272,
+     0.214
+    ],
+    "candle": 1,
+    "indicatorLines": 0,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 1
+   },
+   {
+    "bars": 750,
+    "plan": "mixed",
+    "medianMs": 0.769,
+    "samplesMs": [
+     1.484,
+     4.833,
+     0.603,
+     0.327,
+     0.769
+    ],
+    "candle": 1,
+    "indicatorLines": 3,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 4
+   },
+   {
+    "bars": 750,
+    "plan": "enabled",
+    "medianMs": 2.075,
+    "samplesMs": [
+     4.465,
+     2.008,
+     1.869,
+     2.095,
+     2.075
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 3,
+    "bandUpdates": 1,
+    "rsi": 0,
+    "nativeSetDataTotal": 10
+   },
+   {
+    "bars": 750,
+    "plan": "oldCodeEverySeries",
+    "medianMs": 8.389,
+    "samplesMs": [
+     15.748,
+     7.945,
+     8.389,
+     12.166,
+     5.012
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 15,
+    "bandUpdates": 5,
+    "rsi": 0,
+    "nativeSetDataTotal": 26
+   },
+   {
+    "bars": 2250,
+    "plan": "disabled",
+    "medianMs": 0.113,
+    "samplesMs": [
+     1.228,
+     0.113,
+     0.059,
+     0.05,
+     0.137
+    ],
+    "candle": 1,
+    "indicatorLines": 0,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 1
+   },
+   {
+    "bars": 2250,
+    "plan": "mixed",
+    "medianMs": 0.328,
+    "samplesMs": [
+     1.732,
+     0.328,
+     0.3,
+     0.562,
+     0.305
+    ],
+    "candle": 1,
+    "indicatorLines": 3,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 4
+   },
+   {
+    "bars": 2250,
+    "plan": "enabled",
+    "medianMs": 5.716,
+    "samplesMs": [
+     7.366,
+     5.716,
+     5.007,
+     7.27,
+     4.175
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 3,
+    "bandUpdates": 1,
+    "rsi": 0,
+    "nativeSetDataTotal": 10
+   },
+   {
+    "bars": 2250,
+    "plan": "oldCodeEverySeries",
+    "medianMs": 12.075,
+    "samplesMs": [
+     12.075,
+     14.189,
+     10.728,
+     11.044,
+     12.473
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 15,
+    "bandUpdates": 5,
+    "rsi": 0,
+    "nativeSetDataTotal": 26
+   },
+   {
+    "bars": 4750,
+    "plan": "disabled",
+    "medianMs": 0.13,
+    "samplesMs": [
+     0.118,
+     0.209,
+     0.13,
+     0.103,
+     1.035
+    ],
+    "candle": 1,
+    "indicatorLines": 0,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 1
+   },
+   {
+    "bars": 4750,
+    "plan": "mixed",
+    "medianMs": 0.679,
+    "samplesMs": [
+     0.65,
+     2.39,
+     0.659,
+     0.993,
+     0.679
+    ],
+    "candle": 1,
+    "indicatorLines": 3,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 4
+   },
+   {
+    "bars": 4750,
+    "plan": "enabled",
+    "medianMs": 6.962,
+    "samplesMs": [
+     6.242,
+     6.962,
+     16.546,
+     11.095,
+     5.322
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 3,
+    "bandUpdates": 1,
+    "rsi": 0,
+    "nativeSetDataTotal": 10
+   },
+   {
+    "bars": 4750,
+    "plan": "oldCodeEverySeries",
+    "medianMs": 27.036,
+    "samplesMs": [
+     27.036,
+     33.486,
+     26.607,
+     28.316,
+     23.114
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 15,
+    "bandUpdates": 5,
+    "rsi": 0,
+    "nativeSetDataTotal": 26
+   },
+   {
+    "bars": 19750,
+    "plan": "disabled",
+    "medianMs": 0.715,
+    "samplesMs": [
+     3.55,
+     0.833,
+     0.684,
+     0.624,
+     0.715
+    ],
+    "candle": 1,
+    "indicatorLines": 0,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 1
+   },
+   {
+    "bars": 19750,
+    "plan": "mixed",
+    "medianMs": 12.009,
+    "samplesMs": [
+     9.909,
+     14.49,
+     6.311,
+     13.769,
+     12.009
+    ],
+    "candle": 1,
+    "indicatorLines": 3,
+    "vwapLines": 0,
+    "bandUpdates": 0,
+    "rsi": 0,
+    "nativeSetDataTotal": 4
+   },
+   {
+    "bars": 19750,
+    "plan": "enabled",
+    "medianMs": 42.807,
+    "samplesMs": [
+     42.807,
+     44.414,
+     45.209,
+     41.467,
+     37.27
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 3,
+    "bandUpdates": 1,
+    "rsi": 0,
+    "nativeSetDataTotal": 10
+   },
+   {
+    "bars": 19750,
+    "plan": "oldCodeEverySeries",
+    "medianMs": 157.507,
+    "samplesMs": [
+     157.507,
+     159.42,
+     143.025,
+     160.528,
+     131.696
+    ],
+    "candle": 1,
+    "indicatorLines": 5,
+    "vwapLines": 15,
+    "bandUpdates": 5,
+    "rsi": 0,
+    "nativeSetDataTotal": 26
+   }
+  ],
+  "restoreBurst": [
+   {
+    "configuration": "disabled",
+    "pages": 38,
+    "finalBars": 19750,
+    "oldBehavior": {
+     "medianMs": 2410.586,
+     "samplesMs": [
+      2623.827,
+      2410.586,
+      2420.089,
+      2263.731,
+      2262.062
+     ],
+     "candle": 38,
+     "indicatorLines": 190,
+     "vwapLines": 570,
+     "bandUpdates": 190,
+     "rsi": 0,
+     "nativeSetDataTotal": 988
+    },
+    "newBehavior": {
+     "medianMs": 89.863,
+     "samplesMs": [
+      101.259,
+      80.037,
+      92.39,
+      89.863,
+      82.114
+     ],
+     "candle": 1,
+     "indicatorLines": 0,
+     "vwapLines": 0,
+     "bandUpdates": 0,
+     "rsi": 0,
+     "nativeSetDataTotal": 1
+    }
+   },
+   {
+    "configuration": "mixed",
+    "pages": 38,
+    "finalBars": 19750,
+    "oldBehavior": {
+     "medianMs": 2294.736,
+     "samplesMs": [
+      2274.059,
+      2177.204,
+      2336.706,
+      2294.736,
+      2417.912
+     ],
+     "candle": 38,
+     "indicatorLines": 190,
+     "vwapLines": 570,
+     "bandUpdates": 190,
+     "rsi": 0,
+     "nativeSetDataTotal": 988
+    },
+    "newBehavior": {
+     "medianMs": 104.627,
+     "samplesMs": [
+      105.684,
+      104.627,
+      101.056,
+      108.386,
+      96.572
+     ],
+     "candle": 1,
+     "indicatorLines": 3,
+     "vwapLines": 0,
+     "bandUpdates": 0,
+     "rsi": 0,
+     "nativeSetDataTotal": 4
+    }
+   },
+   {
+    "configuration": "enabled",
+    "pages": 38,
+    "finalBars": 19750,
+    "oldBehavior": {
+     "medianMs": 2377.536,
+     "samplesMs": [
+      2377.536,
+      2616.572,
+      2516.049,
+      2200.888,
+      2327.598
+     ],
+     "candle": 38,
+     "indicatorLines": 190,
+     "vwapLines": 570,
+     "bandUpdates": 190,
+     "rsi": 0,
+     "nativeSetDataTotal": 988
+    },
+    "newBehavior": {
+     "medianMs": 133.622,
+     "samplesMs": [
+      122.71,
+      117.209,
+      133.622,
+      134.464,
+      134.061
+     ],
+     "candle": 1,
+     "indicatorLines": 5,
+     "vwapLines": 3,
+     "bandUpdates": 1,
+     "rsi": 0,
+     "nativeSetDataTotal": 10
+    }
+   }
+  ]
+ },
+ "limitations": [
+  "Browser cells run headless Chromium on the 2-vCPU task host through mocked /api/market responses; absolute milliseconds belong to this host, the paired delta is the result.",
+  "CPU budget functions come from a V8 sampling profiler at 200 us; they attribute self-time, not call counts. Native setData counts are exact in the module cells; the browser cells measure native cost end-to-end.",
+  "The camera for pan cells is driven by scripted mouse drags: baseline blocking coalesces pointer moves differently, so the exact final bar offset can differ (same page count, same 500-bar window). Pixel parity is claimed for the restore cells only.",
+  "The deferred restore burst shows the pre-burst window while pages load and the saved viewport after the single final apply + restore; the baseline shifted the logical range per page but the same bars stayed visible, so the intermediate images are equivalent.",
+  "WebSocket market updates are stubbed (no live ticks) in these cells; live indicator gating is covered by node:test, not by a live-feed browser cell.",
+  "The module work-count cells use counting series stubs, so they isolate JS derivation and count native calls without timing the library."
+ ]
+}
