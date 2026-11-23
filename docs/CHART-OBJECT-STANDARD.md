@@ -269,6 +269,102 @@ gap; every user-facing capability above stays the same.
   `src/market/rollingVwapBandSeriesPrimitive.test.ts`; real-library frames and
   same-input pixel/coordinate comparators: `e2e/rolling-vwap-band-primitive.spec.ts`.
 
+## Performance and cost contracts (MUST)
+
+Chart-object cost claims are reviewable only when the counted unit is named. The current inventory,
+the measured evidence and the unmeasured risks are in
+[CHART-PERFORMANCE-AUDIT.md](./CHART-PERFORMANCE-AUDIT.md); this section is the rule set that
+follows from it. These rules constrain *how* chart objects are built and how performance is claimed —
+they do not pick an architecture, a worker, a cache or a page cap.
+
+**Name the layer (MUST).** A claim, test or review must say which cost layer it is about:
+**(1)** source derivation over candles, **(2)** a native series data update (`setData`/`update`),
+**(3)** a primitive view rebuild (`updateAllViews()` geometry), or **(4)** paint (canvas draw calls in
+bitmap space, ×DPR). Requests (`requestUpdate()`/`invalidate()`) are a separate axis from painted
+frames and MUST NOT be reported as frames. "The formula is O(N)" is not a time claim; "the page took
+120 ms" is not evidence about which layer caused it.
+
+**Per-paint work MUST be bounded by what is drawn (MUST).** A renderer, view `update()` or geometry
+build MUST NOT walk the loaded candle history on every painted frame. It MUST be bounded either by
+the visible window plus its chronological neighbours (the pattern in
+[session band geometry](../src/market/sessionVwapBandRenderGeometry.ts), #252, and
+[Rolling VWAP band primitive](#rolling-vwap-band-primitive-262-must), #262) or by a bounded model
+count (number of drawings, instances, profile rows). Bounding by V is required for *paint* work; it
+is NOT a requirement for source derivation that runs once per history page or once per live tick —
+full-buffer EMA/RSI/VWAP recomputation is legitimate (see *Not requirements*).
+
+**Transforms are per paint; price-domain state may be incremental (MUST).** Coordinate and logical
+conversions (`timeToCoordinate`, `priceToCoordinate`, `logicalToCoordinate`, `coordinateToTime`) MUST
+be recomputed during the view rebuild for the current chart state; MUST NOT be cached across paints,
+frames, pans or resizes. A stale coordinate cache is a correctness bug, not an optimisation. Price-
+domain derived state (EMA recursion, rolling sums, session accumulators, anchor-sliced VWAP) MAY be
+maintained incrementally instead of recomputed, but only when it is exact and preserves the seeds,
+session boundaries, anchor terms and prepend behaviour below; the incremental result MUST equal the
+full recompute, and a counting/equality test MUST ship with it.
+
+**Native series first; a primitive needs evidence (MUST).** Prefer documented native series and
+official APIs. Moving native series into a series primitive is justified only by measured per-update
+cost, as #262 did for the Rolling VWAP bands (7 → 1 native updates per instance per tick). Object
+count alone is not a reason to build a primitive, and a new primitive MUST NOT replace a capability
+the official API already provides. When counting cost, count native series per rendered line: one
+native series per instance is one O(N) data update per tick in the installed 5.2.x line.
+
+**Inactive objects: no hidden history writes, exact hydration (MUST).** History application MUST NOT
+derive or write series data for a chart object that is not rendered in the current panel state
+(inactive indicator, disabled/hidden instance), except where that work is required for a rendered
+object. Deferring the work MUST NOT leave a renderable object stale: enabling a previously inactive
+object MUST hydrate it from the full loaded history before (or atomically with) making it visible, and
+from then on live ticks MUST keep it identical to an always-active reference — same seeds, session
+boundaries, anchor math and final values. A latest-point live update MUST NEVER be applied to a series
+that was not hydrated, and a deferral MUST NOT change the final loaded candles or the saved viewport.
+The existing RSI pane creation (`syncRsiPane` → `setRsiPaneHistoryData`) is the hydration reference.
+Status at base `6544e96`: not met — see the conformance gap P1 below; the fix is owned by the open
+task, not by this rule.
+
+**History and viewport invariants (MUST).** Any change on the history, live or paint path MUST
+preserve: the final requested candle count and pages actually honoured; the exact saved viewport
+(visible time range plus logical anchors and right offset); the EMA SMA seed and warmup; the RSI
+Wilder seed; UTC VWAP session boundaries (day, Monday week, calendar month/quarter/year); the Rolling
+VWAP window and `minBars` floor; the Anchored VWAP anchor and anchor-sliced walk; candle order,
+dedupe and live-bar final state; every colour, opacity, width, style and default; and the provider
+availability metadata (`available_from`, `history_unavailable`) that the notices rely on. Dropping
+requested pages, clamping the saved viewport, lowering history caps, disabling defaults or merely
+wrapping an unbounded task in a timer are NOT acceptable ways to improve responsiveness.
+
+**Availability provenance (MUST).** Interval support is source data, not UI preference
+(`src/market/indicators.ts`). An object that cannot compute or render for the current interval,
+history horizon or anchor position MUST show the existing explicit state/notice and MUST NOT render a
+silently empty or fabricated result; a context or profile request older than the provider horizon must
+surface that provenance. A performance change MUST NOT hide, widen or fake availability.
+
+**Evidence for a performance claim (MUST).** A PR that claims a performance improvement must include:
+immutable raw results per cell with script/asset hashes, source SHA, host (CPU model and count), DPR,
+viewport and cadence; timing windows anchored after warm-up; matched controls (same candles, same final
+N and V, interleaved repeats); counted units named separately (requests, native updates, canvas
+fills/clears, long tasks, frame pacing); an explicit statement whether it measured the real application
+or an isolated fixture; DPR 1 and DPR 2 pixel identity whenever geometry changes (including alpha
+seams); and the installed `lightweight-charts` version. Absolute milliseconds are host-dependent:
+targets are assessments, not CI gates, and only counters may gate. Upstream fixes are version-scoped
+and a library upgrade is never an unmeasured performance fix.
+
+**Not requirements (explicit).** Nothing here requires or authorises:
+
+- an arbitrary page cap (the current 40-page viewport and preload constants are implementation
+  behaviour, not a contract);
+- a yield/`setTimeout`/`requestIdleCallback` timer around history application;
+- a blanket "no caching" or, conversely, a mandatory cache;
+- O(visible) complexity for all indicators — only per-paint work must be V-bounded;
+- workers, conflation, decimation, batching or a rewrite of the numerical code;
+- a blanket ban on full recomputation for EMA/RSI/session VWAP;
+- an automatic Principal Engineer review or a new approval flow.
+
+**Current status at base `6544e96`.** Redraw lifecycle: met for the primitives that ship the counting
+tests (see [Series primitive redraw lifecycle](#series-primitive-redraw-lifecycle-must)). Visible-
+window paint bounding: met for session VWAP bands and Rolling VWAP bands; not yet measured/gated for
+the anchored VWAP band fill and the liquidation overlay (audit risks R5/R7). Inactive-object
+derivation: **not met** (P1). Box visibility for a start that predates loaded history is a product
+geometry decision tracked separately; it is a visibility limitation, not a performance contract.
+
 ## Feature parity (MUST)
 
 Functionally equivalent chart objects MUST expose the same capabilities and the same interaction vocabulary. Parity is checked against the [capability matrix](#capability-matrix-by-object-type-must) and against existing objects of the same category — not against a new object's own ambition.
@@ -287,8 +383,9 @@ Audit of the current code (base `origin/main` at the time of writing). These are
 
 | ID | Gap | Where (verified) | User-visible consequence |
 |----|-----|------------------|--------------------------|
+| P1 | History application derives and writes indicator/instance series even when the object is not rendered (inactive indicator, disabled/hidden instance) | `src/market/applyChartHistorySeries.ts:39-60` writes the candle, 5 EMA and 5 session VWAP levels (21 native `setData` calls) plus every Rolling and Anchored instance, and RSI when its pane exists | Panning back and restoring a deep viewport pay full-series derivation and native updates for objects the user cannot see; measured page and restore cost grows with loaded N — owned by the open history-application task (#264) |
 
-No gap is open as of #194 (Rolling VWAP per-band widths, per-series time-based VWAP styling) and #195 (overlay indicator single-click selection, `hidden` / `enabled` semantics). A gap removed from this table MUST NOT be cited as precedent for a new object.
+At base `6544e96` one gap is open: **P1**, the inactive-object derivation contract above, which the open history-application task owns. #194 (Rolling VWAP per-band widths, per-series time-based VWAP styling) and #195 (overlay indicator single-click selection, `hidden` / `enabled` semantics) stay resolved. A gap removed from this table MUST NOT be cited as precedent for a new object.
 
 ---
 

@@ -120,6 +120,7 @@ The normative rules are [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDA
 7. **Reviewer gate** — the Reviewer MUST verify standard compliance (matrix, shared components, interaction and persistence contracts) before approving a chart tool/indicator PR, and MUST NOT accept an undocumented capability gap.
 8. **Primitive redraw lifecycle** — `updateAllViews()` is view-only and never requests another redraw; only attachment, external data/style/visibility changes, public updates and user interaction invalidate. Ship a counting test (one request per external change, zero from library callbacks, idle quiescence, dispose stops scheduling) plus real-library frame coverage where painted frames matter — see [Series primitive redraw lifecycle](docs/CHART-OBJECT-STANDARD.md#series-primitive-redraw-lifecycle-must).
 9. **Rolling VWAP bands are one primitive** — a Rolling VWAP instance keeps its native centre `LineSeries` for identity/last value/price line, while its six band outlines and three fills are one official series primitive (`src/market/rollingVwapBandSeriesPrimitive.ts`). Do not reintroduce per-band native series; hit testing, the per-band halo and settings resolve through the shared `ChartObjectSettingsTarget` path. See [Rolling VWAP band primitive](docs/CHART-OBJECT-STANDARD.md#rolling-vwap-band-primitive-262-must).
+10. **Performance contract** — before changing history application, live updates, paint geometry or a benchmark, read the [performance and cost contracts](docs/CHART-OBJECT-STANDARD.md#performance-and-cost-contracts-must) and the per-object [chart performance audit](docs/CHART-PERFORMANCE-AUDIT.md). Name the cost layer, keep per-paint work bounded by the visible window, never cache coordinate transforms across paints, do not derive inactive objects for the screen (hydrate them exactly when enabled), and preserve seeds, UTC session boundaries, exact viewport and final loaded history.
 
 Deviations are recorded in [Known conformance gaps](docs/CHART-OBJECT-STANDARD.md#known-conformance-gaps), a table expected to be empty once the standard is met; a resolved or removed gap must never be cited as precedent.
 
@@ -279,6 +280,7 @@ benchmark (mount, drag, 10 drag stops, resize) described in [perf/README.md](per
 - [docs/WIDGET-STANDARD.md](docs/WIDGET-STANDARD.md) — normative widget rules
 - [docs/WIDGET-GUIDE.md](docs/WIDGET-GUIDE.md) — add/customize widgets
 - [docs/CHART-OBJECT-STANDARD.md](docs/CHART-OBJECT-STANDARD.md) — normative chart tool / indicator rules
+- [docs/CHART-PERFORMANCE-AUDIT.md](docs/CHART-PERFORMANCE-AUDIT.md) — chart object performance inventory, measured evidence and unmeasured risks
 - [docs/THEME-GUIDE.md](docs/THEME-GUIDE.md) — add/customize themes
 - [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) — roadmap
 - [backend/README.md](backend/README.md) — API reference
