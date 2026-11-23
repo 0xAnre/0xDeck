@@ -1,24 +1,25 @@
 import type { IChartApi, ISeriesApi, LogicalRange } from 'lightweight-charts'
-import { fetchMarketKlinesHistory } from '@/api/client'
-import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
-import type { ChartSeriesBundle } from '@/market/applyChartLiveCandle'
+import { fetchMarketKlinesHistory } from '../api/client.ts'
+import { applyChartHistorySeries } from './applyChartHistorySeries.ts'
+import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import {
   INFINITE_HISTORY_BARS_BEFORE_THRESHOLD,
   loadOlderBtcPerpHistoryCore,
   type FetchBtcPerpHistory,
   type InfiniteHistoryState,
-} from '@/market/btcPerpetualInfiniteHistoryCore'
-import { mergeOlderMarketCandles } from '@/market/mergeMarketCandles'
-import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
-import type { RollingVwapInstance } from '@/market/rollingVwapInstances'
-import type { CandleInterval, MarketCandle, MarketExchange } from '@/market/types'
+} from './btcPerpetualInfiniteHistoryCore.ts'
+import type { ChartIndicatorSeriesPlan } from './chartIndicatorSeriesPlan.ts'
+import { mergeOlderMarketCandles } from './mergeMarketCandles.ts'
+import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
+import type { RollingVwapInstance } from './rollingVwapInstances.ts'
+import type { CandleInterval, MarketCandle, MarketExchange } from './types.ts'
 
 export {
   INFINITE_HISTORY_BARS_BEFORE_THRESHOLD,
   createInfiniteHistoryState,
   resetInfiniteHistoryState,
   releaseHistoryBeforeRequest,
-} from '@/market/btcPerpetualInfiniteHistoryCore'
+} from './btcPerpetualInfiniteHistoryCore.ts'
 export type { InfiniteHistoryState, FetchBtcPerpHistory }
 
 type LoadOlderHistoryParams = {
@@ -35,10 +36,37 @@ type LoadOlderHistoryParams = {
   getRollingVwapInstances?: () => readonly RollingVwapInstance[]
   getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
   /**
+   * Plan of indicator series this panel shows. Read at apply time so a toggle
+   * made while a page is in flight is honored instead of the stale plan.
+   */
+  getIndicatorSeriesPlan?: () => ChartIndicatorSeriesPlan
+  /**
+   * When true the page only merges into `candlesRef`; the caller applies the
+   * merged history itself (a restore burst applies it once at the end).
+   */
+  deferSeriesApplication?: boolean
+  /**
    * Called whenever the history state changed (candles prepended, provider
    * horizon reached, or history exhausted) so derived state such as notices refreshes.
    */
   onHistoryStateChange?: () => void
+}
+
+/** Apply one merged history window to the chart series (single native rebuild). */
+export function applyBtcPerpHistorySeries(
+  bundle: ChartSeriesBundle,
+  candles: readonly MarketCandle[],
+  rollingVwapInstances: readonly RollingVwapInstance[] = [],
+  anchoredVwapInstances: readonly AnchoredVwapInstance[] = [],
+  plan?: ChartIndicatorSeriesPlan,
+): void {
+  applyChartHistorySeries(
+    bundle,
+    candles,
+    rollingVwapInstances,
+    anchoredVwapInstances,
+    plan,
+  )
 }
 
 export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): Promise<void> {
@@ -48,17 +76,19 @@ export async function loadOlderBtcPerpHistory(params: LoadOlderHistoryParams): P
       fetchMarketKlinesHistory(exchange, interval, before, signal),
     getRollingVwapInstances,
     getAnchoredVwapInstances,
+    getIndicatorSeriesPlan,
     ...rest
   } = params
   return loadOlderBtcPerpHistoryCore({
     ...rest,
     fetchHistory,
     applyMergedHistory: (bundle, candles) =>
-      applyChartHistorySeries(
+      applyBtcPerpHistorySeries(
         bundle as ChartSeriesBundle,
         candles,
         getRollingVwapInstances?.() ?? [],
         getAnchoredVwapInstances?.() ?? [],
+        getIndicatorSeriesPlan?.(),
       ),
     mergeOlderCandles: mergeOlderMarketCandles,
   })
@@ -79,6 +109,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
   fetchHistory?: FetchBtcPerpHistory
   getRollingVwapInstances?: () => readonly RollingVwapInstance[]
   getAnchoredVwapInstances?: () => readonly AnchoredVwapInstance[]
+  getIndicatorSeriesPlan?: () => ChartIndicatorSeriesPlan
   /**
    * Called whenever the history state changed (candles prepended, provider
    * horizon reached, or history exhausted) so derived state such as notices refreshes.
@@ -100,6 +131,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     fetchHistory,
     getRollingVwapInstances,
     getAnchoredVwapInstances,
+    getIndicatorSeriesPlan,
     onHistoryStateChange,
   } = params
 
@@ -127,6 +159,7 @@ export function maybeRequestOlderBtcPerpHistory(params: {
     fetchHistory,
     getRollingVwapInstances,
     getAnchoredVwapInstances,
+    getIndicatorSeriesPlan,
     onHistoryStateChange,
   })
 }

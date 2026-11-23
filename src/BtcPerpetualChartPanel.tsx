@@ -15,8 +15,14 @@ import {
 import { useMarketWidgetSettings } from '@/hooks/useMarketWidgetSettings'
 import { nextLiveRefreshDelayMs } from '@/lib/liveRefresh'
 import { cn } from '@/lib/utils'
-import { applyChartHistorySeries } from '@/market/applyChartHistorySeries'
+import {
+  applyChartHistorySeries,
+  hydratePlannedChartIndicatorSeries,
+  resetChartIndicatorSeriesApplication,
+  retainPlannedChartIndicatorSeries,
+} from '@/market/applyChartHistorySeries'
 import { applyChartLiveCandle, type ChartSeriesBundle } from '@/market/applyChartLiveCandle'
+import { resolveChartIndicatorSeriesPlan } from '@/market/chartIndicatorSeriesPlan'
 import {
   candleCandlestickSeriesOptions,
   type CandleColors,
@@ -1928,6 +1934,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     }
   }, [])
 
+  /**
+   * Which indicator series this panel shows right now. Read at apply time by
+   * every history path (initial load, VWAP context, older pages, preload) so a
+   * toggle made while a page is in flight never applies a stale plan.
+   */
+  const currentIndicatorSeriesPlan = useCallback(
+    () =>
+      resolveChartIndicatorSeriesPlan({
+        activeIndicators: activeIndicatorsRef.current,
+        interval: activeIntervalRef.current,
+      }),
+    [],
+  )
+
   const handleMarketIndicatorsChange = useCallback(
     (next: MarketIndicatorId[]) => {
       saveWidgetMarketIndicators(panelId, next)
@@ -2741,6 +2761,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     const chart = chartRef.current
     const bundle = seriesRef.current
     if (!bundle) return
+    const plan = resolveChartIndicatorSeriesPlan({ activeIndicators, interval })
+    // Forget series that are switching off, so switching them back on hydrates
+    // them from current candles instead of trusting data a live tick no longer
+    // updated.
+    retainPlannedChartIndicatorSeries(bundle, plan)
+    const loadedCandles = candlesRef.current
+    const candlesMatchInterval =
+      loadedCandles.length > 0 &&
+      loadedCandles[loadedCandles.length - 1]?.interval === interval
+    if (chartReady && historyReadyRef.current && candlesMatchInterval) {
+      // Hydrate before the visibility sync below, so a just-enabled indicator is
+      // already populated when its series becomes visible.
+      hydratePlannedChartIndicatorSeries(bundle, loadedCandles, plan)
+    }
     applyEmaIndicatorSeriesVisibility(bundle, activeIndicators)
     syncAllVwapVisibility(bundle)
     if (chart) syncRsiPane(chart, bundle)
@@ -3280,6 +3314,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         signal: abortRef.current?.signal,
         getRollingVwapInstances: () => rollingVwapInstancesRef.current,
         getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+        getIndicatorSeriesPlan: currentIndicatorSeriesPlan,
         onHistoryStateChange: refreshIndicatorHistoryNotices,
       })
     }
@@ -3467,6 +3502,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       historyReadyRef.current = false
     }
   }, [
+    currentIndicatorSeriesPlan,
     flushMarketChartViewportPersist,
     panelId,
     refreshIndicatorHistoryNotices,
@@ -3533,6 +3569,9 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
     const bundle = seriesRef.current
     if (bundle) {
+      // Every series is emptied here, so no indicator series may keep claiming
+      // it holds data for the candles that are about to load.
+      resetChartIndicatorSeriesApplication(bundle)
       bundle.candle.setData([])
       bundle.emas.forEach((series) => series.setData([]))
       bundle.ema100.setData([])
@@ -3621,6 +3660,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         candles,
         rollingVwapInstancesRef.current,
         anchoredVwapInstancesRef.current,
+        currentIndicatorSeriesPlan(),
       )
       const barCount = candles.length
       const currentInterval = activeIntervalRef.current
@@ -3649,6 +3689,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
                 signal: controller.signal,
                 getRollingVwapInstances: () => rollingVwapInstancesRef.current,
                 getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+                getIndicatorSeriesPlan: currentIndicatorSeriesPlan,
               })
                 .then(() => {
                   if (generation !== loadGenerationRef.current) return
@@ -3803,6 +3844,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       stopKlineStream()
     }
   }, [
+    currentIndicatorSeriesPlan,
     exchange,
     flushMarketChartViewportPersist,
     interval,
@@ -3887,6 +3929,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           merged,
           rollingVwapInstancesRef.current,
           anchoredVwapInstancesRef.current,
+          currentIndicatorSeriesPlan(),
         )
 
         const shifted = shiftVisibleLogicalRange(logicalRange, addedCount)
@@ -3908,7 +3951,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     return () => {
       releaseOwnedVwapContextRequest(vwapContextAbortRef, vwapContextLatestRequestIdRef, owner)
     }
-  }, [activeIndicators, chartReady, exchange, interval, refreshIndicatorHistoryNotices, syncAllVwapVisibility])
+  }, [
+    activeIndicators,
+    chartReady,
+    currentIndicatorSeriesPlan,
+    exchange,
+    interval,
+    refreshIndicatorHistoryNotices,
+    syncAllVwapVisibility,
+  ])
 
   useEffect(() => {
     if (!chartReady || !historyReadyRef.current) {
@@ -3955,6 +4006,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           signal: controller.signal,
           getRollingVwapInstances: () => rollingVwapInstancesRef.current,
           getAnchoredVwapInstances: () => anchoredVwapInstancesRef.current,
+          getIndicatorSeriesPlan: currentIndicatorSeriesPlan,
           onHistoryStateChange: refreshIndicatorHistoryNotices,
         }),
     })
@@ -3977,6 +4029,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     activeIndicators,
     anchoredVwapInstances,
     chartReady,
+    currentIndicatorSeriesPlan,
     exchange,
     interval,
     refreshIndicatorHistoryNotices,
