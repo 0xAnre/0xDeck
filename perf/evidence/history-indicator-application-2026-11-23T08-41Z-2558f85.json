@@ -4856,5 +4856,12 @@
   "The deferred restore burst shows the pre-burst window while pages load and the saved viewport after the single final apply + restore; the baseline shifted the logical range per page but the same bars stayed visible, so the intermediate images are equivalent.",
   "WebSocket market updates are stubbed (no live ticks) in these cells; live indicator gating is covered by node:test, not by a live-feed browser cell.",
   "The module work-count cells use counting series stubs, so they isolate JS derivation and count native calls without timing the library."
- ]
+ ],
+ "reporting": {
+  "medians": "Every 'median' value is the median of the measured repeats (3 browser reps per cell; warm cells 2; module cells 5).",
+  "maxLongTaskValues": "Fields named maxMs report the per-run maximum long-task duration. A table column that shows a single max value quotes the worst of the measured reps; the median of per-run maxima is cells[*].burstLongTasks.maxMs.median / cells[*].cellLongTasks.maxMs.median.",
+  "enableAfterRestoreInteraction": "Baseline interaction long tasks median 55 ms (values 53/119/55); target median 222 ms (values 467/73/222). The one-time hydration is the target's cost.",
+  "nativeSetDataCounts": "988 = 38 pages x 26 series per page (1 candle + 5 EMA lines + 15 session-VWAP lines + 5 band updates). RSI is excluded by its pane gating; rolling/anchored instances are not gated by this change and are not in that count. 26 is the measured 1m-panel bundle, not a universal per-page count.",
+  "ciScope": "The Playwright spec runs in the local e2e suite (npm run test:e2e), not in the CI workflow. The browser/perf cells are a task-local harness, not CI. CI runs build, lint, market, UI and navigation tests."
+ }
 }

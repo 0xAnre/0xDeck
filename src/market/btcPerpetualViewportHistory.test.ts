@@ -2,8 +2,16 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { IChartApi } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
-import { createInfiniteHistoryState, type InfiniteHistoryState } from './btcPerpetualInfiniteHistoryCore.ts'
+import {
+  createInfiniteHistoryState,
+  resetInfiniteHistoryState,
+  type InfiniteHistoryState,
+} from './btcPerpetualInfiniteHistoryCore.ts'
 import { loadOlderHistoryUntilVisibleFrom } from './btcPerpetualViewportHistory.ts'
+import {
+  appliedChartIndicatorSeries,
+  resetChartIndicatorSeriesApplication,
+} from './applyChartHistorySeries.ts'
 import { EMPTY_CHART_INDICATOR_SERIES_PLAN, resolveChartIndicatorSeriesPlan } from './chartIndicatorSeriesPlan.ts'
 import type { BinanceKlinesResponse, MarketCandle } from './types.ts'
 
@@ -211,9 +219,11 @@ describe('loadOlderHistoryUntilVisibleFrom', () => {
   it('does not apply or shift anything when the signal aborts mid-burst', async () => {
     const counters = newCounters()
     const candlesRef = { current: initialCandles() }
+    const initial = candlesRef.current
     const controller = new AbortController()
+    const firstPageBefore = initial[0].time
     const pages = new Map<number, MarketCandle[]>()
-    pages.set(candlesRef.current[0].time, pageBefore(candlesRef.current[0].time))
+    pages.set(firstPageBefore, pageBefore(firstPageBefore))
     let calls = 0
     const fetchHistory = async (interval: string, before: number): Promise<BinanceKlinesResponse> => {
       calls += 1
@@ -228,14 +238,16 @@ describe('loadOlderHistoryUntilVisibleFrom', () => {
       }
     }
 
+    const bundle = fakeBundle(counters)
+    const state = createInfiniteHistoryState() as InfiniteHistoryState
     await loadOlderHistoryUntilVisibleFrom({
-      state: createInfiniteHistoryState() as InfiniteHistoryState,
+      state,
       generation: 0,
       exchange: 'binance',
       interval: '1m',
-      visibleTimeRange: savedRange(candlesRef.current, 3),
+      visibleTimeRange: savedRange(initial, 3),
       candlesRef,
-      bundle: fakeBundle(counters),
+      bundle,
       chart: fakeChart(counters),
       signal: controller.signal,
       fetchHistory,
@@ -245,6 +257,54 @@ describe('loadOlderHistoryUntilVisibleFrom', () => {
     assert.equal(calls, 2)
     assert.equal(counters.candleSetData.length, 0)
     assert.equal(counters.visibleLogicalRangeWrites, 0)
+
+    // Page 1 merged into the candle ref (750 + 500 = 1250 bars) but was never
+    // applied to the chart; page 2 aborted and its cursor stayed retryable.
+    const expectedPending = [...pageBefore(firstPageBefore), ...initial]
+    assert.equal(candlesRef.current.length, 1250)
+    assert.deepEqual(
+      candlesRef.current.map((candle) => candle.time),
+      expectedPending.map((candle) => candle.time),
+    )
+    assert.deepEqual(counters.candleSetData, [])
+    assert.equal(state.requestedBefore.has(firstPageBefore), true)
+    assert.equal(state.requestedBefore.has(firstPageBefore - PAGE_BARS * STEP_SECONDS), false)
+    assert.deepEqual(appliedChartIndicatorSeries(bundle), [])
+
+    // The panel's interval/exchange reset (BtcPerpetualChartPanel) clears the
+    // candle ref, empties every chart series and invalidates the applied
+    // indicator set before a new generation loads. Pin that the pending aborted
+    // pages cannot reach a hydration or a later apply after that reset.
+    const nextGeneration = state.generation + 1
+    resetInfiniteHistoryState(state, nextGeneration)
+    candlesRef.current = []
+    resetChartIndicatorSeriesApplication(bundle)
+    const retried: number[] = []
+    await loadOlderHistoryUntilVisibleFrom({
+      state,
+      generation: nextGeneration,
+      exchange: 'binance',
+      interval: '1m',
+      visibleTimeRange: savedRange(initial, 3),
+      candlesRef,
+      bundle,
+      chart: fakeChart(counters),
+      fetchHistory: async (interval, before) => {
+        retried.push(before)
+        return {
+          symbol: 'BTCUSDT',
+          interval: interval as BinanceKlinesResponse['interval'],
+          candles: [],
+        }
+      },
+      getIndicatorSeriesPlan: () => EMPTY_CHART_INDICATOR_SERIES_PLAN,
+    })
+    assert.deepEqual(retried, [])
+    assert.deepEqual(counters.candleSetData, [])
+    assert.deepEqual(candlesRef.current, [])
+    assert.deepEqual(appliedChartIndicatorSeries(bundle), [])
+    assert.equal(state.generation, nextGeneration)
+    assert.equal(state.requestedBefore.size, 0)
   })
 
   it('does not apply pages that belong to a stale generation', async () => {

@@ -3,9 +3,12 @@
  * window.
  *
  * Every history page, VWAP-context merge, and live tick used to recompute *all*
- * EMA and session-VWAP series even when their indicator was off, so a 500-bar
- * page paid for ~10 hidden full-history passes plus ~11 native `setData`
- * calls. The plan keeps that work to the series the panel can actually paint.
+ * EMA and session-VWAP series even when their indicator was off. On a 1m panel
+ * the old per-page apply pushed 26 series regardless of the selection: 1 candle
+ * + 5 EMA lines + 15 session-VWAP lines + 5 band updates. (RSI is excluded by
+ * its own pane gating, and rolling/anchored instances are not gated by this
+ * plan; the benchmark's 988 = 38 x 26 counts that same candle/EMA/VWAP set.)
+ * The plan keeps that work to the series the panel can actually paint.
  *
  * Rules mirror the visibility rules:
  * - `triple-ema` / `dual-ema` are shown purely from the indicator selection
