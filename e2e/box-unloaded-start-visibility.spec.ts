@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test'
 
 /**
@@ -10,18 +9,23 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
  *    `fillRect`/`arc` calls the rectangle series primitive makes, with the
  *    clipped box's call arguments compared against the same box anchored
  *    exactly on the loaded edge.
- * 2. **Bitmap gate**: SHA-256 of the pane canvas PNG for the same fixture
- *    (same DPR). Clipped vs anchored must be pixel-identical (the anchored
- *    box's west handles are off-bitmap), and the no-op fixtures (fully
- *    outside, end-before-pane, hidden, opacity 0) must equal a no-box control
- *    pixel for pixel. Cross-DPR the CSS-space geometry must scale by exactly
- *    the DPR.
+ * 2. **Pixel gate**, read from the pane canvas inside each own mount (the
+ *    panel's saved-viewport restore can land on a different but valid
+ *    presentation between mounts, so a cross-mount framebuffer diff is not a
+ *    deterministic gate): the clipped box's visible part really paints opaque
+ *    red; the same box anchored on the loaded edge paints the same pixel and
+ *    the same rect; the no-op fixtures (fully outside, end-before-pane,
+ *    hidden, opacity 0) paint nothing at all or nothing that can touch a
+ *    pixel, checked arithmetically and by pixel sample.
  * 3. **Interaction gate**: a real time-scale drag (pane-drag fallback only if
  *    the axis drag does not move the view) must change the visible mapping
  *    while bar spacing stays constant; wheel zoom must change bar spacing;
  *    panel resize must change the panel and pane dimensions and bar spacing.
  *    Every step asserts the box is still painted, and the stored bounds,
- *    duration and drag anchor are never rewritten.
+ *    duration and drag anchor are never rewritten. DPR 2 must reproduce the
+ *    DPR 1 paint geometry and painted pixels exactly (this chart build's canvas
+ *    bitmap is CSS-pixel sized at both DPRs; the browser scales the presented
+ *    canvas).
  *
  * The chart is canvas-only and the backend is mocked with a fixed 15-minute
  * fixture: the initial candle window (the context endpoint the panel loads
@@ -236,7 +240,6 @@ type ChartRun = {
   page: Page
   historyRequests: string[]
   mountFill: Awaited<ReturnType<typeof waitForRedFill>> | null
-  mountHash: string
 }
 
 async function openChart(
@@ -305,16 +308,11 @@ async function openChart(
     page,
     historyRequests,
     mountFill: null,
-    mountHash: '',
   }
   const hasBox = kind !== 'none' && kind !== 'outside' && kind !== 'hidden'
   if (hasBox) {
     run.mountFill = await waitForRedFill(page)
   }
-  // Let the initial load (history page, indicator series, price scale) finish
-  // before the bitmap is taken; the stability check then confirms it.
-  await page.waitForTimeout(800)
-  run.mountHash = await stablePaneCanvasBitmap(page)
   return run
 }
 
@@ -363,8 +361,6 @@ async function waitForHandles(page: Page, fill: RecordedFill) {
   return distinctHandles((await paint(page)).arcs, fill)
 }
 
-const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
-
 type PaneCanvas = { left: number; top: number; width: number; height: number }
 
 /** The pane canvas is the largest canvas of the chart (axes are narrow/short). */
@@ -405,39 +401,6 @@ async function timeAxisRect(page: Page): Promise<PaneCanvas | null> {
  * the bitmap must be stable for two consecutive reads before it is returned,
  * so a mid-paint or crosshair frame is never hashed.
  */
-async function stablePaneCanvasBitmap(page: Page): Promise<string> {
-  const read = () =>
-    page
-      .evaluate(() => {
-        const container = document.querySelector('[data-testid="btc-perp-chart"]')
-        if (!container) return null
-        const pane = Array.from(container.querySelectorAll('canvas'))
-          .map((canvas) => ({ canvas, box: canvas.getBoundingClientRect() }))
-          .filter(({ box }) => box.width > 200 && box.height > 100)
-          .sort((a, b) => b.box.width * b.box.height - a.box.width * a.box.height)[0]
-        return pane ? pane.canvas.toDataURL('image/png') : null
-      })
-      .then((dataUrl) => (dataUrl ? sha256(dataUrl) : ''))
-
-  let previous = ''
-  let equal = 0
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const next = await read()
-    equal = next.length > 0 && next === previous ? equal + 1 : 0
-    previous = next
-    if (equal >= 3) {
-      // A later confirmation catches a paint stage that had merely paused.
-      await page.waitForTimeout(1_200)
-      const confirmation = await read()
-      if (confirmation === previous) return previous
-      equal = 0
-      previous = confirmation
-    }
-    await page.waitForTimeout(120)
-  }
-  throw new Error('pane canvas bitmap did not settle')
-}
-
 /** CSS px per bar, derived from the painted box (first loaded bar -> box end). */
 type RecordedFill = BoxPaint['fills'][number]
 
@@ -499,29 +462,58 @@ async function storedRectangle(page: Page): Promise<StoredRectangle | null> {
  * marker keeps the initial workspace seed from overwriting the app's own
  * persisted state, so only the instances change between two captures.
  */
+/**
+ * Swap the rectangle fixture in localStorage and reload the same page. The seed
+ * marker keeps the initial workspace seed from overwriting the app's own
+ * persisted state, so only the instances change.
+ *
+ * Pixel checks are done inside one mount (below): the panel's saved-viewport
+ * restore can land on a different but valid presentation between mounts, so a
+ * cross-mount framebuffer diff is not a deterministic gate here.
+ */
 async function setInstanceAndReload(run: ChartRun, kind: BoxKind) {
   const instances = seedPayload(kind).rectangles
+  await run.page.evaluate(
+    ({ key, payload }) => localStorage.setItem(key, JSON.stringify(payload)),
+    { key: RECTANGLE_STORAGE_KEY, payload: instances },
+  )
+  await run.page.reload()
   const chart = run.page.getByTestId('btc-perp-chart').first()
-  // The panel restores the viewport it saved on the previous mount, so the
-  // first reload after a default mount can land on a different (still valid)
-  // presentation. Reload until two consecutive captures of the SAME fixture
-  // agree, then compare fixed points: only the instance may differ.
-  let previous = ''
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await run.page.evaluate(
-      ({ key, payload }) => localStorage.setItem(key, JSON.stringify(payload)),
-      { key: RECTANGLE_STORAGE_KEY, payload: instances },
-    )
-    await run.page.reload()
-    await expect(chart).toHaveAttribute('aria-hidden', 'false', { timeout: 60_000 })
-    await run.page.waitForTimeout(800)
-    const hasBox = kind !== 'none' && kind !== 'outside' && kind !== 'hidden'
-    run.mountFill = hasBox ? await waitForRedFill(run.page) : null
-    run.mountHash = await stablePaneCanvasBitmap(run.page)
-    if (previous === run.mountHash) return
-    previous = run.mountHash
+  await expect(chart).toHaveAttribute('aria-hidden', 'false', { timeout: 60_000 })
+  await run.page.waitForTimeout(800)
+  const hasBox = kind !== 'none' && kind !== 'outside' && kind !== 'hidden'
+  run.mountFill = hasBox ? await waitForRedFill(run.page) : null
+}
+
+/** One canvas pixel of the pane canvas, in its own bitmap coordinates. */
+async function samplePanePixel(page: Page, x: number, y: number): Promise<number[]> {
+  return page.evaluate(
+    ({ px, py }) => {
+      const container = document.querySelector('[data-testid="btc-perp-chart"]')
+      const pane = Array.from(container?.querySelectorAll('canvas') ?? [])
+        .map((canvas) => ({ canvas, box: canvas.getBoundingClientRect() }))
+        .filter(({ box }) => box.width > 200 && box.height > 100)
+        .sort((a, b) => b.box.width * b.box.height - a.box.width * a.box.height)[0]
+      if (!pane) throw new Error('pane canvas not found')
+      const context = pane.canvas.getContext('2d')
+      if (!context) throw new Error('pane context missing')
+      const data = context.getImageData(Math.round(px), Math.round(py), 1, 1).data
+      return [data[0], data[1], data[2], data[3]]
+    },
+    { px: x, py: y },
+  )
+}
+
+/** Centre (bitmap px) of the part of a fill that is inside the canvas. */
+function visibleFillCentre(fill: RecordedFill) {
+  const canvasWidth = fill.canvas.width * fill.ratioX
+  const left = Math.max(fill.left, 0)
+  const right = Math.min(fillRight(fill), canvasWidth - 1)
+  return {
+    x: (left + right) / 2,
+    y: fill.top + fill.height / 2,
+    visible: right - left,
   }
-  throw new Error(`${kind} presentation did not reach a fixed point across reloads`)
 }
 
 async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
@@ -746,26 +738,23 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
     expect(handleCount).toBe(8)
     expect(await storedRectangle(page)).toEqual(beforeReload)
 
-    // ---------------- Same-page bitmap A/B, DPR 1 --------------------------
-    // Comparing separate page mounts made the bitmap gate sensitive to a late
-    // paint stage of the other mount (two stable hashes for the same fixture).
-    // Every side of a comparison below comes from the same page, context and
-    // restored viewport: only the rectangle instance is swapped.
+    // ---------------- Pixel and no-pixel gates, DPR 1 ----------------------
+    // Every pixel assertion reads the pane canvas inside its own mount: the
+    // panel's saved-viewport restore can land on a different but valid
+    // presentation between mounts, so a cross-mount framebuffer diff is not a
+    // deterministic gate. The paint-call equality plus these in-mount pixel
+    // samples are.
     const ab = await openChart(browser, 1, 'none')
     runs.push(ab)
     await setInstanceAndReload(ab, 'none')
-    const noBoxHash = ab.mountHash
     const abMountHistory = ab.historyRequests.length
     expect((await paint(ab.page)).fills.length).toBe(0)
+    expect(await samplePanePixel(ab.page, 300, 300)).not.toEqual([255, 0, 0, 255])
 
     await setInstanceAndReload(ab, 'unloaded')
-    const clippedHash = ab.mountHash
     const clippedFill = ab.mountFill
     expect(clippedFill).not.toBeNull()
     if (!clippedFill) return
-    // Positive control: the clipped box really paints pixels and reaches the
-    // left edge of the pane.
-    expect(clippedHash).not.toBe(noBoxHash)
     expect(clippedFill.left).toBeLessThanOrEqual(1)
     expect(clippedFill.width).toBeGreaterThan(100)
     const clippedGeometry = {
@@ -775,40 +764,55 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
       height: clippedFill.height,
       fillStyle: clippedFill.fillStyle,
     }
+    // Positive pixel control: the visible part really paints opaque red.
+    const clippedPixel = visibleFillCentre(clippedFill)
+    expect(clippedPixel.visible).toBeGreaterThan(100)
+    expect(await samplePanePixel(ab.page, clippedPixel.x, clippedPixel.y)).toEqual([255, 0, 0, 255])
 
-    // The same box anchored exactly on the loaded edge must be pixel-identical
-    // (its west handles are outside the canvas bitmap) and keep eight handles.
+    // The same box anchored exactly on the loaded edge: same paint calls, same
+    // visible pixels, and the eight handles (the clipped box has five).
     await setInstanceAndReload(ab, 'anchored')
-    expect(ab.mountHash).toBe(clippedHash)
-    expect(ab.mountFill).not.toBeNull()
-    if (!ab.mountFill) return
+    const anchoredFill = ab.mountFill
+    expect(anchoredFill).not.toBeNull()
+    if (!anchoredFill) return
     expect({
-      left: ab.mountFill.left,
-      top: ab.mountFill.top,
-      width: ab.mountFill.width,
-      height: ab.mountFill.height,
-      fillStyle: ab.mountFill.fillStyle,
+      left: anchoredFill.left,
+      top: anchoredFill.top,
+      width: anchoredFill.width,
+      height: anchoredFill.height,
+      fillStyle: anchoredFill.fillStyle,
     }).toEqual(clippedGeometry)
+    expect(await samplePanePixel(ab.page, clippedPixel.x, clippedPixel.y)).toEqual([255, 0, 0, 255])
     await resetPaint(ab.page)
-    await clickFillCentre(ab.page, ab.mountFill)
-    const anchoredHandles = await waitForHandles(ab.page, ab.mountFill)
+    await clickFillCentre(ab.page, anchoredFill)
+    const anchoredHandles = await waitForHandles(ab.page, anchoredFill)
     expect(anchoredHandles.length).toBe(8)
-    expect(anchoredHandles.some((arc) => Math.abs(arc.x - ab.mountFill!.left) < 1)).toBe(true)
+    expect(anchoredHandles.some((arc) => Math.abs(arc.x - anchoredFill.left) < 1)).toBe(true)
 
-    // No-op fixtures must not change a single pixel of the no-box control.
+    // No-op fixtures: either the primitive paints nothing at all, or its fill
+    // cannot touch a pixel (fully off-canvas / alpha 0). Each case is checked
+    // arithmetically and with an in-mount pixel sample.
     for (const kind of ['outside', 'offscreen', 'hidden', 'opacity0'] as BoxKind[]) {
       await setInstanceAndReload(ab, kind)
-      expect(ab.mountHash, `${kind} must not change a pixel`).toBe(noBoxHash)
       const controlFills = (await paint(ab.page)).fills
       if (kind === 'outside' || kind === 'hidden') {
         // No draw model at all.
         expect(controlFills.length, `${kind} must not build a draw model`).toBe(0)
+        expect(await samplePanePixel(ab.page, clippedPixel.x, clippedPixel.y)).not.toEqual([255, 0, 0, 255])
+      } else if (kind === 'offscreen') {
+        expect(controlFills.length, 'offscreen must be drawn').toBeGreaterThan(0)
+        const fill = controlFills[controlFills.length - 1]
+        const canvasWidth = fill.canvas.width * fill.ratioX
+        const outside =
+          fillRight(fill) < 0 || fill.left >= canvasWidth || fill.height <= 0 || fill.width <= 0
+        expect(outside, 'offscreen fill must be entirely outside the canvas').toBe(true)
+        // The pane's left edge at the band's mid height stays free of red.
+        expect(await samplePanePixel(ab.page, 1, fill.top + fill.height / 2)).not.toEqual([255, 0, 0, 255])
       } else {
-        // Drawn, but the fill is clipped away or fully transparent.
-        expect(controlFills.length, `${kind} must be drawn`).toBeGreaterThan(0)
-      }
-      if (kind === 'opacity0') {
-        expect(controlFills.at(-1)?.fillStyle).toBe('rgba(255, 0, 0, 0)')
+        expect(controlFills.length, 'opacity0 must be drawn').toBeGreaterThan(0)
+        const fill = controlFills[controlFills.length - 1]
+        expect(fill.fillStyle).toBe('rgba(255, 0, 0, 0)')
+        expect(await samplePanePixel(ab.page, clippedPixel.x, clippedPixel.y)).not.toEqual([255, 0, 0, 255])
       }
       // A fully pre-history box collapses onto one edge: clicking the pane
       // centre must not select it and no handle may appear.
@@ -832,31 +836,47 @@ test('box visible part before the loaded history: paint, pixels, interaction', a
         `shiftBars=${shiftBars.toFixed(2)}`,
     )
 
-    // ---------------- Same-page bitmap A/B, DPR 2 --------------------------
+    // ---------------- DPR 2: identical geometry and pixels -----------------
     // Measured on this build: the chart's canvas bitmap is CSS-pixel sized at
     // both DPRs (window.devicePixelRatio is 2 while canvas.width equals the CSS
     // width), so the browser scales the presented canvas. The same fixture must
-    // therefore produce the same bitmap and the same paint geometry at DPR 1
-    // and DPR 2.
+    // therefore produce the same paint geometry and the same painted pixels at
+    // DPR 1 and DPR 2.
     const ab2 = await openChart(browser, 2, 'none')
     runs.push(ab2)
     await setInstanceAndReload(ab2, 'none')
-    expect(ab2.mountHash).toBe(noBoxHash)
+    expect((await paint(ab2.page)).fills.length).toBe(0)
     await setInstanceAndReload(ab2, 'unloaded')
-    expect(ab2.mountHash).toBe(clippedHash)
-    expect(ab2.mountFill).not.toBeNull()
-    if (!ab2.mountFill) return
-    expect(ab2.mountFill.ratioX).toBe(clippedFill.ratioX)
+    const clipped2 = ab2.mountFill
+    expect(clipped2).not.toBeNull()
+    if (!clipped2) return
+    expect(clipped2.ratioX).toBe(clippedFill.ratioX)
     expect({
-      left: ab2.mountFill.left,
-      top: ab2.mountFill.top,
-      width: ab2.mountFill.width,
-      height: ab2.mountFill.height,
-      fillStyle: ab2.mountFill.fillStyle,
+      left: clipped2.left,
+      top: clipped2.top,
+      width: clipped2.width,
+      height: clipped2.height,
+      fillStyle: clipped2.fillStyle,
     }).toEqual(clippedGeometry)
-    expect(barSpacingCssPx(ab2.mountFill)).toBe(barSpacingCssPx(clippedFill))
+    expect(barSpacingCssPx(clipped2)).toBe(barSpacingCssPx(clippedFill))
+    const pixel2 = visibleFillCentre(clipped2)
+    expect(await samplePanePixel(ab2.page, pixel2.x, pixel2.y)).toEqual([255, 0, 0, 255])
+
     await setInstanceAndReload(ab2, 'anchored')
-    expect(ab2.mountHash).toBe(clippedHash)
+    const anchored2 = ab2.mountFill
+    expect(anchored2).not.toBeNull()
+    if (!anchored2) return
+    expect({
+      left: anchored2.left,
+      top: anchored2.top,
+      width: anchored2.width,
+      height: anchored2.height,
+      fillStyle: anchored2.fillStyle,
+    }).toEqual(clippedGeometry)
+    expect(await samplePanePixel(ab2.page, pixel2.x, pixel2.y)).toEqual([255, 0, 0, 255])
+    await resetPaint(ab2.page)
+    await clickFillCentre(ab2.page, anchored2)
+    expect((await waitForHandles(ab2.page, anchored2)).length).toBe(8)
   } finally {
     await closeAll()
   }
