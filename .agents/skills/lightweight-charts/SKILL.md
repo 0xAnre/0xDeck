@@ -17,6 +17,18 @@ Upstream source: github.com/tradingview/lightweight-charts (.github/skills/light
 
 Works the same whether the project is a downstream npm consumer app or an upstream `lightweight-charts` source checkout. Detect which one you are in (below) and resolve every API name from whatever typings are locally available.
 
+## 0xDeck project contracts (this repository)
+
+This checkout adds normative chart rules on top of this skill; they win for 0xDeck work:
+[docs/CHART-OBJECT-STANDARD.md](../../../docs/CHART-OBJECT-STANDARD.md), especially its
+[performance and cost contracts](../../../docs/CHART-OBJECT-STANDARD.md#performance-and-cost-contracts-must),
+[series primitive redraw lifecycle](../../../docs/CHART-OBJECT-STANDARD.md#series-primitive-redraw-lifecycle-must)
+and [Rolling VWAP band primitive](../../../docs/CHART-OBJECT-STANDARD.md#rolling-vwap-band-primitive-262-must).
+The per-object cost inventory and evidence live in
+[the chart performance audit](../../../docs/CHART-PERFORMANCE-AUDIT.md). Where this skill and the
+project standard disagree for 0xDeck code, the project standard is authoritative; the upstream API
+guidance here still governs correctness.
+
 ## Source lookup order
 
 Do not assume you are inside the upstream source repository.
