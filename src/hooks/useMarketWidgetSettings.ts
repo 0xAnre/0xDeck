@@ -3,7 +3,6 @@ import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistra
 import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
-import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
 import type { LineInstance } from '@/market/lineInstances'
@@ -41,42 +40,6 @@ type UseMarketWidgetSettingsArgs = {
   onFixedRangeVolumeProfileDelete: (instanceId: string) => void
   onFixedRangeVolumeProfileToggle?: (instanceId: string, enabled: boolean) => void
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
-  onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
-  onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
-  onFixedRangeVolumeProfileExtendRightChange?: (
-    instanceId: string,
-    extendRight: boolean,
-  ) => void
-  onFixedRangeVolumeProfileLevelStrokeColorChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    strokeColor: string,
-  ) => void
-  onFixedRangeVolumeProfileLevelLineWidthChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    lineWidth: LineChartStrokeWidth,
-  ) => void
-  onFixedRangeVolumeProfileLevelLineStyleChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    lineStyle: LineChartStrokeStyle,
-  ) => void
-  onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    opacityPercent: number,
-  ) => void
-  onFixedRangeVolumeProfileHistogramColorChange?: (
-    instanceId: string,
-    direction: FrvpHistogramDirection,
-    color: string,
-  ) => void
-  onFixedRangeVolumeProfileHistogramOpacityChange?: (
-    instanceId: string,
-    direction: FrvpHistogramDirection,
-    opacityPercent: number,
-  ) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm: () => void
   onRectangleDelete: (instanceId: string) => void
@@ -130,15 +93,6 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
     onFixedRangeVolumeProfileDelete,
     onFixedRangeVolumeProfileToggle,
     onFixedRangeVolumeProfileLockToggle,
-    onFixedRangeVolumeProfileRowCountChange,
-    onFixedRangeVolumeProfileValueAreaChange,
-    onFixedRangeVolumeProfileExtendRightChange,
-    onFixedRangeVolumeProfileLevelStrokeColorChange,
-    onFixedRangeVolumeProfileLevelLineWidthChange,
-    onFixedRangeVolumeProfileLevelLineStyleChange,
-    onFixedRangeVolumeProfileLevelStrokeOpacityChange,
-    onFixedRangeVolumeProfileHistogramColorChange,
-    onFixedRangeVolumeProfileHistogramOpacityChange,
     rectangleInstances,
     onRectangleArm,
     onRectangleDelete,
@@ -217,24 +171,6 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
         headerSettings.tools === true ? onFixedRangeVolumeProfileToggle : undefined,
       onFixedRangeVolumeProfileLockToggle:
         headerSettings.tools === true ? onFixedRangeVolumeProfileLockToggle : undefined,
-      onFixedRangeVolumeProfileRowCountChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileRowCountChange : undefined,
-      onFixedRangeVolumeProfileValueAreaChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileValueAreaChange : undefined,
-      onFixedRangeVolumeProfileExtendRightChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileExtendRightChange : undefined,
-      onFixedRangeVolumeProfileLevelStrokeColorChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeColorChange : undefined,
-      onFixedRangeVolumeProfileLevelLineWidthChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelLineWidthChange : undefined,
-      onFixedRangeVolumeProfileLevelLineStyleChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelLineStyleChange : undefined,
-      onFixedRangeVolumeProfileLevelStrokeOpacityChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileLevelStrokeOpacityChange : undefined,
-      onFixedRangeVolumeProfileHistogramColorChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileHistogramColorChange : undefined,
-      onFixedRangeVolumeProfileHistogramOpacityChange:
-        headerSettings.tools === true ? onFixedRangeVolumeProfileHistogramOpacityChange : undefined,
       rectangleInstances: headerSettings.tools === true ? rectangleInstances : undefined,
       onRectangleArm: headerSettings.tools === true ? onRectangleArm : undefined,
       onRectangleDelete: headerSettings.tools === true ? onRectangleDelete : undefined,
@@ -282,15 +218,6 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onFixedRangeVolumeProfileDelete,
       onFixedRangeVolumeProfileToggle,
       onFixedRangeVolumeProfileLockToggle,
-      onFixedRangeVolumeProfileRowCountChange,
-      onFixedRangeVolumeProfileValueAreaChange,
-      onFixedRangeVolumeProfileExtendRightChange,
-      onFixedRangeVolumeProfileLevelStrokeColorChange,
-      onFixedRangeVolumeProfileLevelLineWidthChange,
-      onFixedRangeVolumeProfileLevelLineStyleChange,
-      onFixedRangeVolumeProfileLevelStrokeOpacityChange,
-      onFixedRangeVolumeProfileHistogramColorChange,
-      onFixedRangeVolumeProfileHistogramOpacityChange,
       onRectangleArm,
       onRectangleDelete,
       onRectangleLockToggle,

@@ -19,7 +19,13 @@ import {
   frvpLevelStrokeColorInputValue,
 } from '../market/frvpInstanceLineStyles.ts'
 import {
+  FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
   FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT,
+  FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MAX_WIDTH_PERCENT,
+  FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MIN_WIDTH_PERCENT,
   frvpHistogramColorInputValue,
 } from '../market/frvpHistogramStyles.ts'
 
@@ -48,6 +54,11 @@ describe('frvpSettingsDraftFromInstance', () => {
     assert.equal(draft.extendRight, true)
     assert.equal(draft.histogram.up.opacityPercent, FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT)
     assert.equal(draft.histogram.down.opacityPercent, FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT)
+    assert.equal(draft.histogramWidthPercent, FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT)
+    assert.equal(
+      draft.histogramBarHeightPercent,
+      FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
+    )
     assert.equal(draft.levels.poc.lineWidth, DEFAULT_FRVP_LEVEL_LINE_WIDTH)
     assert.equal(draft.levels.poc.lineStyle, 'dotted')
     assert.equal(draft.levels.vah.lineStyle, 'solid')
@@ -61,6 +72,8 @@ describe('frvpSettingsDraftFromInstance', () => {
       pocLineWidth: 2,
       vahLineStyle: 'dotted',
       histogramUpOpacityPercent: 90,
+      histogramWidthPercent: 62.5,
+      histogramBarHeightPercent: 44,
     })
     const draft = frvpSettingsDraftFromInstance(instance)
     assert.equal(draft.levels.poc.color, frvpLevelStrokeColorInputValue(instance, 'poc'))
@@ -69,6 +82,8 @@ describe('frvpSettingsDraftFromInstance', () => {
     assert.equal(draft.levels.poc.lineWidth, frvpInstanceLevelLineWidth(instance, 'poc'))
     assert.equal(draft.levels.vah.lineStyle, 'dotted')
     assert.equal(draft.histogram.up.opacityPercent, 90)
+    assert.equal(draft.histogramWidthPercent, 62.5)
+    assert.equal(draft.histogramBarHeightPercent, 44)
     assert.equal(
       draft.histogram.down.color,
       frvpHistogramColorInputValue(instance, 'down'),
@@ -86,6 +101,10 @@ describe('frvpSettingsDraftPatch', () => {
     })
     assert.deepEqual(patch, { histogram: [], levels: [] })
     assert.equal(isFrvpSettingsDraftPatchEmpty(patch), true)
+    // The legacy width display (16.7) is not a changed field.
+    assert.equal(initial.histogramWidthPercent, 16.7)
+    assert.equal(patch.histogramWidthPercent, undefined)
+    assert.equal(patch.histogramBarHeightPercent, undefined)
   })
 
   it('commits only the changed profile numbers', () => {
@@ -178,5 +197,115 @@ describe('sanitizeFrvpSettingsDraft', () => {
     assert.equal(sanitized.levels.poc.lineWidth, initial.levels.poc.lineWidth)
     assert.equal(sanitized.levels.poc.lineStyle, initial.levels.poc.lineStyle)
     assert.equal(frvpInstanceLevelLineStyle(frvpInstance(), 'poc'), 'dotted')
+  })
+})
+
+describe('FRVP profile bar size draft', () => {
+  it('commits only the changed width and row height', () => {
+    const initial = frvpSettingsDraftFromInstance(frvpInstance())
+    const patch = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      histogramWidthPercent: 40,
+      histogramBarHeightPercent: 45,
+    })
+    assert.deepEqual(patch, {
+      histogramWidthPercent: 40,
+      histogramBarHeightPercent: 45,
+      histogram: [],
+      levels: [],
+    })
+    assert.equal(isFrvpSettingsDraftPatchEmpty(patch), false)
+  })
+
+  it('commits combined size, row count and color edits together', () => {
+    const initial = frvpSettingsDraftFromInstance(frvpInstance())
+    const patch = frvpSettingsDraftPatch(initial, {
+      ...initial,
+      rowCount: 40,
+      histogramWidthPercent: 30,
+      histogramBarHeightPercent: 60,
+      histogram: {
+        ...initial.histogram,
+        up: { ...initial.histogram.up, color: '#112233', opacityPercent: 80 },
+        down: { ...initial.histogram.down, color: '#445566' },
+      },
+      levels: {
+        ...initial.levels,
+        poc: { ...initial.levels.poc, lineWidth: 4 },
+      },
+    })
+    assert.equal(patch.rowCount, 40)
+    assert.equal(patch.histogramWidthPercent, 30)
+    assert.equal(patch.histogramBarHeightPercent, 60)
+    assert.deepEqual(patch.histogram, [
+      { direction: 'up', color: '#112233', opacityPercent: 80 },
+      { direction: 'down', color: '#445566' },
+    ])
+    assert.deepEqual(patch.levels, [{ kind: 'poc', lineWidth: 4 }])
+  })
+
+  it('clamps typed size values on blur/Save without mutating the opened draft', () => {
+    const initial = frvpSettingsDraftFromInstance(frvpInstance())
+    const sanitized = sanitizeFrvpSettingsDraft(initial, {
+      ...initial,
+      histogramWidthPercent: 250,
+      histogramBarHeightPercent: -20,
+    })
+    assert.equal(sanitized.histogramWidthPercent, FRVP_HISTOGRAM_MAX_WIDTH_PERCENT)
+    assert.equal(
+      sanitized.histogramBarHeightPercent,
+      FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT,
+    )
+    assert.equal(sanitized.histogramWidthPercent, 100)
+    assert.equal(sanitized.histogramBarHeightPercent, 1)
+    // Opening values stay untouched.
+    assert.equal(initial.histogramWidthPercent, 16.7)
+    assert.equal(initial.histogramBarHeightPercent, 100)
+
+    const lowWidth = sanitizeFrvpSettingsDraft(initial, {
+      ...initial,
+      histogramWidthPercent: 0,
+      histogramBarHeightPercent: 500,
+    })
+    assert.equal(lowWidth.histogramWidthPercent, FRVP_HISTOGRAM_MIN_WIDTH_PERCENT)
+    assert.equal(
+      lowWidth.histogramBarHeightPercent,
+      FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT,
+    )
+  })
+
+  it('falls back to the opened size values for NaN/infinite input', () => {
+    const initial = frvpSettingsDraftFromInstance(frvpInstance({
+      histogramWidthPercent: 55,
+      histogramBarHeightPercent: 35,
+    }))
+    const sanitized = sanitizeFrvpSettingsDraft(initial, {
+      ...initial,
+      histogramWidthPercent: Number.NaN,
+      histogramBarHeightPercent: Number.POSITIVE_INFINITY,
+    })
+    assert.equal(sanitized.histogramWidthPercent, 55)
+    assert.equal(sanitized.histogramBarHeightPercent, 35)
+  })
+
+  it('discards an edited size draft without a commit', () => {
+    const instance = frvpInstance({
+      histogramWidthPercent: 25,
+      histogramBarHeightPercent: 50,
+    })
+    const initial = frvpSettingsDraftFromInstance(instance)
+    const edited = {
+      ...initial,
+      histogramWidthPercent: 90,
+      histogramBarHeightPercent: 10,
+    }
+    const sanitized = sanitizeFrvpSettingsDraft(initial, edited)
+    const patch = frvpSettingsDraftPatch(initial, sanitized)
+    assert.equal(patch.histogramWidthPercent, 90)
+    assert.equal(patch.histogramBarHeightPercent, 10)
+    // The persisted instance and opened draft are untouched by a discarded draft.
+    assert.equal(instance.histogramWidthPercent, 25)
+    assert.equal(instance.histogramBarHeightPercent, 50)
+    assert.deepEqual(frvpSettingsDraftFromInstance(instance), initial)
   })
 })

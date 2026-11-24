@@ -91,6 +91,47 @@ describe('fixedRangeVolumeProfileRuntimeIdentity', () => {
     assert.notEqual(before, after)
   })
 
+  it('keeps style-only bar size/color changes out of the request identity', () => {
+    const base = instance()
+    const styled = instance({
+      histogramWidthPercent: 42,
+      histogramBarHeightPercent: 37,
+      histogramUpColor: '#112233',
+      histogramDownColor: '#445566',
+      histogramUpOpacityPercent: 90,
+      histogramDownOpacityPercent: 10,
+    })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(base),
+      buildFixedRangeVolumeProfileRequestIdentityKey(styled),
+    )
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(base, 1_000),
+      buildFixedRangeVolumeProfileRequestKey(styled, 1_000),
+    )
+    const extendBase = instance({ extendRight: true })
+    const extendStyled = instance({
+      ...extendBase,
+      histogramWidthPercent: 42,
+      histogramBarHeightPercent: 37,
+      histogramUpColor: '#112233',
+      histogramUpOpacityPercent: 90,
+    })
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestIdentityKey(extendBase),
+      buildFixedRangeVolumeProfileRequestIdentityKey(extendStyled),
+    )
+    assert.equal(
+      buildFixedRangeVolumeProfileRequestKey(extendBase, 1_000),
+      buildFixedRangeVolumeProfileRequestKey(extendStyled, 1_000),
+    )
+    // Row count is a genuine data change and must still start a new request.
+    assert.notEqual(
+      buildFixedRangeVolumeProfileRequestIdentityKey(base),
+      buildFixedRangeVolumeProfileRequestIdentityKey(instance({ rowCount: 50 })),
+    )
+  })
+
   it('reuses an explicit identity-times override for preview validation', () => {
     const committed = instance()
     const preview = instance({ toTime: 260 })

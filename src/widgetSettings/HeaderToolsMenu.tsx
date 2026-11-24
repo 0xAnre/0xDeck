@@ -36,10 +36,7 @@ import { numberedChartObjectIcon } from '@/widgetSettings/chartObjectIcons'
 import { HEADER_CONTROL_TRIGGER_CLASS } from '@/widgetSettings/HeaderSelect'
 import { RectangleFillStyleDialog } from '@/widgetSettings/RectangleFillStyleDialog'
 import { LineStyleDialog } from '@/widgetSettings/LineStyleDialog'
-import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
-import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
-import type { FrvpLevelLineKind } from '@/market/frvpInstanceLineStyles'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
 
 type HeaderToolsMenuProps = {
@@ -50,42 +47,6 @@ type HeaderToolsMenuProps = {
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
   onFixedRangeVolumeProfileToggle?: (instanceId: string, enabled: boolean) => void
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
-  onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
-  onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
-  onFixedRangeVolumeProfileExtendRightChange?: (
-    instanceId: string,
-    extendRight: boolean,
-  ) => void
-  onFixedRangeVolumeProfileLevelStrokeColorChange?: (
-    instanceId: string,
-    kind: FrvpLevelLineKind,
-    strokeColor: string,
-  ) => void
-  onFixedRangeVolumeProfileLevelLineWidthChange?: (
-    instanceId: string,
-    kind: FrvpLevelLineKind,
-    lineWidth: LineChartStrokeWidth,
-  ) => void
-  onFixedRangeVolumeProfileLevelLineStyleChange?: (
-    instanceId: string,
-    kind: FrvpLevelLineKind,
-    lineStyle: LineChartStrokeStyle,
-  ) => void
-  onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
-    instanceId: string,
-    kind: FrvpLevelLineKind,
-    opacityPercent: number,
-  ) => void
-  onFixedRangeVolumeProfileHistogramColorChange?: (
-    instanceId: string,
-    direction: FrvpHistogramDirection,
-    color: string,
-  ) => void
-  onFixedRangeVolumeProfileHistogramOpacityChange?: (
-    instanceId: string,
-    direction: FrvpHistogramDirection,
-    opacityPercent: number,
-  ) => void
   rectangleInstances: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void
@@ -119,15 +80,6 @@ export function HeaderToolsMenu({
   onFixedRangeVolumeProfileDelete,
   onFixedRangeVolumeProfileToggle,
   onFixedRangeVolumeProfileLockToggle,
-  onFixedRangeVolumeProfileRowCountChange,
-  onFixedRangeVolumeProfileValueAreaChange,
-  onFixedRangeVolumeProfileExtendRightChange,
-  onFixedRangeVolumeProfileLevelStrokeColorChange,
-  onFixedRangeVolumeProfileLevelLineWidthChange,
-  onFixedRangeVolumeProfileLevelLineStyleChange,
-  onFixedRangeVolumeProfileLevelStrokeOpacityChange,
-  onFixedRangeVolumeProfileHistogramColorChange,
-  onFixedRangeVolumeProfileHistogramOpacityChange,
   rectangleInstances,
   onRectangleArm,
   onRectangleDelete,
@@ -163,13 +115,6 @@ export function HeaderToolsMenu({
     chartObjectSettingsTarget?.kind === 'line'
       ? (lineInstances.find((item) => item.id === chartObjectSettingsTarget.instanceId) ?? null)
       : null
-  const frvpStyleInstance =
-    chartObjectSettingsTarget?.kind === 'fixed-range-volume-profile'
-      ? (fixedRangeVolumeProfileInstances.find(
-          (item) => item.id === chartObjectSettingsTarget.instanceId,
-        ) ?? null)
-      : null
-
   const openSettings = (target: ChartObjectSettingsTarget) => {
     suppressMenuCloseAutoFocusRef.current = true
     setMenuOpen(false)
@@ -383,44 +328,6 @@ export function HeaderToolsMenu({
         }}
         onLineStyleChange={(instanceId, lineStyle) => {
           onLineStyleChange?.(instanceId, lineStyle)
-        }}
-      />
-      <FixedRangeVolumeProfileSettingsDialog
-        instance={frvpStyleInstance}
-        returnFocusId={id}
-        onOpenChange={(open) => {
-          if (!open) closeSettings()
-        }}
-        onRowCountChange={(instanceId, rowCount) => {
-          onFixedRangeVolumeProfileRowCountChange?.(instanceId, rowCount)
-        }}
-        onValueAreaPercentChange={(instanceId, valueAreaPercent) => {
-          onFixedRangeVolumeProfileValueAreaChange?.(instanceId, valueAreaPercent)
-        }}
-        onExtendRightChange={(instanceId, extendRight) => {
-          onFixedRangeVolumeProfileExtendRightChange?.(instanceId, extendRight)
-        }}
-        onLevelStrokeColorChange={(instanceId, kind, strokeColor) => {
-          onFixedRangeVolumeProfileLevelStrokeColorChange?.(instanceId, kind, strokeColor)
-        }}
-        onLevelLineWidthChange={(instanceId, kind, lineWidth) => {
-          onFixedRangeVolumeProfileLevelLineWidthChange?.(instanceId, kind, lineWidth)
-        }}
-        onLevelLineStyleChange={(instanceId, kind, lineStyle) => {
-          onFixedRangeVolumeProfileLevelLineStyleChange?.(instanceId, kind, lineStyle)
-        }}
-        onLevelStrokeOpacityChange={(instanceId, kind, opacityPercent) => {
-          onFixedRangeVolumeProfileLevelStrokeOpacityChange?.(instanceId, kind, opacityPercent)
-        }}
-        onHistogramColorChange={(instanceId, direction, color) => {
-          onFixedRangeVolumeProfileHistogramColorChange?.(instanceId, direction, color)
-        }}
-        onHistogramOpacityChange={(instanceId, direction, opacityPercent) => {
-          onFixedRangeVolumeProfileHistogramOpacityChange?.(
-            instanceId,
-            direction,
-            opacityPercent,
-          )
         }}
       />
     </>

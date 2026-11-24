@@ -28,8 +28,14 @@ import {
   type FrvpLevelLineKind,
 } from '../market/frvpInstanceLineStyles.ts'
 import {
+  FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MAX_WIDTH_PERCENT,
+  FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MIN_WIDTH_PERCENT,
+  frvpHistogramBarHeightPercent,
   frvpHistogramColorInputValue,
   frvpHistogramOpacityPercent,
+  frvpHistogramWidthPercentInputValue,
   type FrvpHistogramDirection,
 } from '../market/frvpHistogramStyles.ts'
 
@@ -53,6 +59,8 @@ export type FrvpSettingsDraft = {
   rowCount: number
   valueAreaPercent: number
   extendRight: boolean
+  histogramWidthPercent: number
+  histogramBarHeightPercent: number
   histogram: Record<FrvpHistogramDirection, FrvpHistogramStyleDraft>
   levels: Record<FrvpLevelLineKind, FrvpLevelStyleDraft>
 }
@@ -76,6 +84,8 @@ export type FrvpSettingsDraftPatch = {
   rowCount?: number
   valueAreaPercent?: number
   extendRight?: boolean
+  histogramWidthPercent?: number
+  histogramBarHeightPercent?: number
   histogram: FrvpHistogramStylePatch[]
   levels: FrvpLevelStylePatch[]
 }
@@ -107,6 +117,10 @@ export function frvpSettingsDraftFromInstance(
     rowCount: instance.rowCount,
     valueAreaPercent: instance.valueAreaPercent,
     extendRight: instance.extendRight === true,
+    // Legacy instances display the rounded 1/6 maximum (16.7) so opening and
+    // saving an untouched dialog never writes a rounded width field.
+    histogramWidthPercent: frvpHistogramWidthPercentInputValue(instance),
+    histogramBarHeightPercent: frvpHistogramBarHeightPercent(instance),
     histogram,
     levels,
   }
@@ -123,6 +137,22 @@ function sanitizeValueAreaPercentDraft(valueAreaPercent: number, fallback: numbe
   if (!Number.isFinite(valueAreaPercent)) return fallback
   const clamped = Math.min(Math.max(valueAreaPercent, 0), 100)
   return Math.round(clamped * 100) / 100
+}
+
+function sanitizeHistogramWidthPercentDraft(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(
+    Math.max(value, FRVP_HISTOGRAM_MIN_WIDTH_PERCENT),
+    FRVP_HISTOGRAM_MAX_WIDTH_PERCENT,
+  )
+}
+
+function sanitizeHistogramBarHeightPercentDraft(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(
+    Math.max(value, FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT),
+    FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT,
+  )
 }
 
 function sanitizeLevelStyleDraft(
@@ -166,6 +196,14 @@ export function sanitizeFrvpSettingsDraft(
       initial.valueAreaPercent,
     ),
     extendRight: draft.extendRight === true,
+    histogramWidthPercent: sanitizeHistogramWidthPercentDraft(
+      draft.histogramWidthPercent,
+      initial.histogramWidthPercent,
+    ),
+    histogramBarHeightPercent: sanitizeHistogramBarHeightPercentDraft(
+      draft.histogramBarHeightPercent,
+      initial.histogramBarHeightPercent,
+    ),
     histogram,
     levels,
   }
@@ -208,6 +246,12 @@ export function frvpSettingsDraftPatch(
     patch.valueAreaPercent = draft.valueAreaPercent
   }
   if (draft.extendRight !== initial.extendRight) patch.extendRight = draft.extendRight
+  if (draft.histogramWidthPercent !== initial.histogramWidthPercent) {
+    patch.histogramWidthPercent = draft.histogramWidthPercent
+  }
+  if (draft.histogramBarHeightPercent !== initial.histogramBarHeightPercent) {
+    patch.histogramBarHeightPercent = draft.histogramBarHeightPercent
+  }
   return patch
 }
 
@@ -216,6 +260,8 @@ export function isFrvpSettingsDraftPatchEmpty(patch: FrvpSettingsDraftPatch): bo
     patch.rowCount === undefined &&
     patch.valueAreaPercent === undefined &&
     patch.extendRight === undefined &&
+    patch.histogramWidthPercent === undefined &&
+    patch.histogramBarHeightPercent === undefined &&
     patch.histogram.length === 0 &&
     patch.levels.length === 0
   )

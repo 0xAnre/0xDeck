@@ -2,7 +2,6 @@ import type { DatasetSummary } from '@/api/types'
 import type { KpiAggregation } from '@/kpiStorage'
 import type { MarketIndicatorId } from '@/market/indicators'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
-import type { FrvpHistogramDirection } from '@/market/frvpHistogramStyles'
 import type { LineInstance } from '@/market/lineInstances'
 import type { RectangleInstance } from '@/market/rectangleInstances'
 import type { AnchoredVwapInstance } from '@/market/anchoredVwapInstances'
@@ -66,39 +65,6 @@ export type WidgetSettingsRegistration = {
   onFixedRangeVolumeProfileDelete?: (instanceId: string) => void
   onFixedRangeVolumeProfileToggle?: (instanceId: string, enabled: boolean) => void
   onFixedRangeVolumeProfileLockToggle?: (instanceId: string, locked: boolean) => void
-  onFixedRangeVolumeProfileRowCountChange?: (instanceId: string, rowCount: number) => void
-  onFixedRangeVolumeProfileValueAreaChange?: (instanceId: string, valueAreaPercent: number) => void
-  onFixedRangeVolumeProfileExtendRightChange?: (instanceId: string, extendRight: boolean) => void
-  onFixedRangeVolumeProfileLevelStrokeColorChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    strokeColor: string,
-  ) => void
-  onFixedRangeVolumeProfileLevelLineWidthChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    lineWidth: LineChartStrokeWidth,
-  ) => void
-  onFixedRangeVolumeProfileLevelLineStyleChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    lineStyle: LineChartStrokeStyle,
-  ) => void
-  onFixedRangeVolumeProfileLevelStrokeOpacityChange?: (
-    instanceId: string,
-    kind: 'poc' | 'vah' | 'val',
-    opacityPercent: number,
-  ) => void
-  onFixedRangeVolumeProfileHistogramColorChange?: (
-    instanceId: string,
-    direction: FrvpHistogramDirection,
-    color: string,
-  ) => void
-  onFixedRangeVolumeProfileHistogramOpacityChange?: (
-    instanceId: string,
-    direction: FrvpHistogramDirection,
-    opacityPercent: number,
-  ) => void
   rectangleInstances?: RectangleInstance[]
   onRectangleArm?: () => void
   onRectangleDelete?: (instanceId: string) => void

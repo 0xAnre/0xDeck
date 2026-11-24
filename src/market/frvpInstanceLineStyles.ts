@@ -16,8 +16,12 @@ import {
   readFrvpVahValLineStrokeStyle,
 } from './frvpLevelLineColors.ts'
 import {
+  FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT,
+  frvpHistogramBarHeightPercent,
   frvpHistogramStyleDefaults,
   frvpHistogramStyleForInstance,
+  frvpHistogramWidthPercent,
 } from './frvpHistogramStyles.ts'
 import {
   isMarketStyleOpacityPercent,
@@ -262,6 +266,8 @@ export function frvpDefaultDrawStyle(): FixedRangeVolumeProfileDrawStyleInput {
     valLineWidthCssPx: defaultWidth,
     valLineDash: lineChartStrokeDashPattern(DEFAULT_FRVP_VAL_LINE_STYLE),
     ...frvpHistogramStyleDefaults(),
+    histogramWidthPercent: FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT,
+    histogramBarHeightPercent: FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
   }
 }
 
@@ -279,5 +285,7 @@ export function frvpDrawStyleForInstance(
     valLineWidthCssPx: frvpLevelLineWidthCssPx(frvpInstanceLevelLineWidth(instance, 'val')),
     valLineDash: frvpInstanceLevelLineDash(instance, 'val'),
     ...frvpHistogramStyleForInstance(instance),
+    histogramWidthPercent: frvpHistogramWidthPercent(instance),
+    histogramBarHeightPercent: frvpHistogramBarHeightPercent(instance),
   }
 }

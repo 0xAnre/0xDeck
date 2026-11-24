@@ -15,6 +15,10 @@ import {
   fixedRangeVolumeProfileRowOpacityPercent,
 } from './fixedRangeVolumeProfileRenderGeometry.ts'
 import { frvpDefaultDrawStyle, frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
+import {
+  FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT,
+} from './frvpHistogramStyles.ts'
 import { readFrvpPocLineStrokeStyle } from './frvpLevelLineColors.ts'
 
 const TEST_STYLES = frvpDefaultDrawStyle()
@@ -532,5 +536,153 @@ describe('fixedRangeVolumeProfileRenderGeometry', () => {
     const vah = lines.find((line) => line.kind === 'vah')
     assert.deepEqual(vah?.lineDash, [2, 3])
     assert.match(vah?.strokeStyle ?? '', /rgba\(255,\s*0,\s*0/)
+  })
+})
+
+function sizedBarGeometry(params: {
+  widthPercent?: number
+  barHeightPercent?: number
+  rangeWidth?: number
+  volume?: number
+  maxRowVolume?: number
+  upVolume?: number
+  downVolume?: number
+  top?: number
+  bottom?: number
+}) {
+  const volume = params.volume ?? 100
+  const upVolume = params.upVolume ?? 30
+  const downVolume = params.downVolume ?? 70
+  const geometry = buildFixedRangeVolumeProfileRowBarGeometry({
+    row: row({
+      upVolume,
+      downVolume,
+      totalVolume: volume,
+      inValueArea: true,
+    }),
+    rangeLeft: 100,
+    rangeWidth: params.rangeWidth ?? 600,
+    maxRowVolume: params.maxRowVolume ?? 100,
+    top: params.top ?? 10,
+    bottom: params.bottom ?? 20,
+    inValueArea: true,
+    ...(params.widthPercent === undefined
+      ? {}
+      : { histogramWidthPercent: params.widthPercent }),
+    ...(params.barHeightPercent === undefined
+      ? {}
+      : { histogramBarHeightPercent: params.barHeightPercent }),
+  })
+  if (!geometry) throw new Error('expected sized bar geometry')
+  return geometry
+}
+
+describe('FRVP histogram bar size geometry', () => {
+  it('keeps the exact legacy 1/6 width when no width field is set', () => {
+    const geometry = sizedBarGeometry({ rangeWidth: 600 })
+    assert.equal(geometry.totalWidth, 100)
+    assert.equal(
+      geometry.totalWidth,
+      600 * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
+    )
+    assert.equal(FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT, 100 / 6)
+  })
+
+  it('scales horizontal width linearly and preserves up/down volume shares', () => {
+    for (const widthPercent of [10, 25, 50, 100]) {
+      const geometry = sizedBarGeometry({ widthPercent, rangeWidth: 600 })
+      assert.equal(geometry.totalWidth, (600 * widthPercent) / 100)
+      assert.equal(geometry.upWidth, geometry.totalWidth * 0.3)
+      assert.equal(geometry.downWidth, geometry.totalWidth * 0.7)
+      assert.equal(geometry.upWidth + geometry.downWidth, geometry.totalWidth)
+      assert.ok(geometry.totalWidth <= 600)
+      assert.equal(geometry.left, 100)
+    }
+  })
+
+  it('bounds malformed width values to the legacy default', () => {
+    for (const widthPercent of [0, -5, 101, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const geometry = sizedBarGeometry({ widthPercent, rangeWidth: 600 })
+      assert.equal(
+        geometry.totalWidth,
+        600 * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
+      )
+    }
+  })
+
+  it('fills the whole bin at the legacy 100% height', () => {
+    const geometry = sizedBarGeometry({ barHeightPercent: 100 })
+    assert.equal(geometry.top, 10)
+    assert.equal(geometry.bottom, 20)
+    assert.equal(FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT, 100)
+  })
+
+  it('centers the vertical fill inside the same bin without moving its centre', () => {
+    const full = sizedBarGeometry({ barHeightPercent: 100 })
+    const half = sizedBarGeometry({ barHeightPercent: 50 })
+    const thin = sizedBarGeometry({ barHeightPercent: 1 })
+    assert.equal(half.top, 12.5)
+    assert.equal(half.bottom, 17.5)
+    assert.equal((full.top + full.bottom) / 2, (half.top + half.bottom) / 2)
+    assert.equal((full.top + full.bottom) / 2, (thin.top + thin.bottom) / 2)
+    assert.ok(half.bottom - half.top < full.bottom - full.top)
+    assert.ok(thin.bottom - thin.top < half.bottom - half.top)
+    assert.ok(thin.bottom - thin.top > 0)
+  })
+
+  it('bounds malformed height values to the legacy full row', () => {
+    for (const barHeightPercent of [0, -5, 101, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const geometry = sizedBarGeometry({ barHeightPercent })
+      assert.equal(geometry.top, 10)
+      assert.equal(geometry.bottom, 20)
+    }
+  })
+
+  it('keeps endpoint handles at the price-bin centre while the fill shrinks', () => {
+    const profile = {
+      fromTime: 100,
+      toTime: 199,
+      candleCount: 3,
+      profileLow: 100,
+      profileHigh: 130,
+      rowHeight: 10,
+      rows: [
+        row({ priceLow: 100, priceHigh: 110, totalVolume: 10, upVolume: 5, downVolume: 5 }),
+        row({ priceLow: 110, priceHigh: 120, totalVolume: 20, upVolume: 10, downVolume: 10 }),
+        row({ priceLow: 120, priceHigh: 130, totalVolume: 15, upVolume: 8, downVolume: 7 }),
+      ],
+      totalVolume: 45,
+      pocRowIndex: 1,
+      pocPrice: 115,
+      pocVolume: 20,
+      vah: 120,
+      val: 110,
+      valueAreaVolume: 30,
+      valueAreaPercentAchieved: 70,
+    }
+    const build = (histogramBarHeightPercent: number) =>
+      buildFixedRangeVolumeProfileInstanceDrawModel({
+        instanceId: 'a',
+        fromTime: 100,
+        toTime: 200,
+        profile,
+        barSpacing: 6,
+        fromTimeToCoordinate: (time) => time / 10,
+        toTimeToCoordinate: (time) => time / 10,
+        priceToY: (price) => 500 - price,
+        ...TEST_STYLES,
+        histogramBarHeightPercent,
+      })
+    const full = build(100)
+    const half = build(50)
+    assert.notEqual(full, null)
+    assert.notEqual(half, null)
+    assert.equal(full?.endpointHandles?.y, half?.endpointHandles?.y)
+    assert.ok(
+      (half?.rows[0]?.bottom ?? 0) - (half?.rows[0]?.top ?? 0) <
+        (full?.rows[0]?.bottom ?? 0) - (full?.rows[0]?.top ?? 0),
+    )
+    // Width is independent of the vertical fill.
+    assert.equal(half?.rows[0]?.totalWidth, full?.rows[0]?.totalWidth)
   })
 })

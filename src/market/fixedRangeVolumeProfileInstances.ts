@@ -56,6 +56,16 @@ export type FixedRangeVolumeProfileInstance = {
   histogramUpOpacityPercent?: number
   histogramDownColor?: string
   histogramDownOpacityPercent?: number
+  /**
+   * Maximum histogram bar width as a percentage of the selected range. Missing
+   * fields resolve to the exact legacy 1/6-of-range maximum.
+   */
+  histogramWidthPercent?: number
+  /**
+   * Vertical fill share of each price row, centered inside the bin. Missing
+   * fields resolve to 100% (the legacy full-bin height).
+   */
+  histogramBarHeightPercent?: number
 }
 
 export type SanitizeFixedRangeVolumeProfileOptions = {

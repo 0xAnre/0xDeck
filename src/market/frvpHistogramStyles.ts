@@ -3,12 +3,17 @@ import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileI
 import { isMarketStyleHexColor, isMarketStyleOpacityPercent } from './marketStylePalette.ts'
 
 /**
- * FRVP histogram bar styling (per-instance Up/Down color + 0–100 opacity).
+ * FRVP histogram bar styling (per-instance Up/Down color + 0–100 opacity,
+ * horizontal maximum width and vertical row fill).
  *
  * The configured opacity is the ceiling for the Value Area rows; the render
  * geometry scales it by the Value-Area/outside shares (55 / 25 of it). The
  * default is 50% for both directions, so a profile without custom histogram
  * fields renders 0.275 inside the Value Area and 0.125 outside it.
+ *
+ * Horizontal width and vertical fill are presentation-only. Missing fields
+ * reproduce the legacy appearance exactly: the highest-volume bar spans 1/6 of
+ * the selected range and every row fills its whole price bin.
  */
 export type FixedRangeVolumeProfileHistogramStyleInput = {
   upColor: string
@@ -26,6 +31,29 @@ export const FRVP_HISTOGRAM_DEFAULT_DOWN_COLOR = BTC_PERPETUAL_CANDLESTICK_COLOR
 
 /** Default configured opacity (Value-Area ceiling) for both directions. */
 export const FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT = 50
+
+/**
+ * Legacy maximum bar width as a fraction of the selected time range. Kept here
+ * (next to the width percentage) so the legacy geometry and the editable
+ * percentage cannot drift apart. Re-exported by the render geometry module.
+ */
+export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
+
+/** Maximum bar width at the highest-volume row, as a percentage of the range. */
+export const FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT = 100 / 6
+
+/** Stable one-decimal form of the legacy width for the settings input only. */
+export const FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT =
+  Math.round(FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT * 10) / 10
+
+/** Safe editable bounds; 100% of the range is the hard maximum (no overflow). */
+export const FRVP_HISTOGRAM_MIN_WIDTH_PERCENT = 1
+export const FRVP_HISTOGRAM_MAX_WIDTH_PERCENT = 100
+
+/** Default vertical fill of every price row; 100% keeps the legacy full height. */
+export const FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT = 100
+export const FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT = 1
+export const FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT = 100
 
 /** Default histogram appearance used by instances without custom settings. */
 export function frvpHistogramStyleDefaults(): FixedRangeVolumeProfileHistogramStyleInput {
@@ -78,6 +106,58 @@ export function frvpHistogramOpacityPercent(
   return FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT
 }
 
+export function isFrvpHistogramWidthPercent(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= FRVP_HISTOGRAM_MIN_WIDTH_PERCENT &&
+    value <= FRVP_HISTOGRAM_MAX_WIDTH_PERCENT
+  )
+}
+
+export function isFrvpHistogramBarHeightPercent(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT &&
+    value <= FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT
+  )
+}
+
+/**
+ * Effective maximum bar width percentage. A missing/invalid field resolves to
+ * the exact legacy 1/6 fraction; an explicit value is returned unchanged so a
+ * save/reload round-trip does not round the user's choice.
+ */
+export function frvpHistogramWidthPercent(
+  instance: FixedRangeVolumeProfileInstance,
+): number {
+  const value = instance.histogramWidthPercent
+  if (isFrvpHistogramWidthPercent(value)) return value
+  return FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT
+}
+
+/**
+ * Effective vertical fill percentage. A missing/invalid field resolves to the
+ * legacy full row height.
+ */
+export function frvpHistogramBarHeightPercent(
+  instance: FixedRangeVolumeProfileInstance,
+): number {
+  const value = instance.histogramBarHeightPercent
+  if (isFrvpHistogramBarHeightPercent(value)) return value
+  return FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT
+}
+
+/** Draft/input value for the width field: legacy default shown as 16.7. */
+export function frvpHistogramWidthPercentInputValue(
+  instance: FixedRangeVolumeProfileInstance,
+): number {
+  const value = instance.histogramWidthPercent
+  if (isFrvpHistogramWidthPercent(value)) return value
+  return FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT
+}
+
 /** Per-instance histogram style consumed by the render geometry. */
 export function frvpHistogramStyleForInstance(
   instance: FixedRangeVolumeProfileInstance,
@@ -114,6 +194,22 @@ export function setFrvpInstanceHistogramOpacityPercent(
   return { ...instance, [key]: opacityPercent }
 }
 
+export function setFrvpInstanceHistogramWidthPercent(
+  instance: FixedRangeVolumeProfileInstance,
+  widthPercent: number,
+): FixedRangeVolumeProfileInstance {
+  if (!isFrvpHistogramWidthPercent(widthPercent)) return instance
+  return { ...instance, histogramWidthPercent: widthPercent }
+}
+
+export function setFrvpInstanceHistogramBarHeightPercent(
+  instance: FixedRangeVolumeProfileInstance,
+  barHeightPercent: number,
+): FixedRangeVolumeProfileInstance {
+  if (!isFrvpHistogramBarHeightPercent(barHeightPercent)) return instance
+  return { ...instance, histogramBarHeightPercent: barHeightPercent }
+}
+
 /**
  * Keep only valid persisted histogram fields. Missing or invalid fields stay
  * unset and resolve to the legacy defaults at read time, so stored records are
@@ -133,6 +229,12 @@ export function sanitizeFrvpInstanceHistogramStyles(
     if (isMarketStyleOpacityPercent(record[opacityKey])) {
       next = { ...next, [opacityKey]: record[opacityKey] }
     }
+  }
+  if (isFrvpHistogramWidthPercent(record.histogramWidthPercent)) {
+    next = { ...next, histogramWidthPercent: record.histogramWidthPercent }
+  }
+  if (isFrvpHistogramBarHeightPercent(record.histogramBarHeightPercent)) {
+    next = { ...next, histogramBarHeightPercent: record.histogramBarHeightPercent }
   }
   return next
 }
