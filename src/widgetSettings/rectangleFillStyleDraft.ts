@@ -3,10 +3,12 @@
  *
  * Same draft + Save contract as the other chart settings dialogs, restricted to
  * the rectangle fill color/opacity pair (the fill uses the shared
- * `ColorOpacityField` without the Line/Dot row). Pure functions only.
+ * `ColorOpacityField` without the Line/Dot row) and the existing geometry lock
+ * flag. Pure functions only.
  */
 import { isMarketStyleHexColor, isMarketStyleOpacityPercent } from '../market/marketStylePalette.ts'
 import {
+  isRectangleInstanceLocked,
   rectangleInstanceFillOpacityPercent,
   type RectangleInstance,
 } from '../market/rectangleInstances.ts'
@@ -15,11 +17,13 @@ import { rectangleInstancePickerFillHex } from '../market/rectangleColors.ts'
 export type RectangleFillStyleDraft = {
   fillColor: string
   fillOpacityPercent: number
+  locked: boolean
 }
 
 export type RectangleFillStyleDraftPatch = {
   fillColor?: string
   fillOpacity?: number
+  locked?: boolean
 }
 
 export function rectangleFillStyleDraftFromInstance(
@@ -28,6 +32,7 @@ export function rectangleFillStyleDraftFromInstance(
   return {
     fillColor: rectangleInstancePickerFillHex(instance),
     fillOpacityPercent: rectangleInstanceFillOpacityPercent(instance),
+    locked: isRectangleInstanceLocked(instance),
   }
 }
 
@@ -41,6 +46,7 @@ export function sanitizeRectangleFillStyleDraft(
     fillOpacityPercent: isMarketStyleOpacityPercent(draft.fillOpacityPercent)
       ? draft.fillOpacityPercent
       : initial.fillOpacityPercent,
+    locked: typeof draft.locked === 'boolean' ? draft.locked : initial.locked,
   }
 }
 
@@ -53,6 +59,7 @@ export function rectangleFillStyleDraftPatch(
   if (draft.fillOpacityPercent !== initial.fillOpacityPercent) {
     patch.fillOpacity = draft.fillOpacityPercent
   }
+  if (draft.locked !== initial.locked) patch.locked = draft.locked
   return patch
 }
 

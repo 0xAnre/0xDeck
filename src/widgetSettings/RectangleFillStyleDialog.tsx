@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LockIcon, LockOpenIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -8,7 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { FieldGroup } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Toggle } from '@/components/ui/toggle'
 import { formatRectangleInstanceLabel, type RectangleInstance } from '@/market/rectangleInstances'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
 import {
@@ -32,11 +34,14 @@ type RectangleFillStyleDialogProps = {
   onOpenChange: (open: boolean) => void
   onFillColorChange: (instanceId: string, fillColor: string) => void
   onFillOpacityChange: (instanceId: string, fillOpacity: number) => void
+  onLockedChange: (instanceId: string, locked: boolean) => void
 }
 
 /**
- * Draft-based rectangle fill settings: `Save` commits changed fields through the
- * instance update → persist path; `Cancel`, `X`, `Esc` and outside click discard.
+ * Draft-based rectangle settings: the fill color/opacity pair and the geometry
+ * lock flag edit a local draft; `Save` commits only changed fields through the
+ * instance update → persist path, and `Cancel`, `X`, `Esc` and outside click
+ * discard the draft without writing storage.
  */
 function RectangleFillStyleDialogBody({
   instance,
@@ -51,6 +56,8 @@ function RectangleFillStyleDialogBody({
     rectangleFillStyleDraftFromInstance(instance),
   )
   const [draft, setDraft] = useState<RectangleFillStyleDraft>(initial)
+  const lockLabelId = `rectangle-lock-label-${instance.id}`
+  const lockDescriptionId = `rectangle-lock-description-${instance.id}`
 
   return (
     <>
@@ -66,6 +73,31 @@ function RectangleFillStyleDialogBody({
               setDraft((current) => ({ ...current, fillOpacityPercent }))
             }
           />
+          <Field>
+            <FieldLabel id={lockLabelId}>Lock</FieldLabel>
+            <Toggle
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              pressed={draft.locked}
+              onPressedChange={(locked) => setDraft((current) => ({ ...current, locked }))}
+              aria-labelledby={lockLabelId}
+              aria-describedby={lockDescriptionId}
+            >
+              {draft.locked ? (
+                <LockIcon data-icon="inline-start" />
+              ) : (
+                <LockOpenIcon data-icon="inline-start" />
+              )}
+              {draft.locked ? 'Locked' : 'Unlocked'}
+            </Toggle>
+            <FieldDescription id={lockDescriptionId}>
+              Locked boxes stay visible and can still be selected or opened for settings, but
+              cannot be moved, resized or deleted on the chart. Save applies the change; Cancel,
+              Esc and close discard it.
+            </FieldDescription>
+          </Field>
         </FieldGroup>
       </div>
       <DialogFooter className="shrink-0">
@@ -98,10 +130,12 @@ export function RectangleFillStyleDialog({
   onOpenChange,
   onFillColorChange,
   onFillOpacityChange,
+  onLockedChange,
 }: RectangleFillStyleDialogProps) {
   const handleSave = (instanceId: string, patch: RectangleFillStyleDraftPatch) => {
     if (patch.fillColor !== undefined) onFillColorChange(instanceId, patch.fillColor)
     if (patch.fillOpacity !== undefined) onFillOpacityChange(instanceId, patch.fillOpacity)
+    if (patch.locked !== undefined) onLockedChange(instanceId, patch.locked)
     onOpenChange(false)
   }
 
@@ -121,9 +155,9 @@ export function RectangleFillStyleDialog({
         }}
       >
         <DialogHeader className="shrink-0">
-          <DialogTitle>Rectangle fill</DialogTitle>
+          <DialogTitle>Rectangle settings</DialogTitle>
           <DialogDescription>
-            {instance ? formatRectangleInstanceLabel(instance) : 'Fill style'}
+            {instance ? formatRectangleInstanceLabel(instance) : 'Fill style and lock'}
           </DialogDescription>
         </DialogHeader>
         {instance ? (
