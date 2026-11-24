@@ -362,6 +362,9 @@ export function HeaderToolsMenu({
         onFillOpacityChange={(instanceId, fillOpacity) => {
           onRectangleFillOpacityChange?.(instanceId, fillOpacity)
         }}
+        onLockedChange={(instanceId, locked) => {
+          onRectangleLockToggle?.(instanceId, locked)
+        }}
       />
       <LineStyleDialog
         instance={lineStyleInstance}
