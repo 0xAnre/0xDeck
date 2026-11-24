@@ -94,6 +94,7 @@ import {
   createYearlyVwapLineSeries,
 } from '@/market/yearlyVwapChartSeries'
 import { RollingVwapSettingsDialog } from '@/market/RollingVwapSettingsDialog'
+import { FixedRangeVolumeProfileSettingsDialog } from '@/widgetSettings/FixedRangeVolumeProfileSettingsDialog'
 import {
   applyRollingVwapInstanceHistory,
   applyRollingVwapInstanceSettingsToChart,
@@ -279,8 +280,10 @@ import {
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
 import {
+  setFrvpInstanceHistogramBarHeightPercent,
   setFrvpInstanceHistogramColor,
   setFrvpInstanceHistogramOpacityPercent,
+  setFrvpInstanceHistogramWidthPercent,
   type FrvpHistogramDirection,
 } from '@/market/frvpHistogramStyles'
 import { attachLineSeriesPrimitive } from '@/market/lineSeriesPrimitive'
@@ -1725,6 +1728,33 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     [persistFixedRangeVolumeProfileInstances],
   )
 
+  const handleFixedRangeVolumeProfileHistogramWidthChange = useCallback(
+    (instanceId: string, widthPercent: number) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) => setFrvpInstanceHistogramWidthPercent(instance, widthPercent),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
+  const handleFixedRangeVolumeProfileHistogramBarHeightChange = useCallback(
+    (instanceId: string, barHeightPercent: number) => {
+      persistFixedRangeVolumeProfileInstances(
+        updateFixedRangeVolumeProfileInstancesById(
+          fixedRangeVolumeProfileInstancesRef.current,
+          instanceId,
+          (instance) =>
+            setFrvpInstanceHistogramBarHeightPercent(instance, barHeightPercent),
+        ),
+      )
+    },
+    [persistFixedRangeVolumeProfileInstances],
+  )
+
   const handleMarketIndicatorSettingsClick = useCallback(
     (indicatorId: MarketIndicatorId) => {
       if (indicatorId === 'aggregated-liquidations') {
@@ -2172,22 +2202,6 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     onFixedRangeVolumeProfileDelete: handleFixedRangeVolumeProfileDelete,
     onFixedRangeVolumeProfileToggle: handleFixedRangeVolumeProfileToggle,
     onFixedRangeVolumeProfileLockToggle: handleFixedRangeVolumeProfileLockToggle,
-    onFixedRangeVolumeProfileRowCountChange: handleFixedRangeVolumeProfileRowCountChange,
-    onFixedRangeVolumeProfileValueAreaChange: handleFixedRangeVolumeProfileValueAreaChange,
-    onFixedRangeVolumeProfileExtendRightChange:
-      handleFixedRangeVolumeProfileExtendRightChange,
-    onFixedRangeVolumeProfileLevelStrokeColorChange:
-      handleFixedRangeVolumeProfileLevelStrokeColorChange,
-    onFixedRangeVolumeProfileLevelLineWidthChange:
-      handleFixedRangeVolumeProfileLevelLineWidthChange,
-    onFixedRangeVolumeProfileLevelLineStyleChange:
-      handleFixedRangeVolumeProfileLevelLineStyleChange,
-    onFixedRangeVolumeProfileLevelStrokeOpacityChange:
-      handleFixedRangeVolumeProfileLevelStrokeOpacityChange,
-    onFixedRangeVolumeProfileHistogramColorChange:
-      handleFixedRangeVolumeProfileHistogramColorChange,
-    onFixedRangeVolumeProfileHistogramOpacityChange:
-      handleFixedRangeVolumeProfileHistogramOpacityChange,
     rectangleInstances,
     onRectangleArm: handleRectangleArm,
     onRectangleDelete: handleRectangleDelete,
@@ -4068,6 +4082,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     ? anchoredVwapInstances.find((item) => item.id === editingAnchoredVwapInstanceId)
     : undefined
 
+  const fixedRangeVolumeProfileSettingsInstance =
+    chartObjectSettingsTarget?.kind === 'fixed-range-volume-profile'
+      ? (fixedRangeVolumeProfileInstances.find(
+          (item) => item.id === chartObjectSettingsTarget.instanceId,
+        ) ?? null)
+      : null
+
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-1">
       {!chartReady && (
@@ -4148,6 +4169,34 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         aria-hidden={!chartReady}
       />
 
+      {/*
+        Mount beside the Rolling/Anchored settings dialogs, not inside
+        HeaderToolsMenu: a dialog nested in the Tools dropdown host ignores
+        Radix's outside-pointerdown dismissal in this build (the menu host
+        swallows the deferred click). This keeps Cancel/X/Esc/outside identical
+        to the other chart-object dialogs while the Tools gear still opens it
+        through the shared ChartObjectSettingsTarget.
+      */}
+      {headerSettings.tools === true && (
+        <FixedRangeVolumeProfileSettingsDialog
+          instance={fixedRangeVolumeProfileSettingsInstance}
+          returnFocusId={`${panelId}-tools`}
+          onOpenChange={(open) => {
+            if (!open) setChartObjectSettingsTarget(null)
+          }}
+          onRowCountChange={handleFixedRangeVolumeProfileRowCountChange}
+          onValueAreaPercentChange={handleFixedRangeVolumeProfileValueAreaChange}
+          onExtendRightChange={handleFixedRangeVolumeProfileExtendRightChange}
+          onHistogramColorChange={handleFixedRangeVolumeProfileHistogramColorChange}
+          onHistogramOpacityChange={handleFixedRangeVolumeProfileHistogramOpacityChange}
+          onHistogramWidthChange={handleFixedRangeVolumeProfileHistogramWidthChange}
+          onHistogramBarHeightChange={handleFixedRangeVolumeProfileHistogramBarHeightChange}
+          onLevelStrokeColorChange={handleFixedRangeVolumeProfileLevelStrokeColorChange}
+          onLevelLineWidthChange={handleFixedRangeVolumeProfileLevelLineWidthChange}
+          onLevelLineStyleChange={handleFixedRangeVolumeProfileLevelLineStyleChange}
+          onLevelStrokeOpacityChange={handleFixedRangeVolumeProfileLevelStrokeOpacityChange}
+        />
+      )}
       <AnchoredVwapSettingsDialog
         open={anchoredVwapSettingsOpen}
         instanceLabel={

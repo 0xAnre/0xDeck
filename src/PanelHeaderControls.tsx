@@ -202,29 +202,6 @@ export function PanelHeaderControls({ panelId }: PanelHeaderControlsProps) {
             onLineDelete={settings.onLineDelete}
             onFixedRangeVolumeProfileToggle={settings.onFixedRangeVolumeProfileToggle}
             onFixedRangeVolumeProfileLockToggle={settings.onFixedRangeVolumeProfileLockToggle}
-            onFixedRangeVolumeProfileRowCountChange={settings.onFixedRangeVolumeProfileRowCountChange}
-            onFixedRangeVolumeProfileValueAreaChange={settings.onFixedRangeVolumeProfileValueAreaChange}
-            onFixedRangeVolumeProfileExtendRightChange={
-              settings.onFixedRangeVolumeProfileExtendRightChange
-            }
-            onFixedRangeVolumeProfileLevelStrokeColorChange={
-              settings.onFixedRangeVolumeProfileLevelStrokeColorChange
-            }
-            onFixedRangeVolumeProfileLevelLineWidthChange={
-              settings.onFixedRangeVolumeProfileLevelLineWidthChange
-            }
-            onFixedRangeVolumeProfileLevelLineStyleChange={
-              settings.onFixedRangeVolumeProfileLevelLineStyleChange
-            }
-            onFixedRangeVolumeProfileLevelStrokeOpacityChange={
-              settings.onFixedRangeVolumeProfileLevelStrokeOpacityChange
-            }
-            onFixedRangeVolumeProfileHistogramColorChange={
-              settings.onFixedRangeVolumeProfileHistogramColorChange
-            }
-            onFixedRangeVolumeProfileHistogramOpacityChange={
-              settings.onFixedRangeVolumeProfileHistogramOpacityChange
-            }
             onRectangleVisibilityToggle={settings.onRectangleVisibilityToggle}
             onLineLockToggle={settings.onLineLockToggle}
             onLineVisibilityToggle={settings.onLineVisibilityToggle}

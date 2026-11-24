@@ -23,7 +23,13 @@ import {
   type FrvpLevelLineKind,
 } from '@/market/frvpInstanceLineStyles'
 import {
+  FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
   FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT,
+  FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MAX_WIDTH_PERCENT,
+  FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MIN_WIDTH_PERCENT,
   type FrvpHistogramDirection,
 } from '@/market/frvpHistogramStyles'
 import { FRVP_LEVEL_DEFAULT_OPACITY_PERCENT } from '@/market/frvpLevelLineColors'
@@ -61,6 +67,8 @@ type FixedRangeVolumeProfileSettingsDialogProps = {
     direction: FrvpHistogramDirection,
     opacityPercent: number,
   ) => void
+  onHistogramWidthChange: (instanceId: string, widthPercent: number) => void
+  onHistogramBarHeightChange: (instanceId: string, barHeightPercent: number) => void
   onLevelStrokeColorChange: (instanceId: string, kind: FrvpLevelLineKind, strokeColor: string) => void
   onLevelLineWidthChange: (
     instanceId: string,
@@ -190,25 +198,6 @@ function FixedRangeVolumeProfileSettingsDialogBody({
       <div className={CHART_SETTINGS_DIALOG_BODY_CLASS}>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="frvp-row-count">Row count</FieldLabel>
-            <Input
-              id="frvp-row-count"
-              type="number"
-              min={1}
-              max={MAX_FIXED_RANGE_VP_ROW_COUNT}
-              value={draft.rowCount}
-              onChange={(event) => {
-                const value = Number.parseInt(event.target.value, 10)
-                if (!Number.isFinite(value)) return
-                setDraft((current) => ({ ...current, rowCount: value }))
-              }}
-              onBlur={sanitizeDraft}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') sanitizeDraft()
-              }}
-            />
-          </Field>
-          <Field>
             <FieldLabel htmlFor="frvp-value-area">Value area %</FieldLabel>
             <Input
               id="frvp-value-area"
@@ -244,7 +233,82 @@ function FixedRangeVolumeProfileSettingsDialogBody({
             </FieldContent>
           </Field>
           <FieldGroup className="gap-3 border-t border-border pt-3">
-            <p className="text-sm font-medium">Histogram</p>
+            <p className="text-sm font-medium">Profile bars</p>
+            <FieldDescription>
+              Row count chooses the genuine price-bin count and recomputes the profile. Max
+              width and bar height only change how those rows are drawn; POC, VAH, VAL and
+              the volume values stay the same.
+            </FieldDescription>
+            <Field>
+              <FieldLabel htmlFor="frvp-row-count">Row count</FieldLabel>
+              <Input
+                id="frvp-row-count"
+                type="number"
+                min={1}
+                max={MAX_FIXED_RANGE_VP_ROW_COUNT}
+                value={draft.rowCount}
+                onChange={(event) => {
+                  const value = Number.parseInt(event.target.value, 10)
+                  if (!Number.isFinite(value)) return
+                  setDraft((current) => ({ ...current, rowCount: value }))
+                }}
+                onBlur={sanitizeDraft}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') sanitizeDraft()
+                }}
+              />
+              <FieldDescription>Number of price bins in the profile.</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="frvp-histogram-width">Max width (% of range)</FieldLabel>
+              <Input
+                id="frvp-histogram-width"
+                type="number"
+                min={FRVP_HISTOGRAM_MIN_WIDTH_PERCENT}
+                max={FRVP_HISTOGRAM_MAX_WIDTH_PERCENT}
+                step={0.1}
+                value={draft.histogramWidthPercent}
+                onChange={(event) => {
+                  const value = Number.parseFloat(event.target.value)
+                  if (!Number.isFinite(value)) return
+                  setDraft((current) => ({ ...current, histogramWidthPercent: value }))
+                }}
+                onBlur={sanitizeDraft}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') sanitizeDraft()
+                }}
+              />
+              <FieldDescription>
+                Horizontal extent of the highest-volume row. Rows keep their volume ratios;
+                {FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT}% is the legacy 1/6 of the
+                selected range.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="frvp-histogram-bar-height">Bar height (% of row)</FieldLabel>
+              <Input
+                id="frvp-histogram-bar-height"
+                type="number"
+                min={FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT}
+                max={FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT}
+                step={1}
+                value={draft.histogramBarHeightPercent}
+                onChange={(event) => {
+                  const value = Number.parseFloat(event.target.value)
+                  if (!Number.isFinite(value)) return
+                  setDraft((current) => ({ ...current, histogramBarHeightPercent: value }))
+                }}
+                onBlur={sanitizeDraft}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') sanitizeDraft()
+                }}
+              />
+              <FieldDescription>
+                Vertical fill of each price row, centered in the bin. {FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT}%
+                keeps the legacy full-row height; lower values add gaps without moving bin
+                centres or POC/VAH/VAL lines.
+              </FieldDescription>
+            </Field>
             <FieldDescription>
               Opacity is the Value-Area ceiling; rows outside the value area render at ~25/55
               of it. Default is {FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT}% for both directions.
@@ -295,8 +359,10 @@ function FixedRangeVolumeProfileSettingsDialogBody({
           />
           <p className="text-xs text-muted-foreground">
             Defaults: {DEFAULT_FIXED_RANGE_VP_ROW_COUNT} rows,{' '}
-            {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on, red dotted
-            POC and grey solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
+            {DEFAULT_FIXED_RANGE_VP_VALUE_AREA_PERCENT}% value area, extend right on,
+            {FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT}% max width and{' '}
+            {FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT}% bar height, red dotted POC and grey
+            solid VAH/VAL at {DEFAULT_FRVP_LEVEL_LINE_WIDTH}px /{' '}
             {FRVP_LEVEL_DEFAULT_OPACITY_PERCENT}% opacity.
           </p>
         </FieldGroup>
@@ -331,6 +397,8 @@ export function FixedRangeVolumeProfileSettingsDialog({
   onExtendRightChange,
   onHistogramColorChange,
   onHistogramOpacityChange,
+  onHistogramWidthChange,
+  onHistogramBarHeightChange,
   onLevelStrokeColorChange,
   onLevelLineWidthChange,
   onLevelLineStyleChange,
@@ -342,6 +410,12 @@ export function FixedRangeVolumeProfileSettingsDialog({
       onValueAreaPercentChange(instanceId, patch.valueAreaPercent)
     }
     if (patch.extendRight !== undefined) onExtendRightChange(instanceId, patch.extendRight)
+    if (patch.histogramWidthPercent !== undefined) {
+      onHistogramWidthChange(instanceId, patch.histogramWidthPercent)
+    }
+    if (patch.histogramBarHeightPercent !== undefined) {
+      onHistogramBarHeightChange(instanceId, patch.histogramBarHeightPercent)
+    }
     for (const level of patch.levels) {
       if (level.strokeColor !== undefined) {
         onLevelStrokeColorChange(instanceId, level.kind, level.strokeColor)

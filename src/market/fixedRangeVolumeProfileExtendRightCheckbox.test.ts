@@ -142,45 +142,43 @@ describe('FRVP Extend right checkbox data path', () => {
 })
 
 // Source-read wiring guard. The repo has no DOM/React test harness, so this
-// asserts the prop is actually forwarded from the panel header into
-// HeaderToolsMenu (the regression that made the checkbox inert) and declared
-// at each interface boundary.
-describe('FRVP Extend right header wiring guard', () => {
-  const panelHeaderSource = readFileSync(path.join(SRC_ROOT, 'PanelHeaderControls.tsx'), 'utf8')
-  const typesSource = readFileSync(
-    path.join(SRC_ROOT, 'widgetSettings', 'types.ts'),
-    'utf8',
-  )
-  const headerToolsMenuSource = readFileSync(
-    path.join(SRC_ROOT, 'widgetSettings', 'HeaderToolsMenu.tsx'),
+// asserts the Extend Right draft reaches the panel-level dialog and the panel
+// handler that persists it. The dialog used to be hosted inside HeaderToolsMenu;
+// it now mounts beside the Rolling/Anchored settings dialogs so Radix
+// outside-click dismissal works when it was opened from Tools.
+describe('FRVP Extend right wiring guard', () => {
+  const panelSource = readFileSync(path.join(SRC_ROOT, 'BtcPerpetualChartPanel.tsx'), 'utf8')
+  const dialogSource = readFileSync(
+    path.join(SRC_ROOT, 'widgetSettings', 'FixedRangeVolumeProfileSettingsDialog.tsx'),
     'utf8',
   )
 
-  function extractHeaderToolsMenuOpenTag(source: string): string {
-    const start = source.indexOf('<HeaderToolsMenu')
-    assert.notEqual(start, -1, 'PanelHeaderControls must render <HeaderToolsMenu>')
+  function extractFrvpDialogOpenTag(source: string): string {
+    const start = source.indexOf('<FixedRangeVolumeProfileSettingsDialog')
+    assert.notEqual(start, -1, 'BtcPerpetualChartPanel must render the FRVP dialog')
     const end = source.indexOf('/>', start)
-    assert.notEqual(end, -1, 'HeaderToolsMenu opening tag must self-close')
+    assert.notEqual(end, -1, 'The FRVP dialog opening tag must self-close')
     return source.slice(start, end)
   }
 
-  it('PanelHeaderControls forwards onFixedRangeVolumeProfileExtendRightChange to HeaderToolsMenu', () => {
-    const openTag = extractHeaderToolsMenuOpenTag(panelHeaderSource)
-    assert.match(openTag, /onFixedRangeVolumeProfileExtendRightChange=/)
-    assert.match(openTag, /settings\.onFixedRangeVolumeProfileExtendRightChange/)
+  it('BtcPerpetualChartPanel forwards Extend Right to the FRVP dialog', () => {
+    const openTag = extractFrvpDialogOpenTag(panelSource)
+    assert.match(openTag, /onExtendRightChange=\{handleFixedRangeVolumeProfileExtendRightChange\}/)
   })
 
-  it('WidgetSettingsRegistration declares onFixedRangeVolumeProfileExtendRightChange', () => {
+  it('BtcPerpetualChartPanel persists Extend Right through the instance setter', () => {
+    assert.match(panelSource, /handleFixedRangeVolumeProfileExtendRightChange/)
     assert.match(
-      typesSource,
-      /onFixedRangeVolumeProfileExtendRightChange\?:\s*\(/,
+      panelSource,
+      /setFixedRangeVolumeProfileInstanceExtendRight\(instance, extendRight\)/,
     )
   })
 
-  it('HeaderToolsMenu declares onFixedRangeVolumeProfileExtendRightChange', () => {
+  it('FixedRangeVolumeProfileSettingsDialog commits the Extend Right patch field', () => {
+    assert.match(dialogSource, /onExtendRightChange:\s*\(\s*instanceId: string,\s*extendRight: boolean,?\s*\) => void/)
     assert.match(
-      headerToolsMenuSource,
-      /onFixedRangeVolumeProfileExtendRightChange\?:\s*\(/,
+      dialogSource,
+      /if \(patch\.extendRight !== undefined\) onExtendRightChange\(instanceId, patch\.extendRight\)/,
     )
   })
 })

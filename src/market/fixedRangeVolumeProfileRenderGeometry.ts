@@ -1,13 +1,25 @@
 import type { FixedRangeVolumeProfileResult, FixedRangeVolumeProfileRow } from './fixedRangeVolumeProfile.ts'
 import { resolveFixedRangeVolumeProfileEffectiveToTime } from './fixedRangeVolumeProfileRequestBounds.ts'
 import {
+  FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT,
+  FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE,
   frvpHistogramStyleDefaults,
+  isFrvpHistogramBarHeightPercent,
+  isFrvpHistogramWidthPercent,
   type FixedRangeVolumeProfileHistogramStyleInput,
 } from './frvpHistogramStyles.ts'
 import {
   clampMarketStyleOpacityPercent,
   marketStyleColorWithOpacity,
 } from './marketStylePalette.ts'
+
+/**
+ * Legacy maximum histogram width (1/6 of the selected range). Re-exported here
+ * for the existing render-geometry call sites and tests; the source of truth is
+ * `frvpHistogramStyles.ts` next to the editable percentage.
+ */
+export { FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE }
 
 /**
  * Value-Area rows keep the strongest histogram alpha; outside rows stay at the
@@ -34,8 +46,12 @@ export function fixedRangeVolumeProfileRowOpacityPercent(
   return (clampMarketStyleOpacityPercent(configuredOpacityPercent) * share) / 100
 }
 
-/** Max histogram bar width as a fraction of the selected time range width (peak volume row). */
-export const FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE = 1 / 6
+export type FixedRangeVolumeProfileHistogramGeometryStyleInput = {
+  /** Maximum bar width as a percentage of the selected range (1–100). */
+  histogramWidthPercent?: number
+  /** Vertical fill of each row as a percentage of the bin height (1–100). */
+  histogramBarHeightPercent?: number
+}
 
 export type FixedRangeVolumeProfileRowBarGeometry = {
   top: number
@@ -111,7 +127,8 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   top: number
   bottom: number
   inValueArea: boolean
-} & Partial<FixedRangeVolumeProfileHistogramStyleInput>): FixedRangeVolumeProfileRowBarGeometry | null {
+} & Partial<FixedRangeVolumeProfileHistogramStyleInput> &
+  FixedRangeVolumeProfileHistogramGeometryStyleInput): FixedRangeVolumeProfileRowBarGeometry | null {
   const { row, rangeLeft, rangeWidth, maxRowVolume, top, bottom } = params
   if (!Number.isFinite(rangeLeft) || !Number.isFinite(rangeWidth) || rangeWidth <= 0) return null
   if (!Number.isFinite(maxRowVolume) || maxRowVolume <= 0) return null
@@ -120,9 +137,45 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   const height = bottom - top
   if (!Number.isFinite(height) || height <= 0) return null
 
-  const histogramMaxWidth = rangeWidth * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE
-  const totalWidth = (histogramMaxWidth * row.totalVolume) / maxRowVolume
+  const widthPercent =
+    params.histogramWidthPercent !== undefined &&
+    isFrvpHistogramWidthPercent(params.histogramWidthPercent)
+      ? params.histogramWidthPercent
+      : FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT
+  const barHeightPercent =
+    params.histogramBarHeightPercent !== undefined &&
+    isFrvpHistogramBarHeightPercent(params.histogramBarHeightPercent)
+      ? params.histogramBarHeightPercent
+      : FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT
+
+  const histogramMaxWidth =
+    widthPercent === FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT
+      ? rangeWidth * FRVP_HISTOGRAM_MAX_WIDTH_FRACTION_OF_RANGE
+      : (rangeWidth * widthPercent) / 100
+  if (!Number.isFinite(histogramMaxWidth) || histogramMaxWidth < 0) {
+    return null
+  }
+  // Validated percentages are <= 100%, so the clamp only absorbs last-bit
+  // floating-point rounding; a bar can never overflow the selected range.
+  const boundedMaxWidth = Math.min(histogramMaxWidth, rangeWidth)
+  const totalWidth = (boundedMaxWidth * row.totalVolume) / maxRowVolume
   if (!Number.isFinite(totalWidth) || totalWidth <= 0) return null
+
+  let barTop = top
+  let barBottom = bottom
+  if (barHeightPercent < FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT) {
+    const center = (top + bottom) / 2
+    const filledHeight = (height * barHeightPercent) / 100
+    barTop = center - filledHeight / 2
+    barBottom = center + filledHeight / 2
+    if (
+      !Number.isFinite(barTop) ||
+      !Number.isFinite(barBottom) ||
+      barBottom <= barTop
+    ) {
+      return null
+    }
+  }
 
   const upShare = row.totalVolume > 0 ? row.upVolume / row.totalVolume : 0
   const downShare = row.totalVolume > 0 ? row.downVolume / row.totalVolume : 0
@@ -135,8 +188,8 @@ export function buildFixedRangeVolumeProfileRowBarGeometry(params: {
   const downOpacityPercent = params.downOpacityPercent ?? defaults.downOpacityPercent
 
   return {
-    top,
-    bottom,
+    top: barTop,
+    bottom: barBottom,
     left: rangeLeft,
     upWidth,
     downWidth,
@@ -217,7 +270,8 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   valStrokeStyle: string
   valLineWidthCssPx: number
   valLineDash: readonly number[]
-} & Partial<FixedRangeVolumeProfileHistogramStyleInput>): FixedRangeVolumeProfileInstanceDrawModel | null {
+} & Partial<FixedRangeVolumeProfileHistogramStyleInput> &
+  FixedRangeVolumeProfileHistogramGeometryStyleInput): FixedRangeVolumeProfileInstanceDrawModel | null {
   const xFrom = params.fromTimeToCoordinate(params.fromTime)
   const xTo = params.toTimeToCoordinate(params.toTime)
   if (xFrom === null || xTo === null) return null
@@ -238,6 +292,10 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
   if (maxRowVolume <= 0) return null
 
   const rowGeometries: FixedRangeVolumeProfileRowBarGeometry[] = []
+  // Endpoint handles stay at the centre of the full price-bin span: shrinking
+  // the vertical bar fill must not move the drag handles.
+  let profileTop = Infinity
+  let profileBottom = -Infinity
   for (const row of rows) {
     const yHigh = params.priceToY(row.priceHigh)
     const yLow = params.priceToY(row.priceLow)
@@ -256,8 +314,13 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
       downColor: params.downColor,
       upOpacityPercent: params.upOpacityPercent,
       downOpacityPercent: params.downOpacityPercent,
+      histogramWidthPercent: params.histogramWidthPercent,
+      histogramBarHeightPercent: params.histogramBarHeightPercent,
     })
-    if (geometry) rowGeometries.push(geometry)
+    if (!geometry) continue
+    rowGeometries.push(geometry)
+    profileTop = Math.min(profileTop, top)
+    profileBottom = Math.max(profileBottom, bottom)
   }
 
   if (rowGeometries.length === 0) return null
@@ -280,12 +343,7 @@ export function buildFixedRangeVolumeProfileInstanceDrawModel(params: {
     priceToY: params.priceToY,
   })
 
-  let profileTop = Infinity
-  let profileBottom = -Infinity
-  for (const row of rowGeometries) {
-    profileTop = Math.min(profileTop, row.top)
-    profileBottom = Math.max(profileBottom, row.bottom)
-  }
+  if (!Number.isFinite(profileTop) || !Number.isFinite(profileBottom)) return null
   const handleY = (profileTop + profileBottom) / 2
 
   const endpointHandles = {
@@ -315,7 +373,8 @@ export type FixedRangeVolumeProfileDrawStyleInput = {
   valStrokeStyle: string
   valLineWidthCssPx: number
   valLineDash: readonly number[]
-} & FixedRangeVolumeProfileHistogramStyleInput
+} & FixedRangeVolumeProfileHistogramStyleInput &
+  Required<FixedRangeVolumeProfileHistogramGeometryStyleInput>
 
 export function buildFixedRangeVolumeProfileDrawModels(params: {
   instances: readonly {

@@ -370,3 +370,105 @@ describe('fixedRangeVolumeProfileSeriesPrimitive scheduling', () => {
     primitive.detached()
   })
 })
+
+function drawCallsAtBitmapRatio(
+  instance: FixedRangeVolumeProfileInstance,
+  horizontalPixelRatio: number,
+  verticalPixelRatio: number,
+) {
+  const renderer = rendererFor(() => ({
+    instances: [instance],
+    runtimeById: { [instance.id]: readyState(instance) },
+    selectedId: null,
+    interaction: null,
+    getIntervalDurationSeconds: () => 60,
+    getLastBarUnixTime: () => null,
+  })) as { draw: (target: never) => void } | null
+  if (!renderer) throw new Error('expected an FRVP renderer')
+
+  const fills: Array<{ left: number; top: number; width: number; height: number }> = []
+  const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+  let lastPoint: { x: number; y: number } | null = null
+  const context = {
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 0,
+    save() {},
+    restore() {},
+    beginPath() {},
+    rect() {},
+    clip() {},
+    setLineDash() {},
+    moveTo(x: number, y: number) {
+      lastPoint = { x, y }
+    },
+    lineTo(x: number, y: number) {
+      if (lastPoint) lines.push({ x1: lastPoint.x, y1: lastPoint.y, x2: x, y2: y })
+    },
+    stroke() {},
+    fill() {},
+    arc() {},
+    fillRect(left: number, top: number, width: number, height: number) {
+      fills.push({ left, top, width, height })
+    },
+  }
+  const target = {
+    useBitmapCoordinateSpace(callback: (scope: never) => void) {
+      callback({
+        context,
+        horizontalPixelRatio,
+        verticalPixelRatio,
+        bitmapSize: { width: 2000, height: 1000 },
+        mediaSize: { width: 1000, height: 500 },
+      } as never)
+    },
+  }
+  renderer.draw(target as never)
+  return { fills, lines }
+}
+
+describe('fixedRangeVolumeProfileSeriesPrimitive bitmap draw arguments at ratio 2', () => {
+  it('scales bitmap fill and line arguments by the supplied pixel ratio', () => {
+    const instance = frvpInstance()
+    const ratio1 = drawCallsAtBitmapRatio(instance, 1, 1)
+    const ratio2 = drawCallsAtBitmapRatio(instance, 2, 2)
+    // Draw-argument equality only: this is not a framebuffer/pixel proof.
+    assert.equal(ratio1.fills.length, 2)
+    assert.equal(ratio2.fills.length, 2)
+    assert.deepEqual(ratio1.fills, [
+      { left: 7, top: 380, width: 1, height: 20 },
+      { left: 8, top: 380, width: 1, height: 20 },
+    ])
+    assert.deepEqual(ratio2.fills, [
+      { left: 14, top: 760, width: 3, height: 40 },
+      { left: 17, top: 760, width: 3, height: 40 },
+    ])
+    assert.deepEqual(ratio2.lines[0], {
+      x1: 14,
+      y1: 780,
+      x2: 46,
+      y2: 780,
+    })
+  })
+
+  it('keeps the default full row height and widens linearly at ratio 2', () => {
+    const instance = frvpInstance()
+    const defaultDraw = drawCallsAtBitmapRatio(instance, 2, 2)
+    const halfHeight = drawCallsAtBitmapRatio(
+      frvpInstance({ histogramBarHeightPercent: 50 }),
+      2,
+      2,
+    )
+    const wide = drawCallsAtBitmapRatio(
+      frvpInstance({ histogramWidthPercent: 50 }),
+      2,
+      2,
+    )
+    assert.equal(defaultDraw.fills[0].height, 40)
+    assert.equal(halfHeight.fills[0].height, 20)
+    assert.equal(halfHeight.fills[0].top, 770)
+    assert.equal(defaultDraw.fills[0].width, 3)
+    assert.equal(wide.fills[0].width, 8)
+    assert.equal(wide.fills[0].height, 40)
+  })
+})

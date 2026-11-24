@@ -13,15 +13,30 @@ import {
   sanitizeFixedRangeVolumeProfileInstances,
 } from './fixedRangeVolumeProfileInstances.ts'
 import {
+  FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT,
   FRVP_HISTOGRAM_DEFAULT_DOWN_COLOR,
   FRVP_HISTOGRAM_DEFAULT_OPACITY_PERCENT,
   FRVP_HISTOGRAM_DEFAULT_UP_COLOR,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT,
+  FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT,
+  FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MAX_WIDTH_PERCENT,
+  FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT,
+  FRVP_HISTOGRAM_MIN_WIDTH_PERCENT,
+  frvpHistogramBarHeightPercent,
   frvpHistogramColorInputValue,
   frvpHistogramOpacityPercent,
   frvpHistogramStyleDefaults,
   frvpHistogramStyleForInstance,
+  frvpHistogramWidthPercent,
+  frvpHistogramWidthPercentInputValue,
+  isFrvpHistogramBarHeightPercent,
+  isFrvpHistogramWidthPercent,
+  sanitizeFrvpInstanceHistogramStyles,
+  setFrvpInstanceHistogramBarHeightPercent,
   setFrvpInstanceHistogramColor,
   setFrvpInstanceHistogramOpacityPercent,
+  setFrvpInstanceHistogramWidthPercent,
 } from './frvpHistogramStyles.ts'
 import { frvpDrawStyleForInstance } from './frvpInstanceLineStyles.ts'
 import type { FixedRangeVolumeProfileRow } from './fixedRangeVolumeProfile.ts'
@@ -303,5 +318,104 @@ describe('FRVP histogram Value-Area opacity', () => {
     assert.equal(model.rows[0].upColor, 'rgba(17, 34, 51, 0.275)')
     assert.equal(model.rows[0].downColor, 'rgba(128, 128, 128, 0.275)')
     assert.equal(model.rows[1].upColor, 'rgba(17, 34, 51, 0.125)')
+  })
+})
+
+describe('FRVP histogram width and row fill', () => {
+  it('defaults to the exact legacy width and full row height', () => {
+    const instance = newInstance()
+    assert.equal(FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT, 100 / 6)
+    assert.equal(FRVP_HISTOGRAM_DEFAULT_WIDTH_PERCENT_INPUT, 16.7)
+    assert.equal(FRVP_HISTOGRAM_DEFAULT_BAR_HEIGHT_PERCENT, 100)
+    assert.equal(frvpHistogramWidthPercent(instance), 100 / 6)
+    assert.equal(frvpHistogramWidthPercentInputValue(instance), 16.7)
+    assert.equal(frvpHistogramBarHeightPercent(instance), 100)
+    // Legacy records keep no new fields.
+    assert.equal(instance.histogramWidthPercent, undefined)
+    assert.equal(instance.histogramBarHeightPercent, undefined)
+  })
+
+  it('accepts only finite, bounded percentages and persists explicit defaults', () => {
+    let instance = setFrvpInstanceHistogramWidthPercent(newInstance(), 40)
+    instance = setFrvpInstanceHistogramBarHeightPercent(instance, 25)
+    assert.equal(frvpHistogramWidthPercent(instance), 40)
+    assert.equal(frvpHistogramBarHeightPercent(instance), 25)
+
+    instance = setFrvpInstanceHistogramWidthPercent(instance, 16.7)
+    instance = setFrvpInstanceHistogramBarHeightPercent(instance, 100)
+    assert.equal(instance.histogramWidthPercent, 16.7)
+    assert.equal(instance.histogramBarHeightPercent, 100)
+
+    for (const invalid of [0, -1, 101, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.equal(
+        setFrvpInstanceHistogramWidthPercent(instance, invalid),
+        instance,
+      )
+      assert.equal(
+        setFrvpInstanceHistogramBarHeightPercent(instance, invalid),
+        instance,
+      )
+    }
+    assert.equal(isFrvpHistogramWidthPercent(FRVP_HISTOGRAM_MIN_WIDTH_PERCENT), true)
+    assert.equal(isFrvpHistogramWidthPercent(FRVP_HISTOGRAM_MAX_WIDTH_PERCENT), true)
+    assert.equal(isFrvpHistogramBarHeightPercent(FRVP_HISTOGRAM_MIN_BAR_HEIGHT_PERCENT), true)
+    assert.equal(isFrvpHistogramBarHeightPercent(FRVP_HISTOGRAM_MAX_BAR_HEIGHT_PERCENT), true)
+  })
+
+  it('sanitizes stored bounds and leaves invalid/missing fields unset', () => {
+    const valid = sanitizeOne({
+      id: 'frvp-bars-valid',
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+      histogramWidthPercent: 42.5,
+      histogramBarHeightPercent: 37,
+    })
+    assert.equal(valid.histogramWidthPercent, 42.5)
+    assert.equal(valid.histogramBarHeightPercent, 37)
+
+    const legacy = sanitizeOne({
+      id: 'frvp-bars-legacy',
+      fromTime: 1_000,
+      toTime: 2_000,
+      selectionInterval: '1m',
+      histogramUpColor: '#112233',
+    })
+    assert.equal(legacy.histogramWidthPercent, undefined)
+    assert.equal(legacy.histogramBarHeightPercent, undefined)
+    assert.equal(frvpHistogramWidthPercent(legacy), 100 / 6)
+    assert.equal(frvpHistogramBarHeightPercent(legacy), 100)
+
+    for (const invalid of [0, -5, 101, Number.NaN, Number.POSITIVE_INFINITY, '50']) {
+      const instance = sanitizeOne({
+        id: 'frvp-bars-invalid',
+        fromTime: 1_000,
+        toTime: 2_000,
+        selectionInterval: '1m',
+        histogramWidthPercent: invalid,
+        histogramBarHeightPercent: invalid,
+      })
+      assert.equal(instance.histogramWidthPercent, undefined)
+      assert.equal(instance.histogramBarHeightPercent, undefined)
+    }
+  })
+
+  it('round-trips explicit widths/heights and keeps them independent of colors', () => {
+    let instance = setFrvpInstanceHistogramWidthPercent(newInstance(), 33)
+    instance = setFrvpInstanceHistogramBarHeightPercent(instance, 42)
+    instance = setFrvpInstanceHistogramColor(instance, 'up', '#112233')
+    instance = setFrvpInstanceHistogramOpacityPercent(instance, 'up', 70)
+
+    const reloaded = sanitizeOne(JSON.parse(JSON.stringify(instance)) as Record<string, unknown>)
+    assert.equal(frvpHistogramWidthPercent(reloaded), 33)
+    assert.equal(frvpHistogramBarHeightPercent(reloaded), 42)
+    assert.equal(frvpHistogramColorInputValue(reloaded, 'up'), '#112233')
+    assert.equal(frvpHistogramOpacityPercent(reloaded, 'up'), 70)
+
+    const sanitizedRecord = sanitizeFrvpInstanceHistogramStyles(
+      { histogramWidthPercent: 55 },
+      newInstance(),
+    )
+    assert.equal(sanitizedRecord.histogramWidthPercent, 55)
   })
 })
