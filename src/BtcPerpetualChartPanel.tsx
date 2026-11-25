@@ -518,6 +518,7 @@ function publishCandleSeriesColorOptions(
   container.dataset.candleRisingBorderColor = String(options.borderUpColor)
   container.dataset.candleFallingBorderColor = String(options.borderDownColor)
   container.dataset.candleBorderVisible = String(options.borderVisible)
+  container.dataset.candleWickVisible = String(options.wickVisible)
 }
 
 function streamStatusLabel(state: WidgetStreamConnectionState): string | null {
@@ -915,10 +916,10 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   }, [candleColors])
 
   /**
-   * Apply the global candle colors in place. This effect never calls
-   * `createChart`, reloads candles, touches the time scale or persists the
-   * viewport: it only writes candlestick series options, so Save cannot reset
-   * zoom/drawings or trigger a history refetch.
+   * Apply the global candle Body/Border/Wick appearance in place. This effect
+   * never calls `createChart`, reloads candles, touches the time scale or
+   * persists the viewport: it only writes candlestick series options, so Save
+   * cannot reset zoom/drawings or trigger a history refetch.
    */
   useEffect(() => {
     const candleSeries = seriesRef.current?.candle
