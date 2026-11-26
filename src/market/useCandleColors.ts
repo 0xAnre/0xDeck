@@ -5,7 +5,7 @@ import {
   type CandleColors,
 } from './candleColors.ts'
 
-/** The global BTC Perp candle colors, shared by every panel and workspace. */
+/** The global BTC Perp candle appearance, shared by every panel and workspace. */
 export function useCandleColors(): CandleColors {
   return useSyncExternalStore(subscribeCandleColors, getCandleColors, getCandleColors)
 }

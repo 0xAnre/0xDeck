@@ -61,9 +61,10 @@ type ColorOpacityFieldBaseProps = {
 
 /**
  * Opacity is one half of the standard Color + Opacity pair, so the default
- * variant requires both values. The only color-only caller is the global
- * candle-color dialog, whose persisted preference deliberately has no opacity;
- * it must opt in explicitly with `showOpacity={false}`.
+ * variant requires both values. The only color-only callers are the global
+ * candle dialog's rising/falling swatches: each candle part has one shared
+ * opacity Slider next to its two swatches, so those fields opt in explicitly
+ * with `showOpacity={false}` instead of exposing a second per-color opacity.
  */
 type ColorOpacityFieldProps = ColorOpacityFieldBaseProps &
   (
