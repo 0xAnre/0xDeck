@@ -425,11 +425,16 @@ class LiquidationStore:
         offset_seconds = offset_ms // 1000
         duration_seconds = duration_ms // 1000
         with closing(self._connect()) as connection:
-            # Two indexed lookups decide whether this range is wide enough that
-            # a sequential table scan beats index probing per event.
-            span_start, span_end = connection.execute(
-                "SELECT min(trade_time), max(trade_time) FROM liquidation_events"
-            ).fetchone()
+            # Two independent indexed extrema lookups decide whether this
+            # range is wide enough that a sequential table scan beats index
+            # probing per event. Each aggregate alone uses the `trade_time`
+            # index endpoint; the combined pair scans the whole index.
+            span_start = connection.execute(
+                "SELECT min(trade_time) FROM liquidation_events"
+            ).fetchone()[0]
+            span_end = connection.execute(
+                "SELECT max(trade_time) FROM liquidation_events"
+            ).fetchone()[0]
             scan_table = (
                 span_start is not None
                 and span_end is not None
