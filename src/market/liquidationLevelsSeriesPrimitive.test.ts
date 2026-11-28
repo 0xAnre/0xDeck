@@ -18,6 +18,7 @@ interface Fill {
   y: number
   width: number
   height: number
+  alpha: number
 }
 
 interface Stroke {
@@ -35,6 +36,7 @@ function fakeCanvas(width: number, height: number, dpr = 1) {
   const context = {
     fillStyle: '',
     strokeStyle: '',
+    globalAlpha: 1,
     lineWidth: 1,
     font: '',
     textAlign: '',
@@ -45,7 +47,14 @@ function fakeCanvas(width: number, height: number, dpr = 1) {
     rect() {},
     clip() {},
     fillRect(x: number, y: number, w: number, h: number) {
-      fills.push({ style: String(this.fillStyle), x, y, width: w, height: h })
+      fills.push({
+        style: String(this.fillStyle),
+        x,
+        y,
+        width: w,
+        height: h,
+        alpha: this.globalAlpha,
+      })
     },
     strokeRect(x: number, y: number, w: number, h: number) {
       strokes.push({ style: String(this.strokeStyle), x, y, width: w, height: h })
@@ -210,14 +219,21 @@ describe('liquidation level series primitive', () => {
     }
   })
 
-  it('draws nothing when disabled, empty or outside the price scale', () => {
+  it('draws only the honest label when the visible window is empty', () => {
+    const empty = setup({ rows: [['far', 1_000, 1]] })
+    empty.primitive.updateAllViews()
+    const renderer = empty.primitive.paneViews()[0].renderer()
+    assert.ok(renderer)
+    const canvas = fakeCanvas(empty.plotWidth, empty.paneHeight)
+    renderer.draw(canvas.target as never)
+    assert.equal(canvas.fills.length, 0)
+    assert.equal(canvas.texts.length, 1)
+  })
+
+  it('draws nothing when disabled or the price scale cannot be read', () => {
     const disabled = setup({ enabled: false })
     disabled.primitive.updateAllViews()
     assert.equal(disabled.primitive.paneViews()[0].renderer(), null)
-
-    const empty = setup({ rows: [['far', 1_000, 1]] })
-    empty.primitive.updateAllViews()
-    assert.equal(empty.primitive.paneViews()[0].renderer(), null)
 
     const noConversion = setup({ topPrice: 100, bottomPrice: 100 })
     noConversion.primitive.updateAllViews()
@@ -306,6 +322,102 @@ describe('liquidation level series primitive', () => {
     attachment.dispose()
     attachment.update()
     assert.equal(attachedPrimitive?.paneViews()[0].renderer(), null)
+  })
+
+  it('keeps the price rows aligned on a pane taller than the row cap', () => {
+    const h = setup({
+      paneHeight: 5_000,
+      rows: [
+        ['top', 199.9, 1],
+        ['middle', 150, 2],
+        ['bottom', 100, 3],
+      ],
+    })
+    h.primitive.updateAllViews()
+    const renderer = h.primitive.paneViews()[0].renderer()
+    assert.ok(renderer)
+    const canvas = fakeCanvas(h.plotWidth, 5_000)
+    renderer.draw(canvas.target as never)
+    assert.equal(canvas.fills.length, 3)
+
+    const priceToY = (price: number) =>
+      h.paneHeight * (1 - (price - h.prices.bottom) / (h.prices.top - h.prices.bottom))
+    // 2000 capped rows of 2.5 CSS px each: rows 1, 1000 and 1999, each painted
+    // from floor(row * 2.5) so the row's whole price extent is covered.
+    const expectedY = [2, 2_500, 4_997]
+    assert.deepEqual(
+      canvas.fills.map((fill) => fill.y).sort((a, b) => a - b),
+      expectedY,
+    )
+    // The bottom price maps to the pane's bottom edge (y = 5000), which is
+    // outside the pixel range; its row must still reach that edge (next check).
+    for (const price of [199.9, 150]) {
+      const y = priceToY(price)
+      const covering = canvas.fills.find(
+        (fill) => fill.y <= y + 0.001 && y < fill.y + fill.height,
+      )
+      assert.ok(covering, `a row must cover the price ${price} at y=${y}`)
+    }
+    const bottom = canvas.fills.find((fill) => fill.y === 4_997)
+    assert.ok(bottom, 'the bottom price must paint at the pane bottom, not at y≈1999')
+    assert.equal(bottom.height, 3)
+    assert.equal(bottom.y + bottom.height, 5_000)
+  })
+
+  it('keeps DPR-2 bitmap rows aligned on a tall pane', () => {
+    const h = setup({
+      paneHeight: 5_000,
+      rows: [['bottom', 100, 1]],
+    })
+    h.primitive.updateAllViews()
+    const renderer = h.primitive.paneViews()[0].renderer()
+    assert.ok(renderer)
+    const canvas = fakeCanvas(h.plotWidth, 5_000, 2)
+    renderer.draw(canvas.target as never)
+    assert.equal(canvas.fills.length, 1)
+    const fill = canvas.fills[0]
+    // CSS row [4997.5, 5000) → bitmap [9995, 10000); 5 bitmap px at 2.5 CSS px.
+    assert.equal(fill.x + fill.width, h.plotWidth * 2)
+    assert.equal(fill.y, 9_995)
+    assert.equal(fill.height, 5)
+  })
+
+  it('paints the status label when the visible window holds no positions', () => {
+    const h = setup({ rows: [['far', 1_000_000, 1]] })
+    h.primitive.updateAllViews()
+    const renderer = h.primitive.paneViews()[0].renderer()
+    assert.ok(renderer, 'the label alone must still paint')
+    const canvas = fakeCanvas(h.plotWidth, h.paneHeight)
+    renderer.draw(canvas.target as never)
+    assert.equal(canvas.fills.length, 0)
+    assert.equal(canvas.texts.length, 1)
+    assert.equal(canvas.texts[0].text, 'LEV LIQ · LIVE 2s ago')
+  })
+
+  it('paints both sides of a mixed row with equal extents and parity', () => {
+    const h = setup({
+      rows: [
+        ['long', 100, 5],
+        ['short', 100, -5],
+      ],
+      maxWidthPercent: 25,
+    })
+    h.primitive.updateAllViews()
+    const renderer = h.primitive.paneViews()[0].renderer()
+    assert.ok(renderer)
+    const canvas = fakeCanvas(h.plotWidth, h.paneHeight)
+    renderer.draw(canvas.target as never)
+    // Both sides exist and have the same extent, so both are drawn; the second
+    // one uses half alpha so the equal-width overlap does not hide the first.
+    assert.equal(canvas.fills.length, 2)
+    const green = canvas.fills.find((fill) => fill.style.includes('34, 197, 94'))
+    const red = canvas.fills.find((fill) => fill.style.includes('239, 68, 68'))
+    assert.ok(green && red)
+    assert.equal(green.width, red.width)
+    assert.equal(green.x + green.width, h.plotWidth)
+    assert.equal(red.x + red.width, h.plotWidth)
+    assert.equal(green.alpha, 1)
+    assert.equal(red.alpha, 0.5)
   })
 
   it('labels the profile as current and honest about staleness', () => {

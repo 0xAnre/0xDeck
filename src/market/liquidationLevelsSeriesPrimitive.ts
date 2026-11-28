@@ -139,6 +139,8 @@ export interface LiquidationLevelsStatusLabel {
 
 const BAR_TOP_PADDING_CSS = 14
 const LABEL_FONT_CSS = 10
+/** Alpha of the second side on a row that holds both long and short. */
+const MIXED_ROW_SIDE_ALPHA = 0.5
 
 export function liquidationLevelsStatusLabel(params: {
   phase: string
@@ -206,7 +208,10 @@ class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
       const anchorCss = plotWidthCss
       const anchor = Math.round(anchorCss * horizontalPixelRatio)
       const rowHeightCss = profile.rowHeight
-      const rowHeightBitmap = Math.max(1, Math.round(rowHeightCss * verticalPixelRatio))
+      const rowTopBitmap = (row: number) =>
+        Math.floor(row * rowHeightCss * verticalPixelRatio)
+      const rowBottomBitmap = (row: number) =>
+        Math.ceil((row + 1) * rowHeightCss * verticalPixelRatio)
       const longColor = marketStyleColorWithOpacity(
         settings.longColor,
         settings.longOpacityPercent,
@@ -219,19 +224,28 @@ class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
       const shortSolid = marketStyleColorWithOpacity(settings.shortColor, 100)
 
       for (const row of profile.rows) {
-        const top = Math.round(row.row * rowHeightCss * verticalPixelRatio)
+        // A row always covers its own price extent: floor the top and ceil the
+        // bottom, so a row taller than one CSS pixel (the capped tall-pane case)
+        // cannot leave its price outside the painted band.
+        const top = rowTopBitmap(row.row)
+        const rowHeightBitmap = Math.max(1, rowBottomBitmap(row.row) - top)
         const longWidth = Math.round(row.longFraction * maxBarWidthCss * horizontalPixelRatio)
         const shortWidth = Math.round(row.shortFraction * maxBarWidthCss * horizontalPixelRatio)
         // Longest bar first, shorter side on top, so both extents stay readable
-        // from the shared right edge.
+        // from the shared right edge. A row can hold both sides when one pixel
+        // row spans both clusters; there the second side is painted at half
+        // alpha, so the overlap reads as *both* sides instead of hiding the
+        // first color (on an equal-width row the result is a 50/50 blend).
         if (longWidth >= shortWidth) {
           if (longWidth > 0) {
             context.fillStyle = longColor
             context.fillRect(anchor - longWidth, top, longWidth, rowHeightBitmap)
           }
           if (shortWidth > 0) {
+            context.globalAlpha = longWidth > 0 ? MIXED_ROW_SIDE_ALPHA : 1
             context.fillStyle = shortColor
             context.fillRect(anchor - shortWidth, top, shortWidth, rowHeightBitmap)
+            context.globalAlpha = 1
           }
         } else {
           if (shortWidth > 0) {
@@ -239,8 +253,10 @@ class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
             context.fillRect(anchor - shortWidth, top, shortWidth, rowHeightBitmap)
           }
           if (longWidth > 0) {
+            context.globalAlpha = shortWidth > 0 ? MIXED_ROW_SIDE_ALPHA : 1
             context.fillStyle = longColor
             context.fillRect(anchor - longWidth, top, longWidth, rowHeightBitmap)
+            context.globalAlpha = 1
           }
         }
         if (selected) {
@@ -258,7 +274,10 @@ class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
         }
       }
 
-      if (profile.rows.length > 0) {
+      // The status/source label is painted even when the visible price window
+      // holds no positions: an empty window must still read as a live profile
+      // with nothing at this price, never as an indicator that is off.
+      {
         const labelColor =
           label.tone === 'live'
             ? marketStyleColorWithOpacity(MARKET_STYLE_PALETTE.light, 90)
@@ -312,7 +331,7 @@ class LiquidationLevelsPaneView implements IPrimitivePaneView {
       series,
       index: context.index,
     })
-    if (!resolved || resolved.profile.rows.length === 0) {
+    if (!resolved) {
       this._model = null
       return
     }

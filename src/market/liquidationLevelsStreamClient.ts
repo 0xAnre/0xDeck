@@ -252,8 +252,10 @@ export function createLiquidationLevelsStreamClient(
 
     current.onerror = () => {
       if (generation !== socketGeneration || stopped) return
-      socket = null
-      socketGeneration += 1
+      // Close and detach the failed socket before reconnecting: dropping only
+      // the reference would leave the old socket's handlers (and its close
+      // event) alive, so a later frame could be mistaken for current data.
+      closeSocket()
       scheduleReconnect('socket error', backoffDelay(status.attempt))
     }
   }

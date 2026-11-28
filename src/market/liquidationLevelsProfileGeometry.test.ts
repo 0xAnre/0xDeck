@@ -98,6 +98,56 @@ describe('liquidation level profile geometry', () => {
     assert.ok(profile.rows.length <= 200)
   })
 
+  it('covers the whole pane when the row cap applies', () => {
+    const profile = buildLiquidationLevelsProfile({
+      positions: [position('top', 199.999, 1), position('bottom', 100, 2)],
+      topPrice: 200,
+      bottomPrice: 100,
+      paneHeight: 5_000,
+    })
+    assert.equal(profile.rowCount, 2_000)
+    // Rows grow instead of leaving the bottom of the pane uncovered.
+    assert.equal(profile.rowHeight, 2.5)
+    assert.equal(profile.rowHeight * profile.rowCount, 5_000)
+    assert.equal(profile.topRow, 0)
+    assert.equal(profile.bottomRow, 1_999)
+
+    // The bottom price row is mapped to the bottom of the pane, not to y≈1999.
+    const bottomBand = liquidationLevelsRowPriceBand(profile, 200, 100, 1_999)
+    assert.deepEqual(bottomBand, { min: 100, max: 100.05 })
+
+    const bottomRow = profile.rows.find((row) => row.row === 1_999)
+    assert.ok(bottomRow)
+    assert.equal(bottomRow.long, 2)
+    // Hit testing uses the same derived row height: the pane's last pixels hit
+    // the bottom row, and one past the bottom does not.
+    const hitArgs = { profile, plotWidth: 800, maxWidthPercent: 25 }
+    assert.equal(
+      hitTestLiquidationLevelsProfile({ ...hitArgs, x: 800, y: 1_999 * 2.5 + 0.1 })?.row,
+      1_999,
+    )
+    assert.equal(
+      hitTestLiquidationLevelsProfile({ ...hitArgs, x: 800, y: 5_000 - 0.1 })?.row,
+      1_999,
+    )
+    assert.equal(
+      hitTestLiquidationLevelsProfile({ ...hitArgs, x: 800, y: 5_000 }),
+      null,
+    )
+  })
+
+  it('keeps one-CSS-pixel rows on a normal pane', () => {
+    const profile = buildLiquidationLevelsProfile({
+      positions: [position('a', 150, 1)],
+      topPrice: 200,
+      bottomPrice: 100,
+      paneHeight: 400,
+    })
+    assert.equal(profile.rowCount, 400)
+    assert.equal(profile.rowHeight, 1)
+    assert.equal(profile.rowHeight * profile.rowCount, 400)
+  })
+
   it('caps the row count and returns an empty profile for unusable conversions', () => {
     const rows = Array.from({ length: 5 }, (_, index) =>
       position(`p${index}`, 150 + index, 1),

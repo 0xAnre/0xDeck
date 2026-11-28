@@ -8,9 +8,12 @@
  *
  * The profile is a *current* picture of open-position liquidation prices, not a
  * time series: it is drawn at today's prices no matter which old candles the
- * viewport shows. Rows are one CSS pixel tall and only the visible price band
- * is binned, so the work per paint is bounded by the pane height and the
- * positions inside that band.
+ * viewport shows. Rows are one CSS pixel tall until the pane is taller than the
+ * row cap, and only the visible price band is binned, so the work per paint is
+ * bounded by the pane height and the positions inside that band. When the cap
+ * applies, the row height grows with it (`paneHeight / rowCount`), so the rows
+ * still cover the whole pane: a price at the pane's bottom edge must land on the
+ * bottom row for both painting and hit testing.
  *
  * Kept free of canvas and DOM access so the directional/scale contract can be
  * tested directly (see `liquidationLevelsProfileGeometry.test.ts`).
@@ -43,6 +46,11 @@ export interface LiquidationLevelsProfileRow {
 }
 
 export interface LiquidationLevelsProfile {
+  /**
+   * CSS pixels per row. Exactly `LIQUIDATION_LEVELS_ROW_HEIGHT_CSS` on a normal
+   * pane, and `paneHeight / rowCount` when the row cap applies — rows always
+   * cover the full pane height.
+   */
   rowHeight: number
   rowCount: number
   /** Highest row index that carries a bar, or -1 when the profile is empty. */
@@ -85,7 +93,7 @@ export function buildLiquidationLevelsProfile(
   params: BuildLiquidationLevelsProfileParams,
 ): LiquidationLevelsProfile {
   const { positions, paneHeight } = params
-  const rowHeight =
+  const requestedRowHeight =
     params.rowHeight && params.rowHeight > 0
       ? params.rowHeight
       : LIQUIDATION_LEVELS_ROW_HEIGHT_CSS
@@ -101,10 +109,11 @@ export function buildLiquidationLevelsProfile(
     return EMPTY_LIQUIDATION_LEVELS_PROFILE
   }
 
-  const rowCount = Math.max(
-    1,
-    Math.min(LIQUIDATION_LEVELS_MAX_ROWS, Math.ceil(paneHeight / rowHeight)),
-  )
+  const requestedRowCount = Math.max(1, Math.ceil(paneHeight / requestedRowHeight))
+  const rowCount = Math.min(LIQUIDATION_LEVELS_MAX_ROWS, requestedRowCount)
+  // When the cap applies, the rows must still span the whole pane: grow the row
+  // height instead of leaving a strip of pane (and its prices) unrepresented.
+  const rowHeight = paneHeight / rowCount
   const span = high - low
 
   const buckets: Array<{ long: number; short: number; count: number }> = []

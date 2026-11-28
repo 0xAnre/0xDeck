@@ -295,7 +295,16 @@ and provenance are in [MARKETLENS-LIQUIDATION-LEVELS.md](./MARKETLENS-LIQUIDATIO
 - **Per-paint bound.** Only the visible price band is binarized, into one row per CSS pixel of the
   candle pane (cap 2 000 rows), through a price-sorted index answered by binary search; per-paint work
   is bounded by the pane height and the positions inside the visible band, never by loaded candle
-  history or the whole ≈ 32 k-position book. There is no native series per row.
+  history or the whole ≈ 32 k-position book. There is no native series per row. When the row cap
+  applies the row height is derived as `paneHeight / rowCount`, so paint and hit test keep covering
+  the whole pane instead of clipping the bottom price band.
+- **Mixed rows and empty windows.** A row that holds both long and short positions paints the longer
+  side first and the second side at half alpha, so the overlap reads as both sides instead of hiding
+  one. The status label is painted even when the visible window holds no positions, so an empty
+  window is not mistaken for a disabled indicator.
+- **Hover cost (recorded, bounded).** A crosshair move inside the bar column re-derives the
+  visible-band profile (the same bounded derivation as a paint); moves outside the column are
+  rejected without derivation. This is an accepted bounded cost, not a measured frame budget.
 - **Transforms per paint, index on updates.** Price→row and row→price conversions are recomputed in
   every view rebuild from `coordinateToPrice`/`priceToCoordinate`; the sorted price index is
   price-domain derived state rebuilt lazily, at most once per read after the book changed.

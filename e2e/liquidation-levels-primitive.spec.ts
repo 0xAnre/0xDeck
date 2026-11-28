@@ -309,6 +309,50 @@ test.describe('liquidation level primitive — DPR 1', () => {
     expect(disabled.textFills).toBe(0)
   })
 
+  test('keeps the rows price-aligned on a pane taller than the row cap', async ({
+    page,
+  }) => {
+    await openHarness(page)
+    await create(page, 2_600, 5)
+    const tall = await stats(page)
+    expect(tall.paneHeightCss).toBeGreaterThan(2_000)
+    expect(tall.plotWidthCss).toBeGreaterThan(100)
+    const bars = await page.evaluate(() => window.__liquidationLevelsHarness.lastFrameBars())
+    expect(bars.length).toBeGreaterThan(0)
+    const aligned = await page.evaluate(
+      (prices) => {
+        const harness = window.__liquidationLevelsHarness
+        const bars = harness.lastFrameBars()
+        const paneHeight = harness.stats().paneHeightCss
+        return prices.map((price) => {
+          const y = harness.priceToY(price)
+          const inPane = y !== null && y >= 0 && y < paneHeight
+          const hit = bars.find(
+            (bar) => inPane && bar.y <= (y as number) && (y as number) < bar.y + bar.h,
+          )
+          return { price, inPane, hit: hit !== undefined }
+        })
+      },
+      PRICES,
+    )
+    const onScreen = aligned.filter((row) => row.inPane)
+    expect(onScreen.length).toBeGreaterThan(0)
+    for (const row of onScreen) {
+      expect(row.hit, `price ${row.price} must stay on its row on a tall pane`).toBe(true)
+    }
+  })
+
+  test('keeps the honest status label when the visible window is empty', async ({
+    page,
+  }) => {
+    await openHarness(page)
+    await create(page, 400, 0)
+    const empty = await stats(page)
+    expect(empty.greenFills + empty.redFills).toBe(0)
+    expect(empty.textFills).toBeGreaterThan(0)
+    expect(empty.lastFrameText).toContain('LEV LIQ')
+  })
+
   test('an external data change requests exactly one paint', async ({ page }) => {
     await reset(page)
     await page.evaluate(() =>

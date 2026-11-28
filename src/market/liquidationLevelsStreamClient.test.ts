@@ -265,6 +265,32 @@ describe('stream client lifecycle', () => {
     assert.equal(attempts, 2)
   })
 
+  it('closes and detaches a socket that errors before reconnecting', () => {
+    const h = harness()
+    h.client.start()
+    const first = h.sockets[0]
+    first.open()
+    const lateMessage = first.onmessage
+    first.onerror?.({})
+    // The failed socket is closed and its handlers are cleared, so a late frame
+    // from it cannot be mistaken for current data.
+    assert.equal(first.closed, true)
+    assert.equal(first.onmessage, null)
+    assert.equal(first.onclose, null)
+    lateMessage?.({ data: binary() })
+    assert.equal(h.data.length, 0)
+    assert.equal(h.statuses[h.statuses.length - 1].phase, 'reconnecting')
+
+    // The reconnect opens a fresh socket, and data from it is delivered.
+    h.scheduler.advance(2_000)
+    assert.equal(h.sockets.length, 2)
+    const second = h.sockets[1]
+    second.open()
+    second.message(binary())
+    assert.equal(h.data.length, 1)
+    assert.equal(h.statuses[h.statuses.length - 1].phase, 'live')
+  })
+
   it('stop() leaves no timers and no live socket behind', () => {
     const { client, sockets, scheduler, statuses } = harness()
     client.start()

@@ -373,6 +373,7 @@ import {
   type LiquidationLevelsFeedStatus,
 } from '@/market/liquidationLevelsFeed'
 import {
+  liquidationLevelsMaxBarWidthPx,
   liquidationLevelsRowPriceBand,
   hitTestLiquidationLevelsProfile,
 } from '@/market/liquidationLevelsProfileGeometry'
@@ -380,6 +381,7 @@ import {
   attachLiquidationLevelsSeriesPrimitive,
   liquidationLevelsStatusLabel,
   resolveLiquidationLevelsPaneProfile,
+  resolveLiquidationLevelsPlotWidth,
 } from '@/market/liquidationLevelsSeriesPrimitive'
 import {
   liquidationLevelsSettingsEqual,
@@ -3517,6 +3519,16 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       if (!point || !bundle) return null
       const candlePaneIndex = bundle.candle.getPane().paneIndex()
       if (param.paneIndex !== undefined && param.paneIndex !== candlePaneIndex) return null
+      // Cheap rejection first: a pointer over the candles or the price axis
+      // cannot resolve a level, so the visible-band derivation is skipped for the
+      // common crosshair move instead of rebuilding the profile on every pixel.
+      const plotWidth = resolveLiquidationLevelsPlotWidth(chart, bundle.candle)
+      if (plotWidth === null) return null
+      const maxBarWidth = liquidationLevelsMaxBarWidthPx(
+        plotWidth,
+        liquidationLevelsSettingsRef.current.maxWidthPercent,
+      )
+      if (point.x < plotWidth - maxBarWidth || point.x > plotWidth) return null
       const resolved = resolveLiquidationLevelsPaneProfile({
         chart,
         series: bundle.candle,

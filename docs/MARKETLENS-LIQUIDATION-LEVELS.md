@@ -27,8 +27,13 @@ The two are independent and can be enabled together.
 The panel shows the state instead of lying about it: `LEV LIQ · LIVE <n>s ago`, `LEV LIQ · SYNCING`,
 `LEV LIQ · STALE <n>s` are painted at the top of the bar column, and the notice row adds
 "connecting / reconnecting / stale — last update HH:MM:SS / resyncing for a fresh snapshot" as
-needed. A profile is never left on screen after a reset: the reset clears the book before the
-reconnect.
+needed. The label is painted even when the visible price window holds no positions, so an empty
+window reads as "live profile, nothing at this price" instead of an indicator that looks off.
+
+A **protocol reset** (gap, epoch change, protocol error, delta before a snapshot) clears the book
+*before* the reconnect, so untrustworthy liquidity is never drawn. A **socket-level reconnect**
+(close, error, dead watchdog) keeps the last applied book on screen — labelled `SYNCING`, with the
+notice naming the reconnect — until the fresh snapshot replaces it.
 
 ## Rendering contract
 
@@ -39,6 +44,9 @@ reconnect.
 - Both sides share **one magnitude scale**: the largest single-side row in view is full bar extent
   (default 25 % of the plot width), every other row is proportional. Equal bar length means equal
   open size on either side.
+- A row can hold both sides when one pixel row spans both clusters. The longer side paints first and
+  the second side is drawn at half alpha on top, so the overlap reads as **both** sides instead of
+  hiding one; on an equal-width row the result is a 50/50 blend of green and red.
 - Bars sit at their **liquidation price** on the candle price scale. Pan, zoom, fractional logical
   offsets, resize, pane reordering and manual price-range drags all move them because every paint
   rebuilds the price→row conversion from the chart's current state — no coordinate is cached across
@@ -58,7 +66,9 @@ reconnect.
 - A paint binarizes only the **visible price band** (binary search into the index) into **one row per
   CSS pixel** of the candle pane (capped at 2 000 rows), so per-paint work is bounded by the pane
   height and the positions inside the visible band — not by the book size and not by loaded candle
-  history.
+  history. When the cap applies (a pane taller than 2 000 CSS px), the row height grows to
+  `paneHeight / rowCount` instead of shrinking the covered price range, so the bottom of the pane
+  stays aligned with the bottom price row for painting *and* hit testing.
 - There is **no native series per row** and no series at all: the profile is one series primitive
   attached to the existing candle series.
 - `updateAllViews()` is view-only (no `requestUpdate`, no timer, no `setData`). One request per
@@ -102,6 +112,10 @@ reconnect.
 
 - **Hover** a row for the price band, both sides' open size, the number of positions and the source
   plus last-update time. Hovering the bars never blocks pan, zoom, crosshair or a drawing tool.
+  Cost: a crosshair move **inside the bar column** re-derives the visible-band profile once (the same
+  bounded derivation as one paint, bounded by pane rows and visible positions); moves outside the
+  column are rejected by the cheap x/extent check without deriving anything. This is accepted,
+  bounded hover cost, not a measured or gated frame budget.
 - **Single click** selects the profile (transient halo drawn by the primitive itself, in its own
   colors); outside click or `Esc` releases it.
 - **Double click** opens the settings dialog.
