@@ -15,6 +15,7 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [THEME-GUIDE.md](./THEME-GUIDE.md) | Color themes, shadcn tokens, shell rules |
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |
 | [NEXT-STEPS.md](./NEXT-STEPS.md) | Roadmap — done vs remaining |
+| [MARKETLENS-LIQUIDATIONS-DEMO.md](./MARKETLENS-LIQUIDATIONS-DEMO.md) | Standalone experiment: live BTC liquidation-price liquidity ladder from the public MarketLens L4 stream |
 | [../AGENTS.md](../AGENTS.md) | Architecture + AI agent conventions |
 | [../.agents/WORKFLOW.md](../.agents/WORKFLOW.md) | Agent-independent development lifecycle, including mandatory post-merge preview cleanup |
 | [../.agents/runtimes/pi.md](../.agents/runtimes/pi.md) | Pi runtime adapter: verified VPS three-Coder deployment and Mac migration runbook |

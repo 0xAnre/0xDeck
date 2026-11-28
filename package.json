@@ -6,8 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:liquidations": "vite --config vite.liquidations.config.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:liquidations": "node --experimental-strip-types --test experiments/liquidations-l4/src/*.test.ts",
     "test:market": "node --experimental-strip-types --test src/market/*.test.ts",
     "test:navigation": "node --experimental-strip-types --test src/screenNavigationShortcuts.test.ts",
     "test:ui": "node --experimental-strip-types --test src/widgetSettings/*.test.ts src/lib/*.test.ts",
@@ -15,6 +17,7 @@
     "test:perf": "playwright test e2e/chart-perf.spec.ts",
     "perf:measure": "node perf/measure.mjs",
     "perf:compare": "node perf/compare.mjs",
+    "build:liquidations": "vite build --config vite.liquidations.config.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -23,6 +26,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.4.0",
+    "hyparquet": "^1.33.2",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.23.0",
     "radix-ui": "^1.6.1",
