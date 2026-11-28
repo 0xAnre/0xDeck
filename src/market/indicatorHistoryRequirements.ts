@@ -202,7 +202,10 @@ export function resolveIndicatorHistoryRequirements(
         // never fetches its own history.
         break
       case 'aggregated-liquidations':
-        // Live-only pane; no historical warmup or context requirement.
+      case 'liquidation-levels':
+      case 'stop-loss-levels':
+      case 'take-profit-levels':
+        // Live-only panes; no historical warmup or context requirement.
         break
       default: {
         const unreachable: never = indicatorId

@@ -9,12 +9,23 @@ import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import type { ChartPaneElementRole } from './chartPaneRoles.ts'
 import { hitTestLineSeriesAtPane } from './chartObjectSeriesLineHit.ts'
 import {
+  isIndicatorSupportedOnExchange,
   isIndicatorSupportedOnInterval,
   MARKET_INDICATOR_IDS,
   shouldShowVwapIndicatorSeries,
   type MarketIndicatorId,
   type VwapContextLevel,
 } from './indicators.ts'
+import {
+  PRICE_LEVEL_KIND_INDICATOR,
+  type PriceLevelKind,
+} from './priceLevelsKind.ts'
+import type { LiquidationLevelsIndex } from './liquidationLevelsIndex.ts'
+import {
+  hitTestLiquidationLevelsProfile,
+} from './liquidationLevelsProfileGeometry.ts'
+import { resolveLiquidationLevelsPaneProfile } from './liquidationLevelsSeriesPrimitive.ts'
+import type { LiquidationLevelsSettings } from './liquidationLevelsSettings.ts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import type { SessionVwapLineSeriesBundle } from './sessionVwapChartSeries.ts'
 import type { FixedRangeVolumeProfileInstance } from './fixedRangeVolumeProfileInstances.ts'
@@ -26,7 +37,7 @@ import {
 import type { AnchoredVwapInstance } from './anchoredVwapInstances.ts'
 import { isAnchoredVwapInstanceHidden } from './anchoredVwapInstances.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
-import type { CandleInterval } from './types.ts'
+import type { CandleInterval, MarketExchange } from './types.ts'
 import {
   lineHitAtPanePoint,
   preferDrawingPointerTarget,
@@ -69,6 +80,20 @@ export type ChartObjectSettingsHitTestContext = {
   fixedRangeVolumeProfileRuntime: FixedRangeVolumeProfileRuntimeSnapshot
   rollingVwapInstances: readonly RollingVwapInstance[]
   anchoredVwapInstances: readonly AnchoredVwapInstance[]
+  /**
+   * Live price-level profiles this panel can hit-test, in the caller's hit
+   * priority order (top-most profile first). Absent means "no profile".
+   */
+  priceLevels?: readonly PriceLevelHitTarget[] | null
+}
+
+/** One enabled price-level profile the chart-object hit test may resolve. */
+export interface PriceLevelHitTarget {
+  kind: PriceLevelKind
+  enabled: boolean
+  exchange: MarketExchange
+  settings: LiquidationLevelsSettings
+  index: LiquidationLevelsIndex
 }
 
 function chartObjectSettingsHitTestBlocked(ctx: ChartObjectSettingsHitTestContext): boolean {
@@ -265,6 +290,67 @@ function hitTestSingletonMarketIndicators(
 }
 
 /**
+ * Live price-level profile bars on the candle pane (liquidation, stop loss,
+ * take profit). The geometry is rebuilt from the current price conversions, so
+ * the hit test always matches what each primitive painted after the last pan,
+ * zoom, resize or scale change, and the caller's order decides which overlapping
+ * profile a pointer resolves (the profile painted on top comes first).
+ */
+function hitTestPriceLevels(
+  ctx: ChartObjectSettingsHitTestContext,
+): ChartObjectSettingsTarget | null {
+  const targets = ctx.priceLevels
+  if (!targets || targets.length === 0) return null
+  for (const target of targets) {
+    if (!target.enabled) continue
+    const indicatorId = PRICE_LEVEL_KIND_INDICATOR[target.kind]
+    if (!isIndicatorSupportedOnExchange(indicatorId, target.exchange)) continue
+    if (!isIndicatorSupportedOnInterval(indicatorId, ctx.interval)) continue
+    const resolved = resolveLiquidationLevelsPaneProfile({
+      chart: ctx.chart,
+      series: ctx.series,
+      index: target.index,
+    })
+    if (!resolved) continue
+    const hit = hitTestLiquidationLevelsProfile({
+      profile: resolved.profile,
+      x: ctx.paneX,
+      y: ctx.paneY,
+      plotWidth: resolved.plotWidth,
+      maxWidthPercent: target.settings.maxWidthPercent,
+    })
+    if (!hit) continue
+    return priceLevelSettingsTarget(target.kind)
+  }
+  return null
+}
+
+export function priceLevelSettingsTarget(
+  kind: PriceLevelKind,
+): Extract<
+  ChartObjectSettingsTarget,
+  {
+    kind:
+      | 'liquidation-levels'
+      | 'stop-loss-levels'
+      | 'take-profit-levels'
+  }
+> {
+  switch (kind) {
+    case 'liquidation':
+      return { kind: 'liquidation-levels' }
+    case 'stop-loss':
+      return { kind: 'stop-loss-levels' }
+    case 'take-profit':
+      return { kind: 'take-profit-levels' }
+    default: {
+      const unreachable: never = kind
+      return unreachable
+    }
+  }
+}
+
+/**
  * Settings target owned by a whole pane instead of a hit-tested object: the RSI
  * pane routes to the existing RSI indicator dialog, the Aggregated Liquidations
  * pane to its panel-scoped settings. Double-clicking these panes opens the same
@@ -326,6 +412,9 @@ export function hitTestChartObjectSettingsTarget(
   if (preferredDrawing === 'rectangle' && rectangleHit) {
     return { kind: 'rectangle', instanceId: rectangleHit.instanceId }
   }
+
+  const priceLevels = hitTestPriceLevels(ctx)
+  if (priceLevels) return priceLevels
 
   const frvp = hitTestFixedRangeVolumeProfiles(ctx)
   if (frvp) return frvp

@@ -320,6 +320,7 @@ import {
   saveWidgetRsiSettings,
 } from '@/marketRsiSettingsStorage'
 import {
+  isIndicatorSupportedOnExchange,
   isIndicatorSupportedOnInterval,
   requiredVwapContextLevel,
   type MarketIndicatorId,
@@ -364,7 +365,59 @@ import {
   type AggregatedLiquidationsSettings,
 } from '@/market/aggregatedLiquidationsSettings'
 import { AggregatedLiquidationsSettingsDialog } from '@/market/AggregatedLiquidationsSettingsDialog'
-import { registerCandleChartSeries } from '@/market/candlePane'
+import { PriceLevelsSettingsDialog } from '@/market/PriceLevelsSettingsDialog'
+import {
+  liquidationLevelsFeed,
+  subscribeLiquidationLevelsData,
+  subscribeLiquidationLevelsStatus,
+  type LiquidationLevelsFeedStatus,
+} from '@/market/liquidationLevelsFeed'
+import { tpslLevelsFeed, type TpslFeedStatus } from '@/market/tpslLevelsFeed'
+import type { LiquidationLevelsIndex } from '@/market/liquidationLevelsIndex'
+import {
+  EMPTY_TPSL_ROW_DETAIL,
+  summarizeTpslRowOrders,
+  tpslRowDetailLines,
+  type TpslRowDetail,
+} from '@/market/priceLevelsRowDetail'
+import {
+  liquidationLevelsMaxBarWidthPx,
+  liquidationLevelsRowPriceBand,
+  hitTestLiquidationLevelsProfile,
+} from '@/market/liquidationLevelsProfileGeometry'
+import {
+  attachLiquidationLevelsSeriesPrimitive,
+  priceLevelStatusLabel,
+  resolveLiquidationLevelsPaneProfile,
+  resolveLiquidationLevelsPlotWidth,
+  type LiquidationLevelsStatusLabel,
+} from '@/market/liquidationLevelsSeriesPrimitive'
+import {
+  liquidationLevelsSettingsEqual,
+  type LiquidationLevelsSettings,
+} from '@/market/liquidationLevelsSettings'
+import {
+  describeLiquidationLevelsStatus,
+  describeTpslPriceLevelStatus,
+  formatLiquidationLevelsPriceRange,
+} from '@/market/liquidationLevelsNotice'
+import {
+  loadWidgetPriceLevelsSettings,
+  saveWidgetPriceLevelsSettings,
+} from '@/liquidationLevelsSettingsStorage'
+import { priceLevelSettingsTarget } from '@/market/chartObjectSettingsHitTest'
+import {
+  PRICE_LEVEL_HIT_ORDER,
+  PRICE_LEVEL_KIND_INDICATOR,
+  PRICE_LEVEL_KIND_LABEL,
+  PRICE_LEVEL_KIND_SOURCE,
+  PRICE_LEVEL_PAINT_ORDER,
+  TPSL_KIND_CHANNEL,
+  isTpslKind,
+  priceLevelKindForIndicator,
+  type PriceLevelKind,
+} from '@/market/priceLevelsKind'
+import { registerCandleChartSeries, subscribeCandlePaneChange } from '@/market/candlePane'
 import {
   loadWidgetLiquidationsSettings,
   saveWidgetLiquidationsSettings,
@@ -494,6 +547,59 @@ type HoveredAccountFillState = {
   walletKey: string
   fills: BucketedHyperliquidFill[]
 }
+
+/** One hovered price-level row: a price band of one profile type. */
+type HoveredPriceLevel = {
+  kind: PriceLevelKind
+  priceHigh: number
+  priceLow: number
+  /** Position-covered size per side (the bar magnitudes). */
+  long: number
+  short: number
+  count: number
+  lastAppliedAt: number | null
+  /**
+   * Trigger-order breakdown of the row (TPSL only): fixed-size orders keep their
+   * requested size apart from whole-position orders, whose amount is the
+   * position they close. Null for the liquidation profile.
+   */
+  tpslDetail: TpslRowDetail | null
+}
+
+/** Price index of one profile kind (liquidation or a TPSL channel). */
+function priceLevelIndexFor(kind: PriceLevelKind): LiquidationLevelsIndex {
+  return kind === 'liquidation'
+    ? liquidationLevelsFeed.index()
+    : tpslLevelsFeed.index(TPSL_KIND_CHANNEL[kind])
+}
+
+/** Live status label for one profile kind, read at paint time. */
+function priceLevelLabel(kind: PriceLevelKind): LiquidationLevelsStatusLabel {
+  const nowMs = Date.now()
+  if (kind === 'liquidation') {
+    const status = liquidationLevelsFeed.status()
+    return priceLevelStatusLabel({
+      kind,
+      phase: status.phase,
+      resyncing: status.resyncing,
+      lastAppliedAt: status.lastAppliedAt,
+      ready: status.lastAppliedAt !== null,
+      nowMs,
+    })
+  }
+  const status = tpslLevelsFeed.status()
+  const channel = status.channels[TPSL_KIND_CHANNEL[kind]]
+  return priceLevelStatusLabel({
+    kind,
+    phase: status.phase,
+    resyncing: channel.resyncing,
+    lastAppliedAt: channel.lastAppliedAt,
+    lastFileAt: channel.lastFileAt,
+    ready: channel.ready,
+    nowMs,
+  })
+}
+
 
 const NO_ACCOUNT_FILLS: AccountFill[] = []
 const NO_HOVERED_ACCOUNT_FILLS: BucketedHyperliquidFill[] = []
@@ -725,6 +831,54 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const liquidationsEnabled = activeIndicators.includes('aggregated-liquidations')
 
+  /**
+   * Live price-level profiles (Liquidation / Stop Loss / Take Profit): three
+   * Hyperliquid-only opt-in indicators that share one render, index, settings
+   * and interaction scaffold. Each owns its settings record and (for the two
+   * trigger-order kinds) one channel of the shared TPSL socket. Visual state
+   * only; no book or order data enters React state.
+   */
+  const [priceLevelSettings, setPriceLevelSettings] = useState<
+    Record<PriceLevelKind, LiquidationLevelsSettings>
+  >(() => ({
+    liquidation: loadWidgetPriceLevelsSettings(panelId, 'liquidation'),
+    'stop-loss': loadWidgetPriceLevelsSettings(panelId, 'stop-loss'),
+    'take-profit': loadWidgetPriceLevelsSettings(panelId, 'take-profit'),
+  }))
+  const [priceLevelsDialogKind, setPriceLevelsDialogKind] = useState<PriceLevelKind | null>(
+    null,
+  )
+  const [liquidationLevelsFeedState, setLiquidationLevelsFeedState] =
+    useState<LiquidationLevelsFeedStatus>(() => liquidationLevelsFeed.status())
+  const [tpslFeedState, setTpslFeedState] = useState<TpslFeedStatus>(() =>
+    tpslLevelsFeed.status(),
+  )
+  const [hoveredPriceLevel, setHoveredPriceLevel] = useState<HoveredPriceLevel | null>(null)
+
+  const priceLevelEnabled: Record<PriceLevelKind, boolean> = {
+    liquidation: activeIndicators.includes('liquidation-levels'),
+    'stop-loss': activeIndicators.includes('stop-loss-levels'),
+    'take-profit': activeIndicators.includes('take-profit-levels'),
+  }
+  const priceLevelSupported: Record<PriceLevelKind, boolean> = {
+    liquidation:
+      priceLevelEnabled.liquidation &&
+      isIndicatorSupportedOnExchange('liquidation-levels', exchange),
+    'stop-loss':
+      priceLevelEnabled['stop-loss'] &&
+      isIndicatorSupportedOnExchange('stop-loss-levels', exchange),
+    'take-profit':
+      priceLevelEnabled['take-profit'] &&
+      isIndicatorSupportedOnExchange('take-profit-levels', exchange),
+  }
+  const liquidationLevelSupported = priceLevelSupported.liquidation
+  const stopLossLevelSupported = priceLevelSupported['stop-loss']
+  const takeProfitLevelSupported = priceLevelSupported['take-profit']
+  const tpslSupported = stopLossLevelSupported || takeProfitLevelSupported
+  /** Any enabled profile that can paint (drives the hover subscription). */
+  const anyPriceLevelSupported =
+    liquidationLevelSupported || stopLossLevelSupported || takeProfitLevelSupported
+
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ChartSeriesBundle | null>(null)
@@ -824,6 +978,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   )
   const liquidationOverlayRef = useRef<AggregatedLiquidationsChartOverlay | null>(null)
   const liquidationSettingsRef = useRef(liquidationSettings)
+  const priceLevelSupportedRef = useRef<Record<PriceLevelKind, boolean>>({
+    liquidation: false,
+    'stop-loss': false,
+    'take-profit': false,
+  })
+  const priceLevelSettingsRef = useRef(priceLevelSettings)
+  const priceLevelAttachmentsRef = useRef<
+    Partial<Record<PriceLevelKind, { update: () => void; dispose: () => void }>>
+  >({})
 
   const flushMarketChartViewportPersist = useCallback(
     (
@@ -1061,6 +1224,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       isOverlayIndicatorSelectionRendered(current, {
         activeIndicators,
         interval,
+        exchange,
         loadedVwapLevel: loaded?.interval === interval ? loaded.level : null,
         loadedVwapInterval: loaded?.interval ?? null,
         rollingVwapInstances,
@@ -1068,7 +1232,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         ? current
         : null,
     )
-  }, [activeIndicators, interval, rollingVwapInstances])
+  }, [activeIndicators, exchange, interval, rollingVwapInstances])
 
   /**
    * Temporary selection feedback: the selected overlay lines are stroked wider
@@ -1464,6 +1628,20 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       setLiquidationsSettingsOpen(true)
       return
     }
+    if (
+      target.kind === 'liquidation-levels' ||
+      target.kind === 'stop-loss-levels' ||
+      target.kind === 'take-profit-levels'
+    ) {
+      setPriceLevelsDialogKind(
+        target.kind === 'liquidation-levels'
+          ? 'liquidation'
+          : target.kind === 'stop-loss-levels'
+            ? 'stop-loss'
+            : 'take-profit',
+      )
+      return
+    }
     if (target.kind === 'rolling-vwap') {
       setEditingRollingVwapInstanceId(target.instanceId)
       setRollingVwapSettingsOpen(true)
@@ -1762,6 +1940,11 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         openChartObjectSettings({ kind: 'aggregated-liquidations' })
         return
       }
+      const priceLevelKind = priceLevelKindForIndicator(indicatorId)
+      if (priceLevelKind !== null) {
+        openChartObjectSettings(priceLevelSettingsTarget(priceLevelKind))
+        return
+      }
       openChartObjectSettings({ kind: 'market-indicator', indicatorId })
     },
     [openChartObjectSettings],
@@ -1771,6 +1954,19 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     (next: AggregatedLiquidationsSettings) => {
       saveWidgetLiquidationsSettings(panelId, next)
       setLiquidationSettings(next)
+    },
+    [panelId],
+  )
+
+  const handlePriceLevelSettingsSave = useCallback(
+    (kind: PriceLevelKind, next: LiquidationLevelsSettings) => {
+      if (liquidationLevelsSettingsEqual(priceLevelSettingsRef.current[kind], next)) return
+      saveWidgetPriceLevelsSettings(panelId, kind, next)
+      priceLevelSettingsRef.current = {
+        ...priceLevelSettingsRef.current,
+        [kind]: next,
+      }
+      setPriceLevelSettings((current) => ({ ...current, [kind]: next }))
     },
     [panelId],
   )
@@ -1984,6 +2180,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       saveWidgetMarketIndicators(panelId, next)
       if (!next.includes('aggregated-liquidations')) {
         setLiquidationEvents([])
+      }
+      for (const kind of PRICE_LEVEL_PAINT_ORDER) {
+        if (next.includes(PRICE_LEVEL_KIND_INDICATOR[kind])) continue
+        setHoveredPriceLevel((current) =>
+          current !== null && current.kind === kind ? null : current,
+        )
       }
       setActiveIndicators(next)
     },
@@ -2567,6 +2769,13 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           rollingVwapInstances: rollingVwapInstancesRef.current,
           anchoredVwapInstances: anchoredVwapInstancesRef.current,
           anchoredVwapDrawingInteraction: anchoredVwapInteractionRef.current,
+          priceLevels: PRICE_LEVEL_HIT_ORDER.map((kind) => ({
+            kind,
+            enabled: priceLevelSupportedRef.current[kind],
+            exchange: activeExchangeRef.current,
+            settings: priceLevelSettingsRef.current[kind],
+            index: priceLevelIndexFor(kind),
+          })),
         }
       },
       onActivate: (target) => {
@@ -2658,6 +2867,148 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   useEffect(() => {
     fixedRangeVolumeProfileSeriesAttachmentRef.current?.update()
   }, [fixedRangeVolumeProfileInstances, fixedRangeVolumeProfileInteraction])
+
+  /**
+   * The three price-level primitives, attached to the candle series in a fixed
+   * paint order (liquidation, stop loss, take profit). They paint in the candle
+   * pane only (never the RSI or Aggregated Liquidations pane) and follow pane
+   * reordering, resize, pan, zoom and manual price scales. A disabled profile
+   * renders nothing; the feeds are only subscribed while a profile needs them.
+   */
+  useEffect(() => {
+    const chart = chartRef.current
+    const bundle = seriesRef.current
+    if (!chart || !bundle || !chartReady) return
+
+    const attachments: Partial<
+      Record<PriceLevelKind, { update: () => void; dispose: () => void }>
+    > = {}
+    for (const kind of PRICE_LEVEL_PAINT_ORDER) {
+      const kindTarget = priceLevelSettingsTarget(kind)
+      attachments[kind] = attachLiquidationLevelsSeriesPrimitive(bundle.candle, () => ({
+        enabled: priceLevelSupportedRef.current[kind],
+        settings: priceLevelSettingsRef.current[kind],
+        index: priceLevelIndexFor(kind),
+        selected: overlayIndicatorSelectionRef.current?.kind === kindTarget.kind,
+        label: () => priceLevelLabel(kind),
+        labelRow: PRICE_LEVEL_PAINT_ORDER.indexOf(kind),
+      }))
+    }
+    priceLevelAttachmentsRef.current = attachments
+
+    const onVisibleRangeChange = () => {
+      for (const kind of PRICE_LEVEL_PAINT_ORDER) attachments[kind]?.update()
+    }
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+    chart.timeScale().subscribeVisibleTimeRangeChange(onVisibleRangeChange)
+    // Pane resize/reorder and manual price-scale changes repaint through the
+    // library's own layout pass; a pane change still needs one explicit request
+    // so no profile keeps a pre-reorder frame.
+    const unsubscribePaneChange = subscribeCandlePaneChange(chart, onVisibleRangeChange)
+    onVisibleRangeChange()
+
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange)
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(onVisibleRangeChange)
+      unsubscribePaneChange()
+      for (const kind of PRICE_LEVEL_PAINT_ORDER) attachments[kind]?.dispose()
+      priceLevelAttachmentsRef.current = {}
+    }
+  }, [chartReady])
+
+  /**
+   * Liquidation feed: one socket for every panel that enables the liquidation
+   * profile. Data notifications arrive once per applied file (never per
+   * position) and only request one repaint; status notifications drive the
+   * honest stale/reconnect state and are the only feed-driven React updates.
+   */
+  useEffect(() => {
+    if (!chartReady || !liquidationLevelSupported) return
+    const unsubscribeData = subscribeLiquidationLevelsData(() => {
+      priceLevelAttachmentsRef.current.liquidation?.update()
+    })
+    const unsubscribeStatus = subscribeLiquidationLevelsStatus((status) => {
+      setLiquidationLevelsFeedState((current) =>
+        current.phase === status.phase &&
+        current.attempt === status.attempt &&
+        current.resyncing === status.resyncing &&
+        current.error === status.error &&
+        current.positionCount === status.positionCount
+          ? current
+          : status,
+      )
+      priceLevelAttachmentsRef.current.liquidation?.update()
+    })
+    return () => {
+      unsubscribeData()
+      unsubscribeStatus()
+    }
+  }, [chartReady, liquidationLevelSupported])
+
+  /**
+   * TPSL feed: one socket serves both trigger-order profiles across every
+   * panel. The subscription set is deliberately independent of *which* sibling
+   * is enabled (status + both channels while any of them is on), so toggling
+   * stop loss or take profit never reconnects the sibling's socket; turning
+   * both off is what closes it.
+   */
+  useEffect(() => {
+    if (!chartReady || !tpslSupported) return
+    const unsubscribeStatus = tpslLevelsFeed.subscribeStatus((status) => {
+      setTpslFeedState((current) => (current === status ? current : status))
+      for (const kind of ['stop-loss', 'take-profit'] as const) {
+        priceLevelAttachmentsRef.current[kind]?.update()
+      }
+    })
+    const unsubscribeData = (['stop-loss', 'take-profit'] as const).map((kind) =>
+      tpslLevelsFeed.subscribeData(TPSL_KIND_CHANNEL[kind], () => {
+        priceLevelAttachmentsRef.current[kind]?.update()
+      }),
+    )
+    return () => {
+      for (const unsubscribe of unsubscribeData) unsubscribe()
+      unsubscribeStatus()
+    }
+  }, [chartReady, tpslSupported])
+
+  useEffect(() => {
+    priceLevelSettingsRef.current = priceLevelSettings
+    for (const kind of PRICE_LEVEL_PAINT_ORDER) {
+      priceLevelAttachmentsRef.current[kind]?.update()
+    }
+  }, [priceLevelSettings])
+
+  useEffect(() => {
+    priceLevelSupportedRef.current = {
+      liquidation: liquidationLevelSupported,
+      'stop-loss': stopLossLevelSupported,
+      'take-profit': takeProfitLevelSupported,
+    }
+    for (const kind of PRICE_LEVEL_PAINT_ORDER) {
+      priceLevelAttachmentsRef.current[kind]?.update()
+    }
+  }, [liquidationLevelSupported, stopLossLevelSupported, takeProfitLevelSupported])
+
+  // The transient selection halo is painted by the profile primitive itself.
+  useEffect(() => {
+    for (const kind of PRICE_LEVEL_PAINT_ORDER) {
+      priceLevelAttachmentsRef.current[kind]?.update()
+    }
+  }, [overlayIndicatorSelection])
+
+  /**
+   * A hover or settings surface may not outlive its profile: hiding a kind
+   * (toggle off, unsupported exchange) hides its readout and closes its dialog
+   * without writing state during a render-synchronisation effect.
+   */
+  const visibleHoveredPriceLevel =
+    hoveredPriceLevel !== null && priceLevelSupported[hoveredPriceLevel.kind]
+      ? hoveredPriceLevel
+      : null
+  const visiblePriceLevelsDialogKind =
+    priceLevelsDialogKind !== null && priceLevelSupported[priceLevelsDialogKind]
+      ? priceLevelsDialogKind
+      : null
 
   useEffect(() => {
     const chart = chartRef.current
@@ -3302,6 +3653,122 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
       chart.unsubscribeCrosshairMove(handleCrosshairMove)
     }
   }, [chartReady, positionWalletKey])
+
+  /**
+   * Hover details for the enabled price-level profiles. The row under the
+   * pointer is resolved from the same live geometry the primitives paint, in the
+   * fixed hit order (take profit, stop loss, liquidation), so the profile drawn
+   * on top is the one the pointer explains and no sibling can block the readout.
+   * It only reads state; pan, zoom, crosshair and drawing tools are untouched.
+   */
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady || !anyPriceLevelSupported) return
+
+    const resolveHovered = (param: MouseEventParams): HoveredPriceLevel | null => {
+      const point = param.point
+      const bundle = seriesRef.current
+      if (!point || !bundle) return null
+      const candlePaneIndex = bundle.candle.getPane().paneIndex()
+      if (param.paneIndex !== undefined && param.paneIndex !== candlePaneIndex) return null
+      // Cheap rejection first: a pointer over the candles or the price axis
+      // cannot resolve a level, so the visible-band derivation is skipped for the
+      // common crosshair move instead of rebuilding a profile on every pixel.
+      const plotWidth = resolveLiquidationLevelsPlotWidth(chart, bundle.candle)
+      if (plotWidth === null) return null
+      for (const kind of PRICE_LEVEL_HIT_ORDER) {
+        if (!priceLevelSupportedRef.current[kind]) continue
+        const index = priceLevelIndexFor(kind)
+        if (index.size() === 0) continue
+        const settings = priceLevelSettingsRef.current[kind]
+        const maxBarWidth = liquidationLevelsMaxBarWidthPx(
+          plotWidth,
+          settings.maxWidthPercent,
+        )
+        if (point.x < plotWidth - maxBarWidth || point.x > plotWidth) continue
+        const resolved = resolveLiquidationLevelsPaneProfile({
+          chart,
+          series: bundle.candle,
+          index,
+        })
+        if (!resolved) continue
+        const row = hitTestLiquidationLevelsProfile({
+          profile: resolved.profile,
+          x: point.x,
+          y: point.y,
+          plotWidth: resolved.plotWidth,
+          maxWidthPercent: settings.maxWidthPercent,
+        })
+        if (!row) continue
+        const band = liquidationLevelsRowPriceBand(
+          resolved.profile,
+          resolved.topPrice,
+          resolved.bottomPrice,
+          row.row,
+        )
+        let tpslDetail: TpslRowDetail | null = null
+        let lastAppliedAt: number | null
+        if (isTpslKind(kind)) {
+          const orders = tpslLevelsFeed.orders(TPSL_KIND_CHANNEL[kind])
+          const rowOrders = []
+          for (const position of index.positionsInRange(band.min, band.max)) {
+            const order = orders.get(position.user)
+            if (order) rowOrders.push(order)
+          }
+          // Fixed-size orders keep their requested size; whole-position orders
+          // are reported as the position they close, never as a zero request.
+          tpslDetail =
+            rowOrders.length === 0
+              ? EMPTY_TPSL_ROW_DETAIL
+              : summarizeTpslRowOrders(rowOrders)
+          lastAppliedAt =
+            tpslLevelsFeed.status().channels[TPSL_KIND_CHANNEL[kind]].lastAppliedAt
+        } else {
+          lastAppliedAt = liquidationLevelsFeed.status().lastAppliedAt
+        }
+        return {
+          kind,
+          priceHigh: band.max,
+          priceLow: band.min,
+          long: row.long,
+          short: row.short,
+          count: row.count,
+          lastAppliedAt,
+          tpslDetail,
+        }
+      }
+      return null
+    }
+
+    const handleCrosshairMove = (param: MouseEventParams) => {
+      const next = param.point === undefined ? null : resolveHovered(param)
+      setHoveredPriceLevel((current) => {
+        if (current === next) return current
+        if (current === null || next === null) return next
+        return current.kind === next.kind &&
+          current.priceHigh === next.priceHigh &&
+          current.priceLow === next.priceLow &&
+          current.long === next.long &&
+          current.short === next.short &&
+          current.count === next.count &&
+          current.lastAppliedAt === next.lastAppliedAt &&
+          (current.tpslDetail === null) === (next.tpslDetail === null) &&
+          (current.tpslDetail === null ||
+            next.tpslDetail === null ||
+            (current.tpslDetail.fixedCount === next.tpslDetail.fixedCount &&
+              current.tpslDetail.wholeCount === next.tpslDetail.wholeCount &&
+              current.tpslDetail.coveredCount === next.tpslDetail.coveredCount))
+          ? current
+          : next
+      })
+    }
+
+    chart.subscribeCrosshairMove(handleCrosshairMove)
+    return () => {
+      chart.unsubscribeCrosshairMove(handleCrosshairMove)
+      setHoveredPriceLevel(null)
+    }
+  }, [chartReady, anyPriceLevelSupported])
 
   useEffect(() => {
     const container = containerRef.current
@@ -4065,9 +4532,26 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
     liquidationCoverageNotice.interval === interval
       ? liquidationCoverageNotice.message
       : null
+  const liquidationLevelsNotice = describeLiquidationLevelsStatus({
+    enabled: priceLevelEnabled.liquidation,
+    exchange,
+    status: liquidationLevelsFeedState,
+  })
+  const tpslNotices = (['stop-loss', 'take-profit'] as const)
+    .map((kind) =>
+      describeTpslPriceLevelStatus({
+        kind,
+        enabled: priceLevelEnabled[kind],
+        exchange,
+        status: tpslFeedState,
+      }),
+    )
+    .filter((notice): notice is string => notice !== null)
   const historyNotices = [
     ...indicatorHistoryNotices,
     ...frvpAvailabilityNotices,
+    ...(liquidationLevelsNotice === null ? [] : [liquidationLevelsNotice]),
+    ...tpslNotices,
     ...(accountFillsNotice === null ? [] : [accountFillsNotice]),
     ...(activeLiquidationCoverageNotice === null
       ? []
@@ -4082,6 +4566,15 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
   const editingAnchoredVwapInstance = editingAnchoredVwapInstanceId
     ? anchoredVwapInstances.find((item) => item.id === editingAnchoredVwapInstanceId)
     : undefined
+
+  const takeProfitChannel = tpslFeedState.channels.take_profits
+  const stopLossChannel = tpslFeedState.channels.stop_losses
+  const tpslChannelPhase = (channel: typeof takeProfitChannel) => {
+    // A live socket alone is not readiness: until this channel applies its own
+    // snapshot the diagnostic phase reports syncing, never live.
+    if (!channel.ready || channel.resyncing) return 'syncing'
+    return tpslFeedState.phase
+  }
 
   const fixedRangeVolumeProfileSettingsInstance =
     chartObjectSettingsTarget?.kind === 'fixed-range-volume-profile'
@@ -4159,10 +4652,110 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         </div>
       )}
 
+      {visibleHoveredPriceLevel !== null && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="price-level-readout"
+          data-price-level-kind={visibleHoveredPriceLevel.kind}
+          className="pointer-events-none absolute right-2 top-2 z-20 flex max-w-[min(22rem,80%)] flex-col gap-0.5 rounded-md border border-border bg-card/95 px-2 py-1 text-[10px] tabular-nums text-foreground shadow-sm"
+        >
+          <span className="font-medium">
+            {PRICE_LEVEL_KIND_LABEL[visibleHoveredPriceLevel.kind]} ·{' '}
+            {isTpslKind(visibleHoveredPriceLevel.kind)
+              ? 'current trigger orders'
+              : 'current open positions'}
+          </span>
+          <span>
+            {formatLiquidationLevelsPriceRange(
+              visibleHoveredPriceLevel.priceLow,
+              visibleHoveredPriceLevel.priceHigh,
+            )}
+          </span>
+          <span>
+            <span className="text-up">
+              {isTpslKind(visibleHoveredPriceLevel.kind)
+                ? 'Closes long (sell)'
+                : 'Long'}{' '}
+              {visibleHoveredPriceLevel.long.toLocaleString(undefined, {
+                maximumFractionDigits: 4,
+              })}{' '}
+              BTC
+            </span>
+            {' · '}
+            <span className="text-down">
+              {isTpslKind(visibleHoveredPriceLevel.kind)
+                ? 'Closes short (buy)'
+                : 'Short'}{' '}
+              {visibleHoveredPriceLevel.short.toLocaleString(undefined, {
+                maximumFractionDigits: 4,
+              })}{' '}
+              BTC
+            </span>
+            {` · ${visibleHoveredPriceLevel.count} ${
+              isTpslKind(visibleHoveredPriceLevel.kind) ? 'order' : 'position'
+            }${visibleHoveredPriceLevel.count === 1 ? '' : 's'}`}
+          </span>
+          {visibleHoveredPriceLevel.tpslDetail !== null &&
+            tpslRowDetailLines(visibleHoveredPriceLevel.tpslDetail).map((line) => (
+              <span key={line} className="text-muted-foreground">
+                {line}
+              </span>
+            ))}
+          <span className="text-muted-foreground">
+            {PRICE_LEVEL_KIND_SOURCE[visibleHoveredPriceLevel.kind]} · update{' '}
+            {visibleHoveredPriceLevel.lastAppliedAt === null
+              ? '—'
+              : formatSeriesLabel(visibleHoveredPriceLevel.lastAppliedAt)}
+          </span>
+        </div>
+      )}
+
       <div
         ref={containerRef}
         data-testid="btc-perp-chart"
         data-panel-id={panelId}
+        data-liquidation-levels-phase={
+          liquidationLevelSupported ? liquidationLevelsFeedState.phase : undefined
+        }
+        data-liquidation-levels-seq={
+          liquidationLevelSupported && liquidationLevelsFeedState.seq !== null
+            ? liquidationLevelsFeedState.seq
+            : undefined
+        }
+        data-liquidation-levels-positions={
+          liquidationLevelSupported && liquidationLevelsFeedState.positionCount > 0
+            ? liquidationLevelsFeedState.positionCount
+            : undefined
+        }
+        data-stop-loss-levels-phase={
+          stopLossLevelSupported ? tpslChannelPhase(stopLossChannel) : undefined
+        }
+        data-stop-loss-levels-seq={
+          stopLossLevelSupported && stopLossChannel.ready && stopLossChannel.seq !== null
+            ? stopLossChannel.seq
+            : undefined
+        }
+        data-stop-loss-levels-orders={
+          stopLossLevelSupported && stopLossChannel.ready && stopLossChannel.orderCount > 0
+            ? stopLossChannel.orderCount
+            : undefined
+        }
+        data-take-profit-levels-phase={
+          takeProfitLevelSupported ? tpslChannelPhase(takeProfitChannel) : undefined
+        }
+        data-take-profit-levels-seq={
+          takeProfitLevelSupported && takeProfitChannel.ready && takeProfitChannel.seq !== null
+            ? takeProfitChannel.seq
+            : undefined
+        }
+        data-take-profit-levels-orders={
+          takeProfitLevelSupported &&
+          takeProfitChannel.ready &&
+          takeProfitChannel.orderCount > 0
+            ? takeProfitChannel.orderCount
+            : undefined
+        }
         className={cn(
           'min-h-[5rem] w-full flex-1 basis-0',
           !chartReady && 'pointer-events-none opacity-0',
@@ -4248,6 +4841,23 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         }}
         onSettingsChange={handleLiquidationSettingsChange}
       />
+      {visiblePriceLevelsDialogKind !== null && (
+        <PriceLevelsSettingsDialog
+          kind={visiblePriceLevelsDialogKind}
+          open
+          settings={priceLevelSettings[visiblePriceLevelsDialogKind]}
+          returnFocusId={`${panelId}-indicators`}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPriceLevelsDialogKind(null)
+              setChartObjectSettingsTarget(null)
+            }
+          }}
+          onSave={(next) =>
+            handlePriceLevelSettingsSave(visiblePriceLevelsDialogKind, next)
+          }
+        />
+      )}
       <MarketPositionMarkerSettingsDialog
         open={positionMarkerSettingsOpen}
         panelId={panelId}
