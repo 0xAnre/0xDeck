@@ -1,11 +1,17 @@
 import {
   computeRollingVwapForInterval,
+  DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES,
+  DEFAULT_ROLLING_VWAP_BAND_TYPE,
   DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD,
   DEFAULT_ROLLING_VWAP_MIN_BARS,
   DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS,
   isRollingVwapMinBars,
+  sanitizeRollingVwapBandPercentages,
+  sanitizeRollingVwapBandType,
   sanitizeRollingVwapFixedTimePeriod,
   sanitizeRollingVwapStdevMultipliers,
+  type RollingVwapBandPercentages,
+  type RollingVwapBandType,
   type RollingVwapFixedTimePeriod,
   type RollingVwapPoint,
   type RollingVwapStdevMultipliers,
@@ -111,7 +117,12 @@ export function rollingVwapCenterLineRgbaColor(lineColor: string, lineOpacity: n
 export type RollingVwapSettings = {
   fixedTimePeriod: RollingVwapFixedTimePeriod
   minBars: number
+  /** Selects which of `multipliers` / `bandPercentages` positions the bands. */
+  bandType: RollingVwapBandType
+  /** Standard-deviation band offsets. Kept while percentage mode is active. */
   multipliers: RollingVwapStdevMultipliers
+  /** Percentage-of-VWAP band offsets. Kept while standard-deviation mode is active. */
+  bandPercentages: RollingVwapBandPercentages
   bandColors: RollingVwapBandColors
   bandOpacities: RollingVwapBandOpacities
   bandLineStyles: RollingVwapBandLineStyles
@@ -204,7 +215,9 @@ export function createDefaultRollingVwapSettings(): RollingVwapSettings {
   return {
     fixedTimePeriod: { ...DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD },
     minBars: DEFAULT_ROLLING_VWAP_MIN_BARS,
+    bandType: DEFAULT_ROLLING_VWAP_BAND_TYPE,
     multipliers: { ...DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS },
+    bandPercentages: { ...DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES },
     bandColors: { ...DEFAULT_BAND_COLORS },
     bandOpacities: { ...DEFAULT_BAND_OPACITIES },
     bandLineStyles: { ...DEFAULT_BAND_LINE_STYLES },
@@ -248,6 +261,47 @@ export function resolveRollingVwapBandFillStyle(
   return marketStyleColorWithOpacity(color, opacityPercent)
 }
 
+/** Per-band-pair offset distance for the instance's selected band type. */
+export type RollingVwapBandDistances = {
+  band1: number
+  band2: number
+  band3: number
+}
+
+/**
+ * The distances that actually position the three band pairs right now. The
+ * inactive mode's own values are never read here, so a zero distance hides that
+ * pair even when the other mode still holds a non-zero value.
+ */
+export function resolveRollingVwapBandDistances(
+  settings: Pick<RollingVwapSettings, 'bandType' | 'multipliers' | 'bandPercentages'>,
+): RollingVwapBandDistances {
+  if (settings.bandType === 'percentage') {
+    const { band1, band2, band3 } = settings.bandPercentages
+    return { band1, band2, band3 }
+  }
+  return {
+    band1: settings.multipliers.multiplier1,
+    band2: settings.multipliers.multiplier2,
+    band3: settings.multipliers.multiplier3,
+  }
+}
+
+/**
+ * Draft/save helper for the band type selector: switches the active offset
+ * definition and leaves both parameter sets untouched, so the dialog and a
+ * later Save keep the other mode's values.
+ */
+export function withRollingVwapBandType(
+  settings: RollingVwapSettings,
+  bandType: RollingVwapBandType,
+): RollingVwapSettings {
+  return sanitizeRollingVwapSettings({
+    ...settings,
+    bandType: sanitizeRollingVwapBandType(bandType, settings.bandType),
+  })
+}
+
 export function computeRollingVwapPointsForSettings(
   candles: readonly MarketCandle[],
   interval: CandleInterval,
@@ -255,7 +309,9 @@ export function computeRollingVwapPointsForSettings(
 ): RollingVwapPoint[] {
   return computeRollingVwapForInterval(candles, interval, settings.fixedTimePeriod, {
     minBars: settings.minBars,
+    bandType: settings.bandType,
     multipliers: settings.multipliers,
+    percentages: settings.bandPercentages,
   })
 }
 
@@ -278,7 +334,14 @@ export function sanitizeRollingVwapSettings(value: unknown): RollingVwapSettings
   return {
     fixedTimePeriod: sanitizeRollingVwapFixedTimePeriod(record.fixedTimePeriod, defaults.fixedTimePeriod),
     minBars: isRollingVwapMinBars(record.minBars) ? record.minBars : defaults.minBars,
+    bandType: sanitizeRollingVwapBandType(record.bandType, defaults.bandType),
     multipliers: sanitizeRollingVwapStdevMultipliers(record.multipliers, defaults.multipliers),
+    // Missing values stay at the hidden 0 default: a legacy instance keeps its
+    // standard-deviation bands instead of gaining percentage bands.
+    bandPercentages: sanitizeRollingVwapBandPercentages(
+      record.bandPercentages,
+      defaults.bandPercentages,
+    ),
     bandColors: sanitizeBandColors(record.bandColors, defaults.bandColors),
     bandOpacities: sanitizeBandOpacities(record.bandOpacities, defaults.bandOpacities),
     bandLineStyles: sanitizeBandLineStyles(record.bandLineStyles, defaults.bandLineStyles),

@@ -12,6 +12,7 @@ import {
   DEFAULT_ROLLING_VWAP_LINE_OPACITY,
   DEFAULT_ROLLING_VWAP_LINE_STYLE,
   DEFAULT_ROLLING_VWAP_LINE_WIDTH,
+  resolveRollingVwapBandDistances,
   resolveRollingVwapBandFillStyle,
   rollingVwapCenterLineRgbaColor,
   type RollingVwapBandColors,
@@ -288,8 +289,8 @@ export function updateRollingVwapChartSeriesLast(
   bundle.bands.updateLastPoint(point)
 }
 
-function bandPairVisible(instanceVisible: boolean, multiplier: number): boolean {
-  return instanceVisible && multiplier > 0
+function bandPairVisible(instanceVisible: boolean, distance: number): boolean {
+  return instanceVisible && distance > 0
 }
 
 /** Resolved compatibility for an instance on the active chart interval. */
@@ -317,11 +318,11 @@ export function setRollingVwapInstanceSeriesVisibility(
     priceLineVisible: false,
   })
 
-  const { multipliers } = instance.settings
+  const distances = resolveRollingVwapBandDistances(instance.settings)
   bundle.bands.setVisibility(instanceVisible, {
-    band1: bandPairVisible(instanceVisible, multipliers.multiplier1),
-    band2: bandPairVisible(instanceVisible, multipliers.multiplier2),
-    band3: bandPairVisible(instanceVisible, multipliers.multiplier3),
+    band1: bandPairVisible(instanceVisible, distances.band1),
+    band2: bandPairVisible(instanceVisible, distances.band2),
+    band3: bandPairVisible(instanceVisible, distances.band3),
   })
 }
 

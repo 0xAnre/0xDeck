@@ -338,6 +338,51 @@ describe('overlay indicator selection chart series', () => {
     )
   })
 
+  it('follows the selected band type when releasing a band selection', () => {
+    const selection: OverlayIndicatorSelectionTarget = {
+      kind: 'rolling-vwap',
+      instanceId: 'rolling-1',
+      part: 'band1',
+    }
+    const percentage = {
+      bandType: 'percentage',
+      multipliers: { multiplier1: 1, multiplier2: 2, multiplier3: 3 },
+      bandPercentages: { band1: 0, band2: 1.5, band3: 0 },
+    }
+    assert.deepEqual(
+      isOverlayIndicatorSelectionRendered(
+        selection,
+        renderState({
+          rollingVwapInstances: [rollingInstance({ settings: percentage } as never)],
+        }),
+      ),
+      // Stdev multiplier1 is 1, but the active percentage distance is 0.
+      false,
+    )
+    const selectionBand2: OverlayIndicatorSelectionTarget = { ...selection, part: 'band2' }
+    assert.equal(
+      isOverlayIndicatorSelectionRendered(
+        selectionBand2,
+        renderState({
+          rollingVwapInstances: [rollingInstance({ settings: percentage } as never)],
+        }),
+      ),
+      true,
+    )
+    // Switching back to standard deviation reads the multiplier again.
+    assert.equal(
+      isOverlayIndicatorSelectionRendered(
+        selection,
+        renderState({
+          rollingVwapInstances: [
+            rollingInstance({ settings: { ...percentage, bandType: 'stdev' } } as never),
+          ],
+        }),
+      ),
+      true,
+    )
+  })
+
   it('has no line series for the bar-based liquidations overlay or without a bundle', () => {
     assert.deepEqual(
       overlayIndicatorSelectionLineSeries(bundle, { kind: 'aggregated-liquidations' }, []),

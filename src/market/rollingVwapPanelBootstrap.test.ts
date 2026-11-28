@@ -2,6 +2,10 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import { migrateLegacyRollingVwapToInstances } from './rollingVwapInstancesMigration.ts'
 import { createDefaultRollingVwapSettings } from './rollingVwapSettings.ts'
+import {
+  DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES,
+  DEFAULT_ROLLING_VWAP_BAND_TYPE,
+} from './rollingVwap.ts'
 import { bootstrapRollingVwapPanelState } from './rollingVwapPanelBootstrap.ts'
 import { createRollingVwapInstance } from './rollingVwapInstances.ts'
 import {
@@ -83,6 +87,37 @@ describe('panel bootstrap migration contract', () => {
     })
     assert.equal(migrated.migrationNeeded, false)
     assert.deepEqual(migrated.instances, [])
+  })
+})
+
+describe('panel bootstrap band type compatibility', () => {
+  it('loads an existing pre-#282 entry as standard deviation without rewriting it', () => {
+    const panelId = 'panel-bands'
+    const raw = JSON.stringify({
+      [panelId]: [
+        {
+          id: 'rv-legacy',
+          enabled: true,
+          settings: {
+            minBars: 14,
+            multipliers: { multiplier1: 2, multiplier2: 0, multiplier3: 0 },
+          },
+          displaySequence: 1,
+        },
+      ],
+    })
+    memory.set(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY, raw)
+    const boot = bootstrapRollingVwapPanelState(panelId)
+    assert.equal(boot.migrationApplied, false)
+    assert.equal(boot.instances.length, 1)
+    assert.equal(boot.instances[0].settings.bandType, DEFAULT_ROLLING_VWAP_BAND_TYPE)
+    assert.deepEqual(boot.instances[0].settings.bandPercentages, DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES)
+    assert.deepEqual(boot.instances[0].settings.multipliers, {
+      multiplier1: 2,
+      multiplier2: 0,
+      multiplier3: 0,
+    })
+    assert.equal(memory.get(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY), raw)
   })
 })
 

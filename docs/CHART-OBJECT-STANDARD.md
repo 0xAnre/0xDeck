@@ -29,7 +29,7 @@ Granularity means "what the user can style independently", not the number of ren
 | Anchored VWAP band pairs ×3 (upper / lower) | Bands | Color + Opacity per line, Width + Line/Dot per pair | `src/market/anchoredVwapDrawingSettings.ts` (`band1`–`band3`) | `src/market/AnchoredVwapSettingsDialog.tsx` |
 | Anchored VWAP band fill (per pair) | Background / fill | Color, Opacity per pair | `src/market/anchoredVwapBandFillSeriesPrimitive.ts` | `src/market/AnchoredVwapSettingsDialog.tsx` |
 | Rolling VWAP center line | Line-type | Color, Opacity, Width, Line/Dot per instance | `src/market/rollingVwapSettings.ts` (`lineWidth`, `lineColor`, `lineOpacity`, `lineStyle`), `src/market/rollingVwapChartSeries.ts` | `src/market/RollingVwapSettingsDialog.tsx` |
-| Rolling VWAP deviation bands ×3 (six outlines, three fills) | Bands | Color, Opacity, Width, Line/Dot per band; one shared Background fill per instance | `src/market/rollingVwapSettings.ts` (`bandColors`, `bandOpacities`, `bandLineWidths`, `bandLineStyles`, `fillColor`, `fillOpacity`), `src/market/rollingVwapChartSeries.ts`, `src/market/rollingVwapBandRenderGeometry.ts`, `src/market/rollingVwapBandSeriesPrimitive.ts` | `src/market/RollingVwapSettingsDialog.tsx` |
+| Rolling VWAP bands ×3 (six outlines, three fills; standard-deviation or percentage offsets) | Bands | Band type (Standard deviation / Percentage of VWAP) with an independent distance per band in each mode; Color, Opacity, Width, Line/Dot per band; one shared Background fill per instance | `src/market/rollingVwapSettings.ts` (`bandType`, `multipliers`, `bandPercentages`, `bandColors`, `bandOpacities`, `bandLineWidths`, `bandLineStyles`, `fillColor`, `fillOpacity`), `src/market/rollingVwapChartSeries.ts`, `src/market/rollingVwapBandRenderGeometry.ts`, `src/market/rollingVwapBandSeriesPrimitive.ts` | `src/market/RollingVwapSettingsDialog.tsx` |
 | Time-based VWAP (daily, weekly, monthly, quarterly, yearly): center line + previous-session band lines | Bands | Color, Opacity, Width, Line/Dot per series (center line, previous-session upper, previous-session lower) | `src/market/sessionVwapChartSeries.ts`, `src/market/vwapChartLineStyles.ts`, `src/market/marketIndicatorPresentationApply.ts`, `src/marketIndicatorPresentationStorage.ts` (`series`) | `src/widgetSettings/MarketIndicatorStyleDialog.tsx` |
 | Time-based VWAP band background | Background / fill | Color, Opacity (independent from the line record) | `src/market/sessionVwapBandFillStyle.ts`, `src/market/sessionVwapBandSeriesPrimitive.ts` | `src/widgetSettings/MarketIndicatorStyleDialog.tsx` "Background" |
 | 3 EMA / 2 EMA | Line-type (group) | Color, Opacity, Width, Line/Dot for the group | `src/market/marketIndicatorSeriesColors.ts`, `src/market/marketStylePalette.ts` (`MARKET_STYLE_MULTI_LINE_SHADES`, `MARKET_STYLE_DUAL_LINE_SHADES`) | `src/widgetSettings/MarketIndicatorStyleDialog.tsx` |
@@ -181,7 +181,7 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Rectangle geometry, lock/hidden, fill color + opacity | `src/rectangleInstancesStorage.ts` | `0xdeck-widget-rectangle-instances` | `sanitizeRectangleInstances` (`src/market/rectangleInstances.ts`) | `src/market/rectangleSeriesPrimitive.ts`, `src/market/rectangleColors.ts` |
 | Line geometry, lock/hidden, stroke color/opacity/width/style | `src/lineInstancesStorage.ts` | `0xdeck-widget-line-instances` | `sanitizeLineInstances` (`src/market/lineInstances.ts`) | `src/market/lineSeriesPrimitive.ts`, `src/market/lineColors.ts` |
 | FRVP range/rows/value area/extend-right, per-level line styles, per-direction histogram styles, max bar width and row fill | `src/fixedRangeVolumeProfileInstancesStorage.ts` | `0xdeck-widget-fixed-range-vp-instances` | `sanitizeFixedRangeVolumeProfileInstances` + `sanitizeFrvpInstanceHistogramStyles` (`src/market/frvpHistogramStyles.ts`) | `src/market/fixedRangeVolumeProfileSeriesPrimitive.ts`, `src/market/fixedRangeVolumeProfileRenderGeometry.ts` |
-| Rolling VWAP instances (period, multipliers, per-band colors/opacities/widths/line styles, shared fill color/opacity, center-line width/style, enabled/locked) | `src/rollingVwapInstancesStorage.ts` | `0xdeck-widget-rolling-vwap-instances` | `sanitizeRollingVwapInstances` → `sanitizeRollingVwapSettings` (`src/market/rollingVwapSettings.ts`) | `src/market/rollingVwapChartSeries.ts` (native centre), `src/market/rollingVwapBandSeriesPrimitive.ts` (six outlines + three fills) |
+| Rolling VWAP instances (period, band type, standard-deviation multipliers, percentage distances, per-band colors/opacities/widths/line styles, shared fill color/opacity, center-line width/style, enabled/locked) | `src/rollingVwapInstancesStorage.ts` | `0xdeck-widget-rolling-vwap-instances` | `sanitizeRollingVwapInstances` → `sanitizeRollingVwapSettings` (`src/market/rollingVwapSettings.ts`); missing/invalid `bandType` ⇒ `stdev`, missing/invalid `bandPercentages` ⇒ 0 per band | `src/market/rollingVwapChartSeries.ts` (native centre), `src/market/rollingVwapBandSeriesPrimitive.ts` (six outlines + three fills) |
 | Anchored VWAP anchor, lock/hidden, line + band pair styles and fills | `src/anchoredVwapInstancesStorage.ts` | `0xdeck-widget-anchored-vwap-instances` | `sanitizeAnchoredVwapInstances` → `sanitizeAnchoredVwapDrawingSettings` (`src/market/anchoredVwapDrawingSettings.ts`) | `src/market/anchoredVwapDrawingChartSeries.ts`, `src/market/anchoredVwapBandFillSeriesPrimitive.ts` |
 | Indicator line styles, per-series time-based VWAP line styles + time-based VWAP band background | `src/marketIndicatorPresentationStorage.ts` | `0xdeck-widget-market-indicator-presentation` | `sanitizeMarketIndicatorPresentation` (flat fields + `series`) + `sanitizeLineChartStrokeStyle`, `sanitizeMarketStyleOpacityPercent` | `src/market/marketIndicatorPresentationApply.ts` |
 | RSI period / overbought / oversold / threshold glow | `src/marketRsiSettingsStorage.ts` | `0xdeck-widget-market-rsi-settings` | `sanitizeRsiSettings` (`src/market/rsi.ts`) | `src/market/rsiChartPane.ts` |
@@ -260,8 +260,9 @@ gap; every user-facing capability above stays the same.
   header hide/show/delete rows and the per-band halo all reuse
   `chartObjectSettingsTarget`, `overlayIndicatorSelection` and
   `overlayIndicatorSelectionHalo`; there is no second pointer path, picker or
-  store. A band with a zero multiplier, a hidden/disabled instance or an
-  unsupported timeframe has no geometry and cannot be selected.
+  store. A band whose selected distance is zero (a 0 multiplier in
+  standard-deviation mode or a 0 % distance in percentage mode), a hidden/disabled
+  instance or an unsupported timeframe has no geometry and cannot be selected.
 - **Per-first-visible-base projection.** Percentage and IndexedTo100 convert
   each native source with that source's own first visible value. The primitive
   reproduces this through official APIs by projecting each outline value
@@ -277,6 +278,45 @@ gap; every user-facing capability above stays the same.
   clears every reference, so disposal stops scheduling. Counting tests:
   `src/market/rollingVwapBandSeriesPrimitive.test.ts`; real-library frames and
   same-input pixel/coordinate comparators: `e2e/rolling-vwap-band-primitive.spec.ts`.
+
+### Band type: standard deviation or percentage of VWAP (#282, MUST)
+
+Each Rolling VWAP instance selects its band offsets with one **Band type**
+control in `RollingVwapSettingsDialog.tsx`: `Standard deviation` (`stdev`) or
+`Percentage of VWAP` (`percentage`). This is a per-instance offset definition,
+not a new chart object; the centre line, the band styling, the primitive
+pipeline and every interaction stay exactly as they are.
+
+- **Storage and migration.** `bandType` and `bandPercentages` (`band1`–`band3`)
+  live in the existing per-instance record, sanitized by
+  `sanitizeRollingVwapSettings`. `bandType` defaults to `stdev` and every
+  percentage defaults to `0`, so a pre-#282 record keeps its exact
+  standard-deviation bands and gains no visible percentage bands. Loading is a
+  read only: the legacy record is not rewritten until the user adds an instance
+  or saves settings, and the legacy read-only keys stay untouched.
+- **Both parameter sets are kept.** `multipliers` (Pine σ multiples) and
+  `bandPercentages` are stored separately; the dialog's `Band type` switch and a
+  later Save keep the inactive mode's values, so switching back restores them.
+  Only the selected mode positions the bands: a `0` distance hides that pair
+  while the other mode's non-zero value stays stored.
+- **Percentage formula.** `upper = VWAP * (1 + p / 100)` and
+  `lower = VWAP * (1 - p / 100)` around the instance's own rolling VWAP. It is
+  not a percentage of candle price, not an ATR or stdev distance, and it is
+  independent of the chart's **Percentage / IndexedTo100 price-scale mode** —
+  the band primitive keeps its existing per-first-visible-base projection for
+  every price-scale mode.
+- **Validation.** A percentage is a finite number `0 <= p <= 100`
+  (`MAX_ROLLING_VWAP_BAND_PERCENTAGE`, the whole VWAP distance). Fractional
+  values are supported; missing, `NaN`/Infinity, numeric-string, negative and
+  `> 100` values fall back to that band's `0` default in the sanitizer.
+- **Unchanged math.** VWAP/stdev centre, rolling window, `minBars`, warmup,
+  volume weighting, zero-volume and gap handling, and every other indicator are
+  untouched by the band type: only the band offsets read the selected set.
+- **Unchanged presentation.** Per-band color/opacity/width/`Line`/`Dot`, the
+  shared Background fill, halo, hit test, gear/double-click settings,
+  hide/show/delete and per-instance isolation behave the same in both modes;
+  autoscale and hit testing read the resolved selected distances through the
+  one primitive.
 
 ## Live price-level profiles (#280, MUST)
 

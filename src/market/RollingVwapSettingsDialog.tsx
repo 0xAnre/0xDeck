@@ -11,7 +11,17 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { MAX_ROLLING_VWAP_BAND_PERCENTAGE, type RollingVwapBandType } from '@/market/rollingVwap'
+import {
   sanitizeRollingVwapSettings,
+  withRollingVwapBandType,
   type RollingVwapSettings,
 } from '@/market/rollingVwapSettings'
 import { ColorOpacityField } from '@/widgetSettings/ColorOpacityField'
@@ -201,7 +211,33 @@ function RollingVwapSettingsDialogBody({
           </section>
 
           <section className="space-y-3">
-            <p className="font-medium text-foreground">Deviation bands</p>
+            <p className="font-medium text-foreground">Bands</p>
+            <Field>
+              <FieldLabel htmlFor="rolling-vwap-band-type">Band type</FieldLabel>
+              <Select
+                value={draft.bandType}
+                onValueChange={(value) =>
+                  setDraft((current) =>
+                    withRollingVwapBandType(current, value as RollingVwapBandType),
+                  )
+                }
+              >
+                <SelectTrigger id="rolling-vwap-band-type" className="w-full" size="default">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="stdev">Standard deviation</SelectItem>
+                    <SelectItem value="percentage">Percentage of VWAP</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <p className="text-muted-foreground">
+              {draft.bandType === 'percentage'
+                ? 'Upper = VWAP × (1 + p/100), lower = VWAP × (1 − p/100). A 0 distance hides that band pair.'
+                : 'Upper = VWAP + σ × multiplier, lower = VWAP − σ × multiplier. A 0 multiplier hides that band pair.'}
+            </p>
             <ColorOpacityField
               id="rolling-vwap-fill-color"
               opacityId="rolling-vwap-fill-opacity"
@@ -218,28 +254,47 @@ function RollingVwapSettingsDialogBody({
             {(['Band 1', 'Band 2', 'Band 3'] as const).map((label, index) => {
               const bandKey = `band${index + 1}` as 'band1' | 'band2' | 'band3'
               const multKey = `multiplier${index + 1}` as keyof RollingVwapSettings['multipliers']
+              const percentageMode = draft.bandType === 'percentage'
+              // One selected offset control per band: the label, unit and value
+              // source follow the band type, while the other mode's parameters
+              // stay in the draft untouched for a later switch back.
+              const distanceId = `rolling-vwap-${bandKey}-${percentageMode ? 'percentage' : 'multiplier'}`
+              const distanceValue = percentageMode
+                ? draft.bandPercentages[bandKey]
+                : draft.multipliers[multKey]
               return (
                 <div key={bandKey} className="space-y-1">
                   <div className="grid grid-cols-[4rem_1fr] items-end gap-2">
                     <span className="text-muted-foreground">{label}</span>
                     <Field>
-                      <FieldLabel htmlFor={`rolling-vwap-${bandKey}-multiplier`}>
-                        Multiplier
+                      <FieldLabel htmlFor={distanceId}>
+                        {percentageMode ? 'Percentage (%)' : 'Multiplier (σ)'}
                       </FieldLabel>
                       <Input
-                        id={`rolling-vwap-${bandKey}-multiplier`}
+                        id={distanceId}
                         type="number"
                         min={0}
-                        step={0.5}
-                        value={draft.multipliers[multKey]}
+                        max={percentageMode ? MAX_ROLLING_VWAP_BAND_PERCENTAGE : undefined}
+                        step={percentageMode ? 0.1 : 0.5}
+                        value={distanceValue}
                         onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            multipliers: {
-                              ...current.multipliers,
-                              [multKey]: Number(event.target.value),
-                            },
-                          }))
+                          setDraft((current) =>
+                            percentageMode
+                              ? {
+                                  ...current,
+                                  bandPercentages: {
+                                    ...current.bandPercentages,
+                                    [bandKey]: Number(event.target.value),
+                                  },
+                                }
+                              : {
+                                  ...current,
+                                  multipliers: {
+                                    ...current.multipliers,
+                                    [multKey]: Number(event.target.value),
+                                  },
+                                },
+                          )
                         }
                       />
                     </Field>

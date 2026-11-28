@@ -57,7 +57,7 @@ export type RollingVwapBandSeriesPrimitiveContext = {
   points: readonly RollingVwapPoint[]
   /** `false` while the instance is disabled or unsupported on the interval. */
   visible: boolean
-  /** Per band-pair visibility from the instance multipliers. */
+  /** Per band-pair visibility from the instance's selected band distances. */
   bandVisible: Record<RollingVwapBandPairKey, boolean>
   style: RollingVwapBandPrimitiveStyle
   /** Transient chart-chrome selection. Never persisted. */
@@ -76,7 +76,7 @@ export type RollingVwapBandPrimitiveStats = {
   haloStrokes: number
 }
 
-/** No band pair is visible until the instance's multipliers enable it. */
+/** No band pair is visible until the selected band type gives it a distance. */
 export const EMPTY_ROLLING_VWAP_BAND_VISIBILITY: Record<RollingVwapBandPairKey, boolean> = {
   band1: false,
   band2: false,
