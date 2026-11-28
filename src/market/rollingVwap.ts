@@ -31,6 +31,44 @@ export type RollingVwapStdevMultipliers = {
   multiplier3: number
 }
 
+/**
+ * Band-offset definition of one Rolling VWAP instance.
+ *
+ * `stdev` keeps the Pine standard-deviation multipliers; `percentage` uses a
+ * distance as a percentage of the instance's own VWAP (`upper = VWAP * (1 + p /
+ * 100)`), never a percentage of candle price and unrelated to the chart's
+ * Percentage / IndexedTo100 price-scale mode.
+ */
+export type RollingVwapBandType = 'stdev' | 'percentage'
+
+export const ROLLING_VWAP_BAND_TYPES = ['stdev', 'percentage'] as const
+
+/** Existing persisted instances have no band type and stay standard deviation. */
+export const DEFAULT_ROLLING_VWAP_BAND_TYPE: RollingVwapBandType = 'stdev'
+
+export type RollingVwapBandPercentages = {
+  band1: number
+  band2: number
+  band3: number
+}
+
+/**
+ * Percentage mode starts hidden: every distance is 0 so selecting Percentage
+ * never enables bands on an instance that had none.
+ */
+export const DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES = {
+  band1: 0,
+  band2: 0,
+  band3: 0,
+} as const
+
+/**
+ * Largest accepted percentage distance. `100` is the whole VWAP distance, so
+ * the lower outline stays at or above zero; anything beyond it would describe a
+ * negative price.
+ */
+export const MAX_ROLLING_VWAP_BAND_PERCENTAGE = 100
+
 /** Pine "Time period" inputs (UI not wired in Stage 1). */
 export type RollingVwapFixedTimePeriod = {
   useFixedTimePeriod: boolean
@@ -61,6 +99,10 @@ export type RollingVwapPoint = {
 export type RollingVwapComputeOptions = {
   minBars?: number
   multipliers?: RollingVwapStdevMultipliers
+  /** Band offset definition; missing/invalid resolves to `stdev`. */
+  bandType?: RollingVwapBandType
+  /** Percentage-mode distances; ignored in `stdev` mode. */
+  percentages?: RollingVwapBandPercentages
 }
 
 export class RollingVwapConfigError extends Error {
@@ -147,6 +189,24 @@ export function isRollingVwapStdevMultiplier(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
+export function isRollingVwapBandType(value: unknown): value is RollingVwapBandType {
+  return value === 'stdev' || value === 'percentage'
+}
+
+/**
+ * Fractional percentages are supported; `0` hides that band pair. Non-numbers
+ * (including numeric strings), NaN/Infinity, negatives and values above
+ * `MAX_ROLLING_VWAP_BAND_PERCENTAGE` are invalid.
+ */
+export function isRollingVwapBandPercentage(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_ROLLING_VWAP_BAND_PERCENTAGE
+  )
+}
+
 export function sanitizeRollingVwapFixedTimePeriod(
   value: unknown,
   defaults: RollingVwapFixedTimePeriod = DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD,
@@ -181,6 +241,25 @@ export function sanitizeRollingVwapStdevMultipliers(
   }
 }
 
+export function sanitizeRollingVwapBandType(
+  value: unknown,
+  defaults: RollingVwapBandType = DEFAULT_ROLLING_VWAP_BAND_TYPE,
+): RollingVwapBandType {
+  return isRollingVwapBandType(value) ? value : defaults
+}
+
+export function sanitizeRollingVwapBandPercentages(
+  value: unknown,
+  defaults: RollingVwapBandPercentages = { ...DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES },
+): RollingVwapBandPercentages {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    band1: isRollingVwapBandPercentage(record.band1) ? record.band1 : defaults.band1,
+    band2: isRollingVwapBandPercentage(record.band2) ? record.band2 : defaults.band2,
+    band3: isRollingVwapBandPercentage(record.band3) ? record.band3 : defaults.band3,
+  }
+}
+
 export function validateRollingVwapFixedTimePeriod(period: RollingVwapFixedTimePeriod): void {
   if (!isRollingVwapDays(period.days)) {
     throw new RollingVwapConfigError('days must be an integer >= 0')
@@ -198,6 +277,17 @@ export function validateRollingVwapStdevMultipliers(multipliers: RollingVwapStde
   for (const key of keys) {
     if (!isRollingVwapStdevMultiplier(multipliers[key])) {
       throw new RollingVwapConfigError(`${key} must be a finite number >= 0`)
+    }
+  }
+}
+
+export function validateRollingVwapBandPercentages(percentages: RollingVwapBandPercentages): void {
+  const keys: (keyof RollingVwapBandPercentages)[] = ['band1', 'band2', 'band3']
+  for (const key of keys) {
+    if (!isRollingVwapBandPercentage(percentages[key])) {
+      throw new RollingVwapConfigError(
+        `${key} must be a finite number from 0 to ${MAX_ROLLING_VWAP_BAND_PERCENTAGE}`,
+      )
     }
   }
 }
@@ -286,10 +376,52 @@ function removeCandleFromTotals(totals: RollingTotals, candle: MarketCandle): vo
   totals.sumSrcSrcVol -= vol * src * src
 }
 
+type RollingVwapBandValues = Pick<
+  RollingVwapPoint,
+  'upper1' | 'lower1' | 'upper2' | 'lower2' | 'upper3' | 'lower3'
+>
+
+/**
+ * Band offsets around the unchanged VWAP centre. `stdev` keeps the Pine
+ * `vwap +/- stdev * multiplier` math; `percentage` is
+ * `vwap * (1 +/- p / 100)` using the instance's own VWAP.
+ */
+function bandValuesFromCenter(
+  vwap: number,
+  stdev: number,
+  bandType: RollingVwapBandType,
+  multipliers: RollingVwapStdevMultipliers,
+  percentages: RollingVwapBandPercentages,
+): RollingVwapBandValues {
+  if (bandType === 'percentage') {
+    const { band1, band2, band3 } = percentages
+    return {
+      upper1: vwap * (1 + band1 / 100),
+      lower1: vwap * (1 - band1 / 100),
+      upper2: vwap * (1 + band2 / 100),
+      lower2: vwap * (1 - band2 / 100),
+      upper3: vwap * (1 + band3 / 100),
+      lower3: vwap * (1 - band3 / 100),
+    }
+  }
+
+  const { multiplier1, multiplier2, multiplier3 } = multipliers
+  return {
+    upper1: vwap + stdev * multiplier1,
+    lower1: vwap - stdev * multiplier1,
+    upper2: vwap + stdev * multiplier2,
+    lower2: vwap - stdev * multiplier2,
+    upper3: vwap + stdev * multiplier3,
+    lower3: vwap - stdev * multiplier3,
+  }
+}
+
 function pointFromTotals(
   time: number,
   totals: RollingTotals,
+  bandType: RollingVwapBandType,
   multipliers: RollingVwapStdevMultipliers,
+  percentages: RollingVwapBandPercentages,
 ): RollingVwapPoint {
   const nullPoint: RollingVwapPoint = {
     time,
@@ -320,17 +452,11 @@ function pointFromTotals(
     return nullPoint
   }
 
-  const { multiplier1, multiplier2, multiplier3 } = multipliers
   return {
     time,
     vwap,
     stdev,
-    upper1: vwap + stdev * multiplier1,
-    lower1: vwap - stdev * multiplier1,
-    upper2: vwap + stdev * multiplier2,
-    lower2: vwap - stdev * multiplier2,
-    upper3: vwap + stdev * multiplier3,
-    lower3: vwap - stdev * multiplier3,
+    ...bandValuesFromCenter(vwap, stdev, bandType, multipliers, percentages),
   }
 }
 
@@ -353,6 +479,12 @@ export function computeRollingVwap(
 
   const multipliers = options.multipliers ?? DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS
   validateRollingVwapStdevMultipliers(multipliers)
+  const bandType = options.bandType ?? DEFAULT_ROLLING_VWAP_BAND_TYPE
+  if (!isRollingVwapBandType(bandType)) {
+    throw new RollingVwapConfigError('bandType must be "stdev" or "percentage"')
+  }
+  const percentages = options.percentages ?? DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES
+  validateRollingVwapBandPercentages(percentages)
   const normalized = normalizeRollingVwapCandles(candles)
   if (normalized.length === 0) {
     return []
@@ -381,7 +513,7 @@ export function computeRollingVwap(
     }
 
     addCandleToTotals(totals, candle)
-    points.push(pointFromTotals(candle.time, totals, multipliers))
+    points.push(pointFromTotals(candle.time, totals, bandType, multipliers, percentages))
   }
 
   return points

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  computeRollingVwapPointsForSettings,
   createDefaultRollingVwapSettings,
   DEFAULT_ROLLING_VWAP_BAND_COLORS,
   DEFAULT_ROLLING_VWAP_BAND_LINE_STYLE,
@@ -16,9 +17,11 @@ import {
   isRollingVwapLineStyle,
   isRollingVwapLineWidth,
   ROLLING_VWAP_LINE_WIDTHS,
+  resolveRollingVwapBandDistances,
   resolveRollingVwapBandFillStyle,
   rollingVwapCenterLineRgbaColor,
   sanitizeRollingVwapSettings,
+  withRollingVwapBandType,
 } from './rollingVwapSettings.ts'
 import {
   LINE_CHART_STROKE_WIDTHS,
@@ -30,17 +33,24 @@ import {
   MARKET_STYLE_ROLLING_BAND_SHADES,
 } from './marketStylePalette.ts'
 import {
+  computeRollingVwapForInterval,
+  DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES,
+  DEFAULT_ROLLING_VWAP_BAND_TYPE,
   DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD,
   DEFAULT_ROLLING_VWAP_MIN_BARS,
   DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS,
+  MAX_ROLLING_VWAP_BAND_PERCENTAGE,
 } from './rollingVwap.ts'
+import type { MarketCandle } from './types.ts'
 
 describe('createDefaultRollingVwapSettings', () => {
   it('matches Pine Rolling VWAP input defaults', () => {
     const settings = createDefaultRollingVwapSettings()
     assert.deepEqual(settings.fixedTimePeriod, DEFAULT_ROLLING_VWAP_FIXED_TIME_PERIOD)
     assert.equal(settings.minBars, DEFAULT_ROLLING_VWAP_MIN_BARS)
+    assert.equal(settings.bandType, DEFAULT_ROLLING_VWAP_BAND_TYPE)
     assert.deepEqual(settings.multipliers, DEFAULT_ROLLING_VWAP_STDEV_MULTIPLIERS)
+    assert.deepEqual(settings.bandPercentages, DEFAULT_ROLLING_VWAP_BAND_PERCENTAGES)
     assert.deepEqual(settings.bandColors, DEFAULT_ROLLING_VWAP_BAND_COLORS)
     assert.deepEqual(settings.bandOpacities, DEFAULT_ROLLING_VWAP_BAND_OPACITIES)
     assert.deepEqual(settings.bandLineStyles, DEFAULT_ROLLING_VWAP_BAND_LINE_STYLES)
@@ -302,6 +312,17 @@ describe('sanitizeRollingVwapSettings', () => {
     assert.equal(result.lineOpacity, 45)
   })
 
+  it('is idempotent so a no-op Save keeps every value', () => {
+    const saved = sanitizeRollingVwapSettings({
+      bandType: 'percentage',
+      multipliers: { multiplier1: 1.5, multiplier2: 2.5, multiplier3: 3.5 },
+      bandPercentages: { band1: 2.5, band2: 0, band3: 12.75 },
+      minBars: 13,
+      bandLineWidths: { band1: 2, band2: 3, band3: 4 },
+    })
+    assert.deepEqual(sanitizeRollingVwapSettings(saved), saved)
+  })
+
   it('returns defaults for corrupt root input', () => {
     assert.deepEqual(sanitizeRollingVwapSettings(null), createDefaultRollingVwapSettings())
     assert.deepEqual(sanitizeRollingVwapSettings('bad'), createDefaultRollingVwapSettings())
@@ -405,6 +426,157 @@ describe('sanitizeRollingVwapSettings', () => {
     assert.equal(result.lineColor, DEFAULT_ROLLING_VWAP_LINE_COLOR)
     assert.equal(result.lineOpacity, DEFAULT_ROLLING_VWAP_LINE_OPACITY)
     assert.equal(result.lineStyle, DEFAULT_ROLLING_VWAP_LINE_STYLE)
+  })
+})
+
+function percentageCandles(): MarketCandle[] {
+  const base = 1_700_000_000
+  const prices = [42000, 42100, 41950, 42300, 42150]
+  return prices.map((price, index) => ({
+    symbol: 'BTCUSDT',
+    interval: '1h',
+    time: base + index * 3600,
+    open: price,
+    high: price + 55,
+    low: price - 45,
+    close: price + 10,
+    volume: index === 2 ? 0 : 12 + index * 3.5,
+    closed: true,
+  }))
+}
+
+describe('rolling VWAP band type settings', () => {
+  it('keeps a legacy record on standard deviation without rewriting it', () => {
+    // Exactly the pre-#282 persisted shape: no band type, no percentages.
+    const legacyRecord = {
+      minBars: 21,
+      multipliers: { multiplier1: 1.5, multiplier2: 0, multiplier3: 2 },
+      bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
+      fillColor: '#334455',
+      fillOpacity: 40,
+    }
+    const snapshot = JSON.parse(JSON.stringify(legacyRecord))
+    const settings = sanitizeRollingVwapSettings(legacyRecord)
+    assert.equal(settings.bandType, 'stdev')
+    assert.deepEqual(settings.bandPercentages, { band1: 0, band2: 0, band3: 0 })
+    assert.deepEqual(settings.multipliers, { multiplier1: 1.5, multiplier2: 0, multiplier3: 2 })
+    // Sanitizing is a read: it adds no fields to the stored record.
+    assert.deepEqual(legacyRecord, snapshot)
+    assert.equal('bandType' in legacyRecord, false)
+    assert.equal('bandPercentages' in legacyRecord, false)
+  })
+
+  it('persists mode and percentage values alongside untouched multipliers', () => {
+    const settings = sanitizeRollingVwapSettings({
+      bandType: 'percentage',
+      multipliers: { multiplier1: 1.5, multiplier2: 2.5, multiplier3: 3.5 },
+      bandPercentages: { band1: 2.5, band2: 0, band3: 12.75 },
+    })
+    assert.equal(settings.bandType, 'percentage')
+    assert.deepEqual(settings.bandPercentages, { band1: 2.5, band2: 0, band3: 12.75 })
+    assert.deepEqual(settings.multipliers, { multiplier1: 1.5, multiplier2: 2.5, multiplier3: 3.5 })
+  })
+
+  it('falls back to standard deviation for a missing or invalid mode', () => {
+    for (const bandType of [undefined, null, 'percent', 'Percentage', 1, {}]) {
+      const settings = sanitizeRollingVwapSettings({ bandType, minBars: 8 })
+      assert.equal(settings.bandType, 'stdev')
+      assert.equal(settings.minBars, 8)
+    }
+  })
+
+  it('sanitizes percentage values without dropping valid siblings', () => {
+    const settings = sanitizeRollingVwapSettings({
+      bandType: 'percentage',
+      bandPercentages: {
+        band1: 2.5,
+        band2: '3',
+        band3: MAX_ROLLING_VWAP_BAND_PERCENTAGE + 1,
+      },
+    })
+    assert.deepEqual(settings.bandPercentages, { band1: 2.5, band2: 0, band3: 0 })
+  })
+
+  it('returns independent percentage records', () => {
+    const first = createDefaultRollingVwapSettings()
+    const second = createDefaultRollingVwapSettings()
+    assert.notEqual(first.bandPercentages, second.bandPercentages)
+    first.bandPercentages.band1 = 7.5
+    assert.equal(second.bandPercentages.band1, 0)
+  })
+
+  it('switches band type without destroying either parameter set', () => {
+    const base = createDefaultRollingVwapSettings()
+    base.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 0 }
+    base.bandPercentages = { band1: 1.5, band2: 0, band3: 8.25 }
+    const percentage = withRollingVwapBandType(base, 'percentage')
+    assert.equal(percentage.bandType, 'percentage')
+    assert.deepEqual(percentage.multipliers, base.multipliers)
+    assert.deepEqual(percentage.bandPercentages, base.bandPercentages)
+    const backToStdev = withRollingVwapBandType(percentage, 'stdev')
+    assert.equal(backToStdev.bandType, 'stdev')
+    assert.deepEqual(backToStdev.multipliers, base.multipliers)
+    assert.deepEqual(backToStdev.bandPercentages, base.bandPercentages)
+    // The original draft object is not mutated (Cancel keeps its snapshot).
+    assert.equal(base.bandType, 'stdev')
+  })
+
+  it('resolves distances from the selected mode only', () => {
+    const base = createDefaultRollingVwapSettings()
+    base.multipliers = { multiplier1: 1, multiplier2: 0, multiplier3: 2 }
+    base.bandPercentages = { band1: 0, band2: 1.25, band3: 0 }
+    assert.deepEqual(resolveRollingVwapBandDistances(base), {
+      band1: 1,
+      band2: 0,
+      band3: 2,
+    })
+    assert.deepEqual(resolveRollingVwapBandDistances({ ...base, bandType: 'percentage' }), {
+      band1: 0,
+      band2: 1.25,
+      band3: 0,
+    })
+  })
+
+  it('positions percentage bands from the settings path with the accepted formula', () => {
+    const settings = createDefaultRollingVwapSettings()
+    settings.bandType = 'percentage'
+    settings.bandPercentages = { band1: 2, band2: 0, band3: 6.5 }
+    settings.minBars = 2
+    const candles = percentageCandles()
+    const points = computeRollingVwapPointsForSettings(candles, '1h', settings)
+    const last = points.at(-1)!
+    assert.ok(last.vwap !== null)
+    assert.equal(last.upper1, last.vwap! * (1 + 2 / 100))
+    assert.equal(last.lower1, last.vwap! * (1 - 2 / 100))
+    assert.equal(last.upper2, last.vwap)
+    assert.equal(last.lower2, last.vwap)
+    assert.equal(last.upper3, last.vwap! * (1 + 6.5 / 100))
+    // Same centre as the standard-deviation computation of the same candles.
+    const stdevPoints = computeRollingVwapForInterval(candles, '1h', settings.fixedTimePeriod, {
+      minBars: settings.minBars,
+      multipliers: settings.multipliers,
+    })
+    assert.deepEqual(
+      points.map((point) => [point.time, point.vwap, point.stdev]),
+      stdevPoints.map((point) => [point.time, point.vwap, point.stdev]),
+    )
+    // The inactive stdev multipliers (all 0 defaults) never position the bands.
+    assert.notEqual(last.upper1, last.vwap)
+  })
+
+  it('computes standard-mode settings bit-for-bit like the core defaults', () => {
+    const settings = createDefaultRollingVwapSettings()
+    settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 0.5 }
+    settings.bandPercentages = { band1: 4, band2: 9, band3: 20 }
+    settings.minBars = 2
+    const candles = percentageCandles()
+    assert.deepEqual(
+      computeRollingVwapPointsForSettings(candles, '1h', settings),
+      computeRollingVwapForInterval(candles, '1h', settings.fixedTimePeriod, {
+        minBars: settings.minBars,
+        multipliers: settings.multipliers,
+      }),
+    )
   })
 })
 

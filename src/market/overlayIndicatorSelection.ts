@@ -10,6 +10,7 @@ import {
   type VwapContextLevel,
 } from './indicators.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
+import { resolveRollingVwapBandDistances } from './rollingVwapSettings.ts'
 import type { CandleInterval, MarketExchange } from './types.ts'
 
 /**
@@ -161,12 +162,12 @@ export function isOverlayIndicatorSelectionRendered(
       )
       if (instance === undefined || !instance.enabled) return false
       // A band-part selection cannot outlive its band: hiding the band pair via
-      // a zero multiplier removes its geometry, so the selection is released
-      // exactly like a hidden overlay.
+      // a zero distance in the selected band type removes its geometry, so the
+      // selection is released exactly like a hidden overlay.
       const part = selection.part
-      if (part === 'band1') return instance.settings.multipliers.multiplier1 > 0
-      if (part === 'band2') return instance.settings.multipliers.multiplier2 > 0
-      if (part === 'band3') return instance.settings.multipliers.multiplier3 > 0
+      if (part === 'band1' || part === 'band2' || part === 'band3') {
+        return resolveRollingVwapBandDistances(instance.settings)[part] > 0
+      }
       return true
     }
     case 'aggregated-liquidations':

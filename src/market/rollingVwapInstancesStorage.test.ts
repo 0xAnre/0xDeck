@@ -60,6 +60,51 @@ describe('rollingVwapInstancesStorage', () => {
     assert.equal(loadWidgetRollingVwapInstances('panel-b')[0].settings.minBars, 34)
   })
 
+  it('loads a pre-#282 record without rewriting its stored bytes', () => {
+    const panelId = 'panel-legacy'
+    const stored = {
+      [panelId]: [
+        {
+          id: 'rv-legacy',
+          enabled: true,
+          settings: {
+            minBars: 17,
+            multipliers: { multiplier1: 1.5, multiplier2: 0, multiplier3: 2 },
+            bandColors: { band1: '#111111', band2: '#222222', band3: '#333333' },
+            fillColor: '#334455',
+            fillOpacity: 40,
+          },
+          displaySequence: 1,
+        },
+      ],
+    }
+    const raw = JSON.stringify(stored)
+    memory.set(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY, raw)
+    const loaded = loadWidgetRollingVwapInstances(panelId)
+    assert.equal(loaded[0].settings.bandType, 'stdev')
+    assert.deepEqual(loaded[0].settings.bandPercentages, { band1: 0, band2: 0, band3: 0 })
+    assert.deepEqual(loaded[0].settings.multipliers, {
+      multiplier1: 1.5,
+      multiplier2: 0,
+      multiplier3: 2,
+    })
+    // Loading sanitizes in memory only; no eager migration write occurs.
+    assert.equal(memory.get(WIDGET_ROLLING_VWAP_INSTANCES_STORAGE_KEY), raw)
+  })
+
+  it('persists percentage mode and keeps the stdev multipliers on save', () => {
+    const panelId = 'panel-percentage'
+    const instance = createRollingVwapInstance({ id: 'rv-percent', randomId: () => 'percent' })
+    instance.settings.bandType = 'percentage'
+    instance.settings.bandPercentages = { band1: 2.5, band2: 0, band3: 7 }
+    instance.settings.multipliers = { multiplier1: 1, multiplier2: 2, multiplier3: 3 }
+    saveWidgetRollingVwapInstances(panelId, [instance])
+    const loaded = loadWidgetRollingVwapInstances(panelId)[0]
+    assert.equal(loaded.settings.bandType, 'percentage')
+    assert.deepEqual(loaded.settings.bandPercentages, { band1: 2.5, band2: 0, band3: 7 })
+    assert.deepEqual(loaded.settings.multipliers, { multiplier1: 1, multiplier2: 2, multiplier3: 3 })
+  })
+
   it('distinguishes missing entry from deliberately saved empty list', () => {
     saveWidgetRollingVwapInstances('panel-empty', [])
     assert.equal(hasWidgetRollingVwapInstancesEntry('panel-empty'), true)

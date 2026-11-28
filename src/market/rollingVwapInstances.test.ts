@@ -61,6 +61,34 @@ describe('rollingVwapInstances', () => {
     assert.equal(list[0].id, 'b')
   })
 
+  it('keeps each instance band type and percentages independent', () => {
+    const stdev = createRollingVwapInstance({ id: 'std', randomId: () => 'std' })
+    stdev.settings.multipliers = { multiplier1: 2, multiplier2: 0, multiplier3: 0 }
+    const percentage = createRollingVwapInstance({
+      id: 'pct',
+      existingIds: new Set(['std']),
+      randomId: () => 'pct',
+    })
+    percentage.settings.bandType = 'percentage'
+    percentage.settings.bandPercentages = { band1: 1.25, band2: 0, band3: 4 }
+    let list = addRollingVwapInstance(addRollingVwapInstance([], stdev), percentage)
+
+    list = updateRollingVwapInstance(list, 'pct', {
+      settings: {
+        ...findRollingVwapInstance(list, 'pct')!.settings,
+        bandPercentages: { band1: 3, band2: 0, band3: 0 },
+      },
+    })
+    const std = findRollingVwapInstance(list, 'std')!
+    const pct = findRollingVwapInstance(list, 'pct')!
+    assert.equal(std.settings.bandType, 'stdev')
+    assert.deepEqual(std.settings.bandPercentages, { band1: 0, band2: 0, band3: 0 })
+    assert.deepEqual(std.settings.multipliers, { multiplier1: 2, multiplier2: 0, multiplier3: 0 })
+    assert.equal(pct.settings.bandType, 'percentage')
+    assert.deepEqual(pct.settings.bandPercentages, { band1: 3, band2: 0, band3: 0 })
+    assert.notEqual(pct.settings.bandPercentages, std.settings.bandPercentages)
+  })
+
   it('does not share mutable settings references between instances or clones', () => {
     const a = createRollingVwapInstance({ id: 'a', randomId: () => 'a' })
     const b = createRollingVwapInstance({ id: 'b', existingIds: new Set(['a']), randomId: () => 'b' })

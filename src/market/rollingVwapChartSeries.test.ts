@@ -408,6 +408,51 @@ describe('rollingVwap visibility and identity', () => {
     assert.equal(requests(), before + 1)
   })
 
+  it('derives pair visibility from the selected band type, not the inactive values', () => {
+    const capture = (settings: RollingVwapSettings) => {
+      const { chart } = createFakeChart()
+      const bundle = createRollingVwapChartSeriesBundle(chart, settings)
+      const seen: Record<string, boolean>[] = []
+      const setVisibility = bundle.bands.setVisibility
+      bundle.bands.setVisibility = (visible, bandVisible) => {
+        seen.push({ ...bandVisible })
+        setVisibility(visible, bandVisible)
+      }
+      const instance = createRollingVwapInstance({ id: 'rv', settings })
+      setRollingVwapInstanceSeriesVisibility(bundle, instance, '1m')
+      return seen.at(-1)
+    }
+
+    const settings = createDefaultRollingVwapSettings()
+    settings.multipliers = { multiplier1: 1, multiplier2: 0, multiplier3: 2 }
+    settings.bandPercentages = { band1: 0, band2: 5, band3: 0 }
+    assert.deepEqual(capture(settings), { band1: true, band2: false, band3: true })
+
+    // Percentage mode hides a pair with a 0 percentage even though its stdev
+    // multiplier is non-zero, and shows one whose multiplier is 0.
+    settings.bandType = 'percentage'
+    assert.deepEqual(capture(settings), { band1: false, band2: true, band3: false })
+
+    // A disabled instance hides every pair in both modes.
+    const disabled = createDefaultRollingVwapSettings()
+    disabled.bandType = 'percentage'
+    disabled.bandPercentages = { band1: 1, band2: 2, band3: 3 }
+    const { chart } = createFakeChart()
+    const bundle = createRollingVwapChartSeriesBundle(chart, disabled)
+    const seen: Record<string, boolean>[] = []
+    const setVisibility = bundle.bands.setVisibility
+    bundle.bands.setVisibility = (visible, bandVisible) => {
+      seen.push({ ...bandVisible })
+      setVisibility(visible, bandVisible)
+    }
+    setRollingVwapInstanceSeriesVisibility(
+      bundle,
+      createRollingVwapInstance({ id: 'rv', enabled: false, settings: disabled }),
+      '1m',
+    )
+    assert.deepEqual(seen.at(-1), { band1: false, band2: false, band3: false })
+  })
+
   it('marks an unsupported timeframe on the centre label and hides all bands', () => {
     const { chart, created } = createFakeChart()
     const settings = createDefaultRollingVwapSettings()
