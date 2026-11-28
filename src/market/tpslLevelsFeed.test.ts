@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import { createTpslLevelsFeed, type TpslFeedStatus } from './tpslLevelsFeed.ts'
-import type { DecodedTpslFile } from './liquidationLevelsDecode.ts'
+import { TpslDecodeError, type DecodedTpslFile } from './liquidationLevelsDecode.ts'
+import { describeTpslPriceLevelStatus } from './liquidationLevelsNotice.ts'
+import { priceLevelStatusLabel } from './liquidationLevelsSeriesPrimitive.ts'
 import type {
   TpslChannel,
   TpslHead,
@@ -246,7 +248,9 @@ describe('shared tpsl feed', () => {
 
     assert.equal(h.feed.index('stop_losses').size(), 0)
     assert.equal(h.feed.status().channels.stop_losses.resyncing, true)
+    assert.equal(h.feed.status().channels.stop_losses.ready, false)
     assert.equal(h.feed.status().channels.take_profits.resyncing, false)
+    assert.equal(h.feed.status().channels.take_profits.ready, true)
     assert.equal(h.feed.index('take_profits').size(), 1, 'the sibling keeps its book')
     assert.equal(h.feed.status().channels.take_profits.seq, 4)
     assert.equal(h.clients[0].reconnects.length, 1)
@@ -257,6 +261,7 @@ describe('shared tpsl feed', () => {
       rows: [row('1', 94_000, 0, -1)],
     })
     assert.equal(h.feed.status().channels.stop_losses.resyncing, false)
+    assert.equal(h.feed.status().channels.stop_losses.ready, true)
     assert.equal(h.feed.status().channels.stop_losses.seq, 20)
   })
 
@@ -275,6 +280,131 @@ describe('shared tpsl feed', () => {
     assert.equal(h.feed.orders('stop_losses').size, 3)
     assert.equal(h.feed.orders('stop_losses').get('2')?.effectiveSize, 0)
     assert.equal(h.feed.index('stop_losses').size(), 1)
+  })
+
+  it('marks a channel ready only after its own snapshot is applied', async () => {
+    const h = harness()
+    h.subscribe('stop_losses')
+    h.subscribe('take_profits')
+    h.clients[0].live()
+    // Only the stop-loss channel has delivered anything so far.
+    await h.deliver({
+      head: head({ snapshot: true, channel: 'stop_losses', seq: 3 }),
+      rows: [row('1', 95_000, 0, -1)],
+    })
+    assert.equal(h.feed.status().channels.stop_losses.ready, true)
+    assert.equal(h.feed.status().channels.take_profits.ready, false)
+
+    const tpNotice = describeTpslPriceLevelStatus({
+      kind: 'take-profit',
+      enabled: true,
+      exchange: 'hyperliquid',
+      status: h.feed.status(),
+    })
+    assert.match(tpNotice ?? '', /waiting for the take_profits snapshot/)
+    assert.equal(
+      describeTpslPriceLevelStatus({
+        kind: 'stop-loss',
+        enabled: true,
+        exchange: 'hyperliquid',
+        status: h.feed.status(),
+      }),
+      null,
+    )
+    // The label never claims LIVE before the profile's own book exists.
+    assert.deepEqual(
+      priceLevelStatusLabel({
+        kind: 'take-profit',
+        phase: 'live',
+        resyncing: false,
+        lastAppliedAt: null,
+        ready: h.feed.status().channels.take_profits.ready,
+        nowMs: 2_000,
+      }),
+      { text: 'TP · SYNCING', tone: 'pending' },
+    )
+
+    // A valid empty snapshot still makes the channel ready (empty, not missing).
+    await h.deliver({
+      head: head({ snapshot: true, channel: 'take_profits', seq: 7 }),
+      rows: [],
+    })
+    assert.equal(h.feed.status().channels.take_profits.ready, true)
+    assert.equal(h.feed.status().channels.take_profits.orderCount, 0)
+    assert.equal(h.feed.status().channels.take_profits.seq, 7)
+    assert.equal(
+      describeTpslPriceLevelStatus({
+        kind: 'take-profit',
+        enabled: true,
+        exchange: 'hyperliquid',
+        status: h.feed.status(),
+      }),
+      null,
+    )
+  })
+
+  it('surfaces a channel-attributed decode error without poisoning the sibling', async () => {
+    const h = harness()
+    h.subscribe('stop_losses')
+    h.subscribe('take_profits')
+    h.clients[0].live()
+    await h.deliver({
+      head: head({ snapshot: true, channel: 'take_profits', seq: 2 }),
+      rows: [row('1', 100_000, 0, 1)],
+    })
+    // A take-profit file fails to decode while the sibling keeps working.
+    h.clients[0].send()
+    await flush()
+    h.pending[1].reject(new TpslDecodeError('boom', 'take_profits'))
+    await flush()
+
+    assert.match(h.feed.status().channels.take_profits.error ?? '', /boom/)
+    assert.equal(h.feed.status().channels.take_profits.ready, true)
+    assert.equal(h.feed.status().channels.stop_losses.error, null)
+    assert.match(
+      describeTpslPriceLevelStatus({
+        kind: 'take-profit',
+        enabled: true,
+        exchange: 'hyperliquid',
+        status: h.feed.status(),
+      }) ?? '',
+      /feed error — decode error: boom/,
+    )
+    // The sibling has its own (still waiting, or live) state and never inherits
+    // the other channel's error.
+    assert.equal(h.feed.index('take_profits').size(), 1)
+    const siblingNotice = describeTpslPriceLevelStatus({
+      kind: 'stop-loss',
+      enabled: true,
+      exchange: 'hyperliquid',
+      status: h.feed.status(),
+    })
+    assert.doesNotMatch(siblingNotice ?? '', /feed error/)
+    assert.match(siblingNotice ?? '', /waiting for the stop_losses snapshot/)
+
+    // The next applied file of that channel clears the error.
+    await h.deliver({ head: head({ channel: 'take_profits', seq: 3 }), rows: [] })
+    assert.equal(h.feed.status().channels.take_profits.error, null)
+    assert.equal(h.feed.status().error, null)
+  })
+
+  it('shows an unattributed decode failure as a feed-level error', async () => {
+    const h = harness()
+    h.subscribe('stop_losses')
+    h.clients[0].live()
+    h.clients[0].send()
+    await flush()
+    h.pending[0].reject(new Error('not a parquet file'))
+    await flush()
+    assert.match(h.feed.status().error ?? '', /not a parquet file/)
+    assert.equal(h.feed.status().channels.stop_losses.error, null)
+    const notice = describeTpslPriceLevelStatus({
+      kind: 'stop-loss',
+      enabled: true,
+      exchange: 'hyperliquid',
+      status: h.feed.status(),
+    })
+    assert.match(notice ?? '', /feed error — decode error: not a parquet file/)
   })
 
   it('ignores a duplicate delta and a foreign channel without touching any book', async () => {

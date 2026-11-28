@@ -315,6 +315,11 @@ verified live schema and provenance are in
   side first and the second side at half alpha, so the overlap reads as both sides instead of hiding
   one. The status label is painted even when the visible window holds no positions, so an empty
   window is not mistaken for a disabled indicator.
+- **Honest hover totals and readiness.** The trigger-order readout never prints a bare "requested"
+  total: fixed-size orders keep their requested size, whole-position orders (`size === 0`) report the
+  position they close, and uncovered orders are counted separately. A profile is `LIVE` only after
+  its own channel applied a snapshot; before that it is `SYNCING` ("waiting for the snapshot"), and a
+  decode failure is attributed and shown, not swallowed.
 - **Hover cost (recorded, bounded).** A crosshair move inside the bar column re-derives the
   visible-band profile of the profiles it probes (the same bounded derivation as a paint, stopping at
   the first resolved profile in hit order); moves outside the column are rejected without derivation.

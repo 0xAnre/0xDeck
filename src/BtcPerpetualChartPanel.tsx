@@ -375,6 +375,12 @@ import {
 import { tpslLevelsFeed, type TpslFeedStatus } from '@/market/tpslLevelsFeed'
 import type { LiquidationLevelsIndex } from '@/market/liquidationLevelsIndex'
 import {
+  EMPTY_TPSL_ROW_DETAIL,
+  summarizeTpslRowOrders,
+  tpslRowDetailLines,
+  type TpslRowDetail,
+} from '@/market/priceLevelsRowDetail'
+import {
   liquidationLevelsMaxBarWidthPx,
   liquidationLevelsRowPriceBand,
   hitTestLiquidationLevelsProfile,
@@ -553,10 +559,11 @@ type HoveredPriceLevel = {
   count: number
   lastAppliedAt: number | null
   /**
-   * Requested size of the trigger orders behind the row (TPSL only): the raw
-   * order sizes, which can exceed what the position could cover.
+   * Trigger-order breakdown of the row (TPSL only): fixed-size orders keep their
+   * requested size apart from whole-position orders, whose amount is the
+   * position they close. Null for the liquidation profile.
    */
-  requested: number | null
+  tpslDetail: TpslRowDetail | null
 }
 
 /** Price index of one profile kind (liquidation or a TPSL channel). */
@@ -576,6 +583,7 @@ function priceLevelLabel(kind: PriceLevelKind): LiquidationLevelsStatusLabel {
       phase: status.phase,
       resyncing: status.resyncing,
       lastAppliedAt: status.lastAppliedAt,
+      ready: status.lastAppliedAt !== null,
       nowMs,
     })
   }
@@ -587,6 +595,7 @@ function priceLevelLabel(kind: PriceLevelKind): LiquidationLevelsStatusLabel {
     resyncing: channel.resyncing,
     lastAppliedAt: channel.lastAppliedAt,
     lastFileAt: channel.lastFileAt,
+    ready: channel.ready,
     nowMs,
   })
 }
@@ -3697,16 +3706,21 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           resolved.bottomPrice,
           row.row,
         )
-        let requested: number | null = null
+        let tpslDetail: TpslRowDetail | null = null
         let lastAppliedAt: number | null
         if (isTpslKind(kind)) {
           const orders = tpslLevelsFeed.orders(TPSL_KIND_CHANNEL[kind])
-          let requestedSum = 0
+          const rowOrders = []
           for (const position of index.positionsInRange(band.min, band.max)) {
             const order = orders.get(position.user)
-            if (order) requestedSum += Math.abs(order.size)
+            if (order) rowOrders.push(order)
           }
-          requested = requestedSum
+          // Fixed-size orders keep their requested size; whole-position orders
+          // are reported as the position they close, never as a zero request.
+          tpslDetail =
+            rowOrders.length === 0
+              ? EMPTY_TPSL_ROW_DETAIL
+              : summarizeTpslRowOrders(rowOrders)
           lastAppliedAt =
             tpslLevelsFeed.status().channels[TPSL_KIND_CHANNEL[kind]].lastAppliedAt
         } else {
@@ -3720,7 +3734,7 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           short: row.short,
           count: row.count,
           lastAppliedAt,
-          requested,
+          tpslDetail,
         }
       }
       return null
@@ -3738,7 +3752,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
           current.short === next.short &&
           current.count === next.count &&
           current.lastAppliedAt === next.lastAppliedAt &&
-          current.requested === next.requested
+          (current.tpslDetail === null) === (next.tpslDetail === null) &&
+          (current.tpslDetail === null ||
+            next.tpslDetail === null ||
+            (current.tpslDetail.fixedCount === next.tpslDetail.fixedCount &&
+              current.tpslDetail.wholeCount === next.tpslDetail.wholeCount &&
+              current.tpslDetail.coveredCount === next.tpslDetail.coveredCount))
           ? current
           : next
       })
@@ -4550,8 +4569,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
 
   const takeProfitChannel = tpslFeedState.channels.take_profits
   const stopLossChannel = tpslFeedState.channels.stop_losses
-  const tpslChannelPhase = (channel: typeof takeProfitChannel) =>
-    channel.resyncing ? 'resyncing' : tpslFeedState.phase
+  const tpslChannelPhase = (channel: typeof takeProfitChannel) => {
+    // A live socket alone is not readiness: until this channel applies its own
+    // snapshot the diagnostic phase reports syncing, never live.
+    if (!channel.ready || channel.resyncing) return 'syncing'
+    return tpslFeedState.phase
+  }
 
   const fixedRangeVolumeProfileSettingsInstance =
     chartObjectSettingsTarget?.kind === 'fixed-range-volume-profile'
@@ -4673,23 +4696,12 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
               isTpslKind(visibleHoveredPriceLevel.kind) ? 'order' : 'position'
             }${visibleHoveredPriceLevel.count === 1 ? '' : 's'}`}
           </span>
-          {visibleHoveredPriceLevel.requested !== null &&
-            Math.abs(
-              visibleHoveredPriceLevel.requested -
-                (visibleHoveredPriceLevel.long + visibleHoveredPriceLevel.short),
-            ) > 1e-9 && (
-              <span className="text-muted-foreground">
-                Requested{' '}
-                {visibleHoveredPriceLevel.requested.toLocaleString(undefined, {
-                  maximumFractionDigits: 4,
-                })}{' '}
-                BTC · position-covered{' '}
-                {(
-                  visibleHoveredPriceLevel.long + visibleHoveredPriceLevel.short
-                ).toLocaleString(undefined, { maximumFractionDigits: 4 })}{' '}
-                BTC
+          {visibleHoveredPriceLevel.tpslDetail !== null &&
+            tpslRowDetailLines(visibleHoveredPriceLevel.tpslDetail).map((line) => (
+              <span key={line} className="text-muted-foreground">
+                {line}
               </span>
-            )}
+            ))}
           <span className="text-muted-foreground">
             {PRICE_LEVEL_KIND_SOURCE[visibleHoveredPriceLevel.kind]} · update{' '}
             {visibleHoveredPriceLevel.lastAppliedAt === null
@@ -4704,41 +4716,43 @@ export function BtcPerpetualChartPanel({ panelId, headerSettings }: WidgetInstan
         data-testid="btc-perp-chart"
         data-panel-id={panelId}
         data-liquidation-levels-phase={
-          priceLevelEnabled.liquidation ? liquidationLevelsFeedState.phase : undefined
+          liquidationLevelSupported ? liquidationLevelsFeedState.phase : undefined
         }
         data-liquidation-levels-seq={
-          priceLevelEnabled.liquidation && liquidationLevelsFeedState.seq !== null
+          liquidationLevelSupported && liquidationLevelsFeedState.seq !== null
             ? liquidationLevelsFeedState.seq
             : undefined
         }
         data-liquidation-levels-positions={
-          priceLevelEnabled.liquidation && liquidationLevelsFeedState.positionCount > 0
+          liquidationLevelSupported && liquidationLevelsFeedState.positionCount > 0
             ? liquidationLevelsFeedState.positionCount
             : undefined
         }
         data-stop-loss-levels-phase={
-          priceLevelEnabled['stop-loss'] ? tpslChannelPhase(stopLossChannel) : undefined
+          stopLossLevelSupported ? tpslChannelPhase(stopLossChannel) : undefined
         }
         data-stop-loss-levels-seq={
-          priceLevelEnabled['stop-loss'] && stopLossChannel.seq !== null
+          stopLossLevelSupported && stopLossChannel.ready && stopLossChannel.seq !== null
             ? stopLossChannel.seq
             : undefined
         }
         data-stop-loss-levels-orders={
-          priceLevelEnabled['stop-loss'] && stopLossChannel.orderCount > 0
+          stopLossLevelSupported && stopLossChannel.ready && stopLossChannel.orderCount > 0
             ? stopLossChannel.orderCount
             : undefined
         }
         data-take-profit-levels-phase={
-          priceLevelEnabled['take-profit'] ? tpslChannelPhase(takeProfitChannel) : undefined
+          takeProfitLevelSupported ? tpslChannelPhase(takeProfitChannel) : undefined
         }
         data-take-profit-levels-seq={
-          priceLevelEnabled['take-profit'] && takeProfitChannel.seq !== null
+          takeProfitLevelSupported && takeProfitChannel.ready && takeProfitChannel.seq !== null
             ? takeProfitChannel.seq
             : undefined
         }
         data-take-profit-levels-orders={
-          priceLevelEnabled['take-profit'] && takeProfitChannel.orderCount > 0
+          takeProfitLevelSupported &&
+          takeProfitChannel.ready &&
+          takeProfitChannel.orderCount > 0
             ? takeProfitChannel.orderCount
             : undefined
         }

@@ -324,8 +324,14 @@ test.describe('live price-level profiles on the Perp chart', () => {
     expect(['liquidation', 'stop-loss', 'take-profit']).toContain(hovered?.kind)
     expect(hovered?.text).toMatch(/current (trigger orders|open positions)/)
     expect(hovered?.text).toContain('MarketLens Hyperliquid L4')
+    // A whole-position order has no requested size of its own: the readout
+    // never prints a bare "Requested" total that would count it as zero.
+    expect(hovered?.text).not.toMatch(/\bRequested\b/)
     if (hovered?.kind !== 'liquidation') {
       expect(hovered?.text).toMatch(/Closes (long \(sell\)|short \(buy\))/)
+      expect(hovered?.text).toMatch(
+        /(Fixed-size orders request|Whole-position orders close|with no covered position)/,
+      )
     }
     await page.mouse.move(2, 2)
 
@@ -426,6 +432,64 @@ test.describe('live price-level profiles on the Perp chart', () => {
     await toggleIndicator(page, PANEL_A, LIQUIDATION_LABEL)
     expect(await profileAttribute(page, PANEL_A, LIQUIDATION_LABEL, 'phase')).toBeNull()
     expect(await profileAttribute(page, PANEL_B, TAKE_PROFIT_LABEL, 'phase')).toBe('live')
+  })
+
+  test('an exchange switch clears the diagnostics and closes the sockets', async ({
+    page,
+  }) => {
+    await seedWorkspace(page, {
+      panels: [PANEL_A],
+      exchanges: { [PANEL_A]: 'hyperliquid' },
+    })
+    await mockMarket(page)
+
+    const opened: Array<{ kind: 'liquidation' | 'tpsl'; url: string }> = []
+    const closed: string[] = []
+    page.on('websocket', (socket) => {
+      const url = socket.url()
+      if (!url.includes('marketlens.app')) return
+      const kind = url.includes('/tpsl/') ? 'tpsl' : 'liquidation'
+      opened.push({ kind, url })
+      socket.on('close', () => closed.push(url))
+    })
+
+    const switchExchange = async (exchange: 'Binance' | 'Hyperliquid') => {
+      await page.locator(`#${PANEL_A}-exchange`).click()
+      await page.getByRole('menuitemradio', { name: exchange, exact: true }).click()
+    }
+
+    await page.goto('/')
+    await waitForChart(page, PANEL_A)
+    for (const label of [LIQUIDATION_LABEL, STOP_LOSS_LABEL, TAKE_PROFIT_LABEL]) {
+      await toggleIndicator(page, PANEL_A, label)
+      await waitForProfileLive(page, PANEL_A, label)
+    }
+    expect(opened.filter((entry) => entry.kind === 'liquidation')).toHaveLength(1)
+    expect(opened.filter((entry) => entry.kind === 'tpsl')).toHaveLength(1)
+
+    // Hyperliquid -> Binance: every profile becomes unsupported, so the
+    // diagnostics must disappear and both sockets must actually close.
+    await switchExchange('Binance')
+    for (const label of [LIQUIDATION_LABEL, STOP_LOSS_LABEL, TAKE_PROFIT_LABEL]) {
+      await expect
+        .poll(() => profileAttribute(page, PANEL_A, label, 'phase'), { timeout: 30_000 })
+        .toBeNull()
+      expect(await profileAttribute(page, PANEL_A, label, 'seq')).toBeNull()
+    }
+    await expect.poll(() => closed.length, { timeout: 30_000 }).toBe(2)
+    await expect(page.getByRole('status').first()).toContainText('Hyperliquid BTC only')
+    // No phantom socket while unsupported.
+    expect(opened).toHaveLength(2)
+
+    // Binance -> Hyperliquid: fresh sockets, fresh snapshots, honest readiness
+    // (phase never claims live before the channel's own snapshot is applied).
+    await switchExchange('Hyperliquid')
+    for (const label of [LIQUIDATION_LABEL, STOP_LOSS_LABEL, TAKE_PROFIT_LABEL]) {
+      await waitForProfileLive(page, PANEL_A, label)
+      await waitForProfileCount(page, PANEL_A, label)
+    }
+    expect(opened.filter((entry) => entry.kind === 'liquidation')).toHaveLength(2)
+    expect(opened.filter((entry) => entry.kind === 'tpsl')).toHaveLength(2)
   })
 
   test('is explicitly unavailable on Binance for all three profiles', async ({ page }) => {

@@ -93,6 +93,10 @@ export function describeTpslPriceLevelStatus(params: {
   if (channel.error !== null) {
     return `${label} · feed error — ${channel.error}`
   }
+  if (status.error !== null) {
+    // A failure that could not be attributed to one channel is still visible.
+    return `${label} · feed error — ${status.error}`
+  }
   if (channel.resyncing) {
     return `${label} · resyncing with MarketLens for a fresh snapshot`
   }
@@ -110,6 +114,11 @@ export function describeTpslPriceLevelStatus(params: {
     case 'stopped':
       return `${label} · feed stopped`
     case 'live': {
+      // A live socket is not a ready profile: only this channel's own applied
+      // snapshot makes it ready, and the sibling's frames never do.
+      if (!channel.ready) {
+        return `${label} · waiting for the ${TPSL_KIND_CHANNEL[kind]} snapshot`
+      }
       if (
         nowMs !== null &&
         channel.lastFileAt !== null &&

@@ -161,14 +161,27 @@ export function liquidationLevelsStatusLabel(params: {
   nowMs: number
   /** Wall-clock time the profile's channel last received a file. */
   lastFileAt?: number | null
+  /**
+   * The profile's own book has applied at least one snapshot. A live socket
+   * alone is not readiness: the sibling channel's frames do not make this
+   * profile ready. Defaults to "a file was applied".
+   */
+  ready?: boolean
   /** Label prefix, e.g. `SL`; defaults to the liquidation profile's `LEV LIQ`. */
   prefix?: string
 }): LiquidationLevelsStatusLabel {
   const { phase, resyncing, lastAppliedAt, nowMs } = params
   const prefix = params.prefix ?? 'LEV LIQ'
   const lastFileAt = params.lastFileAt ?? null
+  const ready = params.ready ?? lastAppliedAt !== null
   const label = (text: string) => `${prefix} · ${text}`
-  if (resyncing || phase === 'connecting' || phase === 'reconnecting' || phase === 'idle') {
+  if (
+    resyncing ||
+    !ready ||
+    phase === 'connecting' ||
+    phase === 'reconnecting' ||
+    phase === 'idle'
+  ) {
     return { text: label('SYNCING'), tone: 'pending' }
   }
   if (phase === 'live' || phase === 'stale') {
@@ -203,6 +216,7 @@ export function priceLevelStatusLabel(params: {
   resyncing: boolean
   lastAppliedAt: number | null
   lastFileAt?: number | null
+  ready?: boolean
   nowMs: number
 }): LiquidationLevelsStatusLabel {
   return liquidationLevelsStatusLabel({

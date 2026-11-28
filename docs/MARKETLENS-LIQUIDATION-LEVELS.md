@@ -73,7 +73,14 @@ long" here, while a negative liquidation `size` means "short position".
 
 **Bar magnitude is the position-covered size**, not the raw order size: a fixed order asking for
 5 BTC against a 0.4 BTC position contributes 0.4, and an order with no covered position contributes
-nothing. The hover readout shows the requested size next to the covered size whenever they differ.
+nothing. The hover readout keeps the two order kinds apart instead of summing them into one
+misleading "requested" number:
+
+- `Fixed-size orders request X BTC (N)` — the sizes those orders ask for;
+- `Whole-position orders close Y BTC (M)` — a `size === 0` order requests nothing of its own; the
+  amount it would close is its position;
+- `K orders with no covered position` — painted rows exclude them, so they are counted, not invented.
+
 Trigger orders are not guaranteed executable liquidity and the tooltip never claims that.
 
 ## Rendering contract

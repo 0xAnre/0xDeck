@@ -22,7 +22,7 @@
  * The liquidation feed stays a separate module on its own endpoint.
  */
 import { createLiquidationLevelsIndex, type LiquidationLevelsIndex } from './liquidationLevelsIndex.ts'
-import { decodeTpslFile } from './liquidationLevelsDecode.ts'
+import { decodeTpslFile, TpslDecodeError } from './liquidationLevelsDecode.ts'
 import {
   applyTpslFile,
   TPSL_CHANNELS,
@@ -49,8 +49,15 @@ export interface TpslChannelState {
   lastAppliedAt: number | null
   /** Wall-clock time this channel last received a file (even a duplicate). */
   lastFileAt: number | null
+  /**
+   * The channel has applied a snapshot (or a delta after one). A `live` socket
+   * says nothing about this: the other channel's frames do not make this book
+   * ready, and an empty snapshot still counts as applied/ready.
+   */
+  ready: boolean
   /** The channel's book was cleared and a fresh snapshot is required. */
   resyncing: boolean
+  /** Last decode/apply failure attributed to this channel (cleared on apply). */
   error: string | null
 }
 
@@ -60,6 +67,8 @@ export interface TpslFeedStatus {
   reason: string | null
   retryInMs: number | null
   lastFrameAt: number | null
+  /** Last failure that could not be attributed to one channel. */
+  error: string | null
   channels: Record<TpslChannel, TpslChannelState>
 }
 
@@ -71,6 +80,7 @@ export function emptyTpslChannelState(): TpslChannelState {
     orderCount: 0,
     lastAppliedAt: null,
     lastFileAt: null,
+    ready: false,
     resyncing: false,
     error: null,
   }
@@ -82,6 +92,7 @@ export const INITIAL_TPSL_FEED_STATUS: TpslFeedStatus = {
   reason: null,
   retryInMs: null,
   lastFrameAt: null,
+  error: null,
   channels: {
     take_profits: emptyTpslChannelState(),
     stop_losses: emptyTpslChannelState(),
@@ -184,6 +195,7 @@ export function createTpslLevelsFeed(
         state.epoch ?? '',
         state.seq ?? '',
         state.orderCount,
+        state.ready ? '1' : '0',
         state.resyncing ? '1' : '0',
         state.error ?? '',
       ].join('/')
@@ -277,6 +289,7 @@ export function createTpslLevelsFeed(
       revisions[target] += 1
       updateChannel(target, {
         resyncing: true,
+        ready: false,
         orderCount: 0,
         epoch: null,
         seq: null,
@@ -303,7 +316,22 @@ export function createTpslLevelsFeed(
           decoded = await decode(buffer)
         } catch (error) {
           if (fileGeneration !== generation) return
-          updateStatus({ reason: `decode error: ${describeError(error)}` })
+          const detail = `decode error: ${describeError(error)}`
+          const channel =
+            error instanceof TpslDecodeError &&
+            (error.channel === 'take_profits' || error.channel === 'stop_losses')
+              ? error.channel
+              : null
+          updateStatus(
+            channel === null
+              ? { reason: detail, error: detail }
+              : // A channel-attributed failure belongs to that profile only: the
+                // ready sibling keeps its clean notice.
+                { reason: detail, error: null },
+          )
+          if (channel !== null) {
+            updateChannel(channel, { error: detail })
+          }
           return
         }
         if (fileGeneration !== generation) return
@@ -333,9 +361,11 @@ export function createTpslLevelsFeed(
           orderCount: outcome.book.orders.size,
           lastAppliedAt: appliedAt,
           lastFileAt: appliedAt,
+          ready: true,
           resyncing: false,
           error: null,
         })
+        if (status.error !== null) updateStatus({ error: null })
         publishData(channel)
       })
       .catch(() => {
