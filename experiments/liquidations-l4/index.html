@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Live Hyperliquid BTC open-position liquidation-price liquidity from the public MarketLens L4 stream. Standalone 0xDeck experiment."
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <title>BTC liquidation levels — live L4 experiment</title>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">0x</span>
+          <span class="brand-name">0xDeck</span>
+          <span class="brand-tag">experiment</span>
+        </div>
+        <div class="titles">
+          <h1>Liquidations — BTC</h1>
+          <p class="subtitle">
+            Live liquidation prices of open Hyperliquid positions, sized by the
+            position. Not executed liquidation events.
+          </p>
+        </div>
+        <div class="status" id="status" role="status" aria-live="polite">Starting</div>
+      </header>
+
+      <main class="panel" aria-labelledby="panel-title">
+        <div class="panel-head">
+          <div class="panel-title">
+            <h2 id="panel-title">Liquidations <span class="coin">BTC</span></h2>
+            <p id="panel-hint">
+              Positions at their liquidation price · every bar grows left from
+              the price axis · shorts red, longs green
+            </p>
+          </div>
+          <div class="controls">
+            <p class="hints">
+              Scroll zoom · Drag pan · Double-click re-centre · Hover a level
+            </p>
+            <button id="recentre" type="button">Re-centre</button>
+          </div>
+        </div>
+
+        <div class="plot" id="plot">
+          <canvas id="canvas" role="img" aria-label="BTC liquidation levels"></canvas>
+          <div class="banner" id="banner" role="status" aria-live="polite" hidden></div>
+          <div class="overlay" id="overlay" role="status" hidden></div>
+          <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+        </div>
+
+        <div class="panel-foot" id="footer"></div>
+      </main>
+
+      <section class="notes">
+        <p>
+          <strong>What this is.</strong> Every row is one open Hyperliquid BTC
+          position that has a liquidation price, drawn at that price and sized by
+          the position (positive long, negative short). Both sides grow left from
+          the price axis on one shared size scale, so equal long and short sizes
+          are equally long. A position that opens, changes or closes shows within
+          about a second; every position is refreshed upstream every 15&nbsp;s.
+          This is liquidation-price <em>liquidity</em>, not a record of
+          liquidations that happened.
+        </p>
+        <p>
+          <strong>Source.</strong>
+          <code>wss://api.marketlens.app/data/hyperliquid/l4/liquidations/BTC</code>
+          — public, keyless, Parquet snapshot + delta files over WebSocket.
+          Schema, pings and epoch/sequence rules per
+          <a href="https://marketlens.app/api/l4/" rel="noreferrer">the published L4 API</a>.
+          View is an independent 0xDeck experiment; it has no wallet, no account,
+          no orders, and calls no other service.
+        </p>
+        <p>
+          <strong>Independent renderer.</strong> The reference view is a compiled
+          Svelte + custom WebGL2 application with no published package or licence,
+          so its bundles are not reused: this page is a from-scratch Canvas&nbsp;2D
+          renderer that follows its palette, bar/size encoding and hover language.
+          It is a full-width single-panel adaptation — the reference panel places
+          its price axis on the right, and this page keeps its own bar direction
+          and axis placement.
+        </p>
+      </section>
+    </div>
+
+    <noscript>
+      This page renders live WebSocket data and needs JavaScript enabled.
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
