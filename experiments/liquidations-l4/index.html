@@ -34,8 +34,8 @@
           <div class="panel-title">
             <h2 id="panel-title">Liquidations <span class="coin">BTC</span></h2>
             <p id="panel-hint">
-              Positions at their liquidation price · shorts red, left · longs
-              green, right
+              Positions at their liquidation price · every bar grows left from
+              the price axis · shorts red, longs green
             </p>
           </div>
           <div class="controls">
@@ -60,10 +60,12 @@
         <p>
           <strong>What this is.</strong> Every row is one open Hyperliquid BTC
           position that has a liquidation price, drawn at that price and sized by
-          the position (positive long, negative short). A position that opens,
-          changes or closes shows within about a second; every position is
-          refreshed upstream every 15&nbsp;s. This is liquidation-price
-          <em>liquidity</em>, not a record of liquidations that happened.
+          the position (positive long, negative short). Both sides grow left from
+          the price axis on one shared size scale, so equal long and short sizes
+          are equally long. A position that opens, changes or closes shows within
+          about a second; every position is refreshed upstream every 15&nbsp;s.
+          This is liquidation-price <em>liquidity</em>, not a record of
+          liquidations that happened.
         </p>
         <p>
           <strong>Source.</strong>
@@ -78,7 +80,10 @@
           <strong>Independent renderer.</strong> The reference view is a compiled
           Svelte + custom WebGL2 application with no published package or licence,
           so its bundles are not reused: this page is a from-scratch Canvas&nbsp;2D
-          renderer matching its layout and palette.
+          renderer that follows its palette, bar/size encoding and hover language.
+          It is a full-width single-panel adaptation — the reference panel places
+          its price axis on the right, and this page keeps its own bar direction
+          and axis placement.
         </p>
       </section>
     </div>

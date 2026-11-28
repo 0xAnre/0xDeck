@@ -61,6 +61,17 @@ describe('buildProfile', () => {
     }
   })
 
+  it('exposes the shared scale domain for both sides', () => {
+    const profile = buildProfile(
+      [position(75_000, 2), position(60_000, -7, '0xb')],
+      { view: VIEW, top: TOP, bottom: BOTTOM },
+    )
+    // One scale for red and green: the larger single-side row wins.
+    assert.equal(profile.maxMagnitude, 7)
+    assert.equal(profile.maxLong, 2)
+    assert.equal(profile.maxShort, 7)
+  })
+
   it('handles an empty book', () => {
     const profile = buildProfile([], { view: VIEW, top: TOP, bottom: BOTTOM })
     assert.equal(profile.visibleCount, 0)

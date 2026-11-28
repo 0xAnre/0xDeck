@@ -23,7 +23,12 @@ import {
 } from './format.ts'
 import { buildProfile, positionsAtRow, rowPriceBand, type Profile } from './model.ts'
 import { applyFile, LIQUIDATIONS_URL, totals, type Book } from './protocol.ts'
-import { computeLayout, renderChart } from './render.ts'
+import {
+  computeLayout,
+  isInBarArea,
+  placeTooltip,
+} from './geometry.ts'
+import { renderChart } from './render.ts'
 import {
   fitView,
   panView,
@@ -319,8 +324,11 @@ function updateHover(event: PointerEvent): void {
   if (!profile) return
   const rect = plot.getBoundingClientRect()
   const y = event.clientY - rect.top
+  const x = event.clientX - rect.left
   const layout = currentLayout()
-  if (y < layout.plotTop || y > layout.plotBottom) {
+  // Both colours grow left from the anchor, so the empty area right of the
+  // gutter must not resolve a row: only the bar region and the gutter do.
+  if (y < layout.plotTop || y > layout.plotBottom || !isInBarArea(layout, x)) {
     if (hoverRow !== null) {
       hoverRow = null
       hideTooltip()
@@ -336,7 +344,7 @@ function updateHover(event: PointerEvent): void {
     hoverRow = row
     requestRender()
   }
-  showTooltip(row, event.clientX - rect.left, event.clientY - rect.top)
+  showTooltip(row, x, y)
 }
 
 function showTooltip(row: number, x: number, y: number): void {
@@ -384,10 +392,17 @@ function showTooltip(row: number, x: number, y: number): void {
   tooltip.hidden = false
   const bounds = tooltip.getBoundingClientRect()
   const rect = plot.getBoundingClientRect()
-  const left = Math.max(8, Math.min(x + 16, rect.width - bounds.width - 8))
-  const top = Math.max(8, Math.min(y + 14, rect.height - bounds.height - 8))
-  tooltip.style.left = `${left}px`
-  tooltip.style.top = `${top}px`
+  const placement = placeTooltip({
+    cursorX: x,
+    cursorY: y,
+    tooltipWidth: bounds.width,
+    tooltipHeight: bounds.height,
+    plotWidth: rect.width,
+    plotHeight: rect.height,
+    layout: currentLayout(),
+  })
+  tooltip.style.left = `${placement.left}px`
+  tooltip.style.top = `${placement.top}px`
 }
 
 function hideTooltip(): void {
@@ -516,7 +531,7 @@ function updateAria(): void {
   const view = currentView()
   canvas.setAttribute(
     'aria-label',
-    `Liquidation-price ladder for BTC perpetual positions. ${formatCount(totalsNow.count)} open positions, ${formatQuantity(totalsNow.long)} BTC long and ${formatQuantity(totalsNow.short)} BTC short. Showing liquidation prices ${formatPrice(view.min)} to ${formatPrice(view.max)}.`,
+    `Liquidation-price ladder for BTC perpetual positions. ${formatCount(totalsNow.count)} open positions, ${formatQuantity(totalsNow.long)} BTC long and ${formatQuantity(totalsNow.short)} BTC short. Both long and short bars grow left from the price axis on one shared size scale. Showing liquidation prices ${formatPrice(view.min)} to ${formatPrice(view.max)}.`,
   )
 }
 

@@ -10,7 +10,10 @@
  *   channel   "liquidations"
  *   coin      "BTC"
  *   epoch     stream epoch id (changes when the producer starts over)
- *   seq       delta counter inside the epoch; a snapshot's is 0
+ *   seq       delta counter inside the epoch. A snapshot carries the producer's
+ *             current counter, which is NOT necessarily 0 (the live BTC stream
+ *             has been observed at 28 356 and 33 519); the next delta continues
+ *             from it, so the reducer adopts it instead of resetting to 0.
  *   ts        when the file's prices were taken (ms since epoch)
  *
  * On `liquidations` each row is one open position that has a liquidation price,

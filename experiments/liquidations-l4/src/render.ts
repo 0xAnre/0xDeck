@@ -1,20 +1,26 @@
 /**
  * Canvas renderer for the liquidation ladder.
  *
- * Layout: a central price gutter runs the full plot height, shorts (red) grow
- * leftwards out of it and longs (green) grow rightwards, each row's bar length
- * proportional to the position size liquidating at that price and its
- * brightness proportional to the same magnitude. Magnitude axes sit at the top
- * (shorts, mirrored like the reference order-book top axis) and at the bottom
- * (longs).
+ * Geometry: one price gutter, one shared magnitude scale, one bar origin. Every
+ * bar — red short or green long — is right-aligned on the gutter and grows
+ * leftwards, each row's length proportional to the size liquidating at that
+ * price and its brightness proportional to the same magnitude. A single top
+ * magnitude axis labels that shared leftward scale.
  *
  * This is an independently authored renderer: the reference view is a compiled
  * Svelte + custom WebGL2 application with no published package or licence (see
- * docs/MARKETLENS-LIQUIDATIONS-DEMO.md), so its binaries cannot be reused. The
- * visual language (palette, axis placement, bar/price/quantity encoding) is
- * reproduced here; the drawing is plain Canvas 2D.
+ * docs/MARKETLENS-LIQUIDATIONS-DEMO.md), so its binaries are not reused. The
+ * palette, bar/quantity encoding and hover language are reproduced here; the
+ * reference panel places its price axis on the right, while this page is a
+ * full-width single-panel adaptation of that language.
  */
 import { formatPriceAxis, formatQuantity } from './format.ts'
+import {
+  barSegments,
+  scaleDomain,
+  type BarSegment,
+  type Layout,
+} from './geometry.ts'
 import type { Profile } from './model.ts'
 import { niceTicks, spanOf } from './view.ts'
 
@@ -47,50 +53,6 @@ export const THEME: Theme = {
   highlightText: '#0b1206',
 }
 
-export interface Layout {
-  width: number
-  height: number
-  plotTop: number
-  plotBottom: number
-  /** Vertical centre line that shorts grow left from and longs right from. */
-  spine: number
-  /** Width of the central price-label gutter. */
-  gutter: number
-  /** Shorts are right-aligned here. */
-  barLeftEnd: number
-  /** Longs are left-aligned here. */
-  barRightStart: number
-  maxBarWidth: number
-}
-
-const PAD_X = 14
-const PAD_TOP = 26
-const PAD_BOTTOM = 28
-const GUTTER = 86
-
-export function computeLayout(width: number, height: number): Layout {
-  const plotTop = PAD_TOP
-  const plotBottom = Math.max(plotTop + 40, height - PAD_BOTTOM)
-  const spine = width / 2
-  const barLeftEnd = spine - GUTTER / 2
-  const barRightStart = spine + GUTTER / 2
-  const maxBarWidth = Math.max(
-    16,
-    Math.min(barLeftEnd - PAD_X, width - PAD_X - barRightStart),
-  )
-  return {
-    width,
-    height,
-    plotTop,
-    plotBottom,
-    spine,
-    gutter: GUTTER,
-    barLeftEnd,
-    barRightStart,
-    maxBarWidth,
-  }
-}
-
 const FONT_STACK = '"Inter Variable", Inter, system-ui, sans-serif'
 
 export interface RenderInput {
@@ -121,15 +83,16 @@ export function renderChart(
   ctx.clearRect(0, 0, width, height)
   ctx.fillStyle = THEME.canvas
   ctx.fillRect(0, 0, width, height)
-
   if (input.empty) return
+
   const span = spanOf(profile.view)
   const priceTicks = niceTicks(profile.view, 8)
+  const domain = scaleDomain(profile.maxLong, profile.maxShort)
   drawGrid(ctx, layout, profile, priceTicks)
-  drawBars(ctx, layout, profile, hoverRow)
+  drawBars(ctx, layout, profile, hoverRow, domain)
   drawPriceLabels(ctx, layout, profile, span, priceTicks)
-  drawMagnitudeAxes(ctx, layout, profile)
-  drawCentreLine(ctx, layout)
+  drawMagnitudeAxis(ctx, layout, domain)
+  drawBarOrigin(ctx, layout)
 }
 
 function drawGrid(
@@ -145,20 +108,18 @@ function drawGrid(
     const y = priceToRowY(profile, price)
     if (y < layout.plotTop || y > layout.plotBottom) continue
     const snapped = Math.round(y) + 0.5
-    ctx.moveTo(PAD_X, snapped)
-    ctx.lineTo(layout.width - PAD_X, snapped)
+    ctx.moveTo(layout.anchor - layout.maxBarWidth, snapped)
+    ctx.lineTo(layout.anchor, snapped)
   }
   ctx.stroke()
 }
 
-function drawCentreLine(
-  ctx: CanvasRenderingContext2D,
-  layout: Layout,
-): void {
+/** Vertical rule at the shared bar origin. */
+function drawBarOrigin(ctx: CanvasRenderingContext2D, layout: Layout): void {
   ctx.strokeStyle = THEME.axis
   ctx.lineWidth = 1
   ctx.beginPath()
-  const x = Math.round(layout.spine) + 0.5
+  const x = Math.round(layout.anchor) + 0.5
   ctx.moveTo(x, layout.plotTop)
   ctx.lineTo(x, layout.plotBottom)
   ctx.stroke()
@@ -169,50 +130,65 @@ function drawBars(
   layout: Layout,
   profile: Profile,
   hoverRow: number | null,
+  domain: number,
 ): void {
-  if (hoverRow !== null && hoverRow >= 0 && hoverRow < profile.rowCount) {
+  const { long, short, rowCount, rowHeight, top } = profile
+  const barHeight = Math.max(1, rowHeight)
+
+  if (hoverRow !== null && hoverRow >= 0 && hoverRow < rowCount) {
     const guideY = Math.round(profile.top + hoverRow * profile.rowHeight) + 0.5
     ctx.save()
     ctx.globalAlpha = 0.45
     ctx.strokeStyle = THEME.highlight
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(PAD_X, guideY)
-    ctx.lineTo(layout.width - PAD_X, guideY)
+    ctx.moveTo(layout.anchor - layout.maxBarWidth, guideY)
+    ctx.lineTo(layout.anchor, guideY)
     ctx.stroke()
     ctx.restore()
   }
-  const { long, short, maxLong, maxShort, rowCount, rowHeight, top } = profile
-  const leftEnd = layout.barLeftEnd
-  const rightStart = layout.barRightStart
-  const maxWidth = layout.maxBarWidth
-  const barHeight = Math.max(1, rowHeight)
 
   for (let row = 0; row < rowCount; row += 1) {
     const y = top + row * rowHeight
     if (y < layout.plotTop - barHeight || y > layout.plotBottom) continue
-    const isHover = hoverRow === row
     const longValue = long[row]
     const shortValue = short[row]
     if (longValue === 0 && shortValue === 0) continue
-
-    if (shortValue > 0) {
-      const ratio = maxShort > 0 ? shortValue / maxShort : 0
-      const width = Math.max(1, ratio * maxWidth)
+    const isHover = hoverRow === row
+    const segments = barSegments(
+      { long: longValue, short: shortValue },
+      domain,
+      layout,
+    )
+    for (const segment of segments) {
       ctx.fillStyle = isHover
         ? THEME.highlight
-        : rampColor(THEME.shortFrom, THEME.shortTo, ratio)
-      ctx.fillRect(leftEnd - width, y, width, barHeight)
-    }
-    if (longValue > 0) {
-      const ratio = maxLong > 0 ? longValue / maxLong : 0
-      const width = Math.max(1, ratio * maxWidth)
-      ctx.fillStyle = isHover
-        ? THEME.highlight
-        : rampColor(THEME.longFrom, THEME.longTo, ratio)
-      ctx.fillRect(rightStart, y, width, barHeight)
+        : segmentColor(segment, domain)
+      ctx.fillRect(segment.x, y, segment.width, barHeight)
     }
   }
+}
+
+/** Dark-to-bright ramp: the same number drives bar length and intensity. */
+function segmentColor(segment: BarSegment, domain: number): string {
+  const ratio = domain > 0 ? segment.value / domain : 0
+  const [from, to] =
+    segment.side === 'long'
+      ? [THEME.longFrom, THEME.longTo]
+      : [THEME.shortFrom, THEME.shortTo]
+  return rampColor(from, to, ratio)
+}
+
+function rampColor(
+  from: [number, number, number],
+  to: [number, number, number],
+  ratio: number,
+): string {
+  const t = Math.min(1, Math.max(0, Math.sqrt(ratio)))
+  const r = Math.round(from[0] + (to[0] - from[0]) * t)
+  const g = Math.round(from[1] + (to[1] - from[1]) * t)
+  const b = Math.round(from[2] + (to[2] - from[2]) * t)
+  return `rgb(${r} ${g} ${b})`
 }
 
 function drawPriceLabels(
@@ -240,49 +216,42 @@ function drawPriceLabels(
   }
 }
 
-function drawMagnitudeAxes(
+/**
+ * One axis for the shared leftward scale: 0 at the bar origin, the largest
+ * in-view row at the far left. The same numbers apply to both colours.
+ */
+function drawMagnitudeAxis(
   ctx: CanvasRenderingContext2D,
   layout: Layout,
-  profile: Profile,
+  domain: number,
 ): void {
   ctx.font = `500 10px ${FONT_STACK}`
   ctx.textBaseline = 'middle'
   ctx.strokeStyle = THEME.axis
   ctx.lineWidth = 1
 
-  // Top axis: shorts, mirrored (0 at the price gutter, growing leftwards).
-  const topY = layout.plotTop - 12
+  const axisY = layout.plotTop - 12
   ctx.beginPath()
-  ctx.moveTo(layout.barLeftEnd - layout.maxBarWidth, topY + 8)
-  ctx.lineTo(layout.barLeftEnd, topY + 8)
+  ctx.moveTo(layout.anchor - layout.maxBarWidth, axisY + 8)
+  ctx.lineTo(layout.anchor, axisY + 8)
   ctx.stroke()
-  for (const value of magnitudeTicks(profile.maxShort)) {
-    const fraction = profile.maxShort > 0 ? value / profile.maxShort : 0
-    const x = layout.barLeftEnd - layout.maxBarWidth * fraction
-    ctx.fillStyle = THEME.label
-    ctx.textAlign = fraction === 0 ? 'left' : fraction === 1 ? 'right' : 'center'
-    ctx.fillText(formatQuantity(value), x, topY - 2)
-  }
 
-  // Bottom axis: longs, 0 at the price gutter, growing rightwards.
-  const bottomY = layout.plotBottom + 12
-  ctx.beginPath()
-  ctx.moveTo(layout.barRightStart, bottomY - 8)
-  ctx.lineTo(layout.barRightStart + layout.maxBarWidth, bottomY - 8)
-  ctx.stroke()
-  for (const value of magnitudeTicks(profile.maxLong)) {
-    const fraction = profile.maxLong > 0 ? value / profile.maxLong : 0
-    const x = layout.barRightStart + layout.maxBarWidth * fraction
-    ctx.fillStyle = THEME.label
-    ctx.textAlign = fraction === 0 ? 'left' : fraction === 1 ? 'right' : 'center'
-    ctx.fillText(formatQuantity(value), x, bottomY + 2)
+  for (const value of axisTicks(domain)) {
+    const fraction = domain > 0 ? value / domain : 0
+    const x = layout.anchor - layout.maxBarWidth * fraction
+    ctx.fillStyle = fraction === 0 ? THEME.labelStrong : THEME.label
+    ctx.textAlign =
+      fraction === 0 ? 'left' : fraction === 1 ? 'right' : 'center'
+    ctx.fillText(formatQuantity(value), x, axisY - 2)
   }
 }
 
-/** Round 1/2/2.5/5 ticks from 0 up to `max`, always including 0. */
-function magnitudeTicks(max: number): number[] {
-  if (!Number.isFinite(max) || max <= 0) return [0]
-  const ticks = niceTicks({ min: 0, max }, 3).filter((value) => value <= max)
+/** Round 1/2/2.5/5 ticks from 0 to `domain`, always including 0. */
+function axisTicks(domain: number): number[] {
+  if (!Number.isFinite(domain) || domain <= 0) return [0]
+  const ticks = niceTicks({ min: 0, max: domain }, 3).filter(
+    (value) => value <= domain,
+  )
   if (ticks.length === 0) return [0]
   if (ticks[0] !== 0) ticks.unshift(0)
   return ticks
@@ -292,17 +261,4 @@ function priceToRowY(profile: Profile, price: number): number {
   const height = Math.max(1, profile.bottom - profile.top)
   const span = spanOf(profile.view)
   return profile.bottom - ((price - profile.view.min) / span) * height
-}
-
-/** Dark-to-bright ramp: the same number drives bar length and intensity. */
-function rampColor(
-  from: [number, number, number],
-  to: [number, number, number],
-  ratio: number,
-): string {
-  const t = Math.min(1, Math.max(0, Math.sqrt(ratio)))
-  const r = Math.round(from[0] + (to[0] - from[0]) * t)
-  const g = Math.round(from[1] + (to[1] - from[1]) * t)
-  const b = Math.round(from[2] + (to[2] - from[2]) * t)
-  return `rgb(${r} ${g} ${b})`
 }
