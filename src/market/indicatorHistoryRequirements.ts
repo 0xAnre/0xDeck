@@ -203,6 +203,8 @@ export function resolveIndicatorHistoryRequirements(
         break
       case 'aggregated-liquidations':
       case 'liquidation-levels':
+      case 'stop-loss-levels':
+      case 'take-profit-levels':
         // Live-only panes; no historical warmup or context requirement.
         break
       default: {

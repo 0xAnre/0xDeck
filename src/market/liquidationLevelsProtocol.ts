@@ -352,3 +352,382 @@ export function applyLiquidationLevelsFile(
     skipped,
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* TPSL: live resting stop-loss / take-profit trigger orders                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * MarketLens L4 `tpsl` stream — two multiplexed channels on one connection.
+ *
+ * Public documentation: https://marketlens.app/api/l4/
+ *
+ * Verified against the live Parquet bytes (2026-11-28, BTC):
+ *  - one socket carries both channels, each with its **own** snapshot, epoch
+ *    and delta `seq` (observed snapshots at `stop_losses` seq 15 272 with 8 246
+ *    rows and `take_profits` seq 11 758 with 11 047 rows — non-zero, despite the
+ *    published "snapshot seq is 0" text);
+ *  - schema: `id` INT64 (hyparquet yields a **bigint**), `ts` INT64,
+ *    `price`/`size`/`position_size` DECIMAL(18, s), `user` FIXED_LEN_BYTE_ARRAY
+ *    (20). Prices/sizes arrive already scaled (BTC: 1 price decimal, 5 size
+ *    decimals).
+ *  - a row is an order keyed by `id`; a row carrying only its key (`price`,
+ *    `size`, `position_size`, `user` null) removes that order;
+ *  - **`size === 0` is not a deletion**: it is a position-wide order that closes
+ *    the whole position. A non-zero `size` is a fixed order that closes at most
+ *    its size. Both are signed like the closing order (negative = sell, closes a
+ *    long; positive = buy, closes a short);
+ *  - `position_size` is that trader's position the order would close, signed the
+ *    same way; `0` when there is none on the side it closes, and null on
+ *    removal rows. Real bytes contained fixed orders with `|position_size|` both
+ *    smaller and larger than `|size|`, so the effective covered size is
+ *    `min(|size|, |position_size|)` (or `|position_size|` for a whole-position
+ *    order);
+ *  - `size` and `position_size` never disagreed in sign (0 mismatches in
+ *    18 172 priced rows across both snapshots).
+ *
+ * These are waiting trigger orders at their trigger price — not filled orders,
+ * not historical events, and not guaranteed executable liquidity.
+ */
+
+export const TPSL_CHANNELS = ['take_profits', 'stop_losses'] as const
+
+export type TpslChannel = (typeof TPSL_CHANNELS)[number]
+
+export const TPSL_STREAM_URL =
+  'wss://api.marketlens.app/data/hyperliquid/l4/tpsl/BTC'
+
+const TPSL_CHANNEL_SET = new Set<string>(TPSL_CHANNELS)
+
+export function isTpslChannel(value: string): value is TpslChannel {
+  return TPSL_CHANNEL_SET.has(value)
+}
+
+export interface TpslHead {
+  snapshot: boolean
+  channel: string
+  coin: string
+  epoch: string
+  seq: number
+  ts: number
+}
+
+/** One decoded TPSL row; a removal row has only `id`. */
+export interface TpslRawRow {
+  /** Decimal string of the unsigned 64-bit order id (bigint-safe). */
+  id: string
+  ts: number | null
+  /** Trigger price, or `null` on a removal row. */
+  price: number | null
+  /** Signed order size: 0 = whole position, otherwise a fixed size. */
+  size: number | null
+  /** `0x`-prefixed 20-byte account address, or `null` on a removal row. */
+  user: string | null
+  /** Signed position the order would close, `0` = none on that side. */
+  positionSize: number | null
+}
+
+/** Which side of the trader's position the order would close. */
+export type TpslSide = 'long' | 'short'
+
+export interface TpslOrder {
+  id: string
+  ts: number
+  price: number
+  /** Requested order size exactly as published (signed; 0 = whole position). */
+  size: number
+  /** Position the order would close, `null` when the file carried none. */
+  positionSize: number | null
+  user: string | null
+  /** Absolute position-covered size, the profile's bar magnitude. */
+  effectiveSize: number
+  /** Position side the order closes, `null` when no position is covered. */
+  side: TpslSide | null
+}
+
+export interface TpslBook {
+  channel: TpslChannel
+  epoch: string
+  /** `seq` of the last applied file (a snapshot's is adopted, zero or not). */
+  seq: number
+  headTs: number
+  orders: Map<string, TpslOrder>
+}
+
+export type TpslApplyOutcome =
+  | {
+      status: 'snapshot'
+      channel: TpslChannel
+      book: TpslBook
+      added: number
+      skipped: number
+    }
+  | {
+      status: 'delta'
+      channel: TpslChannel
+      book: TpslBook
+      added: number
+      replaced: number
+      removed: number
+      skipped: number
+    }
+  | { status: 'duplicate'; channel: TpslChannel; book: TpslBook }
+  | {
+      status: 'reset'
+      channel: TpslChannel | null
+      reason: 'channel' | 'epoch' | 'gap' | 'no-snapshot' | 'protocol'
+      detail: string
+    }
+
+/**
+ * Parse a TPSL head. Returns `null` when the file carries no head at all and
+ * throws when a head is present but cannot be trusted (same contract as the
+ * liquidation head).
+ */
+export function parseTpslHead(
+  entries: readonly LiquidationLevelsHeadEntry[] | null | undefined,
+): TpslHead | null {
+  const head = parseLiquidationLevelsHead(entries)
+  if (!head) return null
+  return head
+}
+
+function tpslOrderIdFromDecoded(value: unknown): string {
+  if (typeof value === 'bigint') return value.toString()
+  if (typeof value === 'string' && value.length > 0) return value
+  if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value)) {
+    return BigInt(value).toString()
+  }
+  throw new Error('tpsl row has no order id')
+}
+
+function tpslUserFromDecoded(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  if (value instanceof Uint8Array) {
+    return `0x${Array.from(value, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
+  }
+  if (typeof value === 'string') return value.toLowerCase()
+  return null
+}
+
+/** Decode a Parquet row (`id`, `ts`, `price`, `size`, `user`, `position_size`). */
+export function tpslRowFromDecoded(row: readonly unknown[]): TpslRawRow {
+  return {
+    id: tpslOrderIdFromDecoded(row[0]),
+    ts: row[1] instanceof Date ? row[1].getTime() : toNumber(row[1]),
+    price: toNumber(row[2]),
+    size: toNumber(row[3]),
+    user: tpslUserFromDecoded(row[4]),
+    positionSize: toNumber(row[5]),
+  }
+}
+
+export type TpslRowKind = 'remove' | 'upsert' | 'invalid'
+
+/**
+ * `remove` only when the row carries its key alone. `size === 0` is a valid
+ * position-wide order, never a removal.
+ */
+export function classifyTpslRow(row: TpslRawRow): TpslRowKind {
+  if (row.price === null && row.size === null && row.positionSize === null) {
+    return 'remove'
+  }
+  if (row.price === null || row.size === null) return 'invalid'
+  if (!Number.isFinite(row.price) || row.price <= 0) return 'invalid'
+  if (!Number.isFinite(row.size)) return 'invalid'
+  return 'upsert'
+}
+
+/**
+ * Bar magnitude: the position size the order can actually close.
+ *
+ * A whole-position order (`size === 0`) covers the whole position; a fixed
+ * order closes at most its own size, and never more than the position it would
+ * close. `position_size` 0 or missing means no covered position (0).
+ */
+export function tpslOrderEffectiveSize(
+  size: number,
+  positionSize: number | null,
+): number {
+  if (!Number.isFinite(size)) return 0
+  const position = positionSize === null ? 0 : Math.abs(positionSize)
+  if (!Number.isFinite(position) || position <= 0) return 0
+  if (size === 0) return position
+  const requested = Math.abs(size)
+  return Number.isFinite(requested) ? Math.min(requested, position) : 0
+}
+
+/**
+ * Position side the order would close: the feed signs `position_size` like the
+ * closing order, so negative (a sell) closes a long and positive (a buy)
+ * closes a short. `0`/missing means no position on that side.
+ */
+export function tpslOrderSide(positionSize: number | null): TpslSide | null {
+  if (positionSize === null || !Number.isFinite(positionSize) || positionSize === 0) {
+    return null
+  }
+  return positionSize < 0 ? 'long' : 'short'
+}
+
+export function tpslOrderFromRow(row: TpslRawRow, headTs: number): TpslOrder | null {
+  if (classifyTpslRow(row) !== 'upsert') return null
+  const price = row.price as number
+  const size = row.size as number
+  return {
+    id: row.id,
+    ts: row.ts ?? headTs,
+    price,
+    size,
+    positionSize: row.positionSize,
+    user: row.user,
+    effectiveSize: tpslOrderEffectiveSize(size, row.positionSize),
+    side: tpslOrderSide(row.positionSize),
+  }
+}
+
+/**
+ * Apply one decoded TPSL file to its channel's book.
+ *
+ * Both channels are independent: a file only ever touches the book of its own
+ * `channel`, and only that channel's epoch/`seq` sequence is compared. A gap, a
+ * foreign epoch, a delta before a snapshot or a foreign channel returns
+ * `reset`; the caller reconnects for fresh snapshots and never mixes the two
+ * sequences.
+ */
+export function applyTpslFile(
+  book: TpslBook | null,
+  head: TpslHead,
+  rows: readonly TpslRawRow[],
+): TpslApplyOutcome {
+  if (!isTpslChannel(head.channel)) {
+    return {
+      status: 'reset',
+      channel: null,
+      reason: 'channel',
+      detail: `unexpected tpsl channel "${head.channel}"`,
+    }
+  }
+  const channel = head.channel
+  if (head.coin !== LIQUIDATION_LEVELS_COIN) {
+    return {
+      status: 'reset',
+      channel,
+      reason: 'protocol',
+      detail: `unexpected coin "${head.coin}"`,
+    }
+  }
+  const currentBook = book && book.channel === channel ? book : null
+
+  if (head.snapshot) {
+    const orders = new Map<string, TpslOrder>()
+    let skipped = 0
+    for (const row of rows) {
+      const order = tpslOrderFromRow(row, head.ts)
+      if (!order) {
+        skipped += 1
+        continue
+      }
+      orders.set(order.id, order)
+    }
+    return {
+      status: 'snapshot',
+      channel,
+      book: {
+        channel,
+        epoch: head.epoch,
+        // The snapshot's counter is adopted whether it is 0 or not; the live
+        // stream sends non-zero counters and the next delta continues from it.
+        seq: head.seq,
+        headTs: head.ts,
+        orders,
+      },
+      added: orders.size,
+      skipped,
+    }
+  }
+
+  if (!currentBook) {
+    return {
+      status: 'reset',
+      channel,
+      reason: 'no-snapshot',
+      detail: 'tpsl delta received before that channel had a snapshot',
+    }
+  }
+  if (head.epoch !== currentBook.epoch) {
+    return {
+      status: 'reset',
+      channel,
+      reason: 'epoch',
+      detail: `tpsl delta epoch ${head.epoch} does not match channel epoch ${currentBook.epoch}`,
+    }
+  }
+  if (head.seq === currentBook.seq) {
+    return { status: 'duplicate', channel, book: currentBook }
+  }
+  if (head.seq !== currentBook.seq + 1) {
+    return {
+      status: 'reset',
+      channel,
+      reason: 'gap',
+      detail: `expected seq ${currentBook.seq + 1}, received ${head.seq}`,
+    }
+  }
+
+  const orders = new Map(currentBook.orders)
+  let added = 0
+  let replaced = 0
+  let removed = 0
+  let skipped = 0
+  for (const row of rows) {
+    const kind = classifyTpslRow(row)
+    if (kind === 'remove') {
+      if (orders.delete(row.id)) removed += 1
+      else skipped += 1
+      continue
+    }
+    const order = tpslOrderFromRow(row, head.ts)
+    if (!order) {
+      skipped += 1
+      continue
+    }
+    if (orders.has(order.id)) replaced += 1
+    else added += 1
+    orders.set(order.id, order)
+  }
+  return {
+    status: 'delta',
+    channel,
+    book: {
+      channel,
+      epoch: currentBook.epoch,
+      seq: head.seq,
+      headTs: head.ts,
+      orders,
+    },
+    added,
+    replaced,
+    removed,
+    skipped,
+  }
+}
+
+/** Absolute size per position side, counted on demand (hover/summary only). */
+export function tpslTotals(book: TpslBook | null): {
+  count: number
+  long: number
+  short: number
+  effective: number
+} {
+  let long = 0
+  let short = 0
+  let effective = 0
+  if (book) {
+    for (const order of book.orders.values()) {
+      effective += order.effectiveSize
+      if (order.side === 'long') long += order.effectiveSize
+      else if (order.side === 'short') short += order.effectiveSize
+    }
+  }
+  return { count: book?.orders.size ?? 0, long, short, effective }
+}

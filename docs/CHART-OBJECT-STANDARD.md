@@ -37,7 +37,9 @@ Granularity means "what the user can style independently", not the number of ren
 | Candles | Fixed / semantic | **Global Body / Border / Wick appearance only** — each part owns a rising/falling color pair, one visibility switch and one 0–100 opacity shared by that part's two directions; no width, line style, fill, per-direction opacity or per-panel/workspace/exchange override | `src/market/candleColors.ts` (defaults from `btcPerpetualCandleColors.ts`) | `src/AppearanceMenu.tsx` → `src/widgetSettings/CandleColorsDialog.tsx` |
 | Position markers | Fixed / semantic | **Size only** — user marker size `0.5×`–`3×` (step `0.25`, default `1×`); color, shape, position and visibility semantics fixed. The *source* (wallet exchange + address) is global header state, not a chart-object style | `src/market/positionMarkers.ts` (`POSITION_MARKER_SIZE_*`, `sanitizePositionMarkerSize`), `src/market/hyperliquidMarkers.ts`, `src/market/marketSemanticColors.ts`, `src/market/positionWallet.ts` + `src/PositionWalletControl.tsx` (wallet), `src/market/lighterFills.ts` (Lighter trades → the same fill pipeline) | `src/widgetSettings/MarketPositionMarkerSettingsDialog.tsx` (gear on the `HeaderIndicatorsMenu.tsx` row) |
 | Aggregated Liquidations bars | Fixed / semantic | None — fixed long/short pair; only source and pane position are settings | `src/market/aggregatedLiquidationsColors.ts`, `src/market/aggregatedLiquidationsSettings.ts` | `src/market/AggregatedLiquidationsSettingsDialog.tsx` |
-| Live liquidation levels (MarketLens L4, open-position liquidation prices) | Background / fill (bar histogram) | Color, Opacity per side (long / short); max bar width as bar extent (% of the pane plot width, 5–100) — geometry, not stroke width. No line style, lock or delete: the profile owns no movable geometry | `src/market/liquidationLevelsSettings.ts`, `src/market/liquidationLevelsSeriesPrimitive.ts` | `src/market/LiquidationLevelsSettingsDialog.tsx` |
+| Live liquidation levels (MarketLens L4, open-position liquidation prices) | Background / fill (bar histogram) | Color, Opacity per side (long / short); max bar width as bar extent (% of the pane plot width, 5–100) — geometry, not stroke width. No line style, lock or delete: the profile owns no movable geometry | `src/market/liquidationLevelsSettings.ts`, `src/market/liquidationLevelsSeriesPrimitive.ts` | `src/market/PriceLevelsSettingsDialog.tsx` (kind `liquidation`) |
+| Stop Loss Levels (MarketLens L4 `tpsl` channel `stop_losses`, resting trigger orders) | Background / fill (bar histogram) | Color, Opacity per side ("closes long" / "closes short"); max bar width (5–100 %); same object category as the liquidation profile | `src/market/liquidationLevelsSettings.ts`, `src/market/priceLevelsKind.ts`, `src/market/tpslLevelsFeed.ts` | `src/market/PriceLevelsSettingsDialog.tsx` (kind `stop-loss`) |
+| Take Profit Levels (MarketLens L4 `tpsl` channel `take_profits`) | Background / fill (bar histogram) | Same as Stop Loss Levels, independently persisted | `src/market/liquidationLevelsSettings.ts`, `src/market/priceLevelsKind.ts`, `src/market/tpslLevelsFeed.ts` | `src/market/PriceLevelsSettingsDialog.tsx` (kind `take-profit`) |
 | RSI threshold colors + glow | Fixed / semantic | None — fixed semantic pair, glow is a visibility toggle | `src/market/rsiLineColors.ts`, `src/market/rsi.ts` (`thresholdGlow`) | `src/widgetSettings/MarketIndicatorStyleDialog.tsx` |
 | Current price line | Fixed / semantic | None — theme foreground @ 50%, dashed, 1px | `src/market/btcPerpetualCurrentPriceLineOptions.ts` | — |
 | Selection outlines, handles, hover chrome | Fixed / semantic | None — shared geometry/`drawingCursor`, fixed handle alpha (chart chrome, never user-styled); overlay indicator selection is drawn by `src/market/overlayIndicatorSelectionHalo.ts` (own line color, fixed halo alpha) and the Aggregated Liquidations pane rim, never by writing series options | `src/market/lineColors.ts` (`LINE_HANDLE_FILL_OPACITY`), `src/market/rectangleColors.ts` (`RECTANGLE_HANDLE_FILL_OPACITY`), `src/market/drawingCursor.ts`, `src/market/overlayIndicatorSelectionHalo.ts` | — |
@@ -184,7 +186,9 @@ Shared behavior below applies to every drawing tool and to interactable indicato
 | Indicator line styles, per-series time-based VWAP line styles + time-based VWAP band background | `src/marketIndicatorPresentationStorage.ts` | `0xdeck-widget-market-indicator-presentation` | `sanitizeMarketIndicatorPresentation` (flat fields + `series`) + `sanitizeLineChartStrokeStyle`, `sanitizeMarketStyleOpacityPercent` | `src/market/marketIndicatorPresentationApply.ts` |
 | RSI period / overbought / oversold / threshold glow | `src/marketRsiSettingsStorage.ts` | `0xdeck-widget-market-rsi-settings` | `sanitizeRsiSettings` (`src/market/rsi.ts`) | `src/market/rsiChartPane.ts` |
 | Aggregated Liquidations source + pane position | `src/liquidationsSettingsStorage.ts` | `0xdeck-widget-liquidations-settings` | `sanitizeAggregatedLiquidationsSettings` | `src/market/aggregatedLiquidationsChartSeries.ts`, `src/market/aggregatedLiquidationsPaneLayout.ts` |
-| Live liquidation-level profile long/short color + opacity and max bar width | `src/liquidationLevelsSettingsStorage.ts` | `0xdeck-widget-liquidation-levels-settings` | `sanitizeLiquidationLevelsSettings` (`src/market/liquidationLevelsSettings.ts`, field-by-field; 0 % opacity is valid, width clamps to 5–100) | `src/market/liquidationLevelsSeriesPrimitive.ts` (paint), `src/market/LiquidationLevelsSettingsDialog.tsx` (write path) |
+| Live liquidation-level profile long/short color + opacity and max bar width | `src/liquidationLevelsSettingsStorage.ts` | `0xdeck-widget-liquidation-levels-settings` (unchanged) | `sanitizeLiquidationLevelsSettings` (`src/market/liquidationLevelsSettings.ts`, field-by-field; 0 % opacity is valid, width clamps to 5–100) | `src/market/liquidationLevelsSeriesPrimitive.ts` (paint), `src/market/PriceLevelsSettingsDialog.tsx` (write path) |
+| Stop Loss Levels color + opacity and max bar width | `src/liquidationLevelsSettingsStorage.ts` | `0xdeck-widget-stop-loss-levels-settings` | same `sanitizeLiquidationLevelsSettings` | same primitive (kind `stop-loss`), same dialog |
+| Take Profit Levels color + opacity and max bar width | `src/liquidationLevelsSettingsStorage.ts` | `0xdeck-widget-take-profit-levels-settings` | same `sanitizeLiquidationLevelsSettings` | same primitive (kind `take-profit`), same dialog |
 | Enabled indicator set | `src/marketIndicatorStorage.ts` | `0xdeck-widget-market-indicators` | `sanitizeIndicatorList` (module-local, includes the `ema-200` → `dual-ema` legacy id) | `src/BtcPerpetualChartPanel.tsx` series visibility |
 | Position Markers visibility + marker size | `src/marketPositionMarkersStorage.ts` | `0xdeck-widget-market-position-markers` | `sanitizePositionMarkerSettings` → `sanitizePositionMarkerSize` (`src/market/positionMarkers.ts`); a legacy boolean record is migrated (toggle kept, size ⇒ default), anything invalid ⇒ OFF at the default size | `src/market/hyperliquidMarkers.ts` (markers), `src/widgetSettings/MarketPositionMarkerSettingsDialog.tsx` (write path) |
 | Global Position Markers wallet (exchange + address + Lighter account) | `src/market/positionWallet.ts` | `0xdeck-position-wallet` (global, **not** workspace/panel scoped) | `sanitizePositionWalletSelection` → `positionWalletAddressError`; unknown exchange/bad address/lighter index falls back to the built-in Hyperliquid wallet, invalid Lighter index ⇒ auto-resolve | `src/PositionWalletControl.tsx` (write path), `src/market/usePositionWallet.ts` (read), `src/market/lighterFillsStore.ts` (Lighter session) |
@@ -274,14 +278,23 @@ gap; every user-facing capability above stays the same.
   `src/market/rollingVwapBandSeriesPrimitive.test.ts`; real-library frames and
   same-input pixel/coordinate comparators: `e2e/rolling-vwap-band-primitive.spec.ts`.
 
-## Live liquidation-level profile (#280, MUST)
+## Live price-level profiles (#280, MUST)
 
-The opt-in **Liquidation Levels** indicator renders the current open-position liquidation-price book
-from MarketLens' Hyperliquid L4 stream as a right-anchored, leftward bar profile on the candle pane
-(`src/market/liquidationLevelsSeriesPrimitive.ts`). It is a supported **Background / fill** object
-(bars), not a new category: per-side Color + Opacity plus one bar-extent control, and no stroke width,
-line style, lock or delete, because it owns no movable geometry. Its full semantics, source contract
-and provenance are in [MARKETLENS-LIQUIDATION-LEVELS.md](./MARKETLENS-LIQUIDATION-LEVELS.md).
+Three opt-in profiles render live MarketLens Hyperliquid L4 books as right-anchored, leftward bar
+profiles on the candle pane through **one** primitive and one index/geometry/settings scaffold
+(`src/market/liquidationLevelsSeriesPrimitive.ts`, kinds in `src/market/priceLevelsKind.ts`):
+
+- **Liquidation Levels** — open positions at their liquidation price (own socket, own feed);
+- **Stop Loss Levels** / **Take Profit Levels** — resting trigger orders at their trigger price, one
+  channel each of a single shared `tpsl` socket.
+
+They are supported **Background / fill** objects (bars), not a new category: per-side Color + Opacity
+plus one bar-extent control, and no stroke width, line style, lock or delete, because they own no
+movable geometry. Each kind has its own toggle, settings record and storage key; the trigger-order
+magnitudes are the **position-covered** size (`size === 0` = whole position, fixed orders cap at
+`min(order size, position)`), never the raw order size alone. Full source semantics, side wording,
+verified live schema and provenance are in
+[MARKETLENS-LIQUIDATION-LEVELS.md](./MARKETLENS-LIQUIDATION-LEVELS.md).
 
 - **Fixed defaults, user-restylable bars.** Long `#22C55E` / short `#EF4444` (the shared semantic
   pair) at 60 % opacity, 25 % max bar width. The user may restyle the pair because a bar drawn over
@@ -303,8 +316,13 @@ and provenance are in [MARKETLENS-LIQUIDATION-LEVELS.md](./MARKETLENS-LIQUIDATIO
   one. The status label is painted even when the visible window holds no positions, so an empty
   window is not mistaken for a disabled indicator.
 - **Hover cost (recorded, bounded).** A crosshair move inside the bar column re-derives the
-  visible-band profile (the same bounded derivation as a paint); moves outside the column are
-  rejected without derivation. This is an accepted bounded cost, not a measured frame budget.
+  visible-band profile of the profiles it probes (the same bounded derivation as a paint, stopping at
+  the first resolved profile in hit order); moves outside the column are rejected without derivation.
+  This is an accepted bounded cost, not a measured frame budget.
+- **Several profiles at once.** Paint order is fixed (liquidation → stop loss → take profit) and hit
+  order is the reverse, so the pointer resolves the profile painted on top; each profile keeps its own
+  label line and header gear row, so none becomes inaccessible. Bar lengths are normalised *within*
+  one profile — no cross-type unit or scale claim exists.
 - **Transforms per paint, index on updates.** Price→row and row→price conversions are recomputed in
   every view rebuild from `coordinateToPrice`/`priceToCoordinate`; the sorted price index is
   price-domain derived state rebuilt lazily, at most once per read after the book changed.
@@ -468,6 +486,7 @@ At base `6544e96` one gap is open: **P1**, the inactive-object derivation contra
 | Dialog draft/diff/sanitize logic | `src/widgetSettings/lineStyleDraft.ts`, `rectangleFillStyleDraft.ts`, `marketIndicatorStyleDraft.ts`, `fixedRangeVolumeProfileSettingsDraft.ts`, `src/market/aggregatedLiquidationsSettingsDraft.ts` |
 | Global candle appearance preference | `src/market/candleColors.ts`, `src/market/useCandleColors.ts`, `src/AppearanceMenu.tsx`, `src/widgetSettings/CandleColorsDialog.tsx` |
 | Redraw-request lifecycle tests (unit: `requestUpdate` calls + canvas draws) | `src/market/sessionVwapBandSeriesPrimitive.test.ts`, `src/market/anchoredVwapBandFillSeriesPrimitive.test.ts`, `src/market/lineSeriesPrimitive.test.ts`, `src/market/rectangleSeriesPrimitive.test.ts`, `src/market/fixedRangeVolumeProfileSeriesPrimitive.test.ts` |
-| Live feed sharing (one socket per page, ordered decode, ref-count) | `src/market/liquidationLevelsFeed.ts` (`subscribeLiquidationLevelsData` / `subscribeLiquidationLevelsStatus`), `src/market/liquidationLevelsStreamClient.ts`, `src/market/liquidationLevelsProtocol.ts` |
+| Live feed sharing (one socket per page, ordered decode, ref-count) | `src/market/liquidationLevelsFeed.ts` (liquidation), `src/market/tpslLevelsFeed.ts` (both trigger-order channels), `src/market/liquidationLevelsStreamClient.ts`, `src/market/liquidationLevelsProtocol.ts` |
 | Price-indexed profile geometry + hit test | `src/market/liquidationLevelsIndex.ts`, `src/market/liquidationLevelsProfileGeometry.ts` |
+| Profile kinds, labels, storage keys, paint/hit order | `src/market/priceLevelsKind.ts` |
 | Painted-frame coverage (real library: rAF + real canvas fills) | [e2e/anchored-vwap-redraw.spec.ts](../e2e/anchored-vwap-redraw.spec.ts), [e2e/vwap-band-fill.spec.ts](../e2e/vwap-band-fill.spec.ts), [e2e/fixtures/anchored-vwap-redraw.ts](../e2e/fixtures/anchored-vwap-redraw.ts), [e2e/fixtures/vwap-band-fill.ts](../e2e/fixtures/vwap-band-fill.ts) |

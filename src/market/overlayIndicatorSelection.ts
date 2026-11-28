@@ -30,6 +30,8 @@ export type OverlayIndicatorSelectionTarget = Extract<
       | 'rolling-vwap'
       | 'aggregated-liquidations'
       | 'liquidation-levels'
+      | 'stop-loss-levels'
+      | 'take-profit-levels'
   }
 >
 
@@ -41,7 +43,9 @@ export function isOverlayIndicatorSelectionTarget(
     target.kind === 'market-indicator' ||
     target.kind === 'rolling-vwap' ||
     target.kind === 'aggregated-liquidations' ||
-    target.kind === 'liquidation-levels'
+    target.kind === 'liquidation-levels' ||
+    target.kind === 'stop-loss-levels' ||
+    target.kind === 'take-profit-levels'
   )
 }
 
@@ -76,6 +80,10 @@ export function sameOverlayIndicatorSelection(
       return b.kind === 'aggregated-liquidations'
     case 'liquidation-levels':
       return b.kind === 'liquidation-levels'
+    case 'stop-loss-levels':
+      return b.kind === 'stop-loss-levels'
+    case 'take-profit-levels':
+      return b.kind === 'take-profit-levels'
     default: {
       const unreachable: never = a
       return unreachable
@@ -141,6 +149,10 @@ export function isOverlayIndicatorSelectionRendered(
   switch (selection.kind) {
     case 'liquidation-levels':
       return isMarketIndicatorRendered('liquidation-levels', state)
+    case 'stop-loss-levels':
+      return isMarketIndicatorRendered('stop-loss-levels', state)
+    case 'take-profit-levels':
+      return isMarketIndicatorRendered('take-profit-levels', state)
     case 'market-indicator':
       return isMarketIndicatorRendered(selection.indicatorId, state)
     case 'rolling-vwap': {
@@ -201,6 +213,8 @@ export function overlayIndicatorSelectionLineSeries(
         case 'rolling-vwap':
         case 'aggregated-liquidations':
         case 'liquidation-levels':
+        case 'stop-loss-levels':
+        case 'take-profit-levels':
           return []
         default: {
           const unreachable: never = indicatorId
@@ -222,6 +236,8 @@ export function overlayIndicatorSelectionLineSeries(
     }
     case 'aggregated-liquidations':
     case 'liquidation-levels':
+    case 'stop-loss-levels':
+    case 'take-profit-levels':
       return []
     default: {
       const unreachable: never = selection
@@ -244,8 +260,14 @@ export function overlayIndicatorSelectionHostSeries(
     return bundle.rsi?.series ?? null
   }
   if (selection.kind === 'aggregated-liquidations') return null
-  // The profile paints its own selection halo inside the candle pane primitive.
-  if (selection.kind === 'liquidation-levels') return null
+  // Price-level profiles paint their own selection halo inside their primitive.
+  if (
+    selection.kind === 'liquidation-levels' ||
+    selection.kind === 'stop-loss-levels' ||
+    selection.kind === 'take-profit-levels'
+  ) {
+    return null
+  }
   if (selection.kind === 'market-indicator' && selection.indicatorId === 'rolling-vwap') {
     return null
   }

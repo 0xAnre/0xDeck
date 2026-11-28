@@ -5,6 +5,8 @@ import {
   ChartNoAxesColumnIncreasingIcon,
   LineChartIcon,
   MinusIcon,
+  ShieldIcon,
+  TargetIcon,
   TrendingUpIcon,
 } from 'lucide-react'
 import type { MarketIndicatorId } from '@/market/indicators'
@@ -45,6 +47,10 @@ export function marketIndicatorIcon(indicatorId: MarketIndicatorId): LucideIcon 
     case 'aggregated-liquidations':
     case 'liquidation-levels':
       return ChartNoAxesColumnIncreasingIcon
+    case 'stop-loss-levels':
+      return ShieldIcon
+    case 'take-profit-levels':
+      return TargetIcon
     default: {
       const unreachable: never = indicatorId
       return unreachable

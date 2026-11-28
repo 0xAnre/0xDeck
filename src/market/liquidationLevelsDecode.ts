@@ -15,12 +15,19 @@ import { parquetMetadata, parquetRead } from 'hyparquet'
 import {
   liquidationLevelRowFromDecoded,
   parseLiquidationLevelsHead,
+  parseTpslHead,
+  tpslRowFromDecoded,
   type LiquidationLevelsHead,
   type LiquidationLevelsRawRow,
+  type TpslHead,
+  type TpslRawRow,
 } from './liquidationLevelsProtocol.ts'
 
 /** Column order requested from the file; the row decoder reads it positionally. */
 const COLUMNS = ['user', 'price', 'size', 'ts'] as const
+
+/** TPSL column order; `tpslRowFromDecoded` reads it positionally. */
+const TPSL_COLUMNS = ['id', 'ts', 'price', 'size', 'user', 'position_size'] as const
 
 export interface DecodedLiquidationLevelsFile {
   head: LiquidationLevelsHead
@@ -48,5 +55,34 @@ export async function decodeLiquidationLevelsFile(
   if (!matrix) throw new Error('parquet decode produced no rows')
 
   const rows = (matrix as unknown[][]).map((row) => liquidationLevelRowFromDecoded(row))
+  return { head, rows }
+}
+
+export interface DecodedTpslFile {
+  head: TpslHead
+  rows: TpslRawRow[]
+}
+
+/**
+ * Decode one MarketLens L4 `tpsl` file. The file belongs to exactly one of the
+ * two channels; which one is decided by its head, never by the caller.
+ */
+export async function decodeTpslFile(buffer: ArrayBuffer): Promise<DecodedTpslFile> {
+  const metadata = parquetMetadata(buffer)
+  const head = parseTpslHead(metadata.key_value_metadata)
+  if (!head) {
+    throw new Error('message has no L4 head metadata (not a MarketLens L4 file)')
+  }
+  let matrix: unknown[][] | null = null
+  await parquetRead({
+    file: buffer,
+    metadata,
+    columns: [...TPSL_COLUMNS],
+    onComplete: (rows: unknown[][]) => {
+      matrix = rows
+    },
+  })
+  if (!matrix) throw new Error('parquet decode produced no rows')
+  const rows = (matrix as unknown[][]).map((row) => tpslRowFromDecoded(row))
   return { head, rows }
 }

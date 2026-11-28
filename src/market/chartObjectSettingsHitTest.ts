@@ -16,6 +16,10 @@ import {
   type MarketIndicatorId,
   type VwapContextLevel,
 } from './indicators.ts'
+import {
+  PRICE_LEVEL_KIND_INDICATOR,
+  type PriceLevelKind,
+} from './priceLevelsKind.ts'
 import type { LiquidationLevelsIndex } from './liquidationLevelsIndex.ts'
 import {
   hitTestLiquidationLevelsProfile,
@@ -77,15 +81,19 @@ export type ChartObjectSettingsHitTestContext = {
   rollingVwapInstances: readonly RollingVwapInstance[]
   anchoredVwapInstances: readonly AnchoredVwapInstance[]
   /**
-   * Live liquidation-level profile state for this panel, when the indicator is
-   * enabled on a supported exchange. Absent means "no hit-testable profile".
+   * Live price-level profiles this panel can hit-test, in the caller's hit
+   * priority order (top-most profile first). Absent means "no profile".
    */
-  liquidationLevels?: {
-    enabled: boolean
-    exchange: MarketExchange
-    settings: LiquidationLevelsSettings
-    index: LiquidationLevelsIndex
-  } | null
+  priceLevels?: readonly PriceLevelHitTarget[] | null
+}
+
+/** One enabled price-level profile the chart-object hit test may resolve. */
+export interface PriceLevelHitTarget {
+  kind: PriceLevelKind
+  enabled: boolean
+  exchange: MarketExchange
+  settings: LiquidationLevelsSettings
+  index: LiquidationLevelsIndex
 }
 
 function chartObjectSettingsHitTestBlocked(ctx: ChartObjectSettingsHitTestContext): boolean {
@@ -282,31 +290,64 @@ function hitTestSingletonMarketIndicators(
 }
 
 /**
- * Live liquidation-level profile bars on the candle pane. The geometry is
- * rebuilt from the current price conversions, so the hit test always matches
- * what the primitive painted after the last pan, zoom, resize or scale change.
+ * Live price-level profile bars on the candle pane (liquidation, stop loss,
+ * take profit). The geometry is rebuilt from the current price conversions, so
+ * the hit test always matches what each primitive painted after the last pan,
+ * zoom, resize or scale change, and the caller's order decides which overlapping
+ * profile a pointer resolves (the profile painted on top comes first).
  */
-function hitTestLiquidationLevels(
+function hitTestPriceLevels(
   ctx: ChartObjectSettingsHitTestContext,
 ): ChartObjectSettingsTarget | null {
-  const state = ctx.liquidationLevels
-  if (!state || !state.enabled) return null
-  if (!isIndicatorSupportedOnExchange('liquidation-levels', state.exchange)) return null
-  if (!isIndicatorSupportedOnInterval('liquidation-levels', ctx.interval)) return null
-  const resolved = resolveLiquidationLevelsPaneProfile({
-    chart: ctx.chart,
-    series: ctx.series,
-    index: state.index,
-  })
-  if (!resolved) return null
-  const hit = hitTestLiquidationLevelsProfile({
-    profile: resolved.profile,
-    x: ctx.paneX,
-    y: ctx.paneY,
-    plotWidth: resolved.plotWidth,
-    maxWidthPercent: state.settings.maxWidthPercent,
-  })
-  return hit ? { kind: 'liquidation-levels' } : null
+  const targets = ctx.priceLevels
+  if (!targets || targets.length === 0) return null
+  for (const target of targets) {
+    if (!target.enabled) continue
+    const indicatorId = PRICE_LEVEL_KIND_INDICATOR[target.kind]
+    if (!isIndicatorSupportedOnExchange(indicatorId, target.exchange)) continue
+    if (!isIndicatorSupportedOnInterval(indicatorId, ctx.interval)) continue
+    const resolved = resolveLiquidationLevelsPaneProfile({
+      chart: ctx.chart,
+      series: ctx.series,
+      index: target.index,
+    })
+    if (!resolved) continue
+    const hit = hitTestLiquidationLevelsProfile({
+      profile: resolved.profile,
+      x: ctx.paneX,
+      y: ctx.paneY,
+      plotWidth: resolved.plotWidth,
+      maxWidthPercent: target.settings.maxWidthPercent,
+    })
+    if (!hit) continue
+    return priceLevelSettingsTarget(target.kind)
+  }
+  return null
+}
+
+export function priceLevelSettingsTarget(
+  kind: PriceLevelKind,
+): Extract<
+  ChartObjectSettingsTarget,
+  {
+    kind:
+      | 'liquidation-levels'
+      | 'stop-loss-levels'
+      | 'take-profit-levels'
+  }
+> {
+  switch (kind) {
+    case 'liquidation':
+      return { kind: 'liquidation-levels' }
+    case 'stop-loss':
+      return { kind: 'stop-loss-levels' }
+    case 'take-profit':
+      return { kind: 'take-profit-levels' }
+    default: {
+      const unreachable: never = kind
+      return unreachable
+    }
+  }
 }
 
 /**
@@ -372,8 +413,8 @@ export function hitTestChartObjectSettingsTarget(
     return { kind: 'rectangle', instanceId: rectangleHit.instanceId }
   }
 
-  const liquidationLevels = hitTestLiquidationLevels(ctx)
-  if (liquidationLevels) return liquidationLevels
+  const priceLevels = hitTestPriceLevels(ctx)
+  if (priceLevels) return priceLevels
 
   const frvp = hitTestFixedRangeVolumeProfiles(ctx)
   if (frvp) return frvp

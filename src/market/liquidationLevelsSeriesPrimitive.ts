@@ -38,6 +38,7 @@ import {
   MARKET_STYLE_PALETTE,
 } from './marketStylePalette.ts'
 import type { LiquidationLevelsSettings } from './liquidationLevelsSettings.ts'
+import { PRICE_LEVEL_KIND_SHORT_LABEL, type PriceLevelKind } from './priceLevelsKind.ts'
 
 export interface LiquidationLevelsPaneProfile {
   profile: LiquidationLevelsProfile
@@ -130,6 +131,12 @@ export interface LiquidationLevelsPrimitiveContext {
   selected: boolean
   /** Short status line drawn at the top of the bar column. */
   label: () => LiquidationLevelsStatusLabel
+  /**
+   * Which label line to use when several profiles are enabled: 0 is the top
+   * line. Fixed per kind, so three enabled profiles stack deterministically
+   * instead of overwriting one status line.
+   */
+  labelRow?: number
 }
 
 export interface LiquidationLevelsStatusLabel {
@@ -139,40 +146,69 @@ export interface LiquidationLevelsStatusLabel {
 
 const BAR_TOP_PADDING_CSS = 14
 const LABEL_FONT_CSS = 10
+/** Vertical step between stacked profile labels (LIQ / SL / TP). */
+const LABEL_LINE_HEIGHT_CSS = 12
 /** Alpha of the second side on a row that holds both long and short. */
 const MIXED_ROW_SIDE_ALPHA = 0.5
+
+/** Staleness used by a profile label when the connection itself is live. */
+export const PRICE_LEVEL_LABEL_STALE_AFTER_MS = 15_000
 
 export function liquidationLevelsStatusLabel(params: {
   phase: string
   resyncing: boolean
   lastAppliedAt: number | null
   nowMs: number
+  /** Wall-clock time the profile's channel last received a file. */
+  lastFileAt?: number | null
+  /** Label prefix, e.g. `SL`; defaults to the liquidation profile's `LEV LIQ`. */
+  prefix?: string
 }): LiquidationLevelsStatusLabel {
   const { phase, resyncing, lastAppliedAt, nowMs } = params
+  const prefix = params.prefix ?? 'LEV LIQ'
+  const lastFileAt = params.lastFileAt ?? null
+  const label = (text: string) => `${prefix} · ${text}`
   if (resyncing || phase === 'connecting' || phase === 'reconnecting' || phase === 'idle') {
-    return { text: 'LEV LIQ · SYNCING', tone: 'pending' }
+    return { text: label('SYNCING'), tone: 'pending' }
   }
   if (phase === 'live' || phase === 'stale') {
     const ageSeconds =
       lastAppliedAt === null
         ? null
         : Math.max(0, Math.round((nowMs - lastAppliedAt) / 1000))
-    if (phase === 'stale') {
+    // A live connection can still be quiet on one channel: a profile with no
+    // file for longer than the stale window must not claim a fresh book.
+    const channelStale =
+      phase === 'live' &&
+      lastFileAt !== null &&
+      nowMs - lastFileAt > PRICE_LEVEL_LABEL_STALE_AFTER_MS
+    if (phase === 'stale' || channelStale) {
       return {
-        text:
-          ageSeconds === null
-            ? 'LEV LIQ · STALE'
-            : `LEV LIQ · STALE ${ageSeconds}s`,
+        text: ageSeconds === null ? label('STALE') : label(`STALE ${ageSeconds}s`),
         tone: 'stale',
       }
     }
     return {
-      text:
-        ageSeconds === null ? 'LEV LIQ · LIVE' : `LEV LIQ · LIVE ${ageSeconds}s ago`,
+      text: ageSeconds === null ? label('LIVE') : label(`LIVE ${ageSeconds}s ago`),
       tone: 'live',
     }
   }
-  return { text: 'LEV LIQ · OFFLINE', tone: 'stale' }
+  return { text: label('OFFLINE'), tone: 'stale' }
+}
+
+/** Status label of one price-level profile, with its own short prefix. */
+export function priceLevelStatusLabel(params: {
+  kind: PriceLevelKind
+  phase: string
+  resyncing: boolean
+  lastAppliedAt: number | null
+  lastFileAt?: number | null
+  nowMs: number
+}): LiquidationLevelsStatusLabel {
+  return liquidationLevelsStatusLabel({
+    ...params,
+    prefix: PRICE_LEVEL_KIND_SHORT_LABEL[params.kind],
+  })
 }
 
 interface LiquidationLevelsDrawModel {
@@ -181,6 +217,7 @@ interface LiquidationLevelsDrawModel {
   settings: LiquidationLevelsSettings
   selected: boolean
   label: LiquidationLevelsStatusLabel
+  labelRow: number
 }
 
 class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
@@ -191,7 +228,7 @@ class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
   }
 
   draw(target: CanvasRenderingTarget2D): void {
-    const { profile, plotWidth, settings, selected, label } = this._model
+    const { profile, plotWidth, settings, selected, label, labelRow } = this._model
     if (plotWidth <= 0) return
     target.useBitmapCoordinateSpace((scope) => {
       const { context, horizontalPixelRatio, verticalPixelRatio, bitmapSize } = scope
@@ -289,7 +326,10 @@ class LiquidationLevelsRenderer implements IPrimitivePaneRenderer {
         context.fillText(
           label.text,
           Math.round((anchorCss - 4) * horizontalPixelRatio),
-          Math.round((BAR_TOP_PADDING_CSS - LABEL_FONT_CSS) * verticalPixelRatio),
+          Math.round(
+            (BAR_TOP_PADDING_CSS - LABEL_FONT_CSS + labelRow * LABEL_LINE_HEIGHT_CSS) *
+              verticalPixelRatio,
+          ),
         )
       }
 
@@ -341,6 +381,7 @@ class LiquidationLevelsPaneView implements IPrimitivePaneView {
       settings: context.settings,
       selected: context.selected,
       label: context.label(),
+      labelRow: context.labelRow ?? 0,
     }
   }
 

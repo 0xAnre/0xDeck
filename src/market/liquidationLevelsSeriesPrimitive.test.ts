@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import {
   attachLiquidationLevelsSeriesPrimitive,
   liquidationLevelsStatusLabel,
+  priceLevelStatusLabel,
   resolveLiquidationLevelsPaneProfile,
   LiquidationLevelsSeriesPrimitive,
   type LiquidationLevelsPrimitiveContext,
@@ -418,6 +419,70 @@ describe('liquidation level series primitive', () => {
     assert.equal(red.x + red.width, h.plotWidth)
     assert.equal(green.alpha, 1)
     assert.equal(red.alpha, 0.5)
+  })
+
+  it('stacks one status label per enabled profile', () => {
+    const h = setup()
+    const texts = [0, 1, 2].map((labelRow) => {
+      const primitive = new LiquidationLevelsSeriesPrimitive(() => ({
+        ...h.context,
+        labelRow,
+      }))
+      primitive.attached({
+        chart: h.chart as never,
+        series: h.series as never,
+        requestUpdate: () => {},
+      })
+      primitive.updateAllViews()
+      const renderer = primitive.paneViews()[0].renderer()
+      assert.ok(renderer)
+      const canvas = fakeCanvas(h.plotWidth, h.paneHeight)
+      renderer.draw(canvas.target as never)
+      assert.equal(canvas.texts.length, 1)
+      const text = canvas.texts[0]
+      primitive.detached()
+      return text
+    })
+    // Fixed 12 CSS px rows, never the same line for two profiles.
+    assert.deepEqual(
+      texts.map((text) => text.y),
+      [4, 16, 28],
+    )
+  })
+
+  it('labels a trigger-order profile with its own prefix', () => {
+    assert.deepEqual(
+      priceLevelStatusLabel({
+        kind: 'stop-loss',
+        phase: 'live',
+        resyncing: false,
+        lastAppliedAt: 1_000,
+        nowMs: 4_000,
+      }),
+      { text: 'SL · LIVE 3s ago', tone: 'live' },
+    )
+    assert.deepEqual(
+      priceLevelStatusLabel({
+        kind: 'take-profit',
+        phase: 'live',
+        resyncing: false,
+        lastAppliedAt: 1_000,
+        nowMs: 40_000,
+      }),
+      { text: 'TP · LIVE 39s ago', tone: 'live' },
+    )
+    // A live connection whose channel has been quiet is stale per channel.
+    assert.deepEqual(
+      priceLevelStatusLabel({
+        kind: 'stop-loss',
+        phase: 'live',
+        resyncing: false,
+        lastAppliedAt: 1_000,
+        lastFileAt: 1_000,
+        nowMs: 40_000,
+      }),
+      { text: 'SL · STALE 39s', tone: 'stale' },
+    )
   })
 
   it('labels the profile as current and honest about staleness', () => {

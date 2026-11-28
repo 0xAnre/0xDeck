@@ -11,7 +11,7 @@ Guides for building and extending the 0xDeck market research workspace canvas.
 | [WIDGET-GUIDE.md](./WIDGET-GUIDE.md) | How-to: add widgets, wire Parquet data |
 | [CHART-OBJECT-STANDARD.md](./CHART-OBJECT-STANDARD.md) | Normative chart tool / indicator rules: capability matrix, color picker, mouse, settings, persistence, primitive redraw lifecycle, performance/cost contracts, feature parity |
 | [CHART-PERFORMANCE-AUDIT.md](./CHART-PERFORMANCE-AUDIT.md) | Per-object performance inventory and audit: what each chart object costs today, measured evidence, unmeasured risks and follow-up register |
-| [MARKETLENS-LIQUIDATION-LEVELS.md](./MARKETLENS-LIQUIDATION-LEVELS.md) | Live open-position **liquidation-price** profile indicator: MarketLens Hyperliquid L4 source and protocol, rendering/cost contract, settings/persistence, and the PR #279 shared-module convergence note |
+| [MARKETLENS-LIQUIDATION-LEVELS.md](./MARKETLENS-LIQUIDATION-LEVELS.md) | Live **price-level** profiles: Liquidation Levels plus the stop-loss / take-profit trigger-order profiles, their MarketLens Hyperliquid L4 sources and protocol (incl. verified TPSL semantics), rendering/cost contract, settings/persistence, and the PR #279 shared-module convergence note |
 | [../templates/widget/README.md](../templates/widget/README.md) | Copy-paste starter panel + registry snippet |
 | [THEME-GUIDE.md](./THEME-GUIDE.md) | Color themes, shadcn tokens, shell rules |
 | [../backend/README.md](../backend/README.md) | FastAPI + DuckDB API, streams, KPI, time range |

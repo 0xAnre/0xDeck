@@ -9,9 +9,12 @@ import {
 } from './liquidationLevelsSettings.ts'
 import {
   loadWidgetLiquidationLevelsSettings,
+  loadWidgetPriceLevelsSettings,
   saveWidgetLiquidationLevelsSettings,
+  saveWidgetPriceLevelsSettings,
   WIDGET_LIQUIDATION_LEVELS_SETTINGS_STORAGE_KEY,
 } from '../liquidationLevelsSettingsStorage.ts'
+import { PRICE_LEVEL_SETTINGS_STORAGE_KEY } from './priceLevelsKind.ts'
 
 const memory = new Map<string, string>()
 
@@ -154,6 +157,58 @@ describe('liquidation level profile settings storage', () => {
     localStorage.setItem(WIDGET_LIQUIDATION_LEVELS_SETTINGS_STORAGE_KEY, '{oops')
     assert.deepEqual(
       loadWidgetLiquidationLevelsSettings('chart-a1'),
+      DEFAULT_LIQUIDATION_LEVELS_SETTINGS,
+    )
+  })
+})
+
+describe('per-kind price-level settings storage', () => {
+  it('keeps the liquidation key and record untouched while siblings use their own', () => {
+    saveWidgetLiquidationLevelsSettings('chart-a1', {
+      ...DEFAULT_LIQUIDATION_LEVELS_SETTINGS,
+      longColor: '#00FF00',
+    })
+    saveWidgetPriceLevelsSettings('chart-a1', 'stop-loss', {
+      ...DEFAULT_LIQUIDATION_LEVELS_SETTINGS,
+      maxWidthPercent: 40,
+    })
+    saveWidgetPriceLevelsSettings('chart-a1', 'take-profit', {
+      ...DEFAULT_LIQUIDATION_LEVELS_SETTINGS,
+      shortOpacityPercent: 20,
+    })
+    assert.equal(loadWidgetPriceLevelsSettings('chart-a1', 'liquidation').longColor, '#00FF00')
+    assert.equal(loadWidgetPriceLevelsSettings('chart-a1', 'stop-loss').maxWidthPercent, 40)
+    assert.equal(
+      loadWidgetPriceLevelsSettings('chart-a1', 'take-profit').shortOpacityPercent,
+      20,
+    )
+    assert.equal(
+      PRICE_LEVEL_SETTINGS_STORAGE_KEY.liquidation,
+      WIDGET_LIQUIDATION_LEVELS_SETTINGS_STORAGE_KEY,
+    )
+    assert.notEqual(
+      localStorage.getItem(PRICE_LEVEL_SETTINGS_STORAGE_KEY['stop-loss']),
+      null,
+    )
+    const liquidationRecord = JSON.parse(
+      localStorage.getItem(WIDGET_LIQUIDATION_LEVELS_SETTINGS_STORAGE_KEY) ?? '{}',
+    ) as Record<string, { longColor: string; maxWidthPercent: number }>
+    assert.equal(liquidationRecord['chart-a1'].longColor, '#00FF00')
+    // A sibling write never leaks into the liquidation record.
+    assert.equal(liquidationRecord['chart-a1'].maxWidthPercent, 25)
+  })
+
+  it('defaults every kind independently and sanitizes hand-edited records', () => {
+    localStorage.setItem(
+      PRICE_LEVEL_SETTINGS_STORAGE_KEY['take-profit'],
+      JSON.stringify({ 'chart-b2': { longColor: '#ZZZZZZ', maxWidthPercent: 900 } }),
+    )
+    assert.deepEqual(loadWidgetPriceLevelsSettings('chart-b2', 'take-profit'), {
+      ...DEFAULT_LIQUIDATION_LEVELS_SETTINGS,
+      maxWidthPercent: 100,
+    })
+    assert.deepEqual(
+      loadWidgetPriceLevelsSettings('chart-b2', 'stop-loss'),
       DEFAULT_LIQUIDATION_LEVELS_SETTINGS,
     )
   })

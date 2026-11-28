@@ -12,6 +12,8 @@ export const MARKET_INDICATOR_IDS = [
   'rsi',
   'aggregated-liquidations',
   'liquidation-levels',
+  'stop-loss-levels',
+  'take-profit-levels',
 ] as const
 
 export type MarketIndicatorId = (typeof MARKET_INDICATOR_IDS)[number]
@@ -112,6 +114,18 @@ export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndic
     supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
     contextLevel: null,
   },
+  'stop-loss-levels': {
+    // Live resting stop-loss trigger orders (MarketLens L4 `tpsl`).
+    label: 'Stop Loss Levels',
+    supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
+    contextLevel: null,
+  },
+  'take-profit-levels': {
+    // Live resting take-profit trigger orders (MarketLens L4 `tpsl`).
+    label: 'Take Profit Levels',
+    supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
+    contextLevel: null,
+  },
 }
 
 export const MARKET_INDICATOR_LABELS: Record<MarketIndicatorId, string> = Object.fromEntries(
@@ -144,6 +158,8 @@ export const MARKET_INDICATOR_EXCHANGE_ONLY: Partial<
   Record<MarketIndicatorId, MarketExchange>
 > = {
   'liquidation-levels': 'hyperliquid',
+  'stop-loss-levels': 'hyperliquid',
+  'take-profit-levels': 'hyperliquid',
 }
 
 export function indicatorExchangeRequirement(
