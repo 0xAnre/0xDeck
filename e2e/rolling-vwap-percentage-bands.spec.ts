@@ -14,6 +14,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
  * request, canvas replacement or viewport reset happens on a settings save.
  */
 
+/**
+ * App entry for the spec. The local run uses `/`; the protected preview run
+ * sets `OXDECK_E2E_APP_PATH=/previews/pr-<n>/` so `page.goto` opens the
+ * preview artifact instead of the canonical root.
+ */
+const APP_PATH = process.env.OXDECK_E2E_APP_PATH ?? '/'
 const INTERVAL = '15m'
 const BAR_SECONDS = 15 * 60
 const NOW_SECONDS = 1_795_000_000 - (1_795_000_000 % BAR_SECONDS)
@@ -498,7 +504,7 @@ test.describe('Rolling VWAP percentage bands (#282)', () => {
     await seedApp(page, [{ panelId: PANEL_ID, instances: [legacy] }])
     const requests: string[] = []
     await mockMarket(page, requests)
-    await page.goto('/')
+    await page.goto(APP_PATH)
     await expect(indicatorsTrigger(page)).toBeVisible()
     const seededRaw = await readStoredRaw(page)
     expect(seededRaw).not.toBeNull()
@@ -652,7 +658,7 @@ test.describe('Rolling VWAP percentage bands (#282)', () => {
     )
     await seedApp(page, [{ panelId: PANEL_ID, instances: [percentage] }])
     await mockMarket(page, [])
-    await page.goto('/')
+    await page.goto(APP_PATH)
     await expect(indicatorsTrigger(page)).toBeVisible()
     await waitForBand(page, BAND_RED)
     await page.waitForTimeout(1_500)
@@ -695,7 +701,7 @@ test.describe('Rolling VWAP percentage bands (#282)', () => {
     )
     await seedApp(page, [{ panelId: PANEL_ID, instances: [percentage] }])
     await mockMarket(page, [])
-    await page.goto('/')
+    await page.goto(APP_PATH)
     await expect(indicatorsTrigger(page)).toBeVisible()
     await waitForBand(page, BAND_RED)
     await page.waitForTimeout(1_500)
@@ -791,7 +797,7 @@ test.describe('Rolling VWAP percentage bands (#282)', () => {
       { panelId: PANEL_B, instances: [stdev] },
     ])
     await mockMarket(page, [])
-    await page.goto('/')
+    await page.goto(APP_PATH)
     await expect(indicatorsTrigger(page)).toBeVisible()
     await expect(indicatorsTrigger(page, PANEL_B)).toBeVisible()
     await waitForBand(page, BAND_RED)
