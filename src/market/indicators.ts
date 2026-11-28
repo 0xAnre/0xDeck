@@ -1,4 +1,4 @@
-import type { CandleInterval } from './types.ts'
+import type { CandleInterval, MarketExchange } from './types.ts'
 
 export const MARKET_INDICATOR_IDS = [
   'triple-ema',
@@ -11,6 +11,7 @@ export const MARKET_INDICATOR_IDS = [
   'rolling-vwap',
   'rsi',
   'aggregated-liquidations',
+  'liquidation-levels',
 ] as const
 
 export type MarketIndicatorId = (typeof MARKET_INDICATOR_IDS)[number]
@@ -103,6 +104,14 @@ export const MARKET_INDICATOR_DEFINITIONS: Record<MarketIndicatorId, MarketIndic
     supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
     contextLevel: null,
   },
+  'liquidation-levels': {
+    // Live open-position liquidation prices (MarketLens Hyperliquid L4). The
+    // feed is exchange-scoped, not interval- or history-scoped, so every candle
+    // interval can show the same current profile.
+    label: 'Liquidation Levels',
+    supportedIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'],
+    contextLevel: null,
+  },
 }
 
 export const MARKET_INDICATOR_LABELS: Record<MarketIndicatorId, string> = Object.fromEntries(
@@ -122,6 +131,42 @@ export function isIndicatorSupportedOnInterval(
   interval: CandleInterval,
 ): boolean {
   return MARKET_INDICATOR_DEFINITIONS[indicatorId].supportedIntervals.includes(interval)
+}
+
+/**
+ * Indicators whose data is bound to one exchange.
+ *
+ * The liquidation-level profile is MarketLens' Hyperliquid L4 book: it must
+ * never render on a Binance chart as if the numbers belonged to Binance, so the
+ * menu shows an explicit unavailable state there instead of a toggle.
+ */
+export const MARKET_INDICATOR_EXCHANGE_ONLY: Partial<
+  Record<MarketIndicatorId, MarketExchange>
+> = {
+  'liquidation-levels': 'hyperliquid',
+}
+
+export function indicatorExchangeRequirement(
+  indicatorId: MarketIndicatorId,
+): MarketExchange | null {
+  return MARKET_INDICATOR_EXCHANGE_ONLY[indicatorId] ?? null
+}
+
+export function isIndicatorSupportedOnExchange(
+  indicatorId: MarketIndicatorId,
+  exchange: MarketExchange,
+): boolean {
+  const required = indicatorExchangeRequirement(indicatorId)
+  return required === null || required === exchange
+}
+
+/** Explicit menu wording for an exchange-scoped indicator. */
+export function indicatorExchangeRequirementLabel(
+  indicatorId: MarketIndicatorId,
+): string | null {
+  const required = indicatorExchangeRequirement(indicatorId)
+  if (required === null) return null
+  return required === 'hyperliquid' ? 'Hyperliquid only' : 'Binance only'
 }
 
 export function buildMarketIndicatorOptions(interval: CandleInterval): MarketIndicatorOption[] {

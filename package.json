@@ -23,6 +23,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.4.0",
+    "hyparquet": "^1.33.2",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.23.0",
     "radix-ui": "^1.6.1",

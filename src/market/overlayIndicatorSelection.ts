@@ -2,6 +2,7 @@ import type { ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import type { ChartSeriesBundle } from './applyChartLiveCandle.ts'
 import type { ChartObjectSettingsTarget } from './chartObjectSettingsTypes.ts'
 import {
+  isIndicatorSupportedOnExchange,
   isIndicatorSupportedOnInterval,
   marketIndicatorSupportsBandFill,
   shouldShowVwapIndicatorSeries,
@@ -9,7 +10,7 @@ import {
   type VwapContextLevel,
 } from './indicators.ts'
 import type { RollingVwapInstance } from './rollingVwapInstances.ts'
-import type { CandleInterval } from './types.ts'
+import type { CandleInterval, MarketExchange } from './types.ts'
 
 /**
  * Overlay indicators have no geometry of their own, so they own no drawing
@@ -23,7 +24,13 @@ import type { CandleInterval } from './types.ts'
  */
 export type OverlayIndicatorSelectionTarget = Extract<
   ChartObjectSettingsTarget,
-  { kind: 'market-indicator' | 'rolling-vwap' | 'aggregated-liquidations' }
+  {
+    kind:
+      | 'market-indicator'
+      | 'rolling-vwap'
+      | 'aggregated-liquidations'
+      | 'liquidation-levels'
+  }
 >
 
 export function isOverlayIndicatorSelectionTarget(
@@ -33,7 +40,8 @@ export function isOverlayIndicatorSelectionTarget(
   return (
     target.kind === 'market-indicator' ||
     target.kind === 'rolling-vwap' ||
-    target.kind === 'aggregated-liquidations'
+    target.kind === 'aggregated-liquidations' ||
+    target.kind === 'liquidation-levels'
   )
 }
 
@@ -66,6 +74,8 @@ export function sameOverlayIndicatorSelection(
       )
     case 'aggregated-liquidations':
       return b.kind === 'aggregated-liquidations'
+    case 'liquidation-levels':
+      return b.kind === 'liquidation-levels'
     default: {
       const unreachable: never = a
       return unreachable
@@ -88,6 +98,8 @@ export function applyOverlayIndicatorSelection(
 export type OverlayIndicatorSelectionRenderState = {
   activeIndicators: readonly MarketIndicatorId[]
   interval: CandleInterval
+  /** Exchange of the panel's candles; exchange-scoped data never crosses over. */
+  exchange: MarketExchange
   loadedVwapLevel: VwapContextLevel | null
   loadedVwapInterval: CandleInterval | null
   rollingVwapInstances: readonly RollingVwapInstance[]
@@ -99,6 +111,10 @@ function isMarketIndicatorRendered(
 ): boolean {
   if (!state.activeIndicators.includes(indicatorId)) return false
   if (!isIndicatorSupportedOnInterval(indicatorId, state.interval)) return false
+  // The liquidation-level profile is a Hyperliquid book: on Binance the
+  // indicator is explicitly unavailable, so it renders nothing and any
+  // selection must be released.
+  if (!isIndicatorSupportedOnExchange(indicatorId, state.exchange)) return false
   // Time-based VWAP series additionally wait for the VWAP context level that
   // covers the current viewport; EMA groups and RSI render on the interval alone.
   if (!marketIndicatorSupportsBandFill(indicatorId)) return true
@@ -123,6 +139,8 @@ export function isOverlayIndicatorSelectionRendered(
 ): boolean {
   if (selection === null) return true
   switch (selection.kind) {
+    case 'liquidation-levels':
+      return isMarketIndicatorRendered('liquidation-levels', state)
     case 'market-indicator':
       return isMarketIndicatorRendered(selection.indicatorId, state)
     case 'rolling-vwap': {
@@ -182,6 +200,7 @@ export function overlayIndicatorSelectionLineSeries(
           return bundle.rsi ? [bundle.rsi.series] : []
         case 'rolling-vwap':
         case 'aggregated-liquidations':
+        case 'liquidation-levels':
           return []
         default: {
           const unreachable: never = indicatorId
@@ -202,6 +221,7 @@ export function overlayIndicatorSelectionLineSeries(
       return []
     }
     case 'aggregated-liquidations':
+    case 'liquidation-levels':
       return []
     default: {
       const unreachable: never = selection
@@ -224,6 +244,8 @@ export function overlayIndicatorSelectionHostSeries(
     return bundle.rsi?.series ?? null
   }
   if (selection.kind === 'aggregated-liquidations') return null
+  // The profile paints its own selection halo inside the candle pane primitive.
+  if (selection.kind === 'liquidation-levels') return null
   if (selection.kind === 'market-indicator' && selection.indicatorId === 'rolling-vwap') {
     return null
   }

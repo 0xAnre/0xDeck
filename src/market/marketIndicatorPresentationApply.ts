@@ -209,6 +209,10 @@ export function applyMarketIndicatorPresentationToBundle(
     case 'aggregated-liquidations':
       // The liquidation pane owns fixed long/short colors, not line styles.
       return
+    case 'liquidation-levels':
+      // The profile's bar colors live in its own settings record; a stored line
+      // presentation entry must never restyle it.
+      return
     default: {
       const unreachable: never = indicatorId
       return unreachable

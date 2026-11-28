@@ -112,6 +112,7 @@ export function readMarketIndicatorSeriesLineWidths(
     case 'rsi':
       return bundle.rsi ? [readLineSeriesLineWidth(bundle.rsi.series)] : []
     case 'aggregated-liquidations':
+    case 'liquidation-levels':
       return []
     default: {
       const unreachable: never = indicatorId
@@ -149,6 +150,7 @@ export function readMarketIndicatorSeriesLineStyles(
     case 'rsi':
       return bundle.rsi ? [readLineSeriesLineStyle(bundle.rsi.series)] : []
     case 'aggregated-liquidations':
+    case 'liquidation-levels':
       return []
     default: {
       const unreachable: never = indicatorId
@@ -186,6 +188,7 @@ export function readMarketIndicatorSeriesColors(
     case 'rsi':
       return bundle.rsi ? [readLineSeriesColorHex(bundle.rsi.series)] : []
     case 'aggregated-liquidations':
+    case 'liquidation-levels':
       return []
     default: {
       const unreachable: never = indicatorId

@@ -19,6 +19,11 @@ export type ChartObjectSettingsTarget =
   | { kind: 'market-indicator'; indicatorId: MarketIndicatorId }
   /** Panel-scoped: the Aggregated Liquidations pane is one object per chart. */
   | { kind: 'aggregated-liquidations' }
+  /**
+   * Panel-scoped live liquidation-level profile on the candle pane. It owns
+   * hit-testable bar geometry but no movable handles, lock or delete action.
+   */
+  | { kind: 'liquidation-levels' }
 
 export function chartObjectSettingsTargetKey(target: ChartObjectSettingsTarget): string {
   switch (target.kind) {
@@ -32,6 +37,8 @@ export function chartObjectSettingsTargetKey(target: ChartObjectSettingsTarget):
       return `market-indicator:${target.indicatorId}`
     case 'aggregated-liquidations':
       return 'aggregated-liquidations'
+    case 'liquidation-levels':
+      return 'liquidation-levels'
     default: {
       const unreachable: never = target
       return unreachable

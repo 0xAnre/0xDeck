@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useWidgetSettingsRegistration } from '@/hooks/useWidgetSettingsRegistration'
-import { buildMarketIndicatorOptions, type MarketIndicatorId } from '@/market/indicators'
+import { buildMarketIndicatorOptions, indicatorExchangeRequirementLabel, isIndicatorSupportedOnExchange, type MarketIndicatorId } from '@/market/indicators'
 import type { ChartObjectSettingsTarget } from '@/market/chartObjectSettingsTypes'
 import type { FixedRangeVolumeProfileInstance } from '@/market/fixedRangeVolumeProfileInstances'
 import type { LineChartStrokeStyle, LineChartStrokeWidth } from '@/market/lineChartStroke'
@@ -137,9 +137,22 @@ export function useMarketWidgetSettings(args: UseMarketWidgetSettingsArgs) {
       onMarketIntervalChange,
       marketIndicators: headerSettings.indicators ? marketIndicators : undefined,
       marketIndicatorOptions: headerSettings.indicators
-        ? buildMarketIndicatorOptions(marketInterval).filter(
-            (option) => option.value !== 'rolling-vwap',
-          )
+        ? buildMarketIndicatorOptions(marketInterval)
+            .filter((option) => option.value !== 'rolling-vwap')
+            .map((option) => {
+              if (isIndicatorSupportedOnExchange(option.value, marketExchange)) {
+                return option
+              }
+              // Exchange-scoped data (the MarketLens Hyperliquid liquidation
+              // book) is explicitly unavailable on another exchange instead of
+              // silently rendering nothing or borrowing the other venue's name.
+              const requirement = indicatorExchangeRequirementLabel(option.value)
+              return {
+                ...option,
+                disabled: true,
+                label: requirement ? `${option.label} · ${requirement}` : option.label,
+              }
+            })
         : undefined,
       onMarketIndicatorsChange: headerSettings.indicators ? onMarketIndicatorsChange : undefined,
       marketPositionMarkersEnabled:
